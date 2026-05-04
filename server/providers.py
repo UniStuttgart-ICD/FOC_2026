@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+import os
+
+from pipecat.processors.frame_processor import FrameProcessor
+from pipecat.services.cartesia.tts import CartesiaTTSService
+from pipecat.services.deepgram.flux.stt import DeepgramFluxSTTService
+from pipecat.services.deepgram.tts import DeepgramTTSService
+from pipecat.services.kokoro.tts import KokoroTTSService
+from pipecat.services.openai.stt import OpenAIRealtimeSTTService
+from pipecat.services.openai.tts import OpenAITTSService
+from pipecat.services.whisper.stt import WhisperSTTService
+
+from config import STTConfig, TTSConfig
+
+
+def create_stt_service(config: STTConfig) -> FrameProcessor:
+    if config.provider == "whisper":
+        return WhisperSTTService(
+            device=config.device or "cuda",
+            settings=WhisperSTTService.Settings(
+                model=config.model or os.getenv("WHISPER_MODEL") or os.getenv("OPENAI_MODEL") or "base",
+            ),
+        )
+    if config.provider == "deepgram_flux":
+        return DeepgramFluxSTTService(
+            api_key=os.environ["DEEPGRAM_API_KEY"],
+            settings=DeepgramFluxSTTService.Settings(model=config.model or "flux-general-en"),
+        )
+    if config.provider == "openai_realtime":
+        return OpenAIRealtimeSTTService(
+            api_key=os.environ["OPENAI_API_KEY"],
+            settings=OpenAIRealtimeSTTService.Settings(
+                model=config.model or "gpt-4o-mini-transcribe",
+            ),
+            noise_reduction="near_field",
+        )
+    raise ValueError(f"Unsupported STT provider: {config.provider}")
+
+
+def create_tts_service(config: TTSConfig) -> FrameProcessor:
+    if config.provider == "kokoro":
+        return KokoroTTSService(
+            settings=KokoroTTSService.Settings(
+                voice=config.voice or os.getenv("KOKORO_VOICE_ID") or "af_heart"
+            ),
+        )
+    if config.provider == "cartesia":
+        return CartesiaTTSService(
+            api_key=os.environ["CARTESIA_API_KEY"],
+            settings=CartesiaTTSService.Settings(
+                model=config.model or "sonic-3",
+                voice=config.voice or os.getenv("CARTESIA_VOICE_ID") or "af_heart",
+            ),
+        )
+    if config.provider == "openai":
+        return OpenAITTSService(
+            api_key=os.environ["OPENAI_API_KEY"],
+            settings=OpenAITTSService.Settings(
+                model=config.model or "gpt-4o-mini-tts",
+                voice=config.voice or "coral",
+            ),
+        )
+    if config.provider == "deepgram":
+        return DeepgramTTSService(
+            api_key=os.environ["DEEPGRAM_API_KEY"],
+            settings=DeepgramTTSService.Settings(
+                model=config.model or "aura-2",
+                voice=config.voice or "aura-2-andromeda-en",
+            ),
+        )
+    raise ValueError(f"Unsupported TTS provider: {config.provider}")
