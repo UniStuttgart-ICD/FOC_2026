@@ -188,3 +188,76 @@ enabled = false
             server_dir=tmp_path,
             profile_name="local_current",
         )
+
+
+def test_wake_threshold_rejects_boolean(tmp_path: Path):
+    profiles = tmp_path / "runtime_profiles.toml"
+    profiles.write_text(
+        """
+[profiles.local_current]
+category = "local_debug"
+[profiles.local_current.wake]
+provider = "none"
+threshold = true
+[profiles.local_current.emergency_stop]
+enabled = false
+[profiles.local_current.stt]
+provider = "whisper"
+model = "base"
+[profiles.local_current.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.local_current.agent]
+provider = "claude"
+model = "claude-haiku-4-5-20251001"
+[profiles.local_current.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.local_current.metrics]
+enabled = false
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="threshold must be a number"):
+        load_runtime_config(
+            profiles_path=profiles,
+            server_dir=tmp_path,
+            profile_name="local_current",
+        )
+
+
+def test_emergency_stop_requires_provider_when_enabled(tmp_path: Path):
+    profiles = tmp_path / "runtime_profiles.toml"
+    profiles.write_text(
+        """
+[profiles.local_current]
+category = "local_debug"
+[profiles.local_current.wake]
+provider = "none"
+[profiles.local_current.emergency_stop]
+enabled = true
+provider = "none"
+model_path = "models/stop.onnx"
+[profiles.local_current.stt]
+provider = "whisper"
+model = "base"
+[profiles.local_current.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.local_current.agent]
+provider = "claude"
+model = "claude-haiku-4-5-20251001"
+[profiles.local_current.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.local_current.metrics]
+enabled = false
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="emergency_stop.provider"):
+        load_runtime_config(
+            profiles_path=profiles,
+            server_dir=tmp_path,
+            profile_name="local_current",
+        )

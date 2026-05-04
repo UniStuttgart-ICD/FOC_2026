@@ -193,6 +193,8 @@ def _parse_metrics(table: dict[str, Any], server_dir: Path) -> MetricsConfig:
 def _validate_runtime_config(config: RuntimeConfig) -> None:
     if config.wake.provider == "openwakeword" and config.wake.model_path is None:
         raise ConfigError("wake.model_path is required when wake.provider = 'openwakeword'")
+    if config.emergency_stop.enabled and config.emergency_stop.provider == "none":
+        raise ConfigError("emergency_stop.provider must not be 'none' when emergency stop is enabled")
     if config.emergency_stop.enabled and config.emergency_stop.model_path is None:
         raise ConfigError("emergency_stop.model_path is required when emergency stop is enabled")
     if config.category == "benchmark_streaming":
@@ -254,7 +256,7 @@ def _bool(table: dict[str, Any], key: str, default: bool) -> bool:
 
 def _float(table: dict[str, Any], key: str, default: float) -> float:
     value = table.get(key, default)
-    if not isinstance(value, (int, float)):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ConfigError(f"{key} must be a number")
     return float(value)
 
