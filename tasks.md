@@ -12,11 +12,11 @@ Worktree: `.worktrees/modular-voice-runtime`
 
 ## Issue tracking
 - [x] Issue 1: Runtime config foundation
-- [ ] Issue 2: Provider factories
-- [ ] Issue 3: Agent provider factory + OpenAI Codex OAuth
-- [ ] Issue 4: OpenWakeWord Mave wake gate
-- [ ] Issue 5: Emergency stop bypass scaffold
-- [ ] Issue 6: Metrics recorder
+- [x] Issue 2: Provider factories
+- [x] Issue 3: Agent provider factory + OpenAI Codex OAuth
+- [x] Issue 4: OpenWakeWord Mave wake gate
+- [x] Issue 5: Emergency stop bypass scaffold
+- [x] Issue 6: Metrics recorder
 - [ ] Issue 7: Pipeline builder + bot.py slimming
 - [ ] Issue 8: Docs and benchmarking
 - [ ] Final verification
@@ -24,3 +24,10 @@ Worktree: `.worktrees/modular-voice-runtime`
 ## Activity log
 - 2026-05-04: Started execution using subagents.
 - 2026-05-04: Issue 1 complete. Commits: `ec202d0` dependencies, `b100a27` config foundation, `84bd526` validation hardening from code review. Spec review: PASS. Quality review: PASS after fixes. Validation: `uv run pytest tests/test_config.py -v` (6 passed), `uv run ruff check config.py tests/test_config.py` (pass), `uv run pyright config.py tests/test_config.py` (pass).
+- 2026-05-04: Ran Issues 2, 3, 4, 5, 6, and preliminary Issue 8 in parallel subagent worktrees, then applied and committed their patches on the integration worktree.
+- 2026-05-04: Issue 2 complete. Commit: `36fc9cd`. Spec review: PASS. Quality review: PASS. Validation: provider tests passed.
+- 2026-05-04: Issue 3 complete. Commits: `54626fd`, `e0b753a` review hardening. Spec review: PASS. Quality review: PASS after fixes. Validation: Codex/factory tests, ruff, and targeted pyright passed.
+- 2026-05-04: Issue 4 complete. Commits: `2ece6a0`, `6eed009` review hardening, `b8917a9` artifact cleanup. Spec review: PASS. Quality review: PASS for Issue 4 files after fixes; full-project pyright pending Issue 7 bot changes. Validation: wake/transcript tests, ruff, targeted pyright, and detector instantiation passed.
+- 2026-05-04: Issue 5 complete. Commit: `4bf7347`. Spec review: PASS. Quality review: PASS. Validation: emergency stop tests passed.
+- 2026-05-04: Issue 6 complete. Commits: `5f53fc5`, `53fd688` review hardening. Spec review: PASS. Quality review: PASS after fixes. Validation: metrics tests, ruff, and targeted pyright passed.
+- 2026-05-04: Preliminary Issue 8 docs commit `6535db9` landed. Spec review: PASS. Quality review deferred final approval until after Issue 7 because README documents `--profile` behavior that Issue 7 implements.
