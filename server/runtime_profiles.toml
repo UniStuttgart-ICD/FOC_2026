@@ -1,0 +1,172 @@
+[profiles.hybrid_low_latency]
+category = "benchmark_streaming"
+
+[profiles.hybrid_low_latency.wake]
+provider = "openwakeword"
+model_path = "models/mave.onnx"
+threshold = 0.5
+candidate_log_threshold = 0.3
+pre_buffer_s = 1.5
+single_command = true
+
+[profiles.hybrid_low_latency.emergency_stop]
+enabled = false
+# Enable only after a local stop model exists.
+# provider = "openwakeword"
+# model_path = "models/stop.onnx"
+
+[profiles.hybrid_low_latency.stt]
+provider = "deepgram_flux"
+model = "flux-general-en"
+
+[profiles.hybrid_low_latency.tts]
+provider = "cartesia"
+model = "sonic-3"
+voice = "af_heart"
+
+[profiles.hybrid_low_latency.agent]
+provider = "openai_codex_oauth"
+model = "gpt-5.5"
+
+[profiles.hybrid_low_latency.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+
+[profiles.hybrid_low_latency.metrics]
+enabled = true
+path = "logs/voice_metrics.jsonl"
+include_text = true
+
+[profiles.openai_all]
+category = "benchmark_streaming"
+
+[profiles.openai_all.wake]
+provider = "openwakeword"
+model_path = "models/mave.onnx"
+threshold = 0.5
+candidate_log_threshold = 0.3
+pre_buffer_s = 1.5
+single_command = true
+
+[profiles.openai_all.emergency_stop]
+enabled = false
+
+[profiles.openai_all.stt]
+provider = "openai_realtime"
+model = "gpt-4o-mini-transcribe"
+
+[profiles.openai_all.tts]
+provider = "openai"
+model = "gpt-4o-mini-tts"
+voice = "coral"
+
+[profiles.openai_all.agent]
+provider = "openai_codex_oauth"
+model = "gpt-5.5"
+
+[profiles.openai_all.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+
+[profiles.openai_all.metrics]
+enabled = true
+path = "logs/voice_metrics.jsonl"
+include_text = true
+
+[profiles.deepgram_all]
+category = "benchmark_streaming"
+
+[profiles.deepgram_all.wake]
+provider = "openwakeword"
+model_path = "models/mave.onnx"
+threshold = 0.5
+candidate_log_threshold = 0.3
+pre_buffer_s = 1.5
+single_command = true
+
+[profiles.deepgram_all.emergency_stop]
+enabled = false
+
+[profiles.deepgram_all.stt]
+provider = "deepgram_flux"
+model = "flux-general-en"
+
+[profiles.deepgram_all.tts]
+provider = "deepgram"
+model = "aura-2"
+voice = "aura-2-andromeda-en"
+
+[profiles.deepgram_all.agent]
+provider = "openai_codex_oauth"
+model = "gpt-5.5"
+
+[profiles.deepgram_all.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+
+[profiles.deepgram_all.metrics]
+enabled = true
+path = "logs/voice_metrics.jsonl"
+include_text = true
+
+[profiles.local_current]
+category = "local_debug"
+
+[profiles.local_current.wake]
+provider = "openwakeword"
+model_path = "models/mave.onnx"
+threshold = 0.5
+candidate_log_threshold = 0.3
+pre_buffer_s = 1.5
+single_command = true
+
+[profiles.local_current.emergency_stop]
+enabled = false
+
+[profiles.local_current.stt]
+provider = "whisper"
+model = "base"
+device = "cuda"
+
+[profiles.local_current.tts]
+provider = "kokoro"
+voice = "af_heart"
+
+[profiles.local_current.agent]
+provider = "claude"
+model = "claude-haiku-4-5-20251001"
+
+[profiles.local_current.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+
+[profiles.local_current.metrics]
+enabled = true
+path = "logs/voice_metrics.jsonl"
+include_text = true
+
+[profiles.no_wake_debug]
+category = "local_debug"
+
+[profiles.no_wake_debug.wake]
+provider = "none"
+
+[profiles.no_wake_debug.emergency_stop]
+enabled = false
+
+[profiles.no_wake_debug.stt]
+provider = "whisper"
+model = "base"
+device = "cuda"
+
+[profiles.no_wake_debug.tts]
+provider = "kokoro"
+voice = "af_heart"
+
+[profiles.no_wake_debug.agent]
+provider = "claude"
+model = "claude-haiku-4-5-20251001"
+
+[profiles.no_wake_debug.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+
+[profiles.no_wake_debug.metrics]
+enabled = true
+path = "logs/voice_metrics.jsonl"
+include_text = true
