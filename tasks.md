@@ -11,7 +11,7 @@ Worktree: `.worktrees/modular-voice-runtime`
 - [!] Baseline `uv run pytest -v` could not run because `pytest` was not installed before Issue 1 dev dependencies.
 
 ## Issue tracking
-- [ ] Issue 1: Runtime config foundation
+- [x] Issue 1: Runtime config foundation
 - [ ] Issue 2: Provider factories
 - [ ] Issue 3: Agent provider factory + OpenAI Codex OAuth
 - [ ] Issue 4: OpenWakeWord Mave wake gate
@@ -23,3 +23,4 @@ Worktree: `.worktrees/modular-voice-runtime`
 
 ## Activity log
 - 2026-05-04: Started execution using subagents.
+- 2026-05-04: Issue 1 complete. Commits: `ec202d0` dependencies, `b100a27` config foundation, `84bd526` validation hardening from code review. Spec review: PASS. Quality review: PASS after fixes. Validation: `uv run pytest tests/test_config.py -v` (6 passed), `uv run ruff check config.py tests/test_config.py` (pass), `uv run pyright config.py tests/test_config.py` (pass).
