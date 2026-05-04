@@ -4,14 +4,22 @@ version = "0.1.0"
 description = "Voice-controlled UR robot agent"
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "pipecat-ai[kokoro,runner,silero,webrtc,whisper]",
+    "pipecat-ai[cartesia,deepgram,kokoro,openai,runner,silero,webrtc,whisper]",
     "claude-agent-sdk<0.1.49",
+    "openai-agents>=0.14.0,<1",
+    "openai>=2.29.0,<3",
+    "httpx>=0.28.0,<1",
+    "openwakeword>=0.6.0,<1",
+    "silero-vad>=6.0.0,<7",
+    "tomli>=2.0.0; python_version < '3.11'",
 ]
 
 [dependency-groups]
 dev = [
     "pyright>=1.1.404,<2",
     "ruff>=0.12.11,<1",
+    "pytest>=8.0.0,<9",
+    "pytest-asyncio>=0.24.0,<1",
 ]
 
 [tool.ruff]
