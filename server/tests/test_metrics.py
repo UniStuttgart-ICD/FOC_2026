@@ -1,11 +1,34 @@
 import json
 from pathlib import Path
 
-from metrics import VoiceMetricsRecorder
+import pytest
+from pipecat.frames.frames import (
+    LLMFullResponseEndFrame,
+    LLMTextFrame,
+    TranscriptionFrame,
+    TTSAudioRawFrame,
+    TTSStoppedFrame,
+    UserStartedSpeakingFrame,
+    UserStoppedSpeakingFrame,
+)
+from pipecat.observers.base_observer import FramePushed
+from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
+
+from metrics import VoiceMetricsObserver, VoiceMetricsRecorder
 
 
 def _read_jsonl_record(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _pushed(frame):
+    return FramePushed(
+        source=FrameProcessor(),
+        destination=FrameProcessor(),
+        frame=frame,
+        direction=FrameDirection.DOWNSTREAM,
+        timestamp=0,
+    )
 
 
 def test_writes_jsonl_turn_record(tmp_path: Path):
@@ -123,3 +146,41 @@ def test_speech_captured_timing_uses_turn_start_without_wake(monkeypatch, tmp_pa
     assert data["stt_latency_ms"] is None
     assert data["total_to_first_audio_ms"] is None
     assert data["total_turn_ms"] == 300.0
+
+
+@pytest.mark.asyncio
+async def test_observer_emits_jsonl_from_turn_frames(monkeypatch, tmp_path: Path):
+    perf_counter_values = iter([100.0, 100.1, 100.2, 100.3, 100.4, 100.5, 100.6])
+    monkeypatch.setattr("metrics.time.perf_counter", lambda: next(perf_counter_values))
+    monkeypatch.setattr("metrics.time.time", lambda: 1_700_000_002.0)
+    path = tmp_path / "metrics.jsonl"
+    recorder = VoiceMetricsRecorder(
+        profile="hybrid_low_latency",
+        category="benchmark_streaming",
+        path=path,
+        include_text=True,
+    )
+    observer = VoiceMetricsObserver(recorder)
+
+    await observer.on_push_frame(_pushed(UserStartedSpeakingFrame()))
+    await observer.on_push_frame(_pushed(UserStoppedSpeakingFrame()))
+    await observer.on_push_frame(
+        _pushed(TranscriptionFrame(text="move up", user_id="u", timestamp="t", finalized=True))
+    )
+    await observer.on_push_frame(_pushed(LLMTextFrame(text="Moving up.")))
+    await observer.on_push_frame(_pushed(LLMFullResponseEndFrame()))
+    await observer.on_push_frame(
+        _pushed(TTSAudioRawFrame(audio=b"\0\0", sample_rate=16000, num_channels=1))
+    )
+    await observer.on_push_frame(_pushed(TTSStoppedFrame()))
+
+    data = _read_jsonl_record(path)
+    assert data["turn_id"] == "turn-1"
+    assert data["transcript"] == "move up"
+    assert data["response"] == "Moving up."
+    assert data["speech_captured_ms"] == 100.0
+    assert data["stt_latency_ms"] == 100.0
+    assert data["agent_latency_ms"] == 100.0
+    assert data["tts_first_audio_ms"] == 100.0
+    assert data["tts_done_ms"] == 100.0
+    assert data["total_turn_ms"] == 600.0

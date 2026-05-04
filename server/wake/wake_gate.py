@@ -4,11 +4,10 @@ from collections import deque
 
 import numpy as np
 from loguru import logger
-from pipecat.frames.frames import Frame, InputAudioRawFrame, TranscriptionFrame
+from pipecat.frames.frames import Frame, InputAudioRawFrame
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 from wake.openwakeword_detector import OpenWakeWordDetector
-from wake.transcript_cleanup import strip_wake_phrase
 
 
 class MaveWakeWordGate(FrameProcessor):
@@ -31,23 +30,6 @@ class MaveWakeWordGate(FrameProcessor):
 
         if isinstance(frame, InputAudioRawFrame):
             await self._process_audio_frame(frame, direction)
-            return
-
-        if isinstance(frame, TranscriptionFrame) and self._awake:
-            cleaned = strip_wake_phrase(frame.text)
-            await self.push_frame(
-                TranscriptionFrame(
-                    text=cleaned,
-                    user_id=frame.user_id,
-                    timestamp=frame.timestamp,
-                    language=frame.language,
-                    result=frame.result,
-                    finalized=frame.finalized,
-                ),
-                direction,
-            )
-            if frame.finalized:
-                self.reset()
             return
 
         await self.push_frame(frame, direction)

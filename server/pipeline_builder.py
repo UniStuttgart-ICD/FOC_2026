@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.observers.base_observer import BaseObserver
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -15,7 +16,7 @@ from pipecat.transports.base_transport import BaseTransport
 
 from agent_processor_factory import create_agent_processor
 from config import RuntimeConfig
-from metrics import VoiceMetricsRecorder
+from metrics import VoiceMetricsObserver, VoiceMetricsRecorder
 from providers import create_stt_service, create_tts_service
 from wake.openwakeword_detector import OpenWakeWordDetector
 from wake.transcript_cleanup import WakePhraseTranscriptCleaner
@@ -43,7 +44,7 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
         assert config.wake.model_path is not None
         detector = OpenWakeWordDetector(config.wake.model_path, threshold=config.wake.threshold)
         wake_gate = MaveWakeWordGate(detector=detector, pre_buffer_s=config.wake.pre_buffer_s)
-        transcript_cleaner = WakePhraseTranscriptCleaner()
+        transcript_cleaner = WakePhraseTranscriptCleaner(on_finalized_transcription=wake_gate.reset)
 
     context = LLMContext()
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
@@ -69,6 +70,7 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
 
     pipeline = Pipeline(processors)
     metrics = None
+    observers: list[BaseObserver] = []
     if config.metrics.enabled:
         metrics = VoiceMetricsRecorder(
             profile=config.profile_name,
@@ -76,11 +78,12 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
             path=config.metrics.path,
             include_text=config.metrics.include_text,
         )
+        observers.append(VoiceMetricsObserver(metrics))
 
     task = PipelineTask(
         pipeline,
         params=PipelineParams(enable_metrics=True, enable_usage_metrics=True),
-        observers=[],
+        observers=observers,
     )
     return BuiltPipeline(
         pipeline=pipeline,

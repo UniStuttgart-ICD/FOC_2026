@@ -1,17 +1,31 @@
+from unittest.mock import Mock
+
+import numpy as np
 import pytest
-from pipecat.frames.frames import TextFrame, TranscriptionFrame
+from pipecat.frames.frames import InputAudioRawFrame, TextFrame, TranscriptionFrame
 from pipecat.processors.frame_processor import FrameDirection
 
 from wake.transcript_cleanup import WakePhraseTranscriptCleaner, strip_wake_phrase
+from wake.wake_gate import MaveWakeWordGate
 
 
 class CapturingCleaner(WakePhraseTranscriptCleaner):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.pushed = []
 
     async def push_frame(self, frame, direction=FrameDirection.DOWNSTREAM):
         self.pushed.append((frame, direction))
+
+
+class CapturingGate(MaveWakeWordGate):
+    async def push_frame(self, frame, direction=FrameDirection.DOWNSTREAM):
+        pass
+
+
+def _audio_frame(value: int, samples: int = 1600):
+    audio = np.full(samples, value, dtype=np.int16).tobytes()
+    return InputAudioRawFrame(audio=audio, sample_rate=16000, num_channels=1)
 
 
 def test_strips_leading_mave():
@@ -51,3 +65,24 @@ async def test_cleaner_pushes_non_transcription_frames_unchanged():
     await cleaner.process_frame(frame, FrameDirection.UPSTREAM)
 
     assert cleaner.pushed == [(frame, FrameDirection.UPSTREAM)]
+
+
+@pytest.mark.asyncio
+async def test_finalized_transcription_through_cleaner_resets_wake_gate():
+    detector = Mock()
+    detector.detected.return_value = (True, "mave", 0.9)
+    gate = CapturingGate(detector=detector, pre_buffer_s=1.5)
+    cleaner = CapturingCleaner(on_finalized_transcription=gate.reset)
+
+    await gate.process_frame(_audio_frame(2), FrameDirection.DOWNSTREAM)
+    assert gate.is_awake is True
+
+    await cleaner.process_frame(
+        TranscriptionFrame(text="Mave, move up", user_id="u", timestamp="t", finalized=True),
+        FrameDirection.DOWNSTREAM,
+    )
+
+    frame, _ = cleaner.pushed[0]
+    assert isinstance(frame, TranscriptionFrame)
+    assert frame.text == "move up"
+    assert gate.is_awake is False

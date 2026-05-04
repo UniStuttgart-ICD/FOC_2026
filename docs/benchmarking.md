@@ -10,8 +10,10 @@ Benchmark profiles:
 
 Debug profiles:
 
-- `local_current`: local Whisper + Kokoro with Mave wake
-- `no_wake_debug`: local Whisper + Kokoro without wake
+- `local_current`: local Whisper + Kokoro STT/TTS with Mave wake; Claude cloud agent
+- `no_wake_debug`: local Whisper + Kokoro STT/TTS without wake; Claude cloud agent
+
+These are local STT/TTS debug profiles, not fully offline profiles. They need Claude auth/connectivity and the profile MCP URL.
 
 ## Running
 
@@ -55,5 +57,5 @@ Use the same utterances across profiles:
 ## Interpreting results
 
 - Compare benchmark profiles to each other.
-- Treat local profiles as debug/baseline, not equivalent streaming latency competitors.
+- Treat local STT/TTS profiles as debug/baseline, not fully offline or equivalent streaming latency competitors.
 - Do not compare runs if a profile silently failed or used fallback providers. Benchmark profiles fail startup instead of falling back.

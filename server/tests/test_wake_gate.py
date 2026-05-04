@@ -123,7 +123,7 @@ async def test_replays_prebuffer_on_wake():
 
 
 @pytest.mark.asyncio
-async def test_strips_wake_phrase_from_transcription_and_resets_to_sleep():
+async def test_transcriptions_pass_through_gate_without_resetting():
     detector = Mock()
     detector.detected.return_value = (True, "mave", 0.9)
     gate = CapturingGate(detector=detector, pre_buffer_s=1.5)
@@ -135,5 +135,5 @@ async def test_strips_wake_phrase_from_transcription_and_resets_to_sleep():
     )
 
     transcription = [item[0] for item in gate.pushed if isinstance(item[0], TranscriptionFrame)][0]
-    assert transcription.text == "move up"
-    assert gate.is_awake is False
+    assert transcription.text == "Mave, move up"
+    assert gate.is_awake is True

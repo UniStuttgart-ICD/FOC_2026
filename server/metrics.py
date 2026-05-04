@@ -7,6 +7,19 @@ from pathlib import Path
 from typing import Any
 
 from loguru import logger
+from pipecat.frames.frames import (
+    BotStoppedSpeakingFrame,
+    InputAudioRawFrame,
+    LLMFullResponseEndFrame,
+    LLMTextFrame,
+    TranscriptionFrame,
+    TTSAudioRawFrame,
+    TTSStoppedFrame,
+    UserStartedSpeakingFrame,
+    UserStoppedSpeakingFrame,
+)
+from pipecat.observers.base_observer import BaseObserver, FramePushed
+from pipecat.processors.frame_processor import FrameDirection
 
 
 def _perf_counter() -> float:
@@ -58,6 +71,13 @@ class VoiceMetricsRecorder:
     def get_turn(self, turn_id: str) -> TurnMetrics | None:
         return self._turns.get(turn_id)
 
+    def mark(self, turn_id: str, name: str) -> TurnMetrics | None:
+        turn = self._turns.get(turn_id)
+        if turn is None:
+            return None
+        turn.mark(name)
+        return turn
+
     def finish_turn(self, turn_id: str) -> None:
         turn = self._turns.pop(turn_id, None)
         if turn is None:
@@ -103,3 +123,100 @@ class VoiceMetricsRecorder:
         except OSError as exc:
             self._disabled = True
             logger.warning(f"Disabling voice metrics after write failure: {exc}")
+
+
+class VoiceMetricsObserver(BaseObserver):
+    """Records turn metrics from Pipecat frame flow."""
+
+    def __init__(self, recorder: VoiceMetricsRecorder, **kwargs):
+        super().__init__(**kwargs)
+        self._recorder = recorder
+        self._current_turn_id: str | None = None
+        self._turn_count = 0
+        self._wake_marked = False
+        self._stt_marked = False
+        self._tts_first_audio_marked = False
+
+    async def on_push_frame(self, data: FramePushed):
+        if data.direction != FrameDirection.DOWNSTREAM:
+            return
+
+        frame = data.frame
+        if isinstance(frame, InputAudioRawFrame):
+            if data.source.__class__.__name__ == "MaveWakeWordGate":
+                self._mark_wake_detected()
+        elif isinstance(frame, UserStartedSpeakingFrame):
+            self._ensure_turn()
+        elif isinstance(frame, UserStoppedSpeakingFrame):
+            self._mark("speech_captured")
+        elif isinstance(frame, TranscriptionFrame) and frame.finalized:
+            self._record_transcription(frame)
+        elif isinstance(frame, LLMTextFrame):
+            self._append_response(frame.text)
+        elif isinstance(frame, LLMFullResponseEndFrame):
+            self._mark("agent_done")
+        elif isinstance(frame, TTSAudioRawFrame):
+            self._mark_tts_first_audio()
+        elif isinstance(frame, TTSStoppedFrame | BotStoppedSpeakingFrame):
+            self._finish_turn()
+
+    def _ensure_turn(self) -> TurnMetrics:
+        if self._current_turn_id is not None:
+            turn = self._recorder.get_turn(self._current_turn_id)
+            if turn is not None:
+                return turn
+
+        self._turn_count += 1
+        self._current_turn_id = f"turn-{self._turn_count}"
+        self._wake_marked = False
+        self._stt_marked = False
+        self._tts_first_audio_marked = False
+        return self._recorder.start_turn(self._current_turn_id)
+
+    def _current_turn(self) -> TurnMetrics | None:
+        if self._current_turn_id is None:
+            return None
+        return self._recorder.get_turn(self._current_turn_id)
+
+    def _mark(self, name: str) -> None:
+        if self._current_turn_id is None:
+            self._ensure_turn()
+        if self._current_turn_id is not None:
+            self._recorder.mark(self._current_turn_id, name)
+
+    def _mark_wake_detected(self) -> None:
+        turn = self._ensure_turn()
+        if self._wake_marked:
+            return
+        turn.wake_phrase = "mave"
+        self._mark("wake_detected")
+        self._wake_marked = True
+
+    def _record_transcription(self, frame: TranscriptionFrame) -> None:
+        turn = self._ensure_turn()
+        turn.transcript = frame.text
+        if not self._stt_marked:
+            self._mark("stt_done")
+            self._stt_marked = True
+
+    def _append_response(self, text: str) -> None:
+        turn = self._current_turn()
+        if turn is None:
+            return
+        turn.response = f"{turn.response}{text}"
+
+    def _mark_tts_first_audio(self) -> None:
+        if self._tts_first_audio_marked:
+            return
+        self._mark("tts_first_audio")
+        self._tts_first_audio_marked = True
+
+    def _finish_turn(self) -> None:
+        if self._current_turn_id is None:
+            return
+        self._mark("tts_done")
+        self._recorder.finish_turn(self._current_turn_id)
+        self._current_turn_id = None
+        self._wake_marked = False
+        self._stt_marked = False
+        self._tts_first_audio_marked = False

@@ -52,6 +52,8 @@ pi
 
 The agent reads Pi's `~/.pi/agent/auth.json` `openai-codex` OAuth profile.
 
+`local_current` and `no_wake_debug` use local STT/TTS, but still use the Claude cloud agent. Authenticate with `claude auth login` and keep Claude plus the profile MCP URL reachable.
+
 ### Wake word
 
 The trained Mave wake-word model lives at:
@@ -66,7 +68,7 @@ Normal commands require `mave`, for example:
 Mave, move up a bit.
 ```
 
-Local debug profiles are available for offline testing, but benchmark profiles use streaming STT/TTS providers.
+Local debug profiles are local STT/TTS debug profiles, not fully offline profiles. Benchmark profiles use streaming STT/TTS providers.
 
 ## Setup
 
