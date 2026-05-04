@@ -26,7 +26,7 @@ voice = "af_heart"
 
 [profiles.hybrid_low_latency.agent]
 provider = "openai_codex_oauth"
-model = "gpt-5.5"
+model = "gpt-5.4-mini"
 
 [profiles.hybrid_low_latency.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -61,7 +61,7 @@ voice = "coral"
 
 [profiles.openai_all.agent]
 provider = "openai_codex_oauth"
-model = "gpt-5.5"
+model = "gpt-5.4-mini"
 
 [profiles.openai_all.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -96,7 +96,7 @@ voice = "aura-2-andromeda-en"
 
 [profiles.deepgram_all.agent]
 provider = "openai_codex_oauth"
-model = "gpt-5.5"
+model = "gpt-5.4-mini"
 
 [profiles.deepgram_all.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
