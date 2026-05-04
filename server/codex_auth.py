@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 
 CODEX_PROFILE = "openai-codex"
+CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 TOKEN_URL = "https://auth.openai.com/oauth/token"
 LOGIN_GUIDANCE = "Run `pi`, then `/login`, then select ChatGPT Plus/Pro."
 
@@ -95,6 +96,7 @@ class PiCodexCredentialStore:
                 data={
                     "grant_type": "refresh_token",
                     "refresh_token": refresh,
+                    "client_id": CODEX_CLIENT_ID,
                 },
             )
             response.raise_for_status()

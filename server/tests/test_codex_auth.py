@@ -43,7 +43,9 @@ def test_refreshes_expired_token_and_persists_result(tmp_path: Path):
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert str(request.url) == "https://auth.openai.com/oauth/token"
-        assert "grant_type=refresh_token" in request.content.decode()
+        body = request.content.decode()
+        assert "grant_type=refresh_token" in body
+        assert "client_id=app_EMoamEEZ73f0CkXaXp7hrann" in body
         return httpx.Response(200, json={"access_token": refreshed_access, "refresh_token": "new-refresh-token", "expires_in": 3600})
 
     store = PiCodexCredentialStore(auth_file=auth_file, client=httpx.Client(transport=httpx.MockTransport(handler)))
