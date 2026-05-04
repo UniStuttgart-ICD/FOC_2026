@@ -1,6 +1,7 @@
 """Pipecat processor that runs Claude Agent SDK against the robot MCP server."""
 
 import os
+from collections.abc import Mapping
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -124,9 +125,10 @@ class ClaudeAgentProcessor(FrameProcessor):
                     # Fallback: use AssistantMessage text only if no streaming happened
                     if not has_text:
                         for block in message.content:
-                            if getattr(block, "type", None) == "text" and getattr(block, "text", None):
+                            text = getattr(block, "text", None)
+                            if getattr(block, "type", None) == "text" and isinstance(text, str) and text:
                                 has_text = True
-                                await self.push_frame(LLMTextFrame(text=block.text))
+                                await self.push_frame(LLMTextFrame(text=text))
 
                 elif isinstance(message, ResultMessage):
                     if message.is_error:
@@ -153,21 +155,7 @@ class ClaudeAgentProcessor(FrameProcessor):
             return
 
         if isinstance(frame, LLMContextFrame):
-            messages = frame.context.messages if frame.context else []
-            user_text = None
-            for msg in reversed(messages):
-                if msg.get("role") == "user":
-                    content = msg.get("content", "")
-                    if isinstance(content, str) and content.strip():
-                        user_text = content.strip()
-                        break
-                    if isinstance(content, list):
-                        for part in content:
-                            if isinstance(part, dict) and part.get("type") == "text":
-                                user_text = part["text"].strip()
-                                break
-                        if user_text:
-                            break
+            user_text = _latest_user_text(frame)
 
             if user_text:
                 logger.info(f"User said: {user_text}")
@@ -178,3 +166,21 @@ class ClaudeAgentProcessor(FrameProcessor):
                 await self.push_frame(frame, direction)
         else:
             await self.push_frame(frame, direction)
+
+
+def _latest_user_text(frame: LLMContextFrame) -> str | None:
+    messages = frame.context.messages if frame.context else []
+    for msg in reversed(messages):
+        if not isinstance(msg, Mapping) or msg.get("role") != "user":
+            continue
+        content = msg.get("content", "")
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+        if isinstance(content, list):
+            for part in content:
+                if not isinstance(part, Mapping) or part.get("type") != "text":
+                    continue
+                text = part.get("text", "")
+                if isinstance(text, str) and text.strip():
+                    return text.strip()
+    return None

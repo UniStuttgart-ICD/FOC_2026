@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from loguru import logger
 from pipecat.frames.frames import (
     CancelFrame,
@@ -93,11 +95,16 @@ class OpenAICodexAgentProcessor(FrameProcessor):
         from agents import Runner
 
         try:
+            agent = self._agent
+            run_config = self._run_config
+            if agent is None or run_config is None:
+                raise RuntimeError("OpenAI Codex agent was not initialized")
+
             result = await Runner.run(
-                self._agent,
+                agent,
                 user_text,
                 max_turns=3,
-                run_config=self._run_config,
+                run_config=run_config,
                 previous_response_id=self._previous_response_id,
             )
             response_id = getattr(result, "last_response_id", None)
@@ -139,15 +146,16 @@ class OpenAICodexAgentProcessor(FrameProcessor):
 def _latest_user_text(frame: LLMContextFrame) -> str | None:
     messages = frame.context.messages if frame.context else []
     for msg in reversed(messages):
-        if msg.get("role") != "user":
+        if not isinstance(msg, Mapping) or msg.get("role") != "user":
             continue
         content = msg.get("content", "")
         if isinstance(content, str) and content.strip():
             return content.strip()
         if isinstance(content, list):
             for part in content:
-                if isinstance(part, dict) and part.get("type") == "text":
-                    text = part.get("text", "")
-                    if isinstance(text, str) and text.strip():
-                        return text.strip()
+                if not isinstance(part, Mapping) or part.get("type") != "text":
+                    continue
+                text = part.get("text", "")
+                if isinstance(text, str) and text.strip():
+                    return text.strip()
     return None

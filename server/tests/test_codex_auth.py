@@ -54,3 +54,37 @@ def test_refreshes_expired_token_and_persists_result(tmp_path: Path):
     assert credentials.account_id == "acct-2"
     saved = json.loads(auth_file.read_text(encoding="utf-8"))
     assert saved["openai-codex"]["access"] == refreshed_access
+
+
+def test_refresh_invalid_json_response_raises_codex_auth_error(tmp_path: Path):
+    auth_file = tmp_path / "auth.json"
+    expired_access = _jwt({"exp": int(time.time()) - 60})
+    auth_file.write_text(
+        json.dumps(
+            {
+                "openai-codex": {
+                    "type": "oauth",
+                    "access": expired_access,
+                    "refresh": "refresh-token",
+                    "expires": 1,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"{not-json")
+
+    store = PiCodexCredentialStore(
+        auth_file=auth_file,
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(CodexAuthError) as exc_info:
+        store.get_credentials()
+
+    message = str(exc_info.value)
+    assert "OpenAI Codex OAuth token refresh returned invalid JSON" in message
+    assert "Run `pi`, then `/login`, then select ChatGPT Plus/Pro" in message
+    assert "not-json" not in message

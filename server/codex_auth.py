@@ -98,7 +98,12 @@ class PiCodexCredentialStore:
                 },
             )
             response.raise_for_status()
-            token_data = response.json()
+            try:
+                token_data = response.json()
+            except json.JSONDecodeError as exc:
+                raise CodexAuthError(
+                    f"OpenAI Codex OAuth token refresh returned invalid JSON. {LOGIN_GUIDANCE}"
+                ) from exc
         except httpx.HTTPError as exc:
             raise CodexAuthError(f"OpenAI Codex OAuth token refresh failed. {LOGIN_GUIDANCE}") from exc
         finally:
