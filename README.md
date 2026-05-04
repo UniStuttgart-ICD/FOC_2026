@@ -2,16 +2,71 @@
 
 A Pipecat AI voice agent built with a cascade pipeline (STT → LLM → TTS).
 
-## Configuration
+## Runtime profiles
 
-- **Bot Type**: Web
-- **Transport(s)**: SmallWebRTC
-- **Pipeline**: Cascade
-  - **STT**: Whisper (Local)
-  - **LLM**: Google Gemini
-  - **TTS**: Kokoro
-- **Features**:
-  - Transcription
+Default profile:
+
+```text
+hybrid_low_latency = Mave wake word + Deepgram Flux STT + OpenAI Codex OAuth agent + Cartesia Sonic TTS
+```
+
+Run the default profile:
+
+```bash
+cd server
+uv run bot.py
+```
+
+Run a specific profile:
+
+```bash
+uv run bot.py --profile local_current
+uv run bot.py --profile openai_all
+uv run bot.py --profile deepgram_all
+uv run bot.py --profile no_wake_debug
+```
+
+`--profile` overrides `VOICE_PROFILE`.
+
+### Required keys
+
+For the default profile, set:
+
+```dotenv
+DEEPGRAM_API_KEY=
+CARTESIA_API_KEY=
+```
+
+For `openai_all`, set:
+
+```dotenv
+OPENAI_API_KEY=
+```
+
+For OpenAI Codex OAuth agent auth, run Pi and login with ChatGPT Plus/Pro Codex:
+
+```text
+pi
+/login
+```
+
+The agent reads Pi's `~/.pi/agent/auth.json` `openai-codex` OAuth profile.
+
+### Wake word
+
+The trained Mave wake-word model lives at:
+
+```text
+server/models/mave.onnx
+```
+
+Normal commands require `mave`, for example:
+
+```text
+Mave, move up a bit.
+```
+
+Local debug profiles are available for offline testing, but benchmark profiles use streaming STT/TTS providers.
 
 ## Setup
 
