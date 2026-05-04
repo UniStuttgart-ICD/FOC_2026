@@ -19,7 +19,7 @@ Worktree: `.worktrees/modular-voice-runtime`
 - [x] Issue 6: Metrics recorder
 - [x] Issue 7: Pipeline builder + bot.py slimming
 - [x] Issue 8: Docs and benchmarking
-- [ ] Final verification
+- [x] Final verification
 
 ## Activity log
 - 2026-05-04: Started execution using subagents.
@@ -33,3 +33,5 @@ Worktree: `.worktrees/modular-voice-runtime`
 - 2026-05-04: Preliminary Issue 8 docs commit `6535db9` landed. Spec review: PASS. Quality review deferred final approval until after Issue 7 because README documents `--profile` behavior that Issue 7 implements.
 - 2026-05-04: Issue 7 complete. Commits: `809b271`, `1f473e9` review hardening. Spec review: PASS. Quality review: PASS after wake reset + metrics observer fixes. Validation: full server pytest (41 passed), ruff, and pyright passed in review.
 - 2026-05-04: Issue 8 complete after final docs fixes in `1f473e9`. Final docs quality review: PASS. `.env.example` no longer advertises ignored `MCP_SERVER_URL`; local debug docs now clarify local STT/TTS but Claude cloud agent.
+- 2026-05-04: Final maintainability review found metrics logs needed ignoring; fixed in `2454678`. Re-review: FINAL_PASS.
+- 2026-05-04: Final verification complete. `uv run pytest -v` (41 passed, 1 third-party deprecation warning), `uv run ruff check .` (pass), `uv run pyright .` (0 errors), default profile missing-key check prints `DEEPGRAM_API_KEY, CARTESIA_API_KEY`, no-wake debug loads as `no_wake_debug local_debug none`, and `git status --short --ignored` shows only ignored caches/venv.
