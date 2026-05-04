@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import Mock
 
 import numpy as np
@@ -5,6 +6,7 @@ import pytest
 from pipecat.frames.frames import InputAudioRawFrame, TranscriptionFrame
 from pipecat.processors.frame_processor import FrameDirection
 
+from wake.openwakeword_detector import OpenWakeWordDetector, OpenWakeWordResourceError
 from wake.wake_gate import MaveWakeWordGate
 
 
@@ -20,6 +22,75 @@ class CapturingGate(MaveWakeWordGate):
 def _frame(value: int, samples: int = 1600):
     audio = np.full(samples, value, dtype=np.int16).tobytes()
     return InputAudioRawFrame(audio=audio, sample_rate=16000, num_channels=1)
+
+
+def test_openwakeword_bootstraps_required_resources_before_model(monkeypatch, tmp_path):
+    model_path = tmp_path / "mave.onnx"
+    model_path.write_bytes(b"custom wake model")
+    resource_dir = tmp_path / "resources"
+    resources = {
+        "melspectrogram.onnx": resource_dir / "melspectrogram.onnx",
+        "embedding_model.onnx": resource_dir / "embedding_model.onnx",
+        "silero_vad.onnx": resource_dir / "silero_vad.onnx",
+    }
+    calls: list[tuple[str, str]] = []
+    model_constructed = False
+
+    def fake_download_file(url: str, target_directory: str):
+        assert not model_constructed
+        calls.append((Path(url).name, target_directory))
+        resources[Path(url).name].parent.mkdir(parents=True, exist_ok=True)
+        resources[Path(url).name].write_bytes(b"resource")
+
+    def fake_model(*args, **kwargs):
+        nonlocal model_constructed
+        model_constructed = True
+        return Mock()
+
+    monkeypatch.setattr("wake.openwakeword_detector._openwakeword_resource_dir", lambda: resource_dir)
+    monkeypatch.setattr("wake.openwakeword_detector.download_file", fake_download_file)
+    monkeypatch.setattr("wake.openwakeword_detector.Model", fake_model)
+
+    OpenWakeWordDetector(model_path)
+
+    assert [call[0] for call in calls] == [
+        "melspectrogram.onnx",
+        "embedding_model.onnx",
+        "silero_vad.onnx",
+    ]
+    assert model_constructed is True
+
+
+def test_openwakeword_resource_download_failure_is_clear(monkeypatch, tmp_path):
+    model_path = tmp_path / "mave.onnx"
+    model_path.write_bytes(b"custom wake model")
+    resource_dir = tmp_path / "resources"
+
+    def fake_download_file(url: str, target_directory: str):
+        raise OSError("network unavailable")
+
+    model = Mock()
+    monkeypatch.setattr("wake.openwakeword_detector._openwakeword_resource_dir", lambda: resource_dir)
+    monkeypatch.setattr("wake.openwakeword_detector.download_file", fake_download_file)
+    monkeypatch.setattr("wake.openwakeword_detector.Model", model)
+
+    with pytest.raises(OpenWakeWordResourceError, match="melspectrogram.onnx"):
+        OpenWakeWordDetector(model_path)
+
+    model.assert_not_called()
+
+
+def test_openwakeword_predict_normalizes_scores(monkeypatch, tmp_path):
+    model_path = tmp_path / "mave.onnx"
+    model_path.write_bytes(b"custom wake model")
+    model = Mock()
+    model.predict.return_value = ({"mave": np.float32(0.75)}, {"unused": {}})
+    monkeypatch.setattr("wake.openwakeword_detector._ensure_openwakeword_resources", Mock())
+    monkeypatch.setattr("wake.openwakeword_detector.Model", Mock(return_value=model))
+
+    detector = OpenWakeWordDetector(model_path)
+
+    assert detector.predict(np.zeros(1600, dtype=np.int16)) == {"mave": 0.75}
 
 
 @pytest.mark.asyncio
