@@ -7,7 +7,6 @@ from claude_agent_sdk import (
     ClaudeAgentOptions,
     ClaudeSDKClient,
     ResultMessage,
-    StreamEvent,
 )
 from loguru import logger
 from pipecat.frames.frames import (
@@ -31,10 +30,10 @@ class ClaudeAgentProcessor(FrameProcessor):
     The SDK handles conversation history natively.
     """
 
-    def __init__(self, mcp_server_url: str, **kwargs):
+    def __init__(self, mcp_server_url: str, model: str | None = None, **kwargs):
         super().__init__(**kwargs)
         self._mcp_server_url = mcp_server_url
-        self._model = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
+        self._model = model or os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
         self._client: ClaudeSDKClient | None = None
         self._model_logged = False
 
@@ -110,8 +109,8 @@ class ClaudeAgentProcessor(FrameProcessor):
         has_text = False
         try:
             async for message in self._client.receive_response():
-                if isinstance(message, StreamEvent):
-                    event = message.event
+                event = getattr(message, "event", None)
+                if isinstance(event, dict):
                     if event.get("type") == "content_block_delta":
                         delta = event.get("delta", {})
                         if delta.get("type") == "text_delta" and delta.get("text"):
