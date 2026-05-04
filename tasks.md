@@ -17,8 +17,8 @@ Worktree: `.worktrees/modular-voice-runtime`
 - [x] Issue 4: OpenWakeWord Mave wake gate
 - [x] Issue 5: Emergency stop bypass scaffold
 - [x] Issue 6: Metrics recorder
-- [ ] Issue 7: Pipeline builder + bot.py slimming
-- [ ] Issue 8: Docs and benchmarking
+- [x] Issue 7: Pipeline builder + bot.py slimming
+- [x] Issue 8: Docs and benchmarking
 - [ ] Final verification
 
 ## Activity log
@@ -31,3 +31,5 @@ Worktree: `.worktrees/modular-voice-runtime`
 - 2026-05-04: Issue 5 complete. Commit: `4bf7347`. Spec review: PASS. Quality review: PASS. Validation: emergency stop tests passed.
 - 2026-05-04: Issue 6 complete. Commits: `5f53fc5`, `53fd688` review hardening. Spec review: PASS. Quality review: PASS after fixes. Validation: metrics tests, ruff, and targeted pyright passed.
 - 2026-05-04: Preliminary Issue 8 docs commit `6535db9` landed. Spec review: PASS. Quality review deferred final approval until after Issue 7 because README documents `--profile` behavior that Issue 7 implements.
+- 2026-05-04: Issue 7 complete. Commits: `809b271`, `1f473e9` review hardening. Spec review: PASS. Quality review: PASS after wake reset + metrics observer fixes. Validation: full server pytest (41 passed), ruff, and pyright passed in review.
+- 2026-05-04: Issue 8 complete after final docs fixes in `1f473e9`. Final docs quality review: PASS. `.env.example` no longer advertises ignored `MCP_SERVER_URL`; local debug docs now clarify local STT/TTS but Claude cloud agent.
