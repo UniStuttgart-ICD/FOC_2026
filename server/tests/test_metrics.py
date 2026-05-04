@@ -4,6 +4,10 @@ from pathlib import Path
 from metrics import VoiceMetricsRecorder
 
 
+def _read_jsonl_record(path: Path) -> dict[str, object]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def test_writes_jsonl_turn_record(tmp_path: Path):
     path = tmp_path / "metrics.jsonl"
     recorder = VoiceMetricsRecorder(
@@ -43,6 +47,79 @@ def test_omits_text_when_disabled(tmp_path: Path):
     turn.response = "secret response"
     recorder.finish_turn("turn-2")
 
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = _read_jsonl_record(path)
     assert "transcript" not in data
     assert "response" not in data
+
+
+def test_records_deterministic_stage_timings(monkeypatch, tmp_path: Path):
+    perf_counter_values = iter(
+        [
+            100.000,
+            100.010,
+            100.060,
+            100.210,
+            100.240,
+            100.320,
+            100.400,
+            100.500,
+        ]
+    )
+    monkeypatch.setattr("metrics.time.perf_counter", lambda: next(perf_counter_values))
+    monkeypatch.setattr("metrics.time.time", lambda: 1_700_000_000.25)
+    path = tmp_path / "metrics.jsonl"
+    recorder = VoiceMetricsRecorder(
+        profile="hybrid_low_latency",
+        category="benchmark_streaming",
+        path=path,
+        include_text=True,
+    )
+
+    turn = recorder.start_turn("turn-3")
+    turn.wake_phrase = "Mave"
+    turn.mark("wake_detected")
+    turn.mark("speech_captured")
+    turn.mark("stt_done")
+    turn.mark("agent_done")
+    turn.mark("tts_first_audio")
+    turn.mark("tts_done")
+    recorder.finish_turn("turn-3")
+
+    data = _read_jsonl_record(path)
+    assert data["timestamp_unix"] == 1_700_000_000.25
+    assert data["wake_phrase"] == "Mave"
+    assert data["wake_latency_ms"] == 10.0
+    assert data["speech_captured_ms"] == 50.0
+    assert data["stt_latency_ms"] == 150.0
+    assert data["agent_latency_ms"] == 30.0
+    assert data["tts_first_audio_ms"] == 80.0
+    assert data["tts_done_ms"] == 80.0
+    assert data["total_to_first_audio_ms"] == 320.0
+    assert data["total_turn_ms"] == 500.0
+    assert "stt_done_ms" not in data
+    assert "agent_done_ms" not in data
+
+
+def test_speech_captured_timing_uses_turn_start_without_wake(monkeypatch, tmp_path: Path):
+    perf_counter_values = iter([50.000, 50.125, 50.300])
+    monkeypatch.setattr("metrics.time.perf_counter", lambda: next(perf_counter_values))
+    monkeypatch.setattr("metrics.time.time", lambda: 1_700_000_001.0)
+    path = tmp_path / "metrics.jsonl"
+    recorder = VoiceMetricsRecorder(
+        profile="no_wake_debug",
+        category="local_debug",
+        path=path,
+        include_text=False,
+    )
+
+    turn = recorder.start_turn("turn-4")
+    turn.mark("speech_captured")
+    recorder.finish_turn("turn-4")
+
+    data = _read_jsonl_record(path)
+    assert data["wake_phrase"] == ""
+    assert data["wake_latency_ms"] is None
+    assert data["speech_captured_ms"] == 125.0
+    assert data["stt_latency_ms"] is None
+    assert data["total_to_first_audio_ms"] is None
+    assert data["total_turn_ms"] == 300.0

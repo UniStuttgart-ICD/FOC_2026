@@ -9,11 +9,22 @@ from typing import Any
 from loguru import logger
 
 
+def _perf_counter() -> float:
+    return time.perf_counter()
+
+
+def _duration_ms(start: float, end: float | None) -> float | None:
+    if end is None:
+        return None
+    return round((end - start) * 1000, 2)
+
+
 @dataclass
 class TurnMetrics:
     turn_id: str
-    started_at: float = field(default_factory=time.perf_counter)
+    started_at: float = field(default_factory=_perf_counter)
     marks: dict[str, float] = field(default_factory=dict)
+    wake_phrase: str = ""
     transcript: str = ""
     response: str = ""
 
@@ -21,10 +32,13 @@ class TurnMetrics:
         self.marks[name] = time.perf_counter()
 
     def elapsed_ms(self, mark: str) -> float | None:
-        value = self.marks.get(mark)
-        if value is None:
+        return _duration_ms(self.started_at, self.marks.get(mark))
+
+    def duration_ms(self, start_mark: str, end_mark: str) -> float | None:
+        start = self.marks.get(start_mark)
+        if start is None:
             return None
-        return round((value - self.started_at) * 1000, 2)
+        return _duration_ms(start, self.marks.get(end_mark))
 
 
 class VoiceMetricsRecorder:
@@ -48,18 +62,24 @@ class VoiceMetricsRecorder:
         turn = self._turns.pop(turn_id, None)
         if turn is None:
             return
+        speech_captured = turn.marks.get("speech_captured")
+        tts_first_audio = turn.marks.get("tts_first_audio")
+        wake_detected = turn.marks.get("wake_detected")
+        speech_start = wake_detected if wake_detected is not None else turn.started_at
         record: dict[str, Any] = {
             "timestamp_unix": time.time(),
             "profile": self._profile,
             "category": self._category,
             "turn_id": turn.turn_id,
+            "wake_phrase": turn.wake_phrase,
             "wake_latency_ms": turn.elapsed_ms("wake_detected"),
-            "speech_captured_ms": turn.elapsed_ms("speech_captured"),
-            "stt_done_ms": turn.elapsed_ms("stt_done"),
-            "agent_done_ms": turn.elapsed_ms("agent_done"),
-            "tts_first_audio_ms": turn.elapsed_ms("tts_first_audio"),
-            "tts_done_ms": turn.elapsed_ms("tts_done"),
-            "total_turn_ms": round((time.perf_counter() - turn.started_at) * 1000, 2),
+            "speech_captured_ms": _duration_ms(speech_start, speech_captured),
+            "stt_latency_ms": turn.duration_ms("speech_captured", "stt_done"),
+            "agent_latency_ms": turn.duration_ms("stt_done", "agent_done"),
+            "tts_first_audio_ms": turn.duration_ms("agent_done", "tts_first_audio"),
+            "tts_done_ms": turn.duration_ms("tts_first_audio", "tts_done"),
+            "total_to_first_audio_ms": _duration_ms(turn.started_at, tts_first_audio),
+            "total_turn_ms": _duration_ms(turn.started_at, time.perf_counter()),
         }
         if self._include_text:
             record["transcript"] = turn.transcript

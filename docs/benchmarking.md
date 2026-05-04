@@ -28,7 +28,20 @@ Metrics are appended to:
 server/logs/voice_metrics.jsonl
 ```
 
-Each JSONL record includes profile, category, transcript, response, and turn timing fields.
+Each JSONL record includes profile, category, wake phrase, transcript, response, and turn timing fields.
+
+Timing fields are milliseconds with deterministic stage semantics:
+
+- `wake_latency_ms`: turn start to wake detection.
+- `speech_captured_ms`: wake detection, or turn start without wake, to speech captured.
+- `stt_latency_ms`: speech captured to STT done.
+- `agent_latency_ms`: STT done to agent done.
+- `tts_first_audio_ms`: agent done to first TTS audio.
+- `tts_done_ms`: first TTS audio to TTS done.
+- `total_to_first_audio_ms`: turn start to first TTS audio.
+- `total_turn_ms`: turn start to finish.
+
+Missing marks are recorded as `null`.
 
 ## Test utterances
 
