@@ -1,0 +1,35 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class VoiceRuntimeParts:
+    transport_input: object
+    voice_command_audio: object | None
+    stt: object
+    voice_command_transcript: object | None
+    user_aggregator: object
+    agent_turn: object
+    tts: object
+    transport_output: object
+    assistant_aggregator: object
+
+
+def ordered_voice_runtime_processors(parts: VoiceRuntimeParts) -> list[object]:
+    processors = [parts.transport_input]
+    if parts.voice_command_audio is not None:
+        processors.append(parts.voice_command_audio)
+    processors.append(parts.stt)
+    if parts.voice_command_transcript is not None:
+        processors.append(parts.voice_command_transcript)
+    processors.extend(
+        [
+            parts.user_aggregator,
+            parts.agent_turn,
+            parts.tts,
+            parts.transport_output,
+            parts.assistant_aggregator,
+        ]
+    )
+    return processors

@@ -12,7 +12,6 @@ Run the bot::
 """
 
 import argparse
-import inspect
 import os
 import sys
 
@@ -30,18 +29,9 @@ from pipecat.transports.smallwebrtc.transport import SmallWebRTCTransport
 
 from config import load_runtime_config
 from pipeline_builder import build_pipeline
+from voice_runtime.agent_turn import AgentTurnProcessor
 
 load_dotenv(override=True)
-
-
-async def _call_optional_agent_method(agent_processor: object, method_name: str) -> None:
-    method = getattr(agent_processor, method_name, None)
-    if not callable(method):
-        return
-
-    result = method()
-    if inspect.isawaitable(result):
-        await result
 
 
 async def run_bot(transport: BaseTransport, profile_name: str | None = None):
@@ -63,12 +53,14 @@ async def run_bot(transport: BaseTransport, profile_name: str | None = None):
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
         logger.info("Client connected")
-        await _call_optional_agent_method(agent_processor, "connect")
+        if isinstance(agent_processor, AgentTurnProcessor):
+            await agent_processor.connect()
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
         logger.info("Client disconnected")
-        await _call_optional_agent_method(agent_processor, "disconnect")
+        if isinstance(agent_processor, AgentTurnProcessor):
+            await agent_processor.disconnect()
         await task.cancel()
 
     @built.user_aggregator.event_handler("on_user_turn_stopped")

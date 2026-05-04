@@ -1,22 +1,11 @@
 from dataclasses import dataclass
 
 import pytest
-from pipecat.frames.frames import LLMContextFrame, LLMTextFrame
-from pipecat.processors.aggregators.llm_context import LLMContext
-from pipecat.processors.frame_processor import FrameDirection
 
 from codex_auth import CodexCredentials
 from codex_backend_client import CodexResponseResult, CodexToolCall
 from openai_codex_agent_processor import OpenAICodexAgentProcessor
-
-
-class CapturingProcessor(OpenAICodexAgentProcessor):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.pushed = []
-
-    async def push_frame(self, frame, direction=FrameDirection.DOWNSTREAM):
-        self.pushed.append(frame)
+from voice_runtime.agent_turn import AgentTurnInput
 
 
 class FakeStore:
@@ -37,7 +26,7 @@ class FakeBridge:
         self.disconnected = True
 
     def function_tools(self):
-        return [{"type": "function", "name": "get_robot_status", "parameters": {"type": "object"}, "strict": None}]
+        return [{"type": "function", "name": "moveit_get_robot_status", "parameters": {"type": "object"}, "strict": None}]
 
     async def call_tool(self, name, arguments):
         self.calls.append((name, arguments))
@@ -66,16 +55,23 @@ class FakeBackend:
         self.closed = True
 
 
-def _context_frame(text: str) -> LLMContextFrame:
-    context = LLMContext(messages=[{"role": "user", "content": text}])
-    return LLMContextFrame(context=context)
+@dataclass(frozen=True)
+class TurnResult:
+    chunks: list[str]
+    processor: OpenAICodexAgentProcessor
+
+
+async def _run_turn(processor: OpenAICodexAgentProcessor, text: str, messages=None) -> TurnResult:
+    turn = AgentTurnInput(user_text=text, messages=messages or [{"role": "user", "content": text}])
+    chunks = [chunk async for chunk in processor.run_turn(turn)]
+    return TurnResult(chunks=chunks, processor=processor)
 
 
 @pytest.mark.asyncio
 async def test_processes_text_response_through_codex_backend():
     backend = FakeBackend([CodexResponseResult(text="oauth-ok")])
     bridge = FakeBridge()
-    processor = CapturingProcessor(
+    processor = OpenAICodexAgentProcessor(
         "http://127.0.0.1:8765/mcp",
         model="gpt-5.4-mini",
         credential_store=FakeStore(),
@@ -83,10 +79,9 @@ async def test_processes_text_response_through_codex_backend():
         tool_bridge=bridge,
     )
 
-    await processor.process_frame(_context_frame("hello"), FrameDirection.DOWNSTREAM)
+    result = await _run_turn(processor, "hello")
 
-    text_frames = [frame for frame in processor.pushed if isinstance(frame, LLMTextFrame)]
-    assert text_frames[0].text == "oauth-ok"
+    assert result.chunks == ["oauth-ok"]
     assert backend.requests[0]["model"] == "gpt-5.4-mini"
     assert backend.requests[0]["input_items"] == [
         {"role": "user", "content": [{"type": "input_text", "text": "hello"}]}
@@ -99,9 +94,9 @@ async def test_executes_one_tool_iteration_and_sends_tool_output_back():
     tool_call = CodexToolCall(
         call_id="call-1",
         item_id="item-1",
-        name="get_robot_status",
-        arguments={"robot_ip": "127.0.0.1"},
-        raw_arguments='{"robot_ip":"127.0.0.1"}',
+        name="moveit_get_robot_status",
+        arguments={"robot_name": "UR10"},
+        raw_arguments='{"robot_name":"UR10"}',
     )
     backend = FakeBackend(
         [
@@ -112,8 +107,8 @@ async def test_executes_one_tool_iteration_and_sends_tool_output_back():
                         "type": "function_call",
                         "id": "item-1",
                         "call_id": "call-1",
-                        "name": "get_robot_status",
-                        "arguments": '{"robot_ip":"127.0.0.1"}',
+                        "name": "moveit_get_robot_status",
+                        "arguments": '{"robot_name":"UR10"}',
                     }
                 ],
             ),
@@ -121,7 +116,7 @@ async def test_executes_one_tool_iteration_and_sends_tool_output_back():
         ]
     )
     bridge = FakeBridge()
-    processor = CapturingProcessor(
+    processor = OpenAICodexAgentProcessor(
         "http://127.0.0.1:8765/mcp",
         model="gpt-5.4-mini",
         credential_store=FakeStore(),
@@ -129,38 +124,35 @@ async def test_executes_one_tool_iteration_and_sends_tool_output_back():
         tool_bridge=bridge,
     )
 
-    await processor.process_frame(_context_frame("status"), FrameDirection.DOWNSTREAM)
+    result = await _run_turn(processor, "status")
 
-    assert bridge.calls == [("get_robot_status", {"robot_ip": "127.0.0.1"})]
+    assert bridge.calls == [("moveit_get_robot_status", {"robot_name": "UR10"})]
     assert backend.requests[1]["input_items"][-1] == {
         "type": "function_call_output",
         "call_id": "call-1",
         "output": '{"success": true}',
     }
-    text_frames = [frame for frame in processor.pushed if isinstance(frame, LLMTextFrame)]
-    assert text_frames[0].text == "Robot is ready."
+    assert result.chunks == ["Robot is ready."]
 
 
 @pytest.mark.asyncio
 async def test_sends_available_context_history_to_codex_backend():
     backend = FakeBackend([CodexResponseResult(text="ok")])
     bridge = FakeBridge()
-    processor = CapturingProcessor(
+    processor = OpenAICodexAgentProcessor(
         "http://127.0.0.1:8765/mcp",
         model="gpt-5.4-mini",
         credential_store=FakeStore(),
         backend_client=backend,
         tool_bridge=bridge,
     )
-    context = LLMContext(
-        messages=[
-            {"role": "user", "content": "move up"},
-            {"role": "assistant", "content": "Moved up."},
-            {"role": "user", "content": "again"},
-        ]
-    )
+    messages = [
+        {"role": "user", "content": "move up"},
+        {"role": "assistant", "content": "Moved up."},
+        {"role": "user", "content": "again"},
+    ]
 
-    await processor.process_frame(LLMContextFrame(context=context), FrameDirection.DOWNSTREAM)
+    await _run_turn(processor, "again", messages=messages)
 
     assert backend.requests[0]["input_items"] == [
         {"role": "user", "content": [{"type": "input_text", "text": "move up"}]},
@@ -179,7 +171,7 @@ async def test_sends_available_context_history_to_codex_backend():
 async def test_disconnect_closes_backend_and_bridge():
     backend = FakeBackend([])
     bridge = FakeBridge()
-    processor = CapturingProcessor(
+    processor = OpenAICodexAgentProcessor(
         "http://127.0.0.1:8765/mcp",
         model="gpt-5.4-mini",
         credential_store=FakeStore(),
