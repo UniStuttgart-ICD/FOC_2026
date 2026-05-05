@@ -11,5 +11,9 @@ def create_agent_processor(config: AgentConfig, *, mcp_server_url: str) -> Frame
     if config.provider != "openai_codex_oauth":
         raise ValueError(f"Unsupported agent provider: {config.provider}")
     return AgentTurnProcessor(
-        backend=OpenAICodexAgentProcessor(mcp_server_url=mcp_server_url, model=config.model)
+        backend=OpenAICodexAgentProcessor(
+            mcp_server_url=mcp_server_url,
+            model=config.model,
+            reasoning_effort=config.reasoning_effort,
+        )
     )

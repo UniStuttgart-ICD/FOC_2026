@@ -15,12 +15,14 @@ WakeProvider = Literal["none", "openwakeword"]
 STTProvider = Literal["deepgram_flux", "openai_realtime", "whisper"]
 TTSProvider = Literal["cartesia", "openai", "deepgram", "kokoro"]
 AgentProvider = Literal["openai_codex_oauth"]
+ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
 Category = Literal["benchmark_streaming", "local_debug"]
 
 _WAKE_PROVIDERS = {"none", "openwakeword"}
 _STT_PROVIDERS = {"deepgram_flux", "openai_realtime", "whisper"}
 _TTS_PROVIDERS = {"cartesia", "openai", "deepgram", "kokoro"}
 _AGENT_PROVIDERS = {"openai_codex_oauth"}
+_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
 _CATEGORIES = {"benchmark_streaming", "local_debug"}
 _STREAMING_STT_PROVIDERS = {"deepgram_flux", "openai_realtime"}
 _STREAMING_TTS_PROVIDERS = {"cartesia", "openai", "deepgram"}
@@ -66,6 +68,7 @@ class TTSProfile:
 class AgentProfile:
     provider: AgentProvider
     model: str
+    reasoning_effort: ReasoningEffort | None = None
 
 
 @dataclass(frozen=True)
@@ -198,7 +201,15 @@ def _parse_tts(table: dict[str, Any]) -> TTSProfile:
 
 def _parse_agent(table: dict[str, Any]) -> AgentProfile:
     provider = cast(AgentProvider, _literal(table, "provider", _AGENT_PROVIDERS))
-    return AgentProfile(provider=provider, model=_string(table, "model", "gpt-5.4-mini"))
+    reasoning_effort = cast(
+        ReasoningEffort | None,
+        _optional_literal(table, "reasoning_effort", _REASONING_EFFORTS),
+    )
+    return AgentProfile(
+        provider=provider,
+        model=_string(table, "model", "gpt-5.4-mini"),
+        reasoning_effort=reasoning_effort,
+    )
 
 
 def _parse_metrics(table: dict[str, Any], server_dir: Path) -> MetricsProfile:
@@ -248,6 +259,15 @@ def _optional_string(table: dict[str, Any], key: str) -> str | None:
 
 def _literal(table: dict[str, Any], key: str, allowed: set[str], default: str | None = None) -> str:
     value = table.get(key, default)
+    if not isinstance(value, str) or value not in allowed:
+        raise ProfileError(f"{key} must be one of {sorted(allowed)}")
+    return value
+
+
+def _optional_literal(table: dict[str, Any], key: str, allowed: set[str]) -> str | None:
+    value = table.get(key)
+    if value is None:
+        return None
     if not isinstance(value, str) or value not in allowed:
         raise ProfileError(f"{key} must be one of {sorted(allowed)}")
     return value

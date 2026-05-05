@@ -39,6 +39,7 @@ voice = "voice-id"
 [profiles.hybrid_low_latency.agent]
 provider = "openai_codex_oauth"
 model = "gpt-5.4-mini"
+reasoning_effort = "medium"
 [profiles.hybrid_low_latency.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
 [profiles.hybrid_low_latency.metrics]
@@ -97,6 +98,7 @@ def test_loads_profile_without_constructing_adapters(tmp_path: Path):
     assert profile.stt.provider == "deepgram_flux"
     assert profile.tts.provider == "cartesia"
     assert profile.agent.provider == "openai_codex_oauth"
+    assert profile.agent.reasoning_effort == "medium"
     assert profile.mcp_robot_url == "http://127.0.0.1:8765/mcp"
     assert profile.metrics.path == tmp_path / "logs" / "voice_metrics.jsonl"
 
@@ -222,6 +224,24 @@ def test_local_profile_has_no_cloud_stt_tts_env_requirements(tmp_path: Path):
     )
 
     assert profile.required_env_names() == ()
+
+
+def test_agent_reasoning_effort_rejects_invalid_value(tmp_path: Path):
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profiles(profiles_path)
+    profiles_path.write_text(
+        profiles_path.read_text(encoding="utf-8").replace(
+            'reasoning_effort = "medium"', 'reasoning_effort = "maximum"'
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ProfileError, match="reasoning_effort must be one of"):
+        load_runtime_profile(
+            profiles_path=profiles_path,
+            server_dir=tmp_path,
+            profile_name="hybrid_low_latency",
+        )
 
 
 def test_legacy_claude_agent_provider_is_rejected(tmp_path: Path):

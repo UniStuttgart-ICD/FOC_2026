@@ -63,6 +63,7 @@ class LangGraphRobotAgent:
         tool_bridge: Any,
         robot_context: RobotContextStore,
         thread_id: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         self._model = model
         self._credential_store = credential_store
@@ -70,6 +71,7 @@ class LangGraphRobotAgent:
         self._tool_bridge = tool_bridge
         self._robot_context = robot_context
         self._thread_id = thread_id or f"codex-robot-agent-{uuid.uuid4()}"
+        self._reasoning_effort = reasoning_effort
         self._turn_credentials: Any | None = None
         self._latest_state: dict[str, Any] | None = None
         self._graph = self._compile_graph()
@@ -135,12 +137,17 @@ class LangGraphRobotAgent:
         tools = state["tools"] or self._tool_bridge.function_tools()
         instructions = self._instructions()
         credentials = self._turn_credentials
+        request: dict[str, Any] = {
+            "model": self._model,
+            "instructions": instructions,
+            "input_items": input_items,
+            "tools": tools,
+        }
+        if self._reasoning_effort is not None:
+            request["reasoning_effort"] = self._reasoning_effort
         result: CodexResponseResult = await self._backend_client.create_response(
             credentials,
-            model=self._model,
-            instructions=instructions,
-            input_items=input_items,
-            tools=tools,
+            **request,
         )
         pending = [_tool_call_to_state(tool_call) for tool_call in result.tool_calls]
         return {

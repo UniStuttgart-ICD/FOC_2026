@@ -27,6 +27,7 @@ voice = "47c38ca4-5f35-497b-b1a3-415245fb35e1"
 [profiles.hybrid_low_latency.agent]
 provider = "openai_codex_oauth"
 model = "gpt-5.4-mini"
+reasoning_effort = "medium"
 
 [profiles.hybrid_low_latency.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"

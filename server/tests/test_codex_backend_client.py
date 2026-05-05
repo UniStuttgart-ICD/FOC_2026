@@ -36,6 +36,7 @@ async def test_posts_to_codex_backend_with_oauth_headers_and_body():
         instructions="system",
         input_items=[{"role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
         tools=[{"type": "function", "name": "get_robot_status", "parameters": {"type": "object"}, "strict": None}],
+        reasoning_effort="medium",
     )
 
     assert captured["url"] == "https://chatgpt.com/backend-api/codex/responses"
@@ -49,6 +50,7 @@ async def test_posts_to_codex_backend_with_oauth_headers_and_body():
     assert captured["body"]["instructions"] == "system"
     assert captured["body"]["tool_choice"] == "auto"
     assert captured["body"]["parallel_tool_calls"] is False
+    assert captured["body"]["reasoning"] == {"effort": "medium"}
     assert result.text == "oauth-ok"
     assert result.response_id == "resp-1"
 

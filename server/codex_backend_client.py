@@ -53,11 +53,18 @@ class CodexBackendClient:
         instructions: str,
         input_items: list[dict[str, Any]],
         tools: list[dict[str, Any]],
+        reasoning_effort: str | None = None,
     ) -> CodexResponseResult:
         if not credentials.account_id:
             raise CodexBackendError("OpenAI Codex OAuth account id is missing. Re-run Pi login.")
 
-        body = _build_body(model=model, instructions=instructions, input_items=input_items, tools=tools)
+        body = _build_body(
+            model=model,
+            instructions=instructions,
+            input_items=input_items,
+            tools=tools,
+            reasoning_effort=reasoning_effort,
+        )
         headers = _build_headers(credentials)
 
         try:
@@ -73,7 +80,12 @@ class CodexBackendClient:
 
 
 def _build_body(
-    *, model: str, instructions: str, input_items: list[dict[str, Any]], tools: list[dict[str, Any]]
+    *,
+    model: str,
+    instructions: str,
+    input_items: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
+    reasoning_effort: str | None = None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "model": model,
@@ -86,6 +98,8 @@ def _build_body(
         "tool_choice": "auto",
         "parallel_tool_calls": False,
     }
+    if reasoning_effort is not None:
+        body["reasoning"] = {"effort": reasoning_effort}
     if tools:
         body["tools"] = tools
     return body

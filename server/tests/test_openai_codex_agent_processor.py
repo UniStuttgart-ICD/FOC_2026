@@ -55,7 +55,9 @@ class FakeBackend:
         self.requests = []
         self.closed = False
 
-    async def create_response(self, credentials, *, model, instructions, input_items, tools):
+    async def create_response(
+        self, credentials, *, model, instructions, input_items, tools, reasoning_effort=None
+    ):
         self.requests.append(
             {
                 "credentials": credentials,
@@ -63,6 +65,7 @@ class FakeBackend:
                 "instructions": instructions,
                 "input_items": list(input_items),
                 "tools": list(tools),
+                "reasoning_effort": reasoning_effort,
             }
         )
         return self.results.pop(0)
@@ -216,6 +219,23 @@ async def test_sends_available_context_history_to_codex_backend():
         {"role": "user", "content": [{"type": "input_text", "text": "again"}]},
     ]
     assert bridge.calls == [("moveit_get_current_pose", {"robot_name": "UR10"})]
+
+
+@pytest.mark.asyncio
+async def test_configured_reasoning_effort_is_sent_to_codex_backend():
+    backend = FakeBackend([CodexResponseResult(text="ok")])
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        reasoning_effort="medium",
+        credential_store=FakeStore(),
+        backend_client=backend,
+        tool_bridge=FakeBridge(),
+    )
+
+    await _run_turn(processor, "hello")
+
+    assert backend.requests[0]["reasoning_effort"] == "medium"
 
 
 @pytest.mark.asyncio

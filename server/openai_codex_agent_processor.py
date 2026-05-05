@@ -25,9 +25,11 @@ class OpenAICodexAgentProcessor:
         credential_store: Any | None = None,
         backend_client: Any | None = None,
         tool_bridge: Any | None = None,
+        reasoning_effort: str | None = None,
     ):
         self._mcp_server_url = mcp_server_url
         self._model = model
+        self._reasoning_effort = reasoning_effort
         self._credential_store = credential_store or PiCodexCredentialStore()
         self._backend_client = backend_client
         self._tool_bridge = tool_bridge
@@ -118,6 +120,7 @@ class OpenAICodexAgentProcessor:
                 tool_bridge=tool_bridge,
                 robot_context=self._robot_context,
                 thread_id=self._thread_id,
+                reasoning_effort=self._reasoning_effort,
             )
             self._graph_backend_client = backend_client
             self._graph_tool_bridge = tool_bridge
