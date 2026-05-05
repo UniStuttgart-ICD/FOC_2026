@@ -1,7 +1,10 @@
+from typing import cast
+
 from pipecat.processors.frame_processor import FrameProcessor
 
 from agent_processor_factory import create_agent_processor
 from config import AgentConfig
+from openai_codex_agent_processor import OpenAICodexAgentProcessor
 from voice_runtime.agent_turn import AgentTurnProcessor
 
 
@@ -22,4 +25,5 @@ def test_passes_reasoning_effort_to_openai_codex_backend():
     )
 
     assert isinstance(processor, AgentTurnProcessor)
-    assert processor._backend._reasoning_effort == "medium"
+    backend = cast(OpenAICodexAgentProcessor, processor._backend)
+    assert backend._reasoning_effort == "medium"
