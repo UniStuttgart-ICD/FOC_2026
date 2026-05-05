@@ -101,8 +101,8 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.local_current.agent]
-provider = "claude"
-model = "claude-haiku-4-5-20251001"
+provider = "openai_codex_oauth"
+model = "gpt-5.4-mini"
 [profiles.local_current.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
 [profiles.local_current.metrics]
@@ -173,8 +173,8 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.local_current.agent]
-provider = "claude"
-model = "claude-haiku-4-5-20251001"
+provider = "openai_codex_oauth"
+model = "gpt-5.4-mini"
 [profiles.local_current.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
 [profiles.local_current.metrics]
@@ -209,8 +209,8 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.local_current.agent]
-provider = "claude"
-model = "claude-haiku-4-5-20251001"
+provider = "openai_codex_oauth"
+model = "gpt-5.4-mini"
 [profiles.local_current.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
 [profiles.local_current.metrics]
@@ -246,8 +246,8 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.local_current.agent]
-provider = "claude"
-model = "claude-haiku-4-5-20251001"
+provider = "openai_codex_oauth"
+model = "gpt-5.4-mini"
 [profiles.local_current.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
 [profiles.local_current.metrics]
