@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
@@ -13,6 +14,9 @@ from voice_runtime.agent_turn import AgentTurnInput
 EXPECTED_BIT_DELTA_M = 0.05
 BIT_DELTA_TOLERANCE_M = 0.03
 XY_DRIFT_MAX_M = 0.05
+EXPECTED_WAVE_LATERAL_SPAN_M = 0.20
+MIN_WAVE_LATERAL_SPAN_M = 0.18
+MIN_WAVE_VERTICAL_LIFT_M = 0.06
 DEFAULT_EVIDENCE_DIR = Path("evidence/live_smoke")
 CURRENT_POSE_TOOL_NAME = "moveit_get_current_pose"
 MOTION_TOOL_NAMES = {
@@ -196,6 +200,66 @@ def validate_bit_movement(
     return ValidationResult(True, f"move {direction} executed verified bounded movement", details)
 
 
+def validate_wave_motion(run: LiveSmokeRun) -> ValidationResult:
+    start = next(
+        (
+            position
+            for call in run.tool_calls
+            if call.name == CURRENT_POSE_TOOL_NAME
+            for position in [_pose_position(call)]
+            if position is not None
+        ),
+        None,
+    )
+    if start is None:
+        return ValidationResult(False, "wave did not observe a successful parseable current pose")
+
+    cartesian_calls = [
+        call for call in run.tool_calls if call.name == "moveit_plan_and_execute_cartesian_motion"
+    ]
+    if not cartesian_calls:
+        return ValidationResult(False, "wave did not use moveit_plan_and_execute_cartesian_motion")
+
+    execution_call = next((call for call in cartesian_calls if _is_verified_execution(call)), None)
+    if execution_call is None:
+        return ValidationResult(False, "wave did not record verified cartesian execution")
+
+    raw_waypoints = execution_call.arguments.get("waypoints")
+    if not isinstance(raw_waypoints, list):
+        return ValidationResult(False, "wave cartesian execution did not include waypoints")
+    if len(raw_waypoints) < 4:
+        return ValidationResult(False, "expected at least 4 wave waypoints")
+
+    waypoints = [_waypoint_position(waypoint) for waypoint in raw_waypoints]
+    positions = [position for position in waypoints if position is not None]
+    if len(positions) != len(raw_waypoints):
+        return ValidationResult(False, "wave waypoints must include finite x/y/z positions")
+
+    lateral_span_m = max(position["y"] for position in positions) - min(position["y"] for position in positions)
+    vertical_lift_m = max(position["z"] - start["z"] for position in positions)
+    details = {
+        "start": start,
+        "waypoint_count": len(positions),
+        "lateral_span_m": lateral_span_m,
+        "vertical_lift_m": vertical_lift_m,
+        "expected_lateral_span_m": EXPECTED_WAVE_LATERAL_SPAN_M,
+    }
+
+    if lateral_span_m < MIN_WAVE_LATERAL_SPAN_M:
+        return ValidationResult(
+            False,
+            f"expected at least {MIN_WAVE_LATERAL_SPAN_M} m lateral wave span, got {lateral_span_m:.4f} m",
+            details,
+        )
+    if vertical_lift_m < MIN_WAVE_VERTICAL_LIFT_M:
+        return ValidationResult(
+            False,
+            f"expected at least {MIN_WAVE_VERTICAL_LIFT_M} m vertical wave lift, got {vertical_lift_m:.4f} m",
+            details,
+        )
+    return ValidationResult(True, "wave executed visible verified cartesian sweep", details)
+
+
 def validate_ambiguous_clarification(run: LiveSmokeRun) -> ValidationResult:
     unexpected_tools = _called_unexpected_no_action_tools(run.tool_calls)
     if unexpected_tools:
@@ -243,19 +307,18 @@ def _has_successful_pose_observation(calls: list[RecordedToolCall]) -> bool:
 
 
 def _has_verified_execution(calls: list[RecordedToolCall]) -> bool:
-    for call in calls:
-        if call.name not in EXECUTION_TOOL_NAMES:
-            continue
-        structured = _structured_content(call.output_json)
-        if not isinstance(structured, dict) or structured.get("ok") is not True:
-            continue
-        verification = structured.get("verification")
-        if isinstance(verification, dict) and verification.get("result") == "pass":
-            return True
-        execution = structured.get("execution")
-        if isinstance(execution, dict) and execution.get("verification_result") == "pass":
-            return True
-    return False
+    return any(_is_verified_execution(call) for call in calls if call.name in EXECUTION_TOOL_NAMES)
+
+
+def _is_verified_execution(call: RecordedToolCall) -> bool:
+    structured = _structured_content(call.output_json)
+    if not isinstance(structured, dict) or structured.get("ok") is not True:
+        return False
+    verification = structured.get("verification")
+    if isinstance(verification, dict) and verification.get("result") == "pass":
+        return True
+    execution = structured.get("execution")
+    return isinstance(execution, dict) and execution.get("verification_result") == "pass"
 
 
 def _pose_position(call: RecordedToolCall) -> dict[str, float] | None:
@@ -268,17 +331,30 @@ def _pose_position(call: RecordedToolCall) -> dict[str, float] | None:
     pose = raw.get("pose")
     if not isinstance(pose, dict):
         return None
-    position = pose.get("position")
+    return _waypoint_position(pose)
+
+
+def _waypoint_position(waypoint: Any) -> dict[str, float] | None:
+    if not isinstance(waypoint, dict):
+        return None
+    position = waypoint.get("position") if isinstance(waypoint.get("position"), dict) else waypoint
     if not isinstance(position, dict):
         return None
-    try:
-        return {
-            "x": float(position["x"]),
-            "y": float(position["y"]),
-            "z": float(position["z"]),
-        }
-    except (KeyError, TypeError, ValueError):
+    x = _finite_float(position.get("x"))
+    y = _finite_float(position.get("y"))
+    z = _finite_float(position.get("z"))
+    if x is None or y is None or z is None:
         return None
+    return {"x": x, "y": y, "z": z}
+
+
+def _finite_float(value: Any) -> float | None:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    number = float(value)
+    if not math.isfinite(number):
+        return None
+    return number
 
 
 def _structured_content(value: Any) -> Any:

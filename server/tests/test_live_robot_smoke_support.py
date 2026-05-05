@@ -9,6 +9,7 @@ from test_support.live_robot_smoke import (
     validate_ambiguous_clarification,
     validate_bit_movement,
     validate_position_query,
+    validate_wave_motion,
 )
 
 
@@ -178,6 +179,56 @@ def test_move_down_bit_accepts_verified_minus_z_motion() -> None:
     assert result.details["delta_z_m"] == pytest.approx(-0.05)
 
 
+def test_wave_motion_accepts_visible_verified_cartesian_sweep() -> None:
+    run = LiveSmokeRun(
+        prompt="wave to me",
+        reply="I waved.",
+        tool_calls=[
+            pose_call(z=0.62, y=0.39),
+            verified_cartesian_execution_call(
+                [
+                    waypoint(y=0.49, z=0.70),
+                    waypoint(y=0.29, z=0.70),
+                    waypoint(y=0.49, z=0.70),
+                    waypoint(y=0.29, z=0.70),
+                    waypoint(y=0.39, z=0.62),
+                ]
+            ),
+            pose_call(z=0.62, y=0.39),
+        ],
+    )
+
+    result = validate_wave_motion(run)
+
+    assert result.passed is True
+    assert result.details["lateral_span_m"] == pytest.approx(0.20)
+    assert result.details["vertical_lift_m"] == pytest.approx(0.08)
+
+
+def test_wave_motion_rejects_timid_sweep() -> None:
+    run = LiveSmokeRun(
+        prompt="wave to me",
+        reply="I waved.",
+        tool_calls=[
+            pose_call(z=0.62, y=0.39),
+            verified_cartesian_execution_call(
+                [
+                    waypoint(y=0.43, z=0.65),
+                    waypoint(y=0.35, z=0.65),
+                    waypoint(y=0.43, z=0.65),
+                    waypoint(y=0.35, z=0.65),
+                ]
+            ),
+            pose_call(z=0.62, y=0.39),
+        ],
+    )
+
+    result = validate_wave_motion(run)
+
+    assert result.passed is False
+    assert "expected at least 0.18 m lateral wave span" in result.reason
+
+
 def test_ambiguous_command_accepts_clarification_without_motion() -> None:
     run = LiveSmokeRun(
         prompt="move there",
@@ -250,6 +301,28 @@ def verified_execution_call() -> RecordedToolCall:
     return RecordedToolCall(
         name="moveit_plan_and_execute_free_motion",
         arguments={"robot_name": "UR10", "target_pose": {"x": 0.1, "y": 0.2, "z": 0.35}},
+        output_text=json.dumps(output_json),
+        output_json=output_json,
+    )
+
+
+def waypoint(*, y: float, z: float, x: float = 0.10) -> dict[str, object]:
+    return {
+        "position": {"x": x, "y": y, "z": z},
+        "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+    }
+
+
+def verified_cartesian_execution_call(waypoints: list[dict[str, object]]) -> RecordedToolCall:
+    output_json = {
+        "structured_content": {
+            "ok": True,
+            "verification": {"result": "pass"},
+        }
+    }
+    return RecordedToolCall(
+        name="moveit_plan_and_execute_cartesian_motion",
+        arguments={"robot_name": "UR10", "waypoints": waypoints},
         output_text=json.dumps(output_json),
         output_json=output_json,
     )
