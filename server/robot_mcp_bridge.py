@@ -9,7 +9,6 @@ from mcp.types import CallToolResult, TextContent, Tool
 from voice_runtime.robot_safety import (
     AGENT_TO_LEGACY_MCP_TOOL_NAMES,
     RobotSafetyError,
-    canonical_mcp_tool_name,
     validate_robot_tool_call,
 )
 
@@ -41,19 +40,28 @@ class RobotMCPBridge:
             cache_tools_list=True,
         )
         self._tools: list[Tool] = []
+        self._backing_tool_names: dict[str, str] = {}
         self._connected = False
 
     async def connect(self) -> None:
         if self._connected:
             return
         await self._server.connect()
-        self._tools = [tool for tool in await self._server.list_tools() if self._agent_tool_name(tool.name) is not None]
+        self._tools = []
+        self._backing_tool_names = {}
+        for tool in await self._server.list_tools():
+            agent_name = self._agent_tool_name(tool.name)
+            if agent_name is None:
+                continue
+            self._tools.append(tool)
+            self._backing_tool_names[agent_name] = tool.name
         self._connected = True
 
     async def disconnect(self) -> None:
         await self._server.cleanup()
         self._connected = False
         self._tools = []
+        self._backing_tool_names = {}
 
     def function_tools(self) -> list[dict[str, Any]]:
         tools: list[dict[str, Any]] = []
@@ -75,13 +83,13 @@ class RobotMCPBridge:
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
         try:
             validate_robot_tool_call(name, arguments)
-            mcp_tool_name = canonical_mcp_tool_name(name)
         except RobotSafetyError as exc:
             return _serialize_validation_failure(exc)
 
-        if mcp_tool_name not in {tool.name for tool in self._tools}:
+        backing_tool_name = self._backing_tool_names.get(name)
+        if backing_tool_name is None:
             raise RobotMCPError(f"Tool is not allowed: {name}")
-        result = await self._server.call_tool(mcp_tool_name, arguments)
+        result = await self._server.call_tool(backing_tool_name, arguments)
         return _serialize_tool_result(result)
 
     @staticmethod

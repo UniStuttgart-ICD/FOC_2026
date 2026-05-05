@@ -34,6 +34,17 @@ class FakeServer:
         )
 
 
+class FakeCanonicalServer(FakeServer):
+    async def list_tools(self):
+        return [
+            Tool(
+                name="moveit_get_robot_status",
+                description="Canonical status",
+                inputSchema={"type": "object"},
+            )
+        ]
+
+
 @pytest.mark.asyncio
 async def test_lists_only_allowed_tools_as_codex_function_tools_with_canonical_names():
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeServer())
@@ -67,6 +78,28 @@ async def test_calls_allowed_tool_and_serializes_result():
     output = await bridge.call_tool("moveit_get_robot_status", {"robot_name": "UR10"})
 
     assert server.called == [("get_robot_status", {"robot_name": "UR10"})]
+    assert json.loads(output) == {"content": ["ok"], "structured_content": {"success": True}, "is_error": False}
+
+
+@pytest.mark.asyncio
+async def test_calls_canonical_listed_tool_by_advertised_name():
+    server = FakeCanonicalServer()
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
+    await bridge.connect()
+
+    assert bridge.function_tools() == [
+        {
+            "type": "function",
+            "name": "moveit_get_robot_status",
+            "description": "Canonical status",
+            "parameters": {"type": "object"},
+            "strict": None,
+        }
+    ]
+
+    output = await bridge.call_tool("moveit_get_robot_status", {"robot_name": "UR10"})
+
+    assert server.called == [("moveit_get_robot_status", {"robot_name": "UR10"})]
     assert json.loads(output) == {"content": ["ok"], "structured_content": {"success": True}, "is_error": False}
 
 
