@@ -60,8 +60,8 @@ device = "cpu"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.no_wake_debug.agent]
-provider = "claude"
-model = "claude-haiku-4-5-20251001"
+provider = "openai_codex_oauth"
+model = "gpt-5.4-mini"
 [profiles.no_wake_debug.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
 [profiles.no_wake_debug.metrics]
@@ -224,6 +224,41 @@ def test_local_profile_has_no_cloud_stt_tts_env_requirements(tmp_path: Path):
     assert profile.required_env_names() == ()
 
 
+def test_legacy_claude_agent_provider_is_rejected(tmp_path: Path):
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profile(
+        profiles_path,
+        """
+[profiles.legacy]
+category = "local_debug"
+[profiles.legacy.wake]
+provider = "none"
+[profiles.legacy.emergency_stop]
+enabled = false
+[profiles.legacy.stt]
+provider = "whisper"
+model = "base"
+[profiles.legacy.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.legacy.agent]
+provider = "claude"
+model = "claude-haiku-4-5-20251001"
+[profiles.legacy.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.legacy.metrics]
+enabled = false
+""",
+    )
+
+    with pytest.raises(ProfileError, match="provider must be one of"):
+        load_runtime_profile(
+            profiles_path=profiles_path,
+            server_dir=tmp_path,
+            profile_name="legacy",
+        )
+
+
 def test_benchmark_profile_rejects_local_stt(tmp_path: Path):
     profiles_path = tmp_path / "runtime_profiles.toml"
     _write_profile(
@@ -302,8 +337,8 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.bad.agent]
-provider = "claude"
-model = "claude-haiku-4-5-20251001"
+provider = "openai_codex_oauth"
+model = "gpt-5.4-mini"
 [profiles.bad.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
 [profiles.bad.metrics]
@@ -334,8 +369,8 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.bad.agent]
-provider = "claude"
-model = "claude-haiku-4-5-20251001"
+provider = "openai_codex_oauth"
+model = "gpt-5.4-mini"
 [profiles.bad.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
 [profiles.bad.metrics]
@@ -374,8 +409,8 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.bad.agent]
-provider = "claude"
-model = "claude-haiku-4-5-20251001"
+provider = "openai_codex_oauth"
+model = "gpt-5.4-mini"
 [profiles.bad.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
 [profiles.bad.metrics]
