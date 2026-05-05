@@ -47,6 +47,7 @@ class RobotAgentState(TypedDict):
     codex_output_items: list[dict[str, Any]]
     codex_text: str
     tool_turns: int
+    observed_this_turn: bool
     final_text: str
     error_text: str | None
 
@@ -90,6 +91,7 @@ class LangGraphRobotAgent:
             "codex_output_items": [],
             "codex_text": "",
             "tool_turns": 0,
+            "observed_this_turn": False,
             "final_text": "",
             "error_text": None,
         }
@@ -123,12 +125,14 @@ class LangGraphRobotAgent:
 
     async def _observe_current_pose(self, state: RobotAgentState) -> dict[str, Any]:
         tools = self._tool_bridge.function_tools()
+        if state.get("observed_this_turn"):
+            return {"tools": tools}
         observe_tool_name = _first_available_tool(tools, OBSERVE_TOOL_NAMES)
         if observe_tool_name is None:
             return {"tools": tools}
         logger.info(f"Refreshing robot observation before Codex request with {observe_tool_name}")
         await self._execute_tool(observe_tool_name, {"robot_name": VIZOR_ROBOT_NAME})
-        return {"tools": tools}
+        return {"tools": tools, "observed_this_turn": True}
 
     async def _call_codex(self, state: RobotAgentState) -> dict[str, Any]:
         input_items = state["input_items"] or _input_items_from_messages(state["messages"]) or [
@@ -185,8 +189,13 @@ class LangGraphRobotAgent:
 
     async def _execute_robot_tool(self, state: RobotAgentState) -> dict[str, Any]:
         input_items = [*state["input_items"], *state["codex_output_items"]]
+        observed_this_turn = state["observed_this_turn"]
         for tool_call in state["pending_tool_calls"]:
             output = await self._execute_tool_call(tool_call)
+            if tool_call["name"] in OBSERVE_TOOL_NAMES:
+                observed_this_turn = True
+            else:
+                observed_this_turn = False
             input_items.append(
                 {
                     "type": "function_call_output",
@@ -199,6 +208,7 @@ class LangGraphRobotAgent:
             "pending_tool_calls": [],
             "codex_output_items": [],
             "tool_turns": state["tool_turns"] + 1,
+            "observed_this_turn": observed_this_turn,
         }
 
     def _final_response(self, state: RobotAgentState) -> dict[str, Any]:

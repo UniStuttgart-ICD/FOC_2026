@@ -277,7 +277,7 @@ async def test_graph_ignores_legacy_status_as_active_observation_tool() -> None:
 
 
 @pytest.mark.asyncio
-async def test_graph_sends_tool_output_back_to_codex() -> None:
+async def test_graph_does_not_refresh_pose_before_every_codex_retry_for_observation_loop() -> None:
     pose = tool_call("moveit_get_current_pose")
     fixture = make_graph(
         [
@@ -294,6 +294,27 @@ async def test_graph_sends_tool_output_back_to_codex() -> None:
     assert text == "Robot pose is ready."
     assert fixture.bridge.calls == [
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_graph_sends_tool_output_back_to_codex() -> None:
+    pose = tool_call("moveit_get_current_pose")
+    fixture = make_graph(
+        [
+            CodexResponseResult(
+                tool_calls=[pose],
+                output_items=[output_item("moveit_get_current_pose")],
+            ),
+            CodexResponseResult(text="Robot pose is ready."),
+        ]
+    )
+
+    text = await fixture.graph.run_turn(turn("where is the pose?"))
+
+    assert text == "Robot pose is ready."
+    assert fixture.bridge.calls == [
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
