@@ -7,6 +7,7 @@ dependencies = [
     "pipecat-ai[cartesia,deepgram,kokoro,openai,runner,silero,webrtc,whisper]",
     "openai-agents>=0.14.0,<1",
     "openai>=2.29.0,<3",
+    "langgraph>=1.0,<2",
     "httpx>=0.28.0,<1",
     "openwakeword>=0.6.0,<1",
     "silero-vad>=6.0.0,<7",

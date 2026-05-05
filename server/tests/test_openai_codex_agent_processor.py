@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from codex_auth import CodexCredentials
+from codex_auth import CodexAuthError, CodexCredentials
 from codex_backend_client import CodexResponseResult, CodexToolCall
 from openai_codex_agent_processor import OpenAICodexAgentProcessor
 from voice_runtime.agent_turn import AgentTurnInput
@@ -12,6 +12,11 @@ from voice_runtime.agent_turn import AgentTurnInput
 class FakeStore:
     def get_credentials(self):
         return CodexCredentials(access="access", refresh="refresh", account_id="acct")
+
+
+class AuthErrorStore:
+    def get_credentials(self):
+        raise CodexAuthError("login required")
 
 
 class FakeBridge:
@@ -79,6 +84,44 @@ async def _run_turn(processor: OpenAICodexAgentProcessor, text: str, messages=No
 
 
 @pytest.mark.asyncio
+async def test_auth_error_does_not_observe_robot_before_returning_guidance():
+    backend = FakeBackend([CodexResponseResult(text="should-not-run")])
+    bridge = FakeBridge()
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=AuthErrorStore(),
+        backend_client=backend,
+        tool_bridge=bridge,
+    )
+
+    result = await _run_turn(processor, "hello")
+
+    assert result.chunks == ["login required"]
+    assert bridge.calls == []
+    assert backend.requests == []
+
+
+@pytest.mark.asyncio
+async def test_reuses_langgraph_runner_between_turns():
+    backend = FakeBackend([CodexResponseResult(text="one"), CodexResponseResult(text="two")])
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=FakeStore(),
+        backend_client=backend,
+        tool_bridge=FakeBridge(),
+    )
+
+    await _run_turn(processor, "one")
+    first_graph = processor._graph_agent
+    await _run_turn(processor, "two")
+
+    assert first_graph is not None
+    assert processor._graph_agent is first_graph
+
+
+@pytest.mark.asyncio
 async def test_processes_text_response_through_codex_backend():
     backend = FakeBackend([CodexResponseResult(text="oauth-ok")])
     bridge = FakeBridge()
@@ -139,6 +182,7 @@ async def test_executes_one_tool_iteration_and_sends_tool_output_back():
     result = await _run_turn(processor, "where is the pose?")
 
     assert bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]

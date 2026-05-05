@@ -345,5 +345,6 @@ async def test_plan_tool_is_auto_executed_once_plan_is_executable():
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
         ("moveit_plan_free_motion", plan_args),
         ("moveit_execute_plan", {"robot_name": "UR10", "plan_name": "plan-1"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
     assert chunks == ["Moved up 50 mm."]
