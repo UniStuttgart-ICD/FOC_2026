@@ -151,6 +151,10 @@ def test_cartesian_tool_descriptions_enable_improvisational_tcp_paths() -> None:
         assert "multi-point motion" in lowered
         assert "ordered waypoints" in lowered
         assert "preserve orientation" in lowered
+        assert "copy" in lowered
+        assert "raw.pose.orientation" in lowered
+        assert "fresh current pose" in lowered
+        assert "bounded" in lowered
 
 
 def test_free_motion_tool_description_distinguishes_point_to_point_from_paths() -> None:
