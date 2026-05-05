@@ -299,6 +299,71 @@ async def test_graph_does_not_refresh_pose_before_every_codex_retry_for_observat
 
 
 @pytest.mark.asyncio
+async def test_graph_retries_pose_refresh_after_failed_observation_output() -> None:
+    class FailingPoseBridge(FakeBridge):
+        def __init__(self) -> None:
+            super().__init__()
+            self.pose_attempts = 0
+
+        async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+            if name != "moveit_get_current_pose":
+                return await super().call_tool(name, arguments)
+            self.calls.append((name, arguments))
+            self.pose_attempts += 1
+            if self.pose_attempts <= 2:
+                return json.dumps(
+                    {
+                        "structured_content": {
+                            "ok": False,
+                            "error": "pose unavailable",
+                            "retryable": True,
+                        }
+                    }
+                )
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": True,
+                        "robot": "UR10",
+                        "raw": {
+                            "pose": {
+                                "position": {"x": 0.1, "y": 0.2, "z": 0.3},
+                                "orientation": {
+                                    "x": 0.0,
+                                    "y": -0.7071,
+                                    "z": -0.7071,
+                                    "w": 0.0,
+                                },
+                            }
+                        },
+                    }
+                }
+            )
+
+    pose = tool_call("moveit_get_current_pose")
+    fixture = make_graph(
+        [
+            CodexResponseResult(
+                tool_calls=[pose],
+                output_items=[output_item("moveit_get_current_pose")],
+            ),
+            CodexResponseResult(text="Robot pose is ready."),
+        ],
+        bridge=FailingPoseBridge(),
+    )
+
+    text = await fixture.graph.run_turn(turn("where is the pose?"))
+
+    assert text == "Robot pose is ready."
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]
+    assert "robot: UR10" in fixture.backend.requests[1]["instructions"]
+
+
+@pytest.mark.asyncio
 async def test_graph_sends_tool_output_back_to_codex() -> None:
     pose = tool_call("moveit_get_current_pose")
     fixture = make_graph(

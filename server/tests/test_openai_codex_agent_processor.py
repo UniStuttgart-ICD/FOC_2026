@@ -187,7 +187,6 @@ async def test_executes_one_tool_iteration_and_sends_tool_output_back():
     assert bridge.calls == [
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
     assert backend.requests[1]["input_items"][-1]["type"] == "function_call_output"
     assert backend.requests[1]["input_items"][-1]["call_id"] == "call-1"

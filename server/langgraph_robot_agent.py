@@ -131,8 +131,10 @@ class LangGraphRobotAgent:
         if observe_tool_name is None:
             return {"tools": tools}
         logger.info(f"Refreshing robot observation before Codex request with {observe_tool_name}")
-        await self._execute_tool(observe_tool_name, {"robot_name": VIZOR_ROBOT_NAME})
-        return {"tools": tools, "observed_this_turn": True}
+        _, observed = await self._execute_observation_tool(
+            observe_tool_name, {"robot_name": VIZOR_ROBOT_NAME}
+        )
+        return {"tools": tools, "observed_this_turn": observed}
 
     async def _call_codex(self, state: RobotAgentState) -> dict[str, Any]:
         input_items = state["input_items"] or _input_items_from_messages(state["messages"]) or [
@@ -191,10 +193,12 @@ class LangGraphRobotAgent:
         input_items = [*state["input_items"], *state["codex_output_items"]]
         observed_this_turn = state["observed_this_turn"]
         for tool_call in state["pending_tool_calls"]:
-            output = await self._execute_tool_call(tool_call)
             if tool_call["name"] in OBSERVE_TOOL_NAMES:
-                observed_this_turn = True
+                output, observed_this_turn = await self._execute_observation_tool(
+                    tool_call["name"], tool_call["arguments"]
+                )
             else:
+                output = await self._execute_tool_call(tool_call)
                 observed_this_turn = False
             input_items.append(
                 {
@@ -219,6 +223,15 @@ class LangGraphRobotAgent:
 
     async def _execute_tool_call(self, tool_call: dict[str, Any]) -> str:
         return await self._execute_tool(tool_call["name"], tool_call["arguments"])
+
+    async def _execute_observation_tool(
+        self, name: str, arguments: dict[str, Any]
+    ) -> tuple[str, bool]:
+        output = await self._execute_tool(name, arguments)
+        observed = (
+            _output_has_current_pose(output) and self._robot_context.latest_tcp_pose() is not None
+        )
+        return output, observed
 
     async def _call_policy_checked_tool(self, name: str, arguments: dict[str, Any]) -> str:
         decision = validate_task_step(name, arguments, self._robot_context)
@@ -346,6 +359,22 @@ def _first_available_tool(tools: list[dict[str, Any]], names: tuple[str, ...]) -
         if name in tool_names:
             return name
     return None
+
+
+def _output_has_current_pose(output: str) -> bool:
+    try:
+        payload = json.loads(output)
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    structured_content = payload.get("structured_content")
+    if not isinstance(structured_content, dict) or structured_content.get("ok") is not True:
+        return False
+    if isinstance(structured_content.get("tcp_pose"), dict):
+        return True
+    raw = structured_content.get("raw")
+    return isinstance(raw, dict) and isinstance(raw.get("pose"), dict)
 
 
 def _has_any_argument(arguments: dict[str, Any], names: tuple[str, ...]) -> bool:

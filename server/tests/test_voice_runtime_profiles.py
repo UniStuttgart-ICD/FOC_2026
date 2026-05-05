@@ -4,7 +4,6 @@ import pytest
 
 from voice_runtime.profiles import (
     AgentProfile,
-    default_profiles_path,
     EmergencyStopProfile,
     MetricsProfile,
     ProfileError,
@@ -12,6 +11,7 @@ from voice_runtime.profiles import (
     STTProfile,
     TTSProfile,
     WakeProfile,
+    default_profiles_path,
     load_runtime_profile,
 )
 
