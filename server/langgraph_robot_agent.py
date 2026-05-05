@@ -14,15 +14,16 @@ from loguru import logger
 
 from codex_backend_client import CodexResponseResult
 from prompts import SYSTEM_PROMPT
-from robot_mcp_bridge import RobotMCPError
-from voice_runtime.agent_turn import AgentTurnInput
-from voice_runtime.robot_context import RobotContextStore
-from voice_runtime.robot_safety import (
-    RobotSafetyError,
+from robot_control.call_validation import (
+    RobotCallValidationError,
     executable_plan_name,
     execution_result_text,
-    structured_robot_error,
+    structured_robot_call_error,
 )
+from robot_control.context import RobotContextStore
+from robot_control.mcp_bridge import RobotMCPError
+from robot_control.task_policy import structured_task_policy_error, validate_task_step
+from voice_runtime.agent_turn import AgentTurnInput
 
 MAX_CODEX_TOOL_TURNS = 3
 VIZOR_ROBOT_NAME = "UR10"
@@ -202,13 +203,21 @@ class LangGraphRobotAgent:
     async def _execute_tool_call(self, tool_call: dict[str, Any]) -> str:
         return await self._execute_tool(tool_call["name"], tool_call["arguments"])
 
+    async def _call_policy_checked_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        decision = validate_task_step(name, arguments, self._robot_context)
+        if not decision.ok:
+            return json.dumps(structured_task_policy_error(decision), ensure_ascii=False)
+        output = await self._tool_bridge.call_tool(name, arguments)
+        self._robot_context.update_from_tool_result(name, output)
+        return output
+
     async def _execute_tool(self, name: str, arguments: dict[str, Any]) -> str:
         try:
-            output = await self._tool_bridge.call_tool(name, arguments)
-            self._robot_context.update_from_tool_result(name, output)
+            output = await self._call_policy_checked_tool(name, arguments)
             plan_name = executable_plan_name(output)
             if name in PLAN_TOOL_NAMES and plan_name:
-                execution_output = await self._tool_bridge.call_tool(
+                self._robot_context.remember_executable_plan(plan_name)
+                execution_output = await self._call_policy_checked_tool(
                     "moveit_execute_plan",
                     {"robot_name": VIZOR_ROBOT_NAME, "plan_name": plan_name},
                 )
@@ -222,11 +231,11 @@ class LangGraphRobotAgent:
                 )
             return output
         except RobotMCPError as exc:
-            safety_error = RobotSafetyError(
+            validation_error = RobotCallValidationError(
                 str(exc),
                 correction="Check the robot control server, then retry the robot action.",
             )
-            return json.dumps(structured_robot_error(safety_error), ensure_ascii=False)
+            return json.dumps(structured_robot_call_error(validation_error), ensure_ascii=False)
 
     def _repaired_tool_arguments(
         self, name: str, arguments: dict[str, Any], user_text: str

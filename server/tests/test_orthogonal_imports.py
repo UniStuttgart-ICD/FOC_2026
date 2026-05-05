@@ -15,16 +15,21 @@ APP_MODULE_ROOTS = {
     "pipeline_builder",
     "prompts",
     "providers",
-    "robot_mcp_bridge",
+    "robot_control",
     "wake",
 }
 
 PURE_MODULES = {
     "contracts.py",
     "profiles.py",
-    "robot_safety.py",
     "voice_metrics.py",
     "assembly.py",
+}
+
+DELETED_LEGACY_ROBOT_MODULES = {
+    SERVER_DIR / "robot_mcp_bridge.py",
+    VOICE_RUNTIME_DIR / "robot_context.py",
+    VOICE_RUNTIME_DIR / "robot_safety.py",
 }
 PURE_MODULE_FORBIDDEN_ROOTS = {
     "agents",
@@ -59,3 +64,8 @@ def test_pure_voice_runtime_modules_do_not_import_runtime_adapters():
         imported = _import_roots(path)
         forbidden = imported & PURE_MODULE_FORBIDDEN_ROOTS
         assert not forbidden, f"{name} imports adapter-specific module(s): {sorted(forbidden)}"
+
+
+def test_legacy_robot_modules_are_not_left_in_old_locations():
+    for path in DELETED_LEGACY_ROBOT_MODULES:
+        assert not path.exists(), f"Legacy robot module still exists: {path}"

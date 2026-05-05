@@ -9,13 +9,11 @@ Pipecat voice robot agent: a Python cascade voice pipeline for controlling a UR 
 - `server/bot.py` - Runner startup, transport creation, profile selection, and client lifecycle hooks.
 - `server/pipeline_builder.py` - App composition root for concrete adapters and pipeline task assembly.
 - `server/voice_runtime/` - Reusable Pipecat/audio runtime Modules: profiles, voice providers, wake command, Agent Turn seam, assembly, and metrics.
+- `server/robot_control/` - Robot Control Modules: Task Policy, Robot Call Validation, Robot Tool Adapter, and Robot Context.
 - `server/openai_codex_agent_processor.py` - Current Codex OAuth Agent Backend adapter; target home is `server/agent_control/`.
 - `server/langgraph_robot_agent.py` - Current LangGraph Agent Orchestration; target home is `server/agent_control/`.
 - `server/codex_backend_client.py` and `server/codex_auth.py` - Codex backend API client and Pi OAuth credential loading/refresh; target home is `server/agent_control/`.
 - `server/prompts.py` - Robot agent prompt; target home is `server/agent_control/`.
-- `server/robot_mcp_bridge.py` - Robot MCP tool Adapter used by Codex; target home is `server/robot_control/`.
-- `server/voice_runtime/robot_safety.py` - Legacy placement for Robot Call Validation; target home is `server/robot_control/call_validation.py`.
-- `server/voice_runtime/robot_context.py` - Legacy placement for Robot Context; target home is `server/robot_control/context.py`.
 - `server/runtime_profiles.toml` - App runtime profile definitions.
 - `server/tests/` - Pytest coverage for config, pipeline assembly, Agent Backend, Agent Orchestration, Robot Call Validation, and Codex behavior.
 - `.pi/plans/`, `docs/superpowers/specs/`, and `docs/superpowers/plans/` - Approved specs and implementation plans.
@@ -52,7 +50,8 @@ Run server commands from `server/`.
 <important if="you are changing architecture, module placement, or package seams">
 - Follow `ARCHITECTURE.md` as the target map.
 - Target packages are `voice_runtime`, `agent_control`, and `robot_control`.
-- Extract `robot_control` before `agent_control`; then clean up legacy top-level placements.
+- Robot-side policy, context, validation, and adapter changes belong under `server/robot_control/`.
+- Extract `agent_control` after Robot Control; keep remaining app wiring in the composition root.
 - Update `CONTEXT.md` when domain terms or ownership decisions change.
 </important>
 
@@ -98,7 +97,7 @@ Run server commands from `server/`.
 <important if="you are changing Robot Call Validation">
 - Robot Call Validation checks tool names, `robot_name`, argument shape, target bounds, timeouts, and executable plan names.
 - Robot Call Validation is not Task Policy and is not the source of movement safety.
-- Target home is `server/robot_control/call_validation.py`; `voice_runtime.robot_safety` is legacy placement.
+- Implementation lives in `server/robot_control/call_validation.py`.
 </important>
 
 <important if="you are implementing or changing Task Policy">
@@ -111,7 +110,7 @@ Run server commands from `server/`.
 <important if="you are changing Robot Context">
 - Robot Context is advisory state only.
 - Require fresh `moveit_get_current_pose` before movement, relative commands, retries, or safety-sensitive actions.
-- Target home is `server/robot_control/context.py`; `voice_runtime.robot_context` is legacy placement.
+- Implementation lives in `server/robot_control/context.py`.
 </important>
 
 <important if="you are changing the robot agent prompt or tool descriptions">

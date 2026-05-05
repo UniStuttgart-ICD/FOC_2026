@@ -2,13 +2,13 @@ import json
 
 import pytest
 
-from voice_runtime.robot_safety import (
-    RobotSafetyError,
+from robot_control.call_validation import (
+    RobotCallValidationError,
     agent_tool_description,
     canonical_mcp_tool_name,
     executable_plan_name,
     execution_result_text,
-    structured_robot_error,
+    structured_robot_call_error,
     validate_robot_tool_call,
 )
 
@@ -37,12 +37,12 @@ def test_accepts_current_pose_observation_arguments():
 
 
 def test_rejects_unknown_tool():
-    with pytest.raises(RobotSafetyError, match="Tool is not allowed"):
+    with pytest.raises(RobotCallValidationError, match="Tool is not allowed"):
         validate_robot_tool_call("move_to_position", {"robot_name": "UR10"})
 
 
 def test_rejects_non_ur10_robot_name():
-    with pytest.raises(RobotSafetyError) as exc:
+    with pytest.raises(RobotCallValidationError) as exc:
         validate_robot_tool_call("moveit_open_gripper", {"robot_name": "UR5"})
 
     assert str(exc.value) == "Only Vizor robot UR10 is allowed"
@@ -55,7 +55,7 @@ def test_rejects_workspace_escape():
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
     }
 
-    with pytest.raises(RobotSafetyError) as exc:
+    with pytest.raises(RobotCallValidationError) as exc:
         validate_robot_tool_call(
             "moveit_plan_free_motion",
             {"robot_name": "UR10", "target_pose": unsafe_pose},
@@ -68,6 +68,8 @@ def test_rejects_workspace_escape():
 def test_maps_canonical_agent_tool_to_legacy_mcp_tool_name():
     assert canonical_mcp_tool_name("moveit_get_current_pose") == "get_current_pose"
     assert canonical_mcp_tool_name("moveit_plan_free_motion") == "plan_free_motion"
+    assert canonical_mcp_tool_name("moveit_plan_and_execute_free_motion") == "plan_and_execute_free_motion"
+    assert canonical_mcp_tool_name("moveit_plan_and_execute_cartesian_motion") == "plan_and_execute_cartesian_motion"
     assert canonical_mcp_tool_name("moveit_open_gripper") == "open_gripper"
 
 
@@ -105,7 +107,7 @@ def test_accepts_cartesian_motion_arguments() -> None:
 
 
 def test_rejects_empty_cartesian_waypoints() -> None:
-    with pytest.raises(RobotSafetyError) as exc:
+    with pytest.raises(RobotCallValidationError) as exc:
         validate_robot_tool_call("moveit_plan_cartesian_motion", {"robot_name": "UR10", "waypoints": []})
 
     assert str(exc.value) == "Expected at least one waypoint"
@@ -118,10 +120,10 @@ def test_accepts_high_level_plan_and_execute_tool() -> None:
     )
 
 
-def test_structured_robot_error_shape() -> None:
-    err = RobotSafetyError("bad target", correction="Use a safe target.")
+def test_structured_robot_call_error_shape() -> None:
+    err = RobotCallValidationError("bad target", correction="Use a safe target.")
 
-    assert structured_robot_error(err) == {
+    assert structured_robot_call_error(err) == {
         "ok": False,
         "error": "bad target",
         "correction": "Use a safe target.",

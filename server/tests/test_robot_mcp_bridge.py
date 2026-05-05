@@ -3,8 +3,8 @@ import json
 import pytest
 from mcp.types import CallToolResult, TextContent, Tool
 
-from robot_mcp_bridge import RobotMCPBridge, RobotMCPError
-from voice_runtime.robot_safety import agent_tool_description
+from robot_control.call_validation import agent_tool_description
+from robot_control.mcp_bridge import RobotMCPBridge, RobotMCPError
 
 
 class FakeServer:
@@ -55,6 +55,22 @@ class FakeLiveShapeServer(FakeServer):
             Tool(name="get_current_pose", description="Legacy pose", inputSchema={"type": "object"}),
             Tool(name="plan_free_motion", description="Legacy plan", inputSchema={"type": "object"}),
             Tool(name="execute_plan", description="Legacy execute", inputSchema={"type": "object"}),
+        ]
+
+
+class FakeLegacyWorkflowServer(FakeServer):
+    async def list_tools(self):
+        return [
+            Tool(
+                name="plan_and_execute_free_motion",
+                description="Legacy workflow",
+                inputSchema={"type": "object"},
+            ),
+            Tool(
+                name="plan_and_execute_cartesian_motion",
+                description="Legacy Cartesian workflow",
+                inputSchema={"type": "object"},
+            ),
         ]
 
 
@@ -135,6 +151,29 @@ async def test_calls_canonical_listed_tool_by_advertised_name():
 
 
 @pytest.mark.asyncio
+async def test_maps_legacy_plan_and_execute_workflows_to_canonical_agent_tools():
+    server = FakeLegacyWorkflowServer()
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
+    await bridge.connect()
+
+    assert [tool["name"] for tool in bridge.function_tools()] == [
+        "moveit_plan_and_execute_free_motion",
+        "moveit_plan_and_execute_cartesian_motion",
+    ]
+
+    free_args = {
+        "robot_name": "UR10",
+        "target_pose": {
+            "position": {"x": 0.1, "y": 0.2, "z": 0.3},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+    }
+    await bridge.call_tool("moveit_plan_and_execute_free_motion", free_args)
+
+    assert server.called == [("plan_and_execute_free_motion", free_args)]
+
+
+@pytest.mark.asyncio
 async def test_does_not_advertise_broad_robot_control_tool():
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeServer())
 
@@ -175,7 +214,7 @@ async def test_rejects_unknown_tool_before_mcp_call():
 
 
 @pytest.mark.asyncio
-async def test_rejects_unsafe_motion_arguments_before_mcp_call():
+async def test_rejects_out_of_bounds_motion_arguments_before_mcp_call():
     server = FakeServer()
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
     await bridge.connect()

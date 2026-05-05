@@ -6,12 +6,12 @@ from typing import Any, Protocol
 from agents.mcp import MCPServerStreamableHttp
 from mcp.types import CallToolResult, TextContent, Tool
 
-from voice_runtime.robot_safety import (
+from robot_control.call_validation import (
     AGENT_TO_LEGACY_MCP_TOOL_NAMES,
     ALLOWED_ROBOT_TOOLS,
-    RobotSafetyError,
+    RobotCallValidationError,
     agent_tool_description,
-    structured_robot_error,
+    structured_robot_call_error,
     validate_robot_tool_call,
 )
 
@@ -33,7 +33,7 @@ class MCPServerLike(Protocol):
 
 
 class RobotMCPBridge:
-    """Converts robot MCP tools to Codex function tools and executes safe calls."""
+    """Converts robot MCP tools to Codex function tools and executes validated calls."""
 
     def __init__(self, mcp_server_url: str, *, server: MCPServerLike | None = None):
         self._server = server or MCPServerStreamableHttp(
@@ -88,7 +88,7 @@ class RobotMCPBridge:
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
         try:
             validate_robot_tool_call(name, arguments)
-        except RobotSafetyError as exc:
+        except RobotCallValidationError as exc:
             return _serialize_validation_failure(exc)
 
         backing_tool_name = self._backing_tool_names.get(name)
@@ -104,8 +104,8 @@ class RobotMCPBridge:
         return LEGACY_TO_AGENT_TOOL_NAMES.get(tool_name)
 
 
-def _serialize_validation_failure(exc: RobotSafetyError) -> str:
-    return json.dumps(structured_robot_error(exc), ensure_ascii=False)
+def _serialize_validation_failure(exc: RobotCallValidationError) -> str:
+    return json.dumps(structured_robot_call_error(exc), ensure_ascii=False)
 
 
 def _serialize_tool_result(result: CallToolResult) -> str:

@@ -7,8 +7,8 @@ import pytest
 
 from codex_auth import CodexAuthError, CodexCredentials
 from codex_backend_client import CodexResponseResult, CodexToolCall
+from robot_control.context import RobotContextStore
 from voice_runtime.agent_turn import AgentTurnInput
-from voice_runtime.robot_context import RobotContextStore
 
 
 def test_langgraph_dependency_is_available() -> None:
@@ -434,10 +434,102 @@ async def test_graph_auto_executes_executable_plan() -> None:
 
 
 @pytest.mark.asyncio
-async def test_graph_converts_robot_mcp_error_to_structured_tool_output() -> None:
-    from robot_mcp_bridge import RobotMCPError
+async def test_graph_sends_policy_failure_as_tool_output_when_motion_lacks_fresh_observation() -> None:
+    class NoObservationBridge(FakeBridge):
+        def function_tools(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "type": "function",
+                    "name": "moveit_plan_free_motion",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                }
+            ]
 
-    failing_tool = tool_call("moveit_execute_plan", arguments={"robot_name": "UR10", "plan_name": "plan-1"})
+        async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+            self.calls.append((name, arguments))
+            return json.dumps({"structured_content": {"ok": True}})
+
+    plan_args = {
+        "robot_name": "UR10",
+        "target_pose": {
+            "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+    }
+    tool = tool_call("moveit_plan_free_motion", arguments=plan_args)
+    fixture = make_graph(
+        [
+            CodexResponseResult(
+                tool_calls=[tool],
+                output_items=[output_item("moveit_plan_free_motion", arguments=plan_args)],
+            ),
+            CodexResponseResult(text="I need a fresh pose before moving."),
+        ],
+        bridge=NoObservationBridge(),
+    )
+
+    text = await fixture.graph.run_turn(turn("move up"))
+
+    assert text == "I need a fresh pose before moving."
+    assert fixture.bridge.calls == []
+    output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])
+    assert output == {
+        "ok": False,
+        "error": "Fresh robot pose is required before motion.",
+        "correction": "Call moveit_get_current_pose, then retry the motion.",
+        "retryable": True,
+        "suggested_next_tool": "moveit_get_current_pose",
+    }
+
+
+@pytest.mark.asyncio
+async def test_graph_blocks_blind_execute_plan_even_after_fresh_pose() -> None:
+    execute = tool_call(
+        "moveit_execute_plan",
+        arguments={"robot_name": "UR10", "plan_name": "invented-plan"},
+    )
+    fixture = make_graph(
+        [
+            CodexResponseResult(
+                tool_calls=[execute],
+                output_items=[output_item("moveit_execute_plan", arguments=execute.arguments)],
+            ),
+            CodexResponseResult(text="I need to plan before executing."),
+        ]
+    )
+
+    text = await fixture.graph.run_turn(turn("execute the last plan"))
+
+    assert text == "I need to plan before executing."
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]
+    output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])
+    assert output == {
+        "ok": False,
+        "error": "Cannot execute an unknown or stale plan.",
+        "correction": "Plan first, then execute the returned plan_name.",
+        "retryable": True,
+        "suggested_next_tool": "moveit_plan_free_motion",
+    }
+
+
+@pytest.mark.asyncio
+async def test_graph_converts_robot_mcp_error_to_structured_tool_output() -> None:
+    from robot_control.mcp_bridge import RobotMCPError
+
+    failing_tool = tool_call(
+        "moveit_plan_free_motion",
+        arguments={
+            "robot_name": "UR10",
+            "target_pose": {
+                "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+                "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+            },
+        },
+    )
 
     class ErrorBridge(FakeBridge):
         async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
@@ -449,14 +541,14 @@ async def test_graph_converts_robot_mcp_error_to_structured_tool_output() -> Non
         [
             CodexResponseResult(
                 tool_calls=[failing_tool],
-                output_items=[output_item("moveit_execute_plan", arguments=failing_tool.arguments)],
+                output_items=[output_item("moveit_plan_free_motion", arguments=failing_tool.arguments)],
             ),
             CodexResponseResult(text="The robot server is unavailable."),
         ],
         bridge=ErrorBridge(),
     )
 
-    await fixture.graph.run_turn(turn("execute it"))
+    await fixture.graph.run_turn(turn("move up"))
 
     output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])
     assert output == {
@@ -470,7 +562,16 @@ async def test_graph_converts_robot_mcp_error_to_structured_tool_output() -> Non
 
 @pytest.mark.asyncio
 async def test_graph_preserves_structured_robot_tool_failure_as_tool_output() -> None:
-    bad_tool = tool_call("moveit_execute_plan", arguments={"robot_name": "UR10", "plan_name": ""})
+    bad_tool = tool_call(
+        "moveit_plan_free_motion",
+        arguments={
+            "robot_name": "UR10",
+            "target_pose": {
+                "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+                "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+            },
+        },
+    )
 
     class FailureBridge(FakeBridge):
         async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
@@ -480,8 +581,8 @@ async def test_graph_preserves_structured_robot_tool_failure_as_tool_output() ->
             return json.dumps(
                 {
                     "ok": False,
-                    "error": "Expected a non-empty plan_name",
-                    "correction": "Plan first.",
+                    "error": "Planning failed",
+                    "correction": "Check the target and plan again.",
                     "retryable": True,
                     "suggested_next_tool": "moveit_get_current_pose",
                 }
@@ -491,14 +592,14 @@ async def test_graph_preserves_structured_robot_tool_failure_as_tool_output() ->
         [
             CodexResponseResult(
                 tool_calls=[bad_tool],
-                output_items=[output_item("moveit_execute_plan", arguments=bad_tool.arguments)],
+                output_items=[output_item("moveit_plan_free_motion", arguments=bad_tool.arguments)],
             ),
             CodexResponseResult(text="I need a valid plan before executing."),
         ],
         bridge=FailureBridge(),
     )
 
-    text = await fixture.graph.run_turn(turn("execute it"))
+    text = await fixture.graph.run_turn(turn("move up"))
 
     assert text == "I need a valid plan before executing."
     output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])
@@ -517,3 +618,124 @@ async def test_graph_persists_context_between_turns_with_same_instance() -> None
     latest_state = fixture.graph.latest_state()
     assert "robot: UR10" in latest_state["instructions"]
     assert latest_state["tool_turns"] == 0
+
+
+@pytest.mark.asyncio
+async def test_graph_blocks_attach_before_gripper_is_closed() -> None:
+    class AttachBridge(FakeBridge):
+        def function_tools(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "type": "function",
+                    "name": "moveit_get_current_pose",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                },
+                {
+                    "type": "function",
+                    "name": "moveit_attach_object",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                },
+            ]
+
+    attach = tool_call(
+        "moveit_attach_object",
+        arguments={"robot_name": "UR10", "object_name": "cube"},
+    )
+    fixture = make_graph(
+        [
+            CodexResponseResult(
+                tool_calls=[attach],
+                output_items=[output_item("moveit_attach_object", arguments=attach.arguments)],
+            ),
+            CodexResponseResult(text="I need to close the gripper before attaching."),
+        ],
+        bridge=AttachBridge(),
+    )
+
+    text = await fixture.graph.run_turn(turn("attach the cube"))
+
+    assert text == "I need to close the gripper before attaching."
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]
+    output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])
+    assert output == {
+        "ok": False,
+        "error": "Cannot attach object before the gripper is known closed.",
+        "correction": "Close the gripper or observe gripper state before attaching.",
+        "retryable": True,
+        "suggested_next_tool": "moveit_close_gripper",
+    }
+
+
+@pytest.mark.asyncio
+async def test_graph_allows_attach_after_close_gripper_tool_result() -> None:
+    class GripperBridge(FakeBridge):
+        def function_tools(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "type": "function",
+                    "name": "moveit_get_current_pose",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                },
+                {
+                    "type": "function",
+                    "name": "moveit_close_gripper",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                },
+                {
+                    "type": "function",
+                    "name": "moveit_attach_object",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                },
+            ]
+
+        async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+            if name == "moveit_get_current_pose":
+                return await super().call_tool(name, arguments)
+            self.calls.append((name, arguments))
+            return json.dumps({"structured_content": {"ok": True}})
+
+    close = tool_call("moveit_close_gripper", call_id="call-1", arguments={"robot_name": "UR10"})
+    attach = tool_call(
+        "moveit_attach_object",
+        call_id="call-2",
+        arguments={"robot_name": "UR10", "object_name": "cube"},
+    )
+    fixture = make_graph(
+        [
+            CodexResponseResult(
+                tool_calls=[close, attach],
+                output_items=[
+                    output_item(
+                        "moveit_close_gripper",
+                        call_id="call-1",
+                        arguments=close.arguments,
+                    ),
+                    output_item(
+                        "moveit_attach_object",
+                        call_id="call-2",
+                        arguments=attach.arguments,
+                    ),
+                ],
+            ),
+            CodexResponseResult(text="Attached the cube."),
+        ],
+        bridge=GripperBridge(),
+    )
+
+    text = await fixture.graph.run_turn(turn("attach the cube"))
+
+    assert text == "Attached the cube."
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_close_gripper", {"robot_name": "UR10"}),
+        ("moveit_attach_object", {"robot_name": "UR10", "object_name": "cube"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]
