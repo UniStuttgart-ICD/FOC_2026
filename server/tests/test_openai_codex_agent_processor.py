@@ -70,7 +70,7 @@ async def _run_turn(processor: OpenAICodexAgentProcessor, text: str, messages=No
 
 @pytest.mark.asyncio
 async def test_processes_text_response_through_codex_backend():
-    backend = FakeBackend([CodexResponseResult(text="oauth-ok")])
+    backend = FakeBackend([CodexResponseResult(text="no"), CodexResponseResult(text="oauth-ok")])
     bridge = FakeBridge()
     processor = OpenAICodexAgentProcessor(
         "http://127.0.0.1:8765/mcp",
@@ -83,8 +83,8 @@ async def test_processes_text_response_through_codex_backend():
     result = await _run_turn(processor, "hello")
 
     assert result.chunks == ["oauth-ok"]
-    assert backend.requests[0]["model"] == "gpt-5.4-mini"
-    assert backend.requests[0]["input_items"] == [
+    assert backend.requests[1]["model"] == "gpt-5.4-mini"
+    assert backend.requests[1]["input_items"] == [
         {"role": "user", "content": [{"type": "input_text", "text": "hello"}]}
     ]
     assert bridge.connected is True
@@ -101,6 +101,7 @@ async def test_executes_one_tool_iteration_and_sends_tool_output_back():
     )
     backend = FakeBackend(
         [
+            CodexResponseResult(text="no"),
             CodexResponseResult(
                 tool_calls=[tool_call],
                 output_items=[
@@ -128,7 +129,7 @@ async def test_executes_one_tool_iteration_and_sends_tool_output_back():
     result = await _run_turn(processor, "status")
 
     assert bridge.calls == [("moveit_get_robot_status", {"robot_name": "UR10"})]
-    assert backend.requests[1]["input_items"][-1] == {
+    assert backend.requests[2]["input_items"][-1] == {
         "type": "function_call_output",
         "call_id": "call-1",
         "output": '{"success": true}',
@@ -138,7 +139,7 @@ async def test_executes_one_tool_iteration_and_sends_tool_output_back():
 
 @pytest.mark.asyncio
 async def test_sends_available_context_history_to_codex_backend():
-    backend = FakeBackend([CodexResponseResult(text="ok")])
+    backend = FakeBackend([CodexResponseResult(text="no"), CodexResponseResult(text="ok")])
     bridge = FakeBridge()
     processor = OpenAICodexAgentProcessor(
         "http://127.0.0.1:8765/mcp",
@@ -155,7 +156,7 @@ async def test_sends_available_context_history_to_codex_backend():
 
     await _run_turn(processor, "again", messages=messages)
 
-    assert backend.requests[0]["input_items"] == [
+    assert backend.requests[1]["input_items"] == [
         {"role": "user", "content": [{"type": "input_text", "text": "move up"}]},
         {
             "type": "message",
@@ -189,7 +190,7 @@ async def test_disconnect_closes_backend_and_bridge():
 
 @pytest.mark.asyncio
 async def test_injects_compact_robot_context_into_codex_instructions():
-    backend = FakeBackend([CodexResponseResult(text="ok")])
+    backend = FakeBackend([CodexResponseResult(text="no"), CodexResponseResult(text="ok")])
     bridge = FakeBridge()
     processor = OpenAICodexAgentProcessor(
         "http://127.0.0.1:8765/mcp",
@@ -201,7 +202,7 @@ async def test_injects_compact_robot_context_into_codex_instructions():
 
     await _run_turn(processor, "what can you do?")
 
-    instructions = backend.requests[0]["instructions"]
+    instructions = backend.requests[1]["instructions"]
     assert "Last-known robot context" in instructions
     assert "advisory only" in instructions
     assert "moveit_get_robot_status" in instructions
@@ -218,6 +219,7 @@ async def test_updates_robot_context_after_status_tool_result():
     )
     backend = FakeBackend(
         [
+            CodexResponseResult(text="no"),
             CodexResponseResult(
                 tool_calls=[status_call],
                 output_items=[
@@ -258,11 +260,11 @@ async def test_updates_robot_context_after_status_tool_result():
 
     await _run_turn(processor, "status")
 
-    followup_backend = FakeBackend([CodexResponseResult(text="ok")])
+    followup_backend = FakeBackend([CodexResponseResult(text="no"), CodexResponseResult(text="ok")])
     processor._backend_client = followup_backend
     await _run_turn(processor, "where is it?")
 
-    instructions = followup_backend.requests[0]["instructions"]
+    instructions = followup_backend.requests[1]["instructions"]
     assert "robot: UR10" in instructions
     assert "x=0.100" in instructions
     assert "gripper: open" in instructions
