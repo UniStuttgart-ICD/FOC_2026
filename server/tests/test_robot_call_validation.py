@@ -137,3 +137,24 @@ def test_agent_tool_descriptions_are_high_signal() -> None:
     assert "target pose" in agent_tool_description("moveit_plan_free_motion")
     assert "Cartesian" in agent_tool_description("moveit_plan_cartesian_motion")
     assert "plan, execute, and verify" in agent_tool_description("moveit_plan_and_execute_free_motion")
+
+
+def test_cartesian_tool_descriptions_enable_improvisational_tcp_paths() -> None:
+    cartesian = agent_tool_description("moveit_plan_cartesian_motion")
+    compound = agent_tool_description("moveit_plan_and_execute_cartesian_motion")
+
+    for description in (cartesian, compound):
+        lowered = description.lower()
+        assert "expressive tcp paths" in lowered
+        assert "waving" in lowered
+        assert "drawing" in lowered
+        assert "ordered waypoints" in lowered
+        assert "preserve orientation" in lowered
+
+
+def test_free_motion_tool_description_distinguishes_point_to_point_from_paths() -> None:
+    description = agent_tool_description("moveit_plan_and_execute_free_motion").lower()
+
+    assert "one target pose" in description
+    assert "point-to-point" in description
+    assert "not for drawing shapes" in description

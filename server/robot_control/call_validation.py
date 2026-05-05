@@ -23,11 +23,34 @@ CANONICAL_ONLY_MCP_TOOL_NAMES: frozenset[str] = frozenset()
 ALLOWED_ROBOT_TOOLS = frozenset(AGENT_TO_LEGACY_MCP_TOOL_NAMES) | CANONICAL_ONLY_MCP_TOOL_NAMES
 
 _AGENT_TOOL_DESCRIPTIONS = {
-    "moveit_get_current_pose": "Observe the UR10 current end-effector pose and planning frame. Call before relative, vague, repeated, or safety-sensitive movement.",
-    "moveit_plan_free_motion": "Plan a collision-aware free-space motion to one absolute target pose in base_link. Use the returned plan_name with moveit_execute_plan.",
-    "moveit_plan_cartesian_motion": "Plan a Cartesian end-effector path through waypoints in base_link. Use for straight-line or waypoint-following motion.",
-    "moveit_plan_and_execute_free_motion": "High-level workflow to plan, execute, and verify one free-space target pose. Use for simple voice moves when no separate plan review is needed.",
-    "moveit_plan_and_execute_cartesian_motion": "High-level workflow to plan, execute, and verify a Cartesian waypoint sequence. Use for straight-line or multi-waypoint voice moves.",
+    "moveit_get_current_pose": (
+        "Observe the UR10 current end-effector pose, orientation, and planning frame. "
+        "Use it to ground gestures before relative, vague, repeated, or safety-sensitive movement."
+    ),
+    "moveit_plan_free_motion": (
+        "Plan collision-aware free-space point-to-point motion to one target pose in base_link. "
+        "Use for a single destination, not for drawing shapes or expressive paths. "
+        "Use the returned plan_name with moveit_execute_plan."
+    ),
+    "moveit_plan_cartesian_motion": (
+        "Plan Cartesian expressive TCP paths through ordered waypoints in base_link. "
+        "Use for waving, tracing, drawing simple shapes, sweeping, straight-line motion, or "
+        "bounded waypoint-following from a fresh current pose. Preserve orientation unless the "
+        "task asks to rotate; when preserving orientation, copy the current raw.pose.orientation "
+        "into every waypoint."
+    ),
+    "moveit_plan_and_execute_free_motion": (
+        "High-level workflow to plan, execute, and verify point-to-point free-space motion to "
+        "one target pose. Use for a single simple destination, not for drawing shapes or "
+        "expressive paths, when no separate plan review is needed."
+    ),
+    "moveit_plan_and_execute_cartesian_motion": (
+        "High-level workflow to plan, execute, and verify Cartesian expressive TCP paths through "
+        "ordered waypoints. Use for waving, tracing, drawing simple shapes, sweeping, "
+        "straight-line motion, or bounded waypoint-following from a fresh current pose. Preserve "
+        "orientation unless the task asks to rotate; when preserving orientation, copy the "
+        "current raw.pose.orientation into every waypoint."
+    ),
     "moveit_execute_plan": "Execute a returned plan_name from a successful planning tool. Do not invent plan names.",
     "moveit_open_gripper": "Open the simulated UR10 gripper state.",
     "moveit_close_gripper": "Close the simulated UR10 gripper state.",
