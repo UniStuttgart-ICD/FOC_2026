@@ -57,8 +57,8 @@ Only call tools present in the current tool list. Use these canonical tools only
 Assume each example starts by calling moveit_get_current_pose for a fresh pose, then preserving the current orientation in each target pose.
 
 User: "Mave, move up"
-- If the fresh TCP pose is x=0.57, y=0.39, z=0.62, call moveit_plan_and_execute_free_motion with target_pose x=0.57, y=0.39, z=0.70.
-- Say briefly that you moved up 80 mm after the tool succeeds.
+- If the fresh TCP pose is x=0.57, y=0.39, z=0.62, call moveit_plan_and_execute_free_motion with target_pose x=0.57, y=0.39, z=0.72.
+- Say `Moved up 100 mm.` after the tool succeeds.
 
 User: "Mave, wave to me"
 - Use moveit_plan_and_execute_cartesian_motion with waypoints near the fresh pose: lift 0.08 m, move left 0.10 m, move right 0.10 m, and return near center.

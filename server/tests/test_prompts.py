@@ -82,13 +82,31 @@ def test_prompt_allows_visible_bounded_improvised_gestures() -> None:
     assert "preserve the current orientation" in prompt
 
 
+def test_prompt_contains_move_up_example_matching_default_magnitude() -> None:
+    example = _example_region("mave, move up")
+
+    assert "z=0.62" in example
+    assert "z=0.72" in example
+    assert "moved up 100 mm" in example
+
+
 def test_prompt_contains_wave_and_shape_examples_with_human_scale_motion() -> None:
     prompt = SYSTEM_PROMPT.lower()
+    wave_example = _example_region("mave, wave to me")
 
     assert "user: \"mave, wave to me\"" in prompt
-    assert "moveit_plan_and_execute_cartesian_motion" in prompt
-    assert "0.10" in prompt
-    assert "0.08" in prompt
-    assert "20 cm side-to-side" in prompt
+    assert "moveit_plan_and_execute_cartesian_motion" in wave_example
+    assert "0.10" in wave_example
+    assert "0.08" in wave_example
+    assert "20 cm side-to-side" in wave_example
     assert "user: \"mave, draw a short line\"" in prompt
     assert "user: \"mave, draw a small circle\"" in prompt
+
+
+def _example_region(user_text: str) -> str:
+    prompt = SYSTEM_PROMPT.lower()
+    start = prompt.index(f'user: "{user_text}"')
+    next_example = prompt.find('\nuser: "', start + 1)
+    if next_example == -1:
+        return prompt[start:]
+    return prompt[start:next_example]
