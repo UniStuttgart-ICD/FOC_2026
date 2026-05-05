@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from prompts import SYSTEM_PROMPT
 
 CANONICAL_TOOLS = {
@@ -52,3 +54,10 @@ def test_prompt_requires_fresh_pose_for_state_dependent_actions() -> None:
     assert "relative" in prompt
     assert "fresh" in prompt
     assert "last-known context is advisory" in prompt
+
+
+def test_agent_instructions_match_current_moveit_observation_tool() -> None:
+    agent_instructions = (Path(__file__).parents[2] / "AGENTS.md").read_text(encoding="utf-8")
+
+    assert "moveit_get_current_pose" in agent_instructions
+    assert "moveit_get_robot_status" not in agent_instructions

@@ -43,7 +43,7 @@ Run server commands from `server/`.
 <important if="you are changing robot tool execution or MCP integration">
 - Robot tool calls must go through `RobotMCPBridge` and `voice_runtime.robot_safety` unless a reviewed safety seam replaces them.
 - Preserve local safety validation for canonical `moveit_*` tools.
-- Prefer agent-friendly workflow tools over raw MoveIt API wrappers: status, relative motion, named poses, plan, execute, gripper.
+- Prefer agent-friendly workflow tools over raw MoveIt API wrappers: current-pose observation, free/cartesian planning, plan-and-execute workflows, execute, gripper, attach.
 - Tool failures should return concise structured corrections with `ok`, `error`, `correction`, `retryable`, and `suggested_next_tool` when applicable.
 </important>
 
@@ -55,7 +55,7 @@ Run server commands from `server/`.
 
 <important if="you are adding robot context, memory, or feedback loops">
 - Inject compact `Last-known robot context` as advisory state only.
-- Require fresh `moveit_get_robot_status` before movement, relative commands, retries, or safety-sensitive actions.
+- Require fresh `moveit_get_current_pose` before movement, relative commands, retries, or safety-sensitive actions.
 - Keep state shape LangGraph-compatible so it can later become graph/checkpoint state without changing the Pipecat pipeline contract.
 </important>
 
