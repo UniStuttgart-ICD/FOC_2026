@@ -148,6 +148,7 @@ def test_cartesian_tool_descriptions_enable_improvisational_tcp_paths() -> None:
         assert "expressive tcp paths" in lowered
         assert "waving" in lowered
         assert "drawing" in lowered
+        assert "multi-point motion" in lowered
         assert "ordered waypoints" in lowered
         assert "preserve orientation" in lowered
 

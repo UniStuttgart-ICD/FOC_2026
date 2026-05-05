@@ -34,9 +34,9 @@ _AGENT_TOOL_DESCRIPTIONS = {
     ),
     "moveit_plan_cartesian_motion": (
         "Plan Cartesian expressive TCP paths through ordered waypoints in base_link. "
-        "Use for waving, tracing, drawing simple shapes, sweeping, straight-line motion, or "
-        "bounded waypoint-following from a fresh current pose. Preserve orientation unless the "
-        "task asks to rotate; when preserving orientation, copy the current raw.pose.orientation "
+        "Use for waving, tracing, drawing simple shapes, sweeping, multi-point motion, "
+        "straight-line motion, or bounded waypoint-following from a fresh current pose. Preserve "
+        "orientation unless the task asks to rotate; when preserving orientation, copy the current raw.pose.orientation "
         "into every waypoint."
     ),
     "moveit_plan_and_execute_free_motion": (
@@ -47,8 +47,8 @@ _AGENT_TOOL_DESCRIPTIONS = {
     "moveit_plan_and_execute_cartesian_motion": (
         "High-level workflow to plan, execute, and verify Cartesian expressive TCP paths through "
         "ordered waypoints. Use for waving, tracing, drawing simple shapes, sweeping, "
-        "straight-line motion, or bounded waypoint-following from a fresh current pose. Preserve "
-        "orientation unless the task asks to rotate; when preserving orientation, copy the "
+        "multi-point motion, straight-line motion, or bounded waypoint-following from a fresh "
+        "current pose. Preserve orientation unless the task asks to rotate; when preserving orientation, copy the "
         "current raw.pose.orientation into every waypoint."
     ),
     "moveit_execute_plan": "Execute a returned plan_name from a successful planning tool. Do not invent plan names.",
