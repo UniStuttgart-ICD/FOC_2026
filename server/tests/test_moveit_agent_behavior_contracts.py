@@ -1,0 +1,187 @@
+import json
+
+import pytest
+
+from codex_auth import CodexCredentials
+from codex_backend_client import CodexResponseResult, CodexToolCall
+from openai_codex_agent_processor import OpenAICodexAgentProcessor
+from voice_runtime.agent_turn import AgentTurnInput
+
+
+class Store:
+    def get_credentials(self):
+        return CodexCredentials(access="access", refresh="refresh", account_id="acct")
+
+
+class ScriptedBackend:
+    def __init__(self, results):
+        self.results = list(results)
+        self.requests = []
+
+    async def create_response(self, credentials, *, model, instructions, input_items, tools):
+        self.requests.append(
+            {
+                "model": model,
+                "instructions": instructions,
+                "input_items": list(input_items),
+                "tools": list(tools),
+            }
+        )
+        return self.results.pop(0)
+
+    async def close(self):
+        pass
+
+
+class BehaviorBridge:
+    def __init__(self):
+        self.calls = []
+
+    async def connect(self):
+        pass
+
+    async def disconnect(self):
+        pass
+
+    def function_tools(self):
+        return [
+            {
+                "type": "function",
+                "name": "moveit_get_robot_status",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+            {
+                "type": "function",
+                "name": "moveit_plan_free_motion",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+            {
+                "type": "function",
+                "name": "moveit_execute_plan",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+            {
+                "type": "function",
+                "name": "moveit_plan_relative_motion",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+        ]
+
+    async def call_tool(self, name, arguments):
+        self.calls.append((name, arguments))
+        if name == "moveit_get_robot_status":
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": True,
+                        "robot_name": "UR10",
+                        "tcp_pose": {"position": {"x": 0.1, "y": 0.2, "z": 0.3}},
+                        "gripper": {"state": "open"},
+                    }
+                }
+            )
+        if name == "moveit_plan_free_motion":
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": True,
+                        "feedback": {"can_execute": True},
+                        "raw": {"plan_name": "plan-1"},
+                    }
+                }
+            )
+        if name == "moveit_execute_plan":
+            return json.dumps({"structured_content": {"ok": True, "verification": {"result": "pass"}}})
+        return json.dumps({"structured_content": {"ok": True}})
+
+
+async def run_processor(processor, text):
+    turn = AgentTurnInput(user_text=text, messages=[{"role": "user", "content": text}])
+    return [chunk async for chunk in processor.run_turn(turn)]
+
+
+def tool_call(name, call_id="call-1", item_id="item-1", arguments=None):
+    arguments = arguments or {"robot_name": "UR10"}
+    return CodexToolCall(
+        call_id=call_id,
+        item_id=item_id,
+        name=name,
+        arguments=arguments,
+        raw_arguments=json.dumps(arguments),
+    )
+
+
+def output_item(name, call_id="call-1", item_id="item-1", arguments=None):
+    arguments = arguments or {"robot_name": "UR10"}
+    return {
+        "type": "function_call",
+        "id": item_id,
+        "call_id": call_id,
+        "name": name,
+        "arguments": json.dumps(arguments),
+    }
+
+
+@pytest.mark.asyncio
+async def test_relative_movement_behavior_observes_before_answering():
+    status = tool_call("moveit_get_robot_status")
+    backend = ScriptedBackend(
+        [
+            CodexResponseResult(tool_calls=[status], output_items=[output_item("moveit_get_robot_status")]),
+            CodexResponseResult(text="I checked the robot and can plan the relative move."),
+        ]
+    )
+    bridge = BehaviorBridge()
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=Store(),
+        backend_client=backend,
+        tool_bridge=bridge,
+    )
+
+    chunks = await run_processor(processor, "move up a bit")
+
+    assert bridge.calls[0] == ("moveit_get_robot_status", {"robot_name": "UR10"})
+    assert chunks == ["I checked the robot and can plan the relative move."]
+
+
+@pytest.mark.asyncio
+async def test_plan_tool_is_auto_executed_once_plan_is_executable():
+    plan_args = {
+        "robot_name": "UR10",
+        "position": {
+            "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+    }
+    plan = tool_call("moveit_plan_free_motion", arguments=plan_args)
+    backend = ScriptedBackend(
+        [
+            CodexResponseResult(
+                tool_calls=[plan],
+                output_items=[output_item("moveit_plan_free_motion", arguments=plan_args)],
+            ),
+            CodexResponseResult(text="Moved up 50 mm."),
+        ]
+    )
+    bridge = BehaviorBridge()
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=Store(),
+        backend_client=backend,
+        tool_bridge=bridge,
+    )
+
+    chunks = await run_processor(processor, "move up a bit")
+
+    assert bridge.calls == [
+        ("moveit_plan_free_motion", plan_args),
+        ("moveit_execute_plan", {"robot_name": "UR10", "plan_name": "plan-1"}),
+    ]
+    assert chunks == ["Moved up 50 mm."]
