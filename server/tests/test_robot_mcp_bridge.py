@@ -3,8 +3,8 @@ import json
 import pytest
 from mcp.types import CallToolResult, TextContent, Tool
 
+from robot_control.call_validation import agent_tool_description
 from robot_mcp_bridge import RobotMCPBridge, RobotMCPError
-from voice_runtime.robot_safety import agent_tool_description
 
 
 class FakeServer:

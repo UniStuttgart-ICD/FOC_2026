@@ -14,16 +14,16 @@ from loguru import logger
 
 from codex_backend_client import CodexResponseResult
 from prompts import SYSTEM_PROMPT
+from robot_control.call_validation import (
+    RobotCallValidationError,
+    executable_plan_name,
+    execution_result_text,
+    structured_robot_call_error,
+)
 from robot_control.task_policy import structured_task_policy_error, validate_task_step
 from robot_mcp_bridge import RobotMCPError
 from voice_runtime.agent_turn import AgentTurnInput
 from voice_runtime.robot_context import RobotContextStore
-from voice_runtime.robot_safety import (
-    RobotSafetyError,
-    executable_plan_name,
-    execution_result_text,
-    structured_robot_error,
-)
 
 MAX_CODEX_TOOL_TURNS = 3
 VIZOR_ROBOT_NAME = "UR10"
@@ -231,11 +231,11 @@ class LangGraphRobotAgent:
                 )
             return output
         except RobotMCPError as exc:
-            safety_error = RobotSafetyError(
+            validation_error = RobotCallValidationError(
                 str(exc),
                 correction="Check the robot control server, then retry the robot action.",
             )
-            return json.dumps(structured_robot_error(safety_error), ensure_ascii=False)
+            return json.dumps(structured_robot_call_error(validation_error), ensure_ascii=False)
 
     def _repaired_tool_arguments(
         self, name: str, arguments: dict[str, Any], user_text: str

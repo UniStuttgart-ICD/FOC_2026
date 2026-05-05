@@ -47,7 +47,7 @@ _ALLOWED_ARGUMENTS: dict[str, set[str]] = {
 }
 
 
-class RobotSafetyError(ValueError):
+class RobotCallValidationError(ValueError):
     """Raised when a robot tool call violates local validation policy."""
 
     def __init__(self, message: str, *, correction: str):
@@ -61,7 +61,7 @@ def canonical_mcp_tool_name(agent_tool_name: str) -> str:
     except KeyError:
         if agent_tool_name in CANONICAL_ONLY_MCP_TOOL_NAMES:
             return agent_tool_name
-        raise RobotSafetyError(
+        raise RobotCallValidationError(
             f"Tool is not allowed: {agent_tool_name}",
             correction="Use one of the allowed MoveIt robot tools.",
         ) from None
@@ -71,14 +71,14 @@ def agent_tool_description(agent_tool_name: str) -> str:
     try:
         return _AGENT_TOOL_DESCRIPTIONS[agent_tool_name]
     except KeyError as exc:
-        raise RobotSafetyError(
+        raise RobotCallValidationError(
             f"Tool is not allowed: {agent_tool_name}",
             correction="Use one of the allowed MoveIt robot tools.",
         ) from exc
 
 
-def structured_robot_error(
-    exc: RobotSafetyError,
+def structured_robot_call_error(
+    exc: RobotCallValidationError,
     *,
     retryable: bool = True,
     suggested_next_tool: str | None = "moveit_get_current_pose",
@@ -96,7 +96,7 @@ def structured_robot_error(
 
 def validate_robot_tool_call(name: str, arguments: dict[str, Any]) -> None:
     if name not in ALLOWED_ROBOT_TOOLS:
-        raise RobotSafetyError(
+        raise RobotCallValidationError(
             f"Tool is not allowed: {name}",
             correction="Use one of the allowed MoveIt robot tools.",
         )
@@ -104,7 +104,7 @@ def validate_robot_tool_call(name: str, arguments: dict[str, Any]) -> None:
     allowed = _ALLOWED_ARGUMENTS[name]
     unexpected = set(arguments) - allowed
     if unexpected:
-        raise RobotSafetyError(
+        raise RobotCallValidationError(
             f"Unexpected argument for {name}: {sorted(unexpected)[0]}",
             correction="Remove unsupported arguments and retry.",
         )
@@ -130,7 +130,7 @@ def validate_robot_tool_call(name: str, arguments: dict[str, Any]) -> None:
     if name == "moveit_execute_plan":
         plan_name = arguments.get("plan_name")
         if not isinstance(plan_name, str) or not plan_name:
-            raise RobotSafetyError(
+            raise RobotCallValidationError(
                 "Expected a non-empty plan_name",
                 correction="Plan first, then retry with the returned plan_name.",
             )
@@ -140,7 +140,7 @@ def validate_robot_tool_call(name: str, arguments: dict[str, Any]) -> None:
     if name == "moveit_attach_object":
         object_name = arguments.get("object_name")
         if not isinstance(object_name, str) or not object_name.strip():
-            raise RobotSafetyError(
+            raise RobotCallValidationError(
                 "Expected a non-empty object_name",
                 correction="Retry with the object name to attach.",
             )
@@ -179,7 +179,7 @@ def execution_result_text(output: str) -> str:
 
 def _validate_robot_name(robot_name: Any) -> None:
     if robot_name != VIZOR_ROBOT_NAME:
-        raise RobotSafetyError(
+        raise RobotCallValidationError(
             "Only Vizor robot UR10 is allowed",
             correction='Retry with robot_name="UR10".',
         )
@@ -189,13 +189,13 @@ def _validate_timeout(timeout_s: Any) -> None:
     if timeout_s is None:
         return
     if not _finite_number(timeout_s):
-        raise RobotSafetyError(
+        raise RobotCallValidationError(
             "timeout_s must be a finite number",
             correction=f"Retry with timeout_s less than or equal to {DEFAULT_TIMEOUT_MAX_S}.",
         )
     numeric_timeout_s = float(timeout_s)
     if numeric_timeout_s <= 0.0 or numeric_timeout_s > DEFAULT_TIMEOUT_MAX_S:
-        raise RobotSafetyError(
+        raise RobotCallValidationError(
             "timeout_s is outside safe range",
             correction=f"Retry with timeout_s less than or equal to {DEFAULT_TIMEOUT_MAX_S}.",
         )
@@ -203,21 +203,21 @@ def _validate_timeout(timeout_s: Any) -> None:
 
 def _validate_pose(value: Any) -> None:
     if not isinstance(value, dict):
-        raise RobotSafetyError(
+        raise RobotCallValidationError(
             "Expected target_pose with position fields",
             correction="Retry with a MoveIt target pose inside the simulation workspace.",
         )
 
     position = value.get("position") if isinstance(value.get("position"), dict) else value
     if not isinstance(position, dict):
-        raise RobotSafetyError(
+        raise RobotCallValidationError(
             "Expected position coordinates",
             correction="Retry with x, y, and z coordinates inside the simulation workspace.",
         )
     for axis in ("x", "y", "z"):
         coordinate = _finite_float(position.get(axis))
         if coordinate is None or abs(coordinate) > WORKSPACE_ABS_LIMIT_M:
-            raise RobotSafetyError(
+            raise RobotCallValidationError(
                 "Target is outside simulation workspace",
                 correction=f"Retry with x/y/z coordinates within +/-{WORKSPACE_ABS_LIMIT_M} m.",
             )
@@ -226,14 +226,14 @@ def _validate_pose(value: Any) -> None:
     if orientation is None:
         return
     if not isinstance(orientation, dict):
-        raise RobotSafetyError(
+        raise RobotCallValidationError(
             "Expected orientation quaternion",
             correction="Retry with finite x, y, z, and w quaternion values.",
         )
     for component in ("x", "y", "z", "w"):
         rotation = orientation.get(component)
         if not _finite_number(rotation):
-            raise RobotSafetyError(
+            raise RobotCallValidationError(
                 "Expected finite orientation values",
                 correction="Retry with finite x, y, z, and w quaternion values.",
             )
@@ -241,7 +241,7 @@ def _validate_pose(value: Any) -> None:
 
 def _validate_waypoints(value: Any) -> None:
     if not isinstance(value, list) or not value:
-        raise RobotSafetyError(
+        raise RobotCallValidationError(
             "Expected at least one waypoint",
             correction="Retry with one or more target poses inside the simulation workspace.",
         )
