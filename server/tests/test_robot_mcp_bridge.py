@@ -203,6 +203,37 @@ async def test_normalizes_cartesian_points_alias_before_mcp_call():
 
 
 @pytest.mark.asyncio
+async def test_strips_cartesian_alias_when_waypoints_are_already_canonical():
+    server = FakeLegacyWorkflowServer()
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
+    await bridge.connect()
+    points = [
+        {
+            "position": {"x": 0.1, "y": 0.2, "z": 0.3},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        }
+    ]
+    waypoints = [
+        {
+            "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        }
+    ]
+
+    await bridge.call_tool(
+        "moveit_plan_and_execute_cartesian_motion",
+        {"robot_name": "UR10", "points": points, "waypoints": waypoints, "timeout_s": 10.0},
+    )
+
+    assert server.called == [
+        (
+            "plan_and_execute_cartesian_motion",
+            {"robot_name": "UR10", "waypoints": waypoints, "timeout_s": 10.0},
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_does_not_advertise_broad_robot_control_tool():
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeServer())
 

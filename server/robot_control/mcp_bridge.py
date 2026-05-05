@@ -111,12 +111,12 @@ def _normalize_agent_arguments(name: str, arguments: dict[str, Any]) -> dict[str
         "moveit_plan_and_execute_cartesian_motion",
     }:
         return arguments
-    if "waypoints" in arguments:
-        return arguments
+    normalized = {key: value for key, value in arguments.items() if key not in {"points", "positions"}}
+    if "waypoints" in normalized:
+        return normalized
     points = arguments.get("points", arguments.get("positions"))
     if points is None:
         return arguments
-    normalized = {key: value for key, value in arguments.items() if key not in {"points", "positions"}}
     normalized["waypoints"] = points
     return normalized
 
