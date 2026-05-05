@@ -222,3 +222,6 @@ __marimo__/
 
 # Runtime voice metrics
 server/logs/
+
+# Manual live smoke evidence
+server/evidence/live_smoke/

@@ -116,6 +116,10 @@ pipecat-agent/
 ├── .gitignore           # Git ignore patterns
 └── README.md            # This file
 ```
+## Testing
+
+See [Testing](docs/testing.md) for deterministic tests and manual live LLM robot smoke tests.
+
 ## Learn More
 
 - [Pipecat Documentation](https://docs.pipecat.ai/)
