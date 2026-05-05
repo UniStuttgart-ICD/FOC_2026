@@ -90,3 +90,23 @@ def test_robot_context_remembers_recent_executable_plan_names() -> None:
 
     now = 261.0
     assert store.has_recent_executable_plan("plan-1", max_age_s=60.0) is False
+
+
+def test_robot_context_tracks_recent_gripper_state_from_gripper_tools() -> None:
+    now = 300.0
+    store = RobotContextStore(time_fn=lambda: now)
+    ok_output = json.dumps({"structured_content": {"ok": True}})
+
+    assert store.gripper_state() is None
+    assert store.has_recent_gripper_state("closed", max_age_s=30.0) is False
+
+    store.update_from_tool_result("moveit_close_gripper", ok_output)
+    assert store.gripper_state() == "closed"
+    assert store.has_recent_gripper_state("closed", max_age_s=30.0) is True
+
+    now = 331.0
+    assert store.has_recent_gripper_state("closed", max_age_s=30.0) is False
+
+    store.update_from_tool_result("moveit_open_gripper", ok_output)
+    assert store.gripper_state() == "open"
+    assert store.has_recent_gripper_state("open", max_age_s=30.0) is True

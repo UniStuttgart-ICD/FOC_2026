@@ -618,3 +618,124 @@ async def test_graph_persists_context_between_turns_with_same_instance() -> None
     latest_state = fixture.graph.latest_state()
     assert "robot: UR10" in latest_state["instructions"]
     assert latest_state["tool_turns"] == 0
+
+
+@pytest.mark.asyncio
+async def test_graph_blocks_attach_before_gripper_is_closed() -> None:
+    class AttachBridge(FakeBridge):
+        def function_tools(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "type": "function",
+                    "name": "moveit_get_current_pose",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                },
+                {
+                    "type": "function",
+                    "name": "moveit_attach_object",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                },
+            ]
+
+    attach = tool_call(
+        "moveit_attach_object",
+        arguments={"robot_name": "UR10", "object_name": "cube"},
+    )
+    fixture = make_graph(
+        [
+            CodexResponseResult(
+                tool_calls=[attach],
+                output_items=[output_item("moveit_attach_object", arguments=attach.arguments)],
+            ),
+            CodexResponseResult(text="I need to close the gripper before attaching."),
+        ],
+        bridge=AttachBridge(),
+    )
+
+    text = await fixture.graph.run_turn(turn("attach the cube"))
+
+    assert text == "I need to close the gripper before attaching."
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]
+    output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])
+    assert output == {
+        "ok": False,
+        "error": "Cannot attach object before the gripper is known closed.",
+        "correction": "Close the gripper or observe gripper state before attaching.",
+        "retryable": True,
+        "suggested_next_tool": "moveit_close_gripper",
+    }
+
+
+@pytest.mark.asyncio
+async def test_graph_allows_attach_after_close_gripper_tool_result() -> None:
+    class GripperBridge(FakeBridge):
+        def function_tools(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "type": "function",
+                    "name": "moveit_get_current_pose",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                },
+                {
+                    "type": "function",
+                    "name": "moveit_close_gripper",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                },
+                {
+                    "type": "function",
+                    "name": "moveit_attach_object",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                },
+            ]
+
+        async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+            if name == "moveit_get_current_pose":
+                return await super().call_tool(name, arguments)
+            self.calls.append((name, arguments))
+            return json.dumps({"structured_content": {"ok": True}})
+
+    close = tool_call("moveit_close_gripper", call_id="call-1", arguments={"robot_name": "UR10"})
+    attach = tool_call(
+        "moveit_attach_object",
+        call_id="call-2",
+        arguments={"robot_name": "UR10", "object_name": "cube"},
+    )
+    fixture = make_graph(
+        [
+            CodexResponseResult(
+                tool_calls=[close, attach],
+                output_items=[
+                    output_item(
+                        "moveit_close_gripper",
+                        call_id="call-1",
+                        arguments=close.arguments,
+                    ),
+                    output_item(
+                        "moveit_attach_object",
+                        call_id="call-2",
+                        arguments=attach.arguments,
+                    ),
+                ],
+            ),
+            CodexResponseResult(text="Attached the cube."),
+        ],
+        bridge=GripperBridge(),
+    )
+
+    text = await fixture.graph.run_turn(turn("attach the cube"))
+
+    assert text == "Attached the cube."
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_close_gripper", {"robot_name": "UR10"}),
+        ("moveit_attach_object", {"robot_name": "UR10", "object_name": "cube"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]

@@ -5,6 +5,7 @@ from typing import Any, Protocol
 
 DEFAULT_FRESH_OBSERVATION_MAX_AGE_S = 15.0
 DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S = 120.0
+DEFAULT_GRIPPER_STATE_MAX_AGE_S = 30.0
 
 MOTION_TOOL_NAMES = frozenset(
     {
@@ -21,6 +22,10 @@ class TaskPolicyContext(Protocol):
     def has_recent_robot_observation(self, *, max_age_s: float) -> bool: ...
 
     def has_recent_executable_plan(self, plan_name: str, *, max_age_s: float) -> bool: ...
+
+    def gripper_state(self) -> str | None: ...
+
+    def has_recent_gripper_state(self, state: str, *, max_age_s: float) -> bool: ...
 
 
 @dataclass(frozen=True)
@@ -39,6 +44,7 @@ def validate_task_step(
     *,
     fresh_observation_max_age_s: float = DEFAULT_FRESH_OBSERVATION_MAX_AGE_S,
     executable_plan_max_age_s: float = DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S,
+    gripper_state_max_age_s: float = DEFAULT_GRIPPER_STATE_MAX_AGE_S,
 ) -> TaskPolicyDecision:
     if name in MOTION_TOOL_NAMES and not context.has_recent_robot_observation(
         max_age_s=fresh_observation_max_age_s
@@ -61,6 +67,23 @@ def validate_task_step(
                 error="Cannot execute an unknown or stale plan.",
                 correction="Plan first, then execute the returned plan_name.",
                 suggested_next_tool="moveit_plan_free_motion",
+            )
+
+    if name == "moveit_attach_object":
+        object_name = arguments.get("object_name")
+        if not isinstance(object_name, str) or not object_name.strip():
+            return TaskPolicyDecision(
+                ok=False,
+                error="Cannot attach an unnamed object.",
+                correction="Retry with the object_name to attach.",
+                suggested_next_tool=None,
+            )
+        if not context.has_recent_gripper_state("closed", max_age_s=gripper_state_max_age_s):
+            return TaskPolicyDecision(
+                ok=False,
+                error="Cannot attach object before the gripper is known closed.",
+                correction="Close the gripper or observe gripper state before attaching.",
+                suggested_next_tool="moveit_close_gripper",
             )
 
     return TaskPolicyDecision(ok=True)

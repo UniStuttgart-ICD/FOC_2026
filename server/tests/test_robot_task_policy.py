@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from robot_control.task_policy import (
     DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S,
     DEFAULT_FRESH_OBSERVATION_MAX_AGE_S,
+    DEFAULT_GRIPPER_STATE_MAX_AGE_S,
     TaskPolicyDecision,
     structured_task_policy_error,
     validate_task_step,
@@ -18,8 +19,11 @@ VALID_TARGET_POSE = {
 class FakeTaskPolicyContext:
     recent_pose: bool = False
     executable_plans: set[str] | None = None
+    gripper: str | None = None
+    recent_gripper: bool = False
     seen_pose_max_age_s: float | None = None
     seen_plan_max_age_s: float | None = None
+    seen_gripper_max_age_s: float | None = None
 
     def has_recent_robot_observation(self, *, max_age_s: float) -> bool:
         self.seen_pose_max_age_s = max_age_s
@@ -28,6 +32,13 @@ class FakeTaskPolicyContext:
     def has_recent_executable_plan(self, plan_name: str, *, max_age_s: float) -> bool:
         self.seen_plan_max_age_s = max_age_s
         return plan_name in (self.executable_plans or set())
+
+    def gripper_state(self) -> str | None:
+        return self.gripper
+
+    def has_recent_gripper_state(self, state: str, *, max_age_s: float) -> bool:
+        self.seen_gripper_max_age_s = max_age_s
+        return self.gripper == state and self.recent_gripper
 
 
 def test_policy_allows_observation_without_existing_context() -> None:
@@ -123,6 +134,67 @@ def test_policy_passes_executable_plan_freshness_window_to_context() -> None:
 
     assert decision.ok is True
     assert context.seen_plan_max_age_s == DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S
+
+
+def test_policy_rejects_attach_when_gripper_state_is_unknown() -> None:
+    decision = validate_task_step(
+        "moveit_attach_object",
+        {"robot_name": "UR10", "object_name": "cube"},
+        FakeTaskPolicyContext(),
+    )
+
+    assert decision.ok is False
+    assert decision.error == "Cannot attach object before the gripper is known closed."
+    assert decision.correction == "Close the gripper or observe gripper state before attaching."
+    assert decision.suggested_next_tool == "moveit_close_gripper"
+
+
+def test_policy_rejects_attach_when_gripper_state_is_stale() -> None:
+    decision = validate_task_step(
+        "moveit_attach_object",
+        {"robot_name": "UR10", "object_name": "cube"},
+        FakeTaskPolicyContext(gripper="closed", recent_gripper=False),
+    )
+
+    assert decision.ok is False
+    assert decision.error == "Cannot attach object before the gripper is known closed."
+
+
+def test_policy_allows_attach_when_gripper_is_recently_closed() -> None:
+    decision = validate_task_step(
+        "moveit_attach_object",
+        {"robot_name": "UR10", "object_name": "cube"},
+        FakeTaskPolicyContext(gripper="closed", recent_gripper=True),
+    )
+
+    assert decision == TaskPolicyDecision(ok=True)
+
+
+def test_policy_passes_gripper_freshness_window_to_context() -> None:
+    context = FakeTaskPolicyContext(gripper="closed", recent_gripper=True)
+
+    decision = validate_task_step(
+        "moveit_attach_object",
+        {"robot_name": "UR10", "object_name": "cube"},
+        context,
+        gripper_state_max_age_s=DEFAULT_GRIPPER_STATE_MAX_AGE_S,
+    )
+
+    assert decision.ok is True
+    assert context.seen_gripper_max_age_s == DEFAULT_GRIPPER_STATE_MAX_AGE_S
+
+
+def test_policy_rejects_attach_without_object_name() -> None:
+    decision = validate_task_step(
+        "moveit_attach_object",
+        {"robot_name": "UR10", "object_name": ""},
+        FakeTaskPolicyContext(gripper="closed", recent_gripper=True),
+    )
+
+    assert decision.ok is False
+    assert decision.error == "Cannot attach an unnamed object."
+    assert decision.correction == "Retry with the object_name to attach."
+    assert decision.suggested_next_tool is None
 
 
 def test_structured_execute_plan_policy_error_shape() -> None:

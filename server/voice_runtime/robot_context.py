@@ -13,6 +13,7 @@ class RobotContextSnapshot:
     robot_name: str | None = None
     tcp_pose: dict[str, Any] | None = None
     gripper_state: str | None = None
+    gripper_observed_at_s: float | None = None
     last_execution_result: str | None = None
     executable_plan_observed_at_s: dict[str, float] = field(default_factory=dict)
 
@@ -34,6 +35,17 @@ class RobotContextStore:
 
     def has_recent_executable_plan(self, plan_name: str, *, max_age_s: float) -> bool:
         observed_at_s = self._snapshot.executable_plan_observed_at_s.get(plan_name)
+        if observed_at_s is None:
+            return False
+        return self._time_fn() - observed_at_s <= max_age_s
+
+    def gripper_state(self) -> str | None:
+        return self._snapshot.gripper_state
+
+    def has_recent_gripper_state(self, state: str, *, max_age_s: float) -> bool:
+        if self._snapshot.gripper_state != state:
+            return False
+        observed_at_s = self._snapshot.gripper_observed_at_s
         if observed_at_s is None:
             return False
         return self._time_fn() - observed_at_s <= max_age_s
@@ -66,10 +78,19 @@ class RobotContextStore:
         return dict(self._snapshot.tcp_pose)
 
     def update_from_tool_result(self, tool_name: str, output: str) -> None:
-        if tool_name not in {"moveit_get_current_pose", "moveit_get_robot_status"}:
-            return
         structured_content = _structured_content(output)
         if not isinstance(structured_content, dict) or structured_content.get("ok") is not True:
+            return
+
+        if tool_name == "moveit_close_gripper":
+            self._snapshot.gripper_state = "closed"
+            self._snapshot.gripper_observed_at_s = self._time_fn()
+            return
+        if tool_name == "moveit_open_gripper":
+            self._snapshot.gripper_state = "open"
+            self._snapshot.gripper_observed_at_s = self._time_fn()
+            return
+        if tool_name not in {"moveit_get_current_pose", "moveit_get_robot_status"}:
             return
 
         self._snapshot.observed_at_s = self._time_fn()
@@ -85,6 +106,7 @@ class RobotContextStore:
         gripper = structured_content.get("gripper")
         if isinstance(gripper, dict) and isinstance(gripper.get("state"), str):
             self._snapshot.gripper_state = gripper["state"]
+            self._snapshot.gripper_observed_at_s = self._snapshot.observed_at_s
         last_execution = structured_content.get("last_execution")
         if isinstance(last_execution, dict) and isinstance(last_execution.get("result"), str):
             self._snapshot.last_execution_result = last_execution["result"]
