@@ -29,7 +29,7 @@ class FakeBridge:
     def function_tools(self):
         return [{"type": "function", "name": "moveit_get_robot_status", "parameters": {"type": "object"}, "strict": None}]
 
-    async def call_tool(self, name, arguments):
+    async def call_tool(self, name, arguments) -> str:
         self.calls.append((name, arguments))
         return '{"success": true}'
 
