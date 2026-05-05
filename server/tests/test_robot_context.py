@@ -1,6 +1,6 @@
 import json
 
-from voice_runtime.robot_context import RobotContextStore
+from robot_control.context import RobotContextStore
 
 
 def test_empty_robot_context_renders_advisory_block() -> None:

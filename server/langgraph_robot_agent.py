@@ -20,10 +20,10 @@ from robot_control.call_validation import (
     execution_result_text,
     structured_robot_call_error,
 )
+from robot_control.context import RobotContextStore
 from robot_control.task_policy import structured_task_policy_error, validate_task_step
 from robot_mcp_bridge import RobotMCPError
 from voice_runtime.agent_turn import AgentTurnInput
-from voice_runtime.robot_context import RobotContextStore
 
 MAX_CODEX_TOOL_TURNS = 3
 VIZOR_ROBOT_NAME = "UR10"

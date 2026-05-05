@@ -4,7 +4,7 @@ from pathlib import Path
 SERVER_DIR = Path(__file__).resolve().parents[1]
 ROBOT_CONTROL_DIR = SERVER_DIR / "robot_control"
 
-PURE_ROBOT_CONTROL_MODULES = {"call_validation.py", "task_policy.py"}
+PURE_ROBOT_CONTROL_MODULES = {"call_validation.py", "context.py", "task_policy.py"}
 PURE_ROBOT_CONTROL_FORBIDDEN_ROOTS = {
     "agent_control",
     "agents",

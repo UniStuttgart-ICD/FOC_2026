@@ -7,8 +7,8 @@ import pytest
 
 from codex_auth import CodexAuthError, CodexCredentials
 from codex_backend_client import CodexResponseResult, CodexToolCall
+from robot_control.context import RobotContextStore
 from voice_runtime.agent_turn import AgentTurnInput
-from voice_runtime.robot_context import RobotContextStore
 
 
 def test_langgraph_dependency_is_available() -> None:

@@ -9,9 +9,9 @@ from loguru import logger
 from codex_auth import CodexAuthError, PiCodexCredentialStore
 from codex_backend_client import CodexBackendClient, CodexBackendError
 from langgraph_robot_agent import LangGraphRobotAgent
+from robot_control.context import RobotContextStore
 from robot_mcp_bridge import RobotMCPBridge
 from voice_runtime.agent_turn import AgentTurnInput
-from voice_runtime.robot_context import RobotContextStore
 
 
 class OpenAICodexAgentProcessor:
