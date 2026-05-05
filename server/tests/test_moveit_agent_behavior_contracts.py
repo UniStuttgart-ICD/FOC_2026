@@ -47,7 +47,7 @@ class BehaviorBridge:
         return [
             {
                 "type": "function",
-                "name": "moveit_get_robot_status",
+                "name": "moveit_get_current_pose",
                 "parameters": {"type": "object"},
                 "strict": None,
             },
@@ -65,7 +65,7 @@ class BehaviorBridge:
             },
             {
                 "type": "function",
-                "name": "moveit_plan_relative_motion",
+                "name": "moveit_plan_and_execute_free_motion",
                 "parameters": {"type": "object"},
                 "strict": None,
             },
@@ -73,14 +73,13 @@ class BehaviorBridge:
 
     async def call_tool(self, name, arguments):
         self.calls.append((name, arguments))
-        if name == "moveit_get_robot_status":
+        if name == "moveit_get_current_pose":
             return json.dumps(
                 {
                     "structured_content": {
                         "ok": True,
-                        "robot_name": "UR10",
-                        "tcp_pose": {"position": {"x": 0.1, "y": 0.2, "z": 0.3}},
-                        "gripper": {"state": "open"},
+                        "robot": "UR10",
+                        "raw": {"pose": {"position": {"x": 0.1, "y": 0.2, "z": 0.3}}},
                     }
                 }
             )
@@ -95,6 +94,8 @@ class BehaviorBridge:
                 }
             )
         if name == "moveit_execute_plan":
+            return json.dumps({"structured_content": {"ok": True, "verification": {"result": "pass"}}})
+        if name == "moveit_plan_and_execute_free_motion":
             return json.dumps({"structured_content": {"ok": True, "verification": {"result": "pass"}}})
         return json.dumps({"structured_content": {"ok": True}})
 
@@ -127,13 +128,8 @@ def output_item(name, call_id="call-1", item_id="item-1", arguments=None):
 
 
 @pytest.mark.asyncio
-async def test_robot_action_preflight_gets_status_before_codex_request():
-    backend = ScriptedBackend(
-        [
-            CodexResponseResult(text="yes"),
-            CodexResponseResult(text="I can wave from the current pose."),
-        ]
-    )
+async def test_robot_action_preflight_gets_current_pose_before_codex_request():
+    backend = ScriptedBackend([CodexResponseResult(text="I can wave from the current pose.")])
     bridge = BehaviorBridge()
     processor = OpenAICodexAgentProcessor(
         "http://127.0.0.1:8765/mcp",
@@ -145,22 +141,15 @@ async def test_robot_action_preflight_gets_status_before_codex_request():
 
     chunks = await run_processor(processor, "wave to me")
 
-    assert bridge.calls == [("moveit_get_robot_status", {"robot_name": "UR10"})]
-    assert "Decide whether this user turn needs fresh robot status" in backend.requests[0]["instructions"]
-    assert backend.requests[0]["tools"] == []
-    assert "robot: UR10" in backend.requests[1]["instructions"]
-    assert "x=0.100" in backend.requests[1]["instructions"]
+    assert bridge.calls == [("moveit_get_current_pose", {"robot_name": "UR10"})]
+    assert "robot: UR10" in backend.requests[0]["instructions"]
+    assert "x=0.100" in backend.requests[0]["instructions"]
     assert chunks == ["I can wave from the current pose."]
 
 
 @pytest.mark.asyncio
-async def test_non_robot_action_does_not_preflight_status():
-    backend = ScriptedBackend(
-        [
-            CodexResponseResult(text="no"),
-            CodexResponseResult(text="I can help with robot commands."),
-        ]
-    )
+async def test_non_robot_action_still_gets_current_pose_in_instructions():
+    backend = ScriptedBackend([CodexResponseResult(text="I can help with robot commands.")])
     bridge = BehaviorBridge()
     processor = OpenAICodexAgentProcessor(
         "http://127.0.0.1:8765/mcp",
@@ -172,18 +161,17 @@ async def test_non_robot_action_does_not_preflight_status():
 
     chunks = await run_processor(processor, "what can you do?")
 
-    assert bridge.calls == []
-    assert "No robot status has been observed yet" in backend.requests[1]["instructions"]
+    assert bridge.calls == [("moveit_get_current_pose", {"robot_name": "UR10"})]
+    assert "robot: UR10" in backend.requests[0]["instructions"]
     assert chunks == ["I can help with robot commands."]
 
 
 @pytest.mark.asyncio
 async def test_relative_movement_behavior_observes_before_answering():
-    status = tool_call("moveit_get_robot_status")
+    pose = tool_call("moveit_get_current_pose")
     backend = ScriptedBackend(
         [
-            CodexResponseResult(text="yes"),
-            CodexResponseResult(tool_calls=[status], output_items=[output_item("moveit_get_robot_status")]),
+            CodexResponseResult(tool_calls=[pose], output_items=[output_item("moveit_get_current_pose")]),
             CodexResponseResult(text="I checked the robot and can plan the relative move."),
         ]
     )
@@ -198,15 +186,53 @@ async def test_relative_movement_behavior_observes_before_answering():
 
     chunks = await run_processor(processor, "move up a bit")
 
-    assert bridge.calls[0] == ("moveit_get_robot_status", {"robot_name": "UR10"})
+    assert bridge.calls[0] == ("moveit_get_current_pose", {"robot_name": "UR10"})
     assert chunks == ["I checked the robot and can plan the relative move."]
+
+
+@pytest.mark.asyncio
+async def test_repairs_missing_relative_target_pose_from_current_pose_context():
+    tool = tool_call(
+        "moveit_plan_and_execute_free_motion",
+        arguments={"robot_name": "UR10", "plan_name": "move_up_50mm", "timeout_s": 10},
+    )
+    backend = ScriptedBackend(
+        [
+            CodexResponseResult(
+                tool_calls=[tool],
+                output_items=[output_item("moveit_plan_and_execute_free_motion", arguments=tool.arguments)],
+            ),
+            CodexResponseResult(text="Moved up 50 mm."),
+        ]
+    )
+    bridge = BehaviorBridge()
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=Store(),
+        backend_client=backend,
+        tool_bridge=bridge,
+    )
+
+    chunks = await run_processor(processor, "move up a bit")
+
+    assert bridge.calls[1] == (
+        "moveit_plan_and_execute_free_motion",
+        {
+            "robot_name": "UR10",
+            "plan_name": "move_up_50mm",
+            "timeout_s": 10,
+            "target_pose": {"x": 0.1, "y": 0.2, "z": 0.35},
+        },
+    )
+    assert chunks == ["Moved up 50 mm."]
 
 
 @pytest.mark.asyncio
 async def test_plan_tool_is_auto_executed_once_plan_is_executable():
     plan_args = {
         "robot_name": "UR10",
-        "position": {
+        "target_pose": {
             "position": {"x": 0.1, "y": 0.2, "z": 0.35},
             "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
         },
@@ -214,7 +240,6 @@ async def test_plan_tool_is_auto_executed_once_plan_is_executable():
     plan = tool_call("moveit_plan_free_motion", arguments=plan_args)
     backend = ScriptedBackend(
         [
-            CodexResponseResult(text="yes"),
             CodexResponseResult(
                 tool_calls=[plan],
                 output_items=[output_item("moveit_plan_free_motion", arguments=plan_args)],
@@ -234,7 +259,7 @@ async def test_plan_tool_is_auto_executed_once_plan_is_executable():
     chunks = await run_processor(processor, "move up a bit")
 
     assert bridge.calls == [
-        ("moveit_get_robot_status", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
         ("moveit_plan_free_motion", plan_args),
         ("moveit_execute_plan", {"robot_name": "UR10", "plan_name": "plan-1"}),
     ]
