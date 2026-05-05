@@ -5,16 +5,6 @@ from config import AgentConfig
 from voice_runtime.agent_turn import AgentTurnProcessor
 
 
-def test_creates_claude_agent_turn_processor():
-    processor = create_agent_processor(
-        AgentConfig(provider="claude", model="claude-haiku-4-5-20251001"),
-        mcp_server_url="http://127.0.0.1:8765/mcp",
-    )
-
-    assert isinstance(processor, AgentTurnProcessor)
-    assert isinstance(processor, FrameProcessor)
-
-
 def test_creates_openai_codex_agent_turn_processor():
     processor = create_agent_processor(
         AgentConfig(provider="openai_codex_oauth", model="gpt-5.5"),

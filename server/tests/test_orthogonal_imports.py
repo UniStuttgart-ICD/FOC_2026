@@ -7,7 +7,6 @@ VOICE_RUNTIME_DIR = SERVER_DIR / "voice_runtime"
 APP_MODULE_ROOTS = {
     "agent_processor_factory",
     "bot",
-    "claude_agent_processor",
     "codex_auth",
     "codex_backend_client",
     "config",
@@ -29,7 +28,6 @@ PURE_MODULES = {
 }
 PURE_MODULE_FORBIDDEN_ROOTS = {
     "agents",
-    "claude_agent_sdk",
     "dotenv",
     "mcp",
     "openai",

@@ -54,7 +54,7 @@ pi
 
 The agent reads Pi's `~/.pi/agent/auth.json` `openai-codex` OAuth profile.
 
-`local_current` and `no_wake_debug` use local STT/TTS, but still use the Claude cloud agent. Authenticate with `claude auth login` and keep Claude plus the profile MCP URL reachable.
+`local_current` and `no_wake_debug` use local STT/TTS with the same OpenAI Codex OAuth agent backend as the benchmark profiles. Keep Pi's `openai-codex` OAuth profile and the configured robot MCP URL reachable.
 
 ### Wake word
 
@@ -74,7 +74,7 @@ Local debug profiles are local STT/TTS debug profiles, not fully offline profile
 
 ### Robot Safety coverage
 
-Codex through `RobotMCPBridge` is locally enforced. Direct Claude MCP is prompt-only unless a safe MCP proxy Adapter is added.
+All robot tool calls go through Codex and `RobotMCPBridge`, where canonical `moveit_*` calls are locally validated by `voice_runtime.robot_safety` before reaching the MCP server.
 
 ## Setup
 

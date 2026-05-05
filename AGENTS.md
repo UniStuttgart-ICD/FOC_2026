@@ -54,7 +54,7 @@ Run server commands from `server/`.
 </important>
 
 <important if="you are adding robot context, memory, or feedback loops">
-- Inject compact last-known robot context as advisory state only.
+- Inject compact `Last-known robot context` as advisory state only.
 - Require fresh `moveit_get_robot_status` before movement, relative commands, retries, or safety-sensitive actions.
 - Keep state shape LangGraph-compatible so it can later become graph/checkpoint state without changing the Pipecat pipeline contract.
 </important>

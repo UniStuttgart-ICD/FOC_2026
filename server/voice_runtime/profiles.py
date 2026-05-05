@@ -14,13 +14,13 @@ DEFAULT_PROFILE = "hybrid_low_latency"
 WakeProvider = Literal["none", "openwakeword"]
 STTProvider = Literal["deepgram_flux", "openai_realtime", "whisper"]
 TTSProvider = Literal["cartesia", "openai", "deepgram", "kokoro"]
-AgentProvider = Literal["claude", "openai_codex_oauth"]
+AgentProvider = Literal["openai_codex_oauth"]
 Category = Literal["benchmark_streaming", "local_debug"]
 
 _WAKE_PROVIDERS = {"none", "openwakeword"}
 _STT_PROVIDERS = {"deepgram_flux", "openai_realtime", "whisper"}
 _TTS_PROVIDERS = {"cartesia", "openai", "deepgram", "kokoro"}
-_AGENT_PROVIDERS = {"claude", "openai_codex_oauth"}
+_AGENT_PROVIDERS = {"openai_codex_oauth"}
 _CATEGORIES = {"benchmark_streaming", "local_debug"}
 _STREAMING_STT_PROVIDERS = {"deepgram_flux", "openai_realtime"}
 _STREAMING_TTS_PROVIDERS = {"cartesia", "openai", "deepgram"}
@@ -198,8 +198,7 @@ def _parse_tts(table: dict[str, Any]) -> TTSProfile:
 
 def _parse_agent(table: dict[str, Any]) -> AgentProfile:
     provider = cast(AgentProvider, _literal(table, "provider", _AGENT_PROVIDERS))
-    default_model = "claude-haiku-4-5-20251001" if provider == "claude" else "gpt-5.5"
-    return AgentProfile(provider=provider, model=_string(table, "model", default_model))
+    return AgentProfile(provider=provider, model=_string(table, "model", "gpt-5.4-mini"))
 
 
 def _parse_metrics(table: dict[str, Any], server_dir: Path) -> MetricsProfile:
