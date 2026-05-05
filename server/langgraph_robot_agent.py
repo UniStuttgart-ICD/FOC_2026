@@ -216,6 +216,7 @@ class LangGraphRobotAgent:
             output = await self._call_policy_checked_tool(name, arguments)
             plan_name = executable_plan_name(output)
             if name in PLAN_TOOL_NAMES and plan_name:
+                self._robot_context.remember_executable_plan(plan_name)
                 execution_output = await self._call_policy_checked_tool(
                     "moveit_execute_plan",
                     {"robot_name": VIZOR_ROBOT_NAME, "plan_name": plan_name},

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -14,6 +14,7 @@ class RobotContextSnapshot:
     tcp_pose: dict[str, Any] | None = None
     gripper_state: str | None = None
     last_execution_result: str | None = None
+    executable_plan_observed_at_s: dict[str, float] = field(default_factory=dict)
 
 
 class RobotContextStore:
@@ -23,6 +24,16 @@ class RobotContextStore:
 
     def has_recent_robot_observation(self, *, max_age_s: float) -> bool:
         observed_at_s = self._snapshot.observed_at_s
+        if observed_at_s is None:
+            return False
+        return self._time_fn() - observed_at_s <= max_age_s
+
+    def remember_executable_plan(self, plan_name: str) -> None:
+        if plan_name:
+            self._snapshot.executable_plan_observed_at_s[plan_name] = self._time_fn()
+
+    def has_recent_executable_plan(self, plan_name: str, *, max_age_s: float) -> bool:
+        observed_at_s = self._snapshot.executable_plan_observed_at_s.get(plan_name)
         if observed_at_s is None:
             return False
         return self._time_fn() - observed_at_s <= max_age_s

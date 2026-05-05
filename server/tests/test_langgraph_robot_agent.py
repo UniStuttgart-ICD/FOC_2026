@@ -484,10 +484,52 @@ async def test_graph_sends_policy_failure_as_tool_output_when_motion_lacks_fresh
 
 
 @pytest.mark.asyncio
+async def test_graph_blocks_blind_execute_plan_even_after_fresh_pose() -> None:
+    execute = tool_call(
+        "moveit_execute_plan",
+        arguments={"robot_name": "UR10", "plan_name": "invented-plan"},
+    )
+    fixture = make_graph(
+        [
+            CodexResponseResult(
+                tool_calls=[execute],
+                output_items=[output_item("moveit_execute_plan", arguments=execute.arguments)],
+            ),
+            CodexResponseResult(text="I need to plan before executing."),
+        ]
+    )
+
+    text = await fixture.graph.run_turn(turn("execute the last plan"))
+
+    assert text == "I need to plan before executing."
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]
+    output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])
+    assert output == {
+        "ok": False,
+        "error": "Cannot execute an unknown or stale plan.",
+        "correction": "Plan first, then execute the returned plan_name.",
+        "retryable": True,
+        "suggested_next_tool": "moveit_plan_free_motion",
+    }
+
+
+@pytest.mark.asyncio
 async def test_graph_converts_robot_mcp_error_to_structured_tool_output() -> None:
     from robot_mcp_bridge import RobotMCPError
 
-    failing_tool = tool_call("moveit_execute_plan", arguments={"robot_name": "UR10", "plan_name": "plan-1"})
+    failing_tool = tool_call(
+        "moveit_plan_free_motion",
+        arguments={
+            "robot_name": "UR10",
+            "target_pose": {
+                "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+                "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+            },
+        },
+    )
 
     class ErrorBridge(FakeBridge):
         async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
@@ -499,14 +541,14 @@ async def test_graph_converts_robot_mcp_error_to_structured_tool_output() -> Non
         [
             CodexResponseResult(
                 tool_calls=[failing_tool],
-                output_items=[output_item("moveit_execute_plan", arguments=failing_tool.arguments)],
+                output_items=[output_item("moveit_plan_free_motion", arguments=failing_tool.arguments)],
             ),
             CodexResponseResult(text="The robot server is unavailable."),
         ],
         bridge=ErrorBridge(),
     )
 
-    await fixture.graph.run_turn(turn("execute it"))
+    await fixture.graph.run_turn(turn("move up"))
 
     output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])
     assert output == {
@@ -520,7 +562,16 @@ async def test_graph_converts_robot_mcp_error_to_structured_tool_output() -> Non
 
 @pytest.mark.asyncio
 async def test_graph_preserves_structured_robot_tool_failure_as_tool_output() -> None:
-    bad_tool = tool_call("moveit_execute_plan", arguments={"robot_name": "UR10", "plan_name": ""})
+    bad_tool = tool_call(
+        "moveit_plan_free_motion",
+        arguments={
+            "robot_name": "UR10",
+            "target_pose": {
+                "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+                "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+            },
+        },
+    )
 
     class FailureBridge(FakeBridge):
         async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
@@ -530,8 +581,8 @@ async def test_graph_preserves_structured_robot_tool_failure_as_tool_output() ->
             return json.dumps(
                 {
                     "ok": False,
-                    "error": "Expected a non-empty plan_name",
-                    "correction": "Plan first.",
+                    "error": "Planning failed",
+                    "correction": "Check the target and plan again.",
                     "retryable": True,
                     "suggested_next_tool": "moveit_get_current_pose",
                 }
@@ -541,14 +592,14 @@ async def test_graph_preserves_structured_robot_tool_failure_as_tool_output() ->
         [
             CodexResponseResult(
                 tool_calls=[bad_tool],
-                output_items=[output_item("moveit_execute_plan", arguments=bad_tool.arguments)],
+                output_items=[output_item("moveit_plan_free_motion", arguments=bad_tool.arguments)],
             ),
             CodexResponseResult(text="I need a valid plan before executing."),
         ],
         bridge=FailureBridge(),
     )
 
-    text = await fixture.graph.run_turn(turn("execute it"))
+    text = await fixture.graph.run_turn(turn("move up"))
 
     assert text == "I need a valid plan before executing."
     output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])

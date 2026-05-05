@@ -77,3 +77,16 @@ def test_robot_context_reports_recent_and_stale_pose_observations() -> None:
 
     now = 116.0
     assert store.has_recent_robot_observation(max_age_s=15.0) is False
+
+
+def test_robot_context_remembers_recent_executable_plan_names() -> None:
+    now = 200.0
+    store = RobotContextStore(time_fn=lambda: now)
+
+    store.remember_executable_plan("plan-1")
+
+    assert store.has_recent_executable_plan("plan-1", max_age_s=60.0) is True
+    assert store.has_recent_executable_plan("missing", max_age_s=60.0) is False
+
+    now = 261.0
+    assert store.has_recent_executable_plan("plan-1", max_age_s=60.0) is False

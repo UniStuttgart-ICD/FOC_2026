@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 DEFAULT_FRESH_OBSERVATION_MAX_AGE_S = 15.0
+DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S = 120.0
 
 MOTION_TOOL_NAMES = frozenset(
     {
@@ -18,6 +19,8 @@ MOTION_TOOL_NAMES = frozenset(
 
 class TaskPolicyContext(Protocol):
     def has_recent_robot_observation(self, *, max_age_s: float) -> bool: ...
+
+    def has_recent_executable_plan(self, plan_name: str, *, max_age_s: float) -> bool: ...
 
 
 @dataclass(frozen=True)
@@ -35,8 +38,8 @@ def validate_task_step(
     context: TaskPolicyContext,
     *,
     fresh_observation_max_age_s: float = DEFAULT_FRESH_OBSERVATION_MAX_AGE_S,
+    executable_plan_max_age_s: float = DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S,
 ) -> TaskPolicyDecision:
-    del arguments
     if name in MOTION_TOOL_NAMES and not context.has_recent_robot_observation(
         max_age_s=fresh_observation_max_age_s
     ):
@@ -46,6 +49,20 @@ def validate_task_step(
             correction="Call moveit_get_current_pose, then retry the motion.",
             suggested_next_tool="moveit_get_current_pose",
         )
+
+    if name == "moveit_execute_plan":
+        plan_name = arguments.get("plan_name")
+        if not isinstance(plan_name, str) or not context.has_recent_executable_plan(
+            plan_name,
+            max_age_s=executable_plan_max_age_s,
+        ):
+            return TaskPolicyDecision(
+                ok=False,
+                error="Cannot execute an unknown or stale plan.",
+                correction="Plan first, then execute the returned plan_name.",
+                suggested_next_tool="moveit_plan_free_motion",
+            )
+
     return TaskPolicyDecision(ok=True)
 
 

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from robot_control.task_policy import (
+    DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S,
     DEFAULT_FRESH_OBSERVATION_MAX_AGE_S,
     TaskPolicyDecision,
     structured_task_policy_error,
@@ -16,11 +17,17 @@ VALID_TARGET_POSE = {
 @dataclass
 class FakeTaskPolicyContext:
     recent_pose: bool = False
-    seen_max_age_s: float | None = None
+    executable_plans: set[str] | None = None
+    seen_pose_max_age_s: float | None = None
+    seen_plan_max_age_s: float | None = None
 
     def has_recent_robot_observation(self, *, max_age_s: float) -> bool:
-        self.seen_max_age_s = max_age_s
+        self.seen_pose_max_age_s = max_age_s
         return self.recent_pose
+
+    def has_recent_executable_plan(self, plan_name: str, *, max_age_s: float) -> bool:
+        self.seen_plan_max_age_s = max_age_s
+        return plan_name in (self.executable_plans or set())
 
 
 def test_policy_allows_observation_without_existing_context() -> None:
@@ -67,7 +74,74 @@ def test_policy_uses_configured_pose_freshness_window() -> None:
     )
 
     assert decision.ok is True
-    assert context.seen_max_age_s == DEFAULT_FRESH_OBSERVATION_MAX_AGE_S
+    assert context.seen_pose_max_age_s == DEFAULT_FRESH_OBSERVATION_MAX_AGE_S
+
+
+def test_policy_rejects_execute_plan_when_plan_was_not_returned_by_planning() -> None:
+    decision = validate_task_step(
+        "moveit_execute_plan",
+        {"robot_name": "UR10", "plan_name": "invented-plan"},
+        FakeTaskPolicyContext(recent_pose=True),
+    )
+
+    assert decision.ok is False
+    assert decision.error == "Cannot execute an unknown or stale plan."
+    assert decision.correction == "Plan first, then execute the returned plan_name."
+    assert decision.suggested_next_tool == "moveit_plan_free_motion"
+
+
+def test_policy_rejects_execute_plan_without_plan_name() -> None:
+    decision = validate_task_step(
+        "moveit_execute_plan",
+        {"robot_name": "UR10"},
+        FakeTaskPolicyContext(recent_pose=True),
+    )
+
+    assert decision.ok is False
+    assert decision.error == "Cannot execute an unknown or stale plan."
+
+
+def test_policy_allows_execute_plan_when_plan_was_recently_recorded() -> None:
+    decision = validate_task_step(
+        "moveit_execute_plan",
+        {"robot_name": "UR10", "plan_name": "plan-1"},
+        FakeTaskPolicyContext(recent_pose=True, executable_plans={"plan-1"}),
+    )
+
+    assert decision == TaskPolicyDecision(ok=True)
+
+
+def test_policy_passes_executable_plan_freshness_window_to_context() -> None:
+    context = FakeTaskPolicyContext(recent_pose=True, executable_plans={"plan-1"})
+
+    decision = validate_task_step(
+        "moveit_execute_plan",
+        {"robot_name": "UR10", "plan_name": "plan-1"},
+        context,
+        executable_plan_max_age_s=DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S,
+    )
+
+    assert decision.ok is True
+    assert context.seen_plan_max_age_s == DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S
+
+
+def test_structured_execute_plan_policy_error_shape() -> None:
+    payload = structured_task_policy_error(
+        TaskPolicyDecision(
+            ok=False,
+            error="Cannot execute an unknown or stale plan.",
+            correction="Plan first, then execute the returned plan_name.",
+            suggested_next_tool="moveit_plan_free_motion",
+        )
+    )
+
+    assert payload == {
+        "ok": False,
+        "error": "Cannot execute an unknown or stale plan.",
+        "correction": "Plan first, then execute the returned plan_name.",
+        "retryable": True,
+        "suggested_next_tool": "moveit_plan_free_motion",
+    }
 
 
 def test_structured_task_policy_error_shape() -> None:
