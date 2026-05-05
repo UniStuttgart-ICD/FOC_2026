@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -19,6 +20,33 @@ from voice_runtime.robot_safety import executable_plan_name, execution_result_te
 MAX_CODEX_TOOL_TURNS = 3
 VIZOR_ROBOT_NAME = "UR10"
 PLAN_TOOL_NAMES = {"moveit_plan_free_motion", "moveit_plan_linear_motion"}
+STATUS_TOOL_NAME = "moveit_get_robot_status"
+ROBOT_ACTION_WORDS = frozenset(
+    {
+        "again",
+        "back",
+        "backward",
+        "close",
+        "down",
+        "forward",
+        "go",
+        "grab",
+        "gripper",
+        "left",
+        "lower",
+        "move",
+        "open",
+        "pose",
+        "position",
+        "raise",
+        "release",
+        "retry",
+        "right",
+        "stop",
+        "up",
+        "wave",
+    }
+)
 
 
 class OpenAICodexAgentProcessor:
@@ -85,6 +113,7 @@ class OpenAICodexAgentProcessor:
         tools = tool_bridge.function_tools()
 
         try:
+            await self._preflight_robot_status(tool_bridge, tools, turn.user_text)
             result = await backend_client.create_response(
                 credentials,
                 model=self._model,
@@ -110,6 +139,14 @@ class OpenAICodexAgentProcessor:
 
     def _instructions(self) -> str:
         return f"{SYSTEM_PROMPT}\n\n{self._robot_context.render_instruction_block()}"
+
+    async def _preflight_robot_status(
+        self, tool_bridge: RobotMCPBridge, tools: list[dict[str, Any]], user_text: str
+    ) -> None:
+        if not _has_tool(tools, STATUS_TOOL_NAME) or not _needs_robot_status_preflight(user_text):
+            return
+        logger.info("Running robot status preflight before Codex request")
+        await self._call_robot_tool(tool_bridge, STATUS_TOOL_NAME, {"robot_name": VIZOR_ROBOT_NAME})
 
     async def _ensure_connected(self) -> None:
         if self._connected:
@@ -175,6 +212,15 @@ class OpenAICodexAgentProcessor:
             return output
         except RobotMCPError as exc:
             return json.dumps({"error": str(exc)}, ensure_ascii=False)
+
+
+def _has_tool(tools: list[dict[str, Any]], name: str) -> bool:
+    return any(tool.get("name") == name for tool in tools)
+
+
+def _needs_robot_status_preflight(text: str) -> bool:
+    words = set(re.findall(r"[a-zA-Z']+", text.lower()))
+    return bool(words & ROBOT_ACTION_WORDS)
 
 
 def _input_items_from_messages(messages: list[Mapping[str, Any]]) -> list[dict[str, Any]]:

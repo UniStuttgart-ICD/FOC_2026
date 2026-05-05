@@ -13,7 +13,6 @@ from pipecat.services.whisper.stt import WhisperSTTService
 
 from config import STTConfig, TTSConfig
 
-
 DEFAULT_CARTESIA_VOICE_ID = "47c38ca4-5f35-497b-b1a3-415245fb35e1"
 
 
