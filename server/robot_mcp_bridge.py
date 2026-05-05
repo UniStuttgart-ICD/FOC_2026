@@ -9,6 +9,8 @@ from mcp.types import CallToolResult, TextContent, Tool
 from voice_runtime.robot_safety import (
     AGENT_TO_LEGACY_MCP_TOOL_NAMES,
     RobotSafetyError,
+    agent_tool_description,
+    structured_robot_error,
     validate_robot_tool_call,
 )
 
@@ -73,7 +75,7 @@ class RobotMCPBridge:
                 {
                     "type": "function",
                     "name": agent_name,
-                    "description": tool.description or "",
+                    "description": agent_tool_description(agent_name),
                     "parameters": tool.inputSchema,
                     "strict": None,
                 }
@@ -100,10 +102,7 @@ class RobotMCPBridge:
 
 
 def _serialize_validation_failure(exc: RobotSafetyError) -> str:
-    return json.dumps(
-        {"error": str(exc), "correction": exc.correction},
-        ensure_ascii=False,
-    )
+    return json.dumps(structured_robot_error(exc), ensure_ascii=False)
 
 
 def _serialize_tool_result(result: CallToolResult) -> str:
