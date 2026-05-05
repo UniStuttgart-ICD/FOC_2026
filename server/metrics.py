@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from loguru import logger
 from pipecat.frames.frames import (
     BotStoppedSpeakingFrame,
-    InputAudioRawFrame,
     LLMFullResponseEndFrame,
     LLMTextFrame,
     TranscriptionFrame,
@@ -21,37 +19,80 @@ from pipecat.frames.frames import (
 from pipecat.observers.base_observer import BaseObserver, FramePushed
 from pipecat.processors.frame_processor import FrameDirection
 
+from voice_runtime.voice_metrics import VoiceTurnTimeline
+from voice_runtime.wake_command import WakeDetectedFrame
+
 
 def _perf_counter() -> float:
     return time.perf_counter()
 
 
-def _duration_ms(start: float, end: float | None) -> float | None:
-    if end is None:
-        return None
-    return round((end - start) * 1000, 2)
-
-
-@dataclass
 class TurnMetrics:
-    turn_id: str
-    started_at: float = field(default_factory=_perf_counter)
-    marks: dict[str, float] = field(default_factory=dict)
-    wake_phrase: str = ""
-    transcript: str = ""
-    response: str = ""
+    def __init__(self, *, profile: str, category: str, turn_id: str):
+        self.turn_id = turn_id
+        self._timeline = VoiceTurnTimeline(
+            profile=profile,
+            category=category,
+            turn_id=turn_id,
+            started_at=_perf_counter(),
+            now_fn=time.perf_counter,
+            wall_time_fn=time.time,
+        )
+        self._wake_phrase = ""
+        self._transcript = ""
+        self._response = ""
+
+    @property
+    def wake_phrase(self) -> str:
+        return self._wake_phrase
+
+    @wake_phrase.setter
+    def wake_phrase(self, value: str) -> None:
+        self._wake_phrase = value
+
+    @property
+    def transcript(self) -> str:
+        return self._transcript
+
+    @transcript.setter
+    def transcript(self, value: str) -> None:
+        self._transcript = value
+
+    @property
+    def response(self) -> str:
+        return self._response
+
+    @response.setter
+    def response(self, value: str) -> None:
+        self._response = value
 
     def mark(self, name: str) -> None:
-        self.marks[name] = time.perf_counter()
+        if name == "wake_detected":
+            self._timeline.wake_detected(self._wake_phrase)
+        elif name == "speech_captured":
+            self._timeline.speech_captured()
+        elif name == "stt_done":
+            self._timeline.stt_done(self._transcript)
+        elif name == "agent_done":
+            self._timeline.agent_done()
+        elif name == "tts_first_audio":
+            self._timeline.tts_audio_started()
+        elif name == "tts_done":
+            self._timeline.tts_done()
 
-    def elapsed_ms(self, mark: str) -> float | None:
-        return _duration_ms(self.started_at, self.marks.get(mark))
+    def append_response(self, text: str) -> None:
+        self._response = f"{self._response}{text}"
+        self._timeline.append_agent_text(text)
 
-    def duration_ms(self, start_mark: str, end_mark: str) -> float | None:
-        start = self.marks.get(start_mark)
-        if start is None:
-            return None
-        return _duration_ms(start, self.marks.get(end_mark))
+    def record(self, *, finished_at: float, include_text: bool) -> dict[str, Any]:
+        if self._transcript:
+            self._timeline.stt_done(
+                self._transcript,
+                at=self._timeline._marks.get("stt_done"),
+            )
+        if self._response and not self._timeline._response:
+            self._timeline.append_agent_text(self._response)
+        return self._timeline.to_record(finished_at=finished_at, include_text=include_text)
 
 
 class VoiceMetricsRecorder:
@@ -64,7 +105,7 @@ class VoiceMetricsRecorder:
         self._disabled = False
 
     def start_turn(self, turn_id: str) -> TurnMetrics:
-        turn = TurnMetrics(turn_id=turn_id)
+        turn = TurnMetrics(profile=self._profile, category=self._category, turn_id=turn_id)
         self._turns[turn_id] = turn
         return turn
 
@@ -82,28 +123,7 @@ class VoiceMetricsRecorder:
         turn = self._turns.pop(turn_id, None)
         if turn is None:
             return
-        speech_captured = turn.marks.get("speech_captured")
-        tts_first_audio = turn.marks.get("tts_first_audio")
-        wake_detected = turn.marks.get("wake_detected")
-        speech_start = wake_detected if wake_detected is not None else turn.started_at
-        record: dict[str, Any] = {
-            "timestamp_unix": time.time(),
-            "profile": self._profile,
-            "category": self._category,
-            "turn_id": turn.turn_id,
-            "wake_phrase": turn.wake_phrase,
-            "wake_latency_ms": turn.elapsed_ms("wake_detected"),
-            "speech_captured_ms": _duration_ms(speech_start, speech_captured),
-            "stt_latency_ms": turn.duration_ms("speech_captured", "stt_done"),
-            "agent_latency_ms": turn.duration_ms("stt_done", "agent_done"),
-            "tts_first_audio_ms": turn.duration_ms("agent_done", "tts_first_audio"),
-            "tts_done_ms": turn.duration_ms("tts_first_audio", "tts_done"),
-            "total_to_first_audio_ms": _duration_ms(turn.started_at, tts_first_audio),
-            "total_turn_ms": _duration_ms(turn.started_at, time.perf_counter()),
-        }
-        if self._include_text:
-            record["transcript"] = turn.transcript
-            record["response"] = turn.response
+        record = turn.record(finished_at=time.perf_counter(), include_text=self._include_text)
         self._write(record)
         logger.info(
             "Voice metrics profile={} turn={} total={}ms transcript={!r}",
@@ -142,9 +162,8 @@ class VoiceMetricsObserver(BaseObserver):
             return
 
         frame = data.frame
-        if isinstance(frame, InputAudioRawFrame):
-            if data.source.__class__.__name__ == "MaveWakeWordGate":
-                self._mark_wake_detected()
+        if isinstance(frame, WakeDetectedFrame):
+            self._mark_wake_detected(frame.wake_phrase)
         elif isinstance(frame, UserStartedSpeakingFrame):
             self._ensure_turn()
         elif isinstance(frame, UserStoppedSpeakingFrame):
@@ -184,11 +203,11 @@ class VoiceMetricsObserver(BaseObserver):
         if self._current_turn_id is not None:
             self._recorder.mark(self._current_turn_id, name)
 
-    def _mark_wake_detected(self) -> None:
+    def _mark_wake_detected(self, wake_phrase: str) -> None:
         turn = self._ensure_turn()
         if self._wake_marked:
             return
-        turn.wake_phrase = "mave"
+        turn.wake_phrase = wake_phrase
         self._mark("wake_detected")
         self._wake_marked = True
 
@@ -203,7 +222,7 @@ class VoiceMetricsObserver(BaseObserver):
         turn = self._current_turn()
         if turn is None:
             return
-        turn.response = f"{turn.response}{text}"
+        turn.append_response(text)
 
     def _mark_tts_first_audio(self) -> None:
         if self._tts_first_audio_marked:

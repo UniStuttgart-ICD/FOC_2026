@@ -1,0 +1,186 @@
+from dataclasses import dataclass
+
+import pytest
+
+from codex_auth import CodexCredentials
+from codex_backend_client import CodexResponseResult, CodexToolCall
+from openai_codex_agent_processor import OpenAICodexAgentProcessor
+from voice_runtime.agent_turn import AgentTurnInput
+
+
+class FakeStore:
+    def get_credentials(self):
+        return CodexCredentials(access="access", refresh="refresh", account_id="acct")
+
+
+class FakeBridge:
+    def __init__(self):
+        self.connected = False
+        self.disconnected = False
+        self.calls = []
+
+    async def connect(self):
+        self.connected = True
+
+    async def disconnect(self):
+        self.disconnected = True
+
+    def function_tools(self):
+        return [{"type": "function", "name": "moveit_get_robot_status", "parameters": {"type": "object"}, "strict": None}]
+
+    async def call_tool(self, name, arguments):
+        self.calls.append((name, arguments))
+        return '{"success": true}'
+
+
+class FakeBackend:
+    def __init__(self, results):
+        self.results = list(results)
+        self.requests = []
+        self.closed = False
+
+    async def create_response(self, credentials, *, model, instructions, input_items, tools):
+        self.requests.append(
+            {
+                "credentials": credentials,
+                "model": model,
+                "instructions": instructions,
+                "input_items": list(input_items),
+                "tools": list(tools),
+            }
+        )
+        return self.results.pop(0)
+
+    async def close(self):
+        self.closed = True
+
+
+@dataclass(frozen=True)
+class TurnResult:
+    chunks: list[str]
+    processor: OpenAICodexAgentProcessor
+
+
+async def _run_turn(processor: OpenAICodexAgentProcessor, text: str, messages=None) -> TurnResult:
+    turn = AgentTurnInput(user_text=text, messages=messages or [{"role": "user", "content": text}])
+    chunks = [chunk async for chunk in processor.run_turn(turn)]
+    return TurnResult(chunks=chunks, processor=processor)
+
+
+@pytest.mark.asyncio
+async def test_processes_text_response_through_codex_backend():
+    backend = FakeBackend([CodexResponseResult(text="oauth-ok")])
+    bridge = FakeBridge()
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=FakeStore(),
+        backend_client=backend,
+        tool_bridge=bridge,
+    )
+
+    result = await _run_turn(processor, "hello")
+
+    assert result.chunks == ["oauth-ok"]
+    assert backend.requests[0]["model"] == "gpt-5.4-mini"
+    assert backend.requests[0]["input_items"] == [
+        {"role": "user", "content": [{"type": "input_text", "text": "hello"}]}
+    ]
+    assert bridge.connected is True
+
+
+@pytest.mark.asyncio
+async def test_executes_one_tool_iteration_and_sends_tool_output_back():
+    tool_call = CodexToolCall(
+        call_id="call-1",
+        item_id="item-1",
+        name="moveit_get_robot_status",
+        arguments={"robot_name": "UR10"},
+        raw_arguments='{"robot_name":"UR10"}',
+    )
+    backend = FakeBackend(
+        [
+            CodexResponseResult(
+                tool_calls=[tool_call],
+                output_items=[
+                    {
+                        "type": "function_call",
+                        "id": "item-1",
+                        "call_id": "call-1",
+                        "name": "moveit_get_robot_status",
+                        "arguments": '{"robot_name":"UR10"}',
+                    }
+                ],
+            ),
+            CodexResponseResult(text="Robot is ready."),
+        ]
+    )
+    bridge = FakeBridge()
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=FakeStore(),
+        backend_client=backend,
+        tool_bridge=bridge,
+    )
+
+    result = await _run_turn(processor, "status")
+
+    assert bridge.calls == [("moveit_get_robot_status", {"robot_name": "UR10"})]
+    assert backend.requests[1]["input_items"][-1] == {
+        "type": "function_call_output",
+        "call_id": "call-1",
+        "output": '{"success": true}',
+    }
+    assert result.chunks == ["Robot is ready."]
+
+
+@pytest.mark.asyncio
+async def test_sends_available_context_history_to_codex_backend():
+    backend = FakeBackend([CodexResponseResult(text="ok")])
+    bridge = FakeBridge()
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=FakeStore(),
+        backend_client=backend,
+        tool_bridge=bridge,
+    )
+    messages = [
+        {"role": "user", "content": "move up"},
+        {"role": "assistant", "content": "Moved up."},
+        {"role": "user", "content": "again"},
+    ]
+
+    await _run_turn(processor, "again", messages=messages)
+
+    assert backend.requests[0]["input_items"] == [
+        {"role": "user", "content": [{"type": "input_text", "text": "move up"}]},
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "Moved up.", "annotations": []}],
+            "status": "completed",
+            "id": "history-assistant-1",
+        },
+        {"role": "user", "content": [{"type": "input_text", "text": "again"}]},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_disconnect_closes_backend_and_bridge():
+    backend = FakeBackend([])
+    bridge = FakeBridge()
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=FakeStore(),
+        backend_client=backend,
+        tool_bridge=bridge,
+    )
+
+    await processor.connect()
+    await processor.disconnect()
+
+    assert backend.closed is True
+    assert bridge.disconnected is True

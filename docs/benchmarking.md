@@ -32,7 +32,7 @@ server/logs/voice_metrics.jsonl
 
 Each JSONL record includes profile, category, wake phrase, transcript, response, and turn timing fields.
 
-Timing fields are milliseconds with deterministic stage semantics:
+Duration semantics live in the Voice Metrics Module. Timing fields are milliseconds with deterministic stage semantics:
 
 - `wake_latency_ms`: turn start to wake detection.
 - `speech_captured_ms`: wake detection, or turn start without wake, to speech captured.
@@ -53,6 +53,8 @@ Use the same utterances across profiles:
 2. `Mave, what is the current position?`
 3. `Mave, move up a bit.`
 4. `Mave, stop.`
+
+`Mave, stop.` is a normal Voice Command test utterance, not an emergency-stop bypass.
 
 ## Interpreting results
 

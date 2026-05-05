@@ -113,6 +113,7 @@ enabled = false
     monkeypatch.setenv("VOICE_PROFILE", "local_current")
     monkeypatch.setenv("DEEPGRAM_API_KEY", "dg")
     monkeypatch.setenv("CARTESIA_API_KEY", "ct")
+    monkeypatch.setenv("CARTESIA_VOICE_ID", "voice")
 
     config = load_runtime_config(
         profiles_path=profiles,

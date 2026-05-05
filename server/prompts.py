@@ -25,7 +25,6 @@ Users speak commands to you via voice. Respond conversationally but briefly (1-2
 - control_gripper
 - control_gripper_position
 - get_gripper_status
-- robot_control
 
 ## TOOL PARAMETER FORMATS
 - move_to_position: positions=[[x, y, z]]

@@ -1,42 +1,19 @@
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
+from typing import Any
 
-from pipecat.frames.frames import Frame, TranscriptionFrame
-from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
-
-_WAKE_PATTERN = re.compile(r"^\s*(?:hey\s+)?mave[\s,;:!?.-]*", re.IGNORECASE)
+from voice_runtime.wake_command import MaveVoiceCommandTranscriptAdapter, strip_mave_wake_phrase
 
 
 def strip_wake_phrase(text: str) -> str:
-    """Remove a leading Mave wake phrase from a transcript."""
-    cleaned = _WAKE_PATTERN.sub("", text, count=1).strip()
+    """Compatibility wrapper for Mave wake phrase cleanup."""
+    cleaned = strip_mave_wake_phrase(text)
     return cleaned or text.strip()
 
 
-class WakePhraseTranscriptCleaner(FrameProcessor):
-    """Removes a leading wake phrase from downstream transcription frames."""
+class WakePhraseTranscriptCleaner(MaveVoiceCommandTranscriptAdapter):
+    """Compatibility wrapper for the reusable Mave Voice Command transcript Adapter."""
 
-    def __init__(self, *, on_finalized_transcription: Callable[[], None] | None = None, **kwargs):
-        super().__init__(**kwargs)
-        self._on_finalized_transcription = on_finalized_transcription
-
-    async def process_frame(self, frame: Frame, direction: FrameDirection):
-        await super().process_frame(frame, direction)
-        finalized_transcription = False
-
-        if isinstance(frame, TranscriptionFrame):
-            finalized_transcription = frame.finalized
-            frame = TranscriptionFrame(
-                text=strip_wake_phrase(frame.text),
-                user_id=frame.user_id,
-                timestamp=frame.timestamp,
-                language=frame.language,
-                result=frame.result,
-                finalized=frame.finalized,
-            )
-
-        await self.push_frame(frame, direction)
-        if finalized_transcription and self._on_finalized_transcription:
-            self._on_finalized_transcription()
+    def __init__(self, *, on_finalized_transcription: Callable[[], None] | None = None, **kwargs: Any):
+        super().__init__(on_finalized_transcription=on_finalized_transcription, **kwargs)

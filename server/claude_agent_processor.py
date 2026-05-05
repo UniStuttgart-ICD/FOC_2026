@@ -1,7 +1,8 @@
-"""Pipecat processor that runs Claude Agent SDK against the robot MCP server."""
+"""Claude Agent SDK backend Adapter for Agent Turn processing."""
+
+from __future__ import annotations
 
 import os
-from collections.abc import Mapping
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -10,36 +11,25 @@ from claude_agent_sdk import (
     ResultMessage,
 )
 from loguru import logger
-from pipecat.frames.frames import (
-    CancelFrame,
-    EndFrame,
-    Frame,
-    LLMContextFrame,
-    LLMFullResponseEndFrame,
-    LLMFullResponseStartFrame,
-    LLMTextFrame,
-)
-from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 from prompts import SYSTEM_PROMPT
+from voice_runtime.agent_turn import AgentTurnInput
 
 
-class ClaudeAgentProcessor(FrameProcessor):
-    """Routes user turns through a persistent ClaudeSDKClient with robot MCP tools.
+class ClaudeAgentProcessor:
+    """Runs Agent Turns through a persistent ClaudeSDKClient.
 
-    Maintains a single Claude session for the lifetime of the WebRTC connection.
-    The SDK handles conversation history natively.
+    Direct Claude MCP access is prompt-only Robot Safety coverage; this Adapter does
+    not locally enforce robot_safety before SDK-managed MCP calls.
     """
 
-    def __init__(self, mcp_server_url: str, model: str | None = None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, mcp_server_url: str, model: str | None = None):
         self._mcp_server_url = mcp_server_url
         self._model = model or os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
         self._client: ClaudeSDKClient | None = None
         self._model_logged = False
 
-    async def connect(self):
-        """Initialize the persistent Claude SDK client."""
+    async def connect(self) -> None:
         if self._client:
             return
         options = ClaudeAgentOptions(
@@ -60,7 +50,6 @@ class ClaudeAgentProcessor(FrameProcessor):
         await self._client.connect()
         logger.info("ClaudeSDKClient connected")
 
-        # Pre-warm: verify robot MCP is reachable
         try:
             status = await self._client.get_mcp_status()
             for server in status.get("mcpServers", []):
@@ -69,18 +58,65 @@ class ClaudeAgentProcessor(FrameProcessor):
                         logger.info("Robot MCP server connected and ready")
                     else:
                         logger.warning(f"Robot MCP server not ready: {server.get('status')}")
-        except Exception as e:
-            logger.warning(f"Could not verify MCP status at startup: {e}")
+        except Exception as exc:
+            logger.warning(f"Could not verify MCP status at startup: {exc}")
 
-    async def disconnect(self):
-        """Shut down the Claude SDK client."""
+    async def disconnect(self) -> None:
         if self._client:
             await self._client.disconnect()
             self._client = None
             logger.info("ClaudeSDKClient disconnected")
 
+    async def run_turn(self, turn: AgentTurnInput):
+        user_text = turn.user_text
+        logger.info(f"User said: {user_text}")
+        if not self._client:
+            yield "Agent not connected."
+            return
+
+        if not await self._ensure_mcp_connected():
+            yield "I can't reach the robot control server right now."
+            return
+
+        await self._client.query(user_text)
+
+        has_text = False
+        try:
+            async for message in self._client.receive_response():
+                event = getattr(message, "event", None)
+                if isinstance(event, dict):
+                    delta = event.get("delta", {})
+                    if event.get("type") == "content_block_delta" and delta.get("type") == "text_delta":
+                        text = delta.get("text")
+                        if text:
+                            has_text = True
+                            yield text
+
+                elif isinstance(message, AssistantMessage):
+                    if not self._model_logged and message.model:
+                        logger.info(f"Claude model: {message.model}")
+                        self._model_logged = True
+                    if not has_text:
+                        for block in message.content:
+                            text = getattr(block, "text", None)
+                            if getattr(block, "type", None) == "text" and isinstance(text, str) and text:
+                                has_text = True
+                                yield text
+
+                elif isinstance(message, ResultMessage):
+                    if message.is_error:
+                        logger.error("Claude Agent SDK execution error")
+                        yield "I hit an error while talking to the robot."
+                        return
+                    if not has_text and message.result:
+                        has_text = True
+                        yield str(message.result)
+        except Exception as exc:
+            logger.error(f"Claude Agent SDK error: {exc}")
+            yield "I encountered an error. Please try again."
+            return
+
     async def _ensure_mcp_connected(self) -> bool:
-        """Check MCP status and reconnect if needed."""
         if not self._client:
             return False
         try:
@@ -91,96 +127,6 @@ class ClaudeAgentProcessor(FrameProcessor):
                     await self._client.reconnect_mcp_server("robot")
                     return True
             return True
-        except Exception as e:
-            logger.error(f"MCP status check failed: {e}")
+        except Exception as exc:
+            logger.error(f"MCP status check failed: {exc}")
             return False
-
-    async def _process_with_agent(self, user_text: str):
-        """Send user text to Claude and stream response frames directly."""
-        if not self._client:
-            await self.push_frame(LLMTextFrame(text="Agent not connected."))
-            return
-
-        if not await self._ensure_mcp_connected():
-            await self.push_frame(LLMTextFrame(text="I can't reach the robot control server right now."))
-            return
-
-        await self._client.query(user_text)
-
-        has_text = False
-        try:
-            async for message in self._client.receive_response():
-                event = getattr(message, "event", None)
-                if isinstance(event, dict):
-                    if event.get("type") == "content_block_delta":
-                        delta = event.get("delta", {})
-                        if delta.get("type") == "text_delta" and delta.get("text"):
-                            has_text = True
-                            await self.push_frame(LLMTextFrame(text=delta["text"]))
-
-                elif isinstance(message, AssistantMessage):
-                    if not self._model_logged and message.model:
-                        logger.info(f"Claude model: {message.model}")
-                        self._model_logged = True
-                    # Fallback: use AssistantMessage text only if no streaming happened
-                    if not has_text:
-                        for block in message.content:
-                            text = getattr(block, "text", None)
-                            if getattr(block, "type", None) == "text" and isinstance(text, str) and text:
-                                has_text = True
-                                await self.push_frame(LLMTextFrame(text=text))
-
-                elif isinstance(message, ResultMessage):
-                    if message.is_error:
-                        logger.error("Claude Agent SDK execution error")
-                        await self.push_frame(LLMTextFrame(text="I hit an error while talking to the robot."))
-                        return
-                    if not has_text and message.result:
-                        await self.push_frame(LLMTextFrame(text=str(message.result)))
-
-        except Exception as e:
-            logger.error(f"Claude Agent SDK error: {e}")
-            await self.push_frame(LLMTextFrame(text="I encountered an error. Please try again."))
-            return
-
-        if not has_text:
-            await self.push_frame(LLMTextFrame(text="I completed the action but have nothing to report."))
-
-    async def process_frame(self, frame: Frame, direction: FrameDirection):
-        await super().process_frame(frame, direction)
-
-        if isinstance(frame, (CancelFrame, EndFrame)):
-            await self.disconnect()
-            await self.push_frame(frame, direction)
-            return
-
-        if isinstance(frame, LLMContextFrame):
-            user_text = _latest_user_text(frame)
-
-            if user_text:
-                logger.info(f"User said: {user_text}")
-                await self.push_frame(LLMFullResponseStartFrame())
-                await self._process_with_agent(user_text)
-                await self.push_frame(LLMFullResponseEndFrame())
-            else:
-                await self.push_frame(frame, direction)
-        else:
-            await self.push_frame(frame, direction)
-
-
-def _latest_user_text(frame: LLMContextFrame) -> str | None:
-    messages = frame.context.messages if frame.context else []
-    for msg in reversed(messages):
-        if not isinstance(msg, Mapping) or msg.get("role") != "user":
-            continue
-        content = msg.get("content", "")
-        if isinstance(content, str) and content.strip():
-            return content.strip()
-        if isinstance(content, list):
-            for part in content:
-                if not isinstance(part, Mapping) or part.get("type") != "text":
-                    continue
-                text = part.get("text", "")
-                if isinstance(text, str) and text.strip():
-                    return text.strip()
-    return None
