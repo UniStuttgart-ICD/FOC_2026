@@ -58,6 +58,22 @@ class FakeLiveShapeServer(FakeServer):
         ]
 
 
+class FakeLegacyWorkflowServer(FakeServer):
+    async def list_tools(self):
+        return [
+            Tool(
+                name="plan_and_execute_free_motion",
+                description="Legacy workflow",
+                inputSchema={"type": "object"},
+            ),
+            Tool(
+                name="plan_and_execute_cartesian_motion",
+                description="Legacy Cartesian workflow",
+                inputSchema={"type": "object"},
+            ),
+        ]
+
+
 @pytest.mark.asyncio
 async def test_lists_only_allowed_tools_as_codex_function_tools_with_canonical_names():
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeServer())
@@ -132,6 +148,29 @@ async def test_calls_canonical_listed_tool_by_advertised_name():
 
     assert server.called == [("moveit_get_current_pose", {"robot_name": "UR10"})]
     assert json.loads(output) == {"content": ["ok"], "structured_content": {"ok": True}, "is_error": False}
+
+
+@pytest.mark.asyncio
+async def test_maps_legacy_plan_and_execute_workflows_to_canonical_agent_tools():
+    server = FakeLegacyWorkflowServer()
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
+    await bridge.connect()
+
+    assert [tool["name"] for tool in bridge.function_tools()] == [
+        "moveit_plan_and_execute_free_motion",
+        "moveit_plan_and_execute_cartesian_motion",
+    ]
+
+    free_args = {
+        "robot_name": "UR10",
+        "target_pose": {
+            "position": {"x": 0.1, "y": 0.2, "z": 0.3},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+    }
+    await bridge.call_tool("moveit_plan_and_execute_free_motion", free_args)
+
+    assert server.called == [("plan_and_execute_free_motion", free_args)]
 
 
 @pytest.mark.asyncio

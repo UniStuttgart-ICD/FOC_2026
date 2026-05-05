@@ -68,6 +68,8 @@ def test_rejects_workspace_escape():
 def test_maps_canonical_agent_tool_to_legacy_mcp_tool_name():
     assert canonical_mcp_tool_name("moveit_get_current_pose") == "get_current_pose"
     assert canonical_mcp_tool_name("moveit_plan_free_motion") == "plan_free_motion"
+    assert canonical_mcp_tool_name("moveit_plan_and_execute_free_motion") == "plan_and_execute_free_motion"
+    assert canonical_mcp_tool_name("moveit_plan_and_execute_cartesian_motion") == "plan_and_execute_cartesian_motion"
     assert canonical_mcp_tool_name("moveit_open_gripper") == "open_gripper"
 
 

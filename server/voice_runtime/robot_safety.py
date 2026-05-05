@@ -12,15 +12,14 @@ AGENT_TO_LEGACY_MCP_TOOL_NAMES = {
     "moveit_get_current_pose": "get_current_pose",
     "moveit_plan_free_motion": "plan_free_motion",
     "moveit_plan_cartesian_motion": "plan_cartesian_motion",
+    "moveit_plan_and_execute_free_motion": "plan_and_execute_free_motion",
+    "moveit_plan_and_execute_cartesian_motion": "plan_and_execute_cartesian_motion",
     "moveit_execute_plan": "execute_plan",
     "moveit_open_gripper": "open_gripper",
     "moveit_close_gripper": "close_gripper",
     "moveit_attach_object": "attach_object",
 }
-CANONICAL_ONLY_MCP_TOOL_NAMES = {
-    "moveit_plan_and_execute_free_motion",
-    "moveit_plan_and_execute_cartesian_motion",
-}
+CANONICAL_ONLY_MCP_TOOL_NAMES: frozenset[str] = frozenset()
 ALLOWED_ROBOT_TOOLS = frozenset(AGENT_TO_LEGACY_MCP_TOOL_NAMES) | CANONICAL_ONLY_MCP_TOOL_NAMES
 
 _AGENT_TOOL_DESCRIPTIONS = {
@@ -57,15 +56,15 @@ class RobotSafetyError(ValueError):
 
 
 def canonical_mcp_tool_name(agent_tool_name: str) -> str:
-    if agent_tool_name in CANONICAL_ONLY_MCP_TOOL_NAMES:
-        return agent_tool_name
     try:
         return AGENT_TO_LEGACY_MCP_TOOL_NAMES[agent_tool_name]
-    except KeyError as exc:
+    except KeyError:
+        if agent_tool_name in CANONICAL_ONLY_MCP_TOOL_NAMES:
+            return agent_tool_name
         raise RobotSafetyError(
             f"Tool is not allowed: {agent_tool_name}",
             correction="Use one of the allowed MoveIt robot tools.",
-        ) from exc
+        ) from None
 
 
 def agent_tool_description(agent_tool_name: str) -> str:
