@@ -12,7 +12,7 @@ Pipecat voice robot agent: a Python cascade voice pipeline for controlling a UR 
 - `server/robot_mcp_bridge.py` - Safe robot MCP tool Adapter used by Codex.
 - `server/runtime_profiles.toml` - Runtime profile definitions.
 - `server/tests/` - Pytest coverage for config, pipeline assembly, agent backend, robot safety, and Codex behavior.
-- `docs/superpowers/specs/` and `docs/superpowers/plans/` - Approved specs and implementation plans.
+- `.pi/plans/`, `docs/superpowers/specs/`, and `docs/superpowers/plans/` - Approved specs and implementation plans.
 
 <important if="you need to run commands to install, test, lint, typecheck, or run the bot">
 
