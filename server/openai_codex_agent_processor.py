@@ -205,7 +205,7 @@ class OpenAICodexAgentProcessor:
                 return {**arguments, "waypoints": [target_pose]}
         return arguments
 
-    def _relative_target_pose(self, user_text: str) -> dict[str, float] | None:
+    def _relative_target_pose(self, user_text: str) -> dict[str, Any] | None:
         pose = self._robot_context.latest_tcp_pose()
         if pose is None:
             return None
