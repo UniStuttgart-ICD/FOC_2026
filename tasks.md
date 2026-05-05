@@ -21,7 +21,7 @@ Use subagents in this session, but keep implementation mostly sequential where f
 - [x] #7 Move Robot Context into `robot_control` — commit `1b06ba1`
 - [x] #8 Move Robot Tool Adapter into `robot_control` — commit `a400245`
 - [x] #9 Enforce target module import directions structurally — commit `96e1dfb`
-- [ ] #11 Align docs and agent guidance with Robot Control language
+- [x] #11 Align docs and agent guidance with Robot Control language — commit `7abddc4`
 - [ ] #12 Run final Robot Control extraction verification and scope review
 
 Deferred / separate from these plans:
@@ -40,9 +40,9 @@ Deferred / separate from these plans:
 - 2026-05-05: #7 complete. Commit `1b06ba1` moved Robot Context from `voice_runtime.robot_context` to `robot_control.context`, updated Agent Orchestration/Agent Backend/test imports, and expanded the Robot Control pure import guard for `context.py`. Validation: `uv run pytest tests/test_robot_context.py tests/test_robot_task_policy.py tests/test_langgraph_robot_agent.py tests/test_openai_codex_agent_processor.py tests/test_robot_control_imports.py -v` (`48 passed`), targeted ruff (pass after import sorting), targeted pyright (0 errors).
 - 2026-05-05: #8 complete. Commit `a400245` moved Robot MCP Bridge from top-level `robot_mcp_bridge.py` to `robot_control.mcp_bridge`, updated Agent Orchestration/Agent Backend/test imports, and kept validation serialization on `RobotCallValidationError` / `structured_robot_call_error`. Validation: `uv run pytest tests/test_robot_mcp_bridge.py tests/test_langgraph_robot_agent.py tests/test_openai_codex_agent_processor.py tests/test_robot_control_imports.py -v` (`40 passed`), targeted ruff (pass after import sorting), targeted pyright (0 errors).
 - 2026-05-05: #9 complete. Commit `96e1dfb` strengthened Robot Control import guards, updated Voice Runtime orthogonal import roots after extraction, added legacy robot module deletion coverage, and verified server stale-reference grep had no matches. Validation: `uv run pytest tests/test_orthogonal_imports.py tests/test_robot_control_imports.py tests/test_robot_call_validation.py tests/test_robot_context.py tests/test_robot_mcp_bridge.py tests/test_langgraph_robot_agent.py tests/test_openai_codex_agent_processor.py -v` (`64 passed`), targeted ruff (pass), targeted pyright (0 errors), server stale-reference grep (no matches).
+- 2026-05-05: #11 complete. Commit `7abddc4` aligned `AGENTS.md`, `CONTEXT.md`, `ARCHITECTURE.md`, and `docs/architecture.md` with Robot Control as the implementation home for Task Policy, Robot Call Validation, Robot Tool Adapter, and Robot Context. Validation: docs stale-guidance grep (no matches), `uv run pytest tests/test_orthogonal_imports.py tests/test_robot_control_imports.py -q` (`5 passed`).
 
 ## Next wave
 
-1. #11 docs and agent guidance cleanup.
-2. #12 final verification.
-3. Continue using parallel subagent worktrees whenever issue file sets are independent.
+1. #12 final verification.
+2. Continue using parallel subagent worktrees whenever issue file sets are independent.
