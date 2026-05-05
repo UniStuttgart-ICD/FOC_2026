@@ -61,3 +61,34 @@ def test_agent_instructions_match_current_moveit_observation_tool() -> None:
 
     assert "moveit_get_current_pose" in agent_instructions
     assert "moveit_get_robot_status" not in agent_instructions
+
+
+def test_prompt_defines_mave_as_embodied_robot_persona() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "you are mave" in prompt
+    assert "robot arm is your body" in prompt
+    assert "users are speaking to the robot itself" in prompt
+    assert "tcp" in prompt
+
+
+def test_prompt_allows_visible_bounded_improvised_gestures() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "improvise" in prompt
+    assert "expressive" in prompt
+    assert "visible" in prompt
+    assert "do not be timid" in prompt
+    assert "preserve the current orientation" in prompt
+
+
+def test_prompt_contains_wave_and_shape_examples_with_human_scale_motion() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "user: \"mave, wave to me\"" in prompt
+    assert "moveit_plan_and_execute_cartesian_motion" in prompt
+    assert "0.10" in prompt
+    assert "0.08" in prompt
+    assert "20 cm side-to-side" in prompt
+    assert "user: \"mave, draw a short line\"" in prompt
+    assert "user: \"mave, draw a small circle\"" in prompt
