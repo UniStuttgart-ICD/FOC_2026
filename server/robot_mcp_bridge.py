@@ -8,13 +8,13 @@ from mcp.types import CallToolResult, TextContent, Tool
 
 from voice_runtime.robot_safety import (
     AGENT_TO_LEGACY_MCP_TOOL_NAMES,
+    ALLOWED_ROBOT_TOOLS,
     RobotSafetyError,
     agent_tool_description,
     structured_robot_error,
     validate_robot_tool_call,
 )
 
-ALLOWED_ROBOT_TOOLS = set(AGENT_TO_LEGACY_MCP_TOOL_NAMES)
 LEGACY_TO_AGENT_TOOL_NAMES = {legacy: agent for agent, legacy in AGENT_TO_LEGACY_MCP_TOOL_NAMES.items()}
 
 
@@ -40,6 +40,7 @@ class RobotMCPBridge:
             {"url": mcp_server_url},
             name="robot",
             cache_tools_list=True,
+            client_session_timeout_seconds=30,
         )
         self._tools: list[Tool] = []
         self._backing_tool_names: dict[str, str] = {}
@@ -49,14 +50,16 @@ class RobotMCPBridge:
         if self._connected:
             return
         await self._server.connect()
-        self._tools = []
-        self._backing_tool_names = {}
+        selected_tools: dict[str, Tool] = {}
         for tool in await self._server.list_tools():
             agent_name = self._agent_tool_name(tool.name)
             if agent_name is None:
                 continue
-            self._tools.append(tool)
-            self._backing_tool_names[agent_name] = tool.name
+            existing = selected_tools.get(agent_name)
+            if existing is None or tool.name == agent_name:
+                selected_tools[agent_name] = tool
+        self._tools = list(selected_tools.values())
+        self._backing_tool_names = {agent_name: tool.name for agent_name, tool in selected_tools.items()}
         self._connected = True
 
     async def disconnect(self) -> None:

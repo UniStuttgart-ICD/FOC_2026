@@ -21,7 +21,7 @@ class FakeServer:
 
     async def list_tools(self):
         return [
-            Tool(name="get_robot_status", description="Status", inputSchema={"type": "object"}),
+            Tool(name="get_current_pose", description="Pose", inputSchema={"type": "object"}),
             Tool(name="plan_free_motion", description="Plan free", inputSchema={"type": "object"}),
             Tool(name="robot_control", description="Too broad", inputSchema={"type": "object"}),
             Tool(name="dangerous_tool", description="Nope", inputSchema={"type": "object"}),
@@ -31,7 +31,7 @@ class FakeServer:
         self.called.append((tool_name, arguments))
         return CallToolResult(
             content=[TextContent(type="text", text="ok")],
-            structuredContent={"success": True},
+            structuredContent={"ok": True},
         )
 
 
@@ -39,20 +39,22 @@ class FakeCanonicalServer(FakeServer):
     async def list_tools(self):
         return [
             Tool(
-                name="moveit_get_robot_status",
-                description="Canonical status",
+                name="moveit_get_current_pose",
+                description="Canonical pose",
                 inputSchema={"type": "object"},
             )
         ]
 
 
-class FakeExpandedServer(FakeServer):
+class FakeLiveShapeServer(FakeServer):
     async def list_tools(self):
         return [
-            Tool(name="get_robot_status", description="Raw status", inputSchema={"type": "object"}),
-            Tool(name="plan_relative_motion", description="Raw relative", inputSchema={"type": "object"}),
-            Tool(name="list_named_poses", description="Raw names", inputSchema={"type": "object"}),
-            Tool(name="plan_named_pose", description="Raw named", inputSchema={"type": "object"}),
+            Tool(name="moveit_get_current_pose", description="Canonical pose", inputSchema={"type": "object"}),
+            Tool(name="moveit_plan_free_motion", description="Canonical plan", inputSchema={"type": "object"}),
+            Tool(name="moveit_execute_plan", description="Canonical execute", inputSchema={"type": "object"}),
+            Tool(name="get_current_pose", description="Legacy pose", inputSchema={"type": "object"}),
+            Tool(name="plan_free_motion", description="Legacy plan", inputSchema={"type": "object"}),
+            Tool(name="execute_plan", description="Legacy execute", inputSchema={"type": "object"}),
         ]
 
 
@@ -65,8 +67,8 @@ async def test_lists_only_allowed_tools_as_codex_function_tools_with_canonical_n
     assert bridge.function_tools() == [
         {
             "type": "function",
-            "name": "moveit_get_robot_status",
-            "description": agent_tool_description("moveit_get_robot_status"),
+            "name": "moveit_get_current_pose",
+            "description": agent_tool_description("moveit_get_current_pose"),
             "parameters": {"type": "object"},
             "strict": None,
         },
@@ -81,15 +83,33 @@ async def test_lists_only_allowed_tools_as_codex_function_tools_with_canonical_n
 
 
 @pytest.mark.asyncio
+async def test_deduplicates_legacy_aliases_and_prefers_canonical_mcp_tools():
+    server = FakeLiveShapeServer()
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
+
+    await bridge.connect()
+
+    assert [tool["name"] for tool in bridge.function_tools()] == [
+        "moveit_get_current_pose",
+        "moveit_plan_free_motion",
+        "moveit_execute_plan",
+    ]
+
+    await bridge.call_tool("moveit_get_current_pose", {"robot_name": "UR10"})
+
+    assert server.called == [("moveit_get_current_pose", {"robot_name": "UR10"})]
+
+
+@pytest.mark.asyncio
 async def test_calls_allowed_tool_and_serializes_result():
     server = FakeServer()
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
     await bridge.connect()
 
-    output = await bridge.call_tool("moveit_get_robot_status", {"robot_name": "UR10"})
+    output = await bridge.call_tool("moveit_get_current_pose", {"robot_name": "UR10"})
 
-    assert server.called == [("get_robot_status", {"robot_name": "UR10"})]
-    assert json.loads(output) == {"content": ["ok"], "structured_content": {"success": True}, "is_error": False}
+    assert server.called == [("get_current_pose", {"robot_name": "UR10"})]
+    assert json.loads(output) == {"content": ["ok"], "structured_content": {"ok": True}, "is_error": False}
 
 
 @pytest.mark.asyncio
@@ -101,17 +121,17 @@ async def test_calls_canonical_listed_tool_by_advertised_name():
     assert bridge.function_tools() == [
         {
             "type": "function",
-            "name": "moveit_get_robot_status",
-            "description": agent_tool_description("moveit_get_robot_status"),
+            "name": "moveit_get_current_pose",
+            "description": agent_tool_description("moveit_get_current_pose"),
             "parameters": {"type": "object"},
             "strict": None,
         }
     ]
 
-    output = await bridge.call_tool("moveit_get_robot_status", {"robot_name": "UR10"})
+    output = await bridge.call_tool("moveit_get_current_pose", {"robot_name": "UR10"})
 
-    assert server.called == [("moveit_get_robot_status", {"robot_name": "UR10"})]
-    assert json.loads(output) == {"content": ["ok"], "structured_content": {"success": True}, "is_error": False}
+    assert server.called == [("moveit_get_current_pose", {"robot_name": "UR10"})]
+    assert json.loads(output) == {"content": ["ok"], "structured_content": {"ok": True}, "is_error": False}
 
 
 @pytest.mark.asyncio
@@ -130,14 +150,14 @@ async def test_validation_failure_returns_compatible_error_json_without_mcp_call
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
     await bridge.connect()
 
-    output = await bridge.call_tool("moveit_get_robot_status", {"robot_name": "UR5"})
+    output = await bridge.call_tool("moveit_get_current_pose", {"robot_name": "UR5"})
 
     assert json.loads(output) == {
         "ok": False,
         "error": "Only Vizor robot UR10 is allowed",
         "correction": 'Retry with robot_name="UR10".',
         "retryable": True,
-        "suggested_next_tool": "moveit_get_robot_status",
+        "suggested_next_tool": "moveit_get_current_pose",
     }
     assert server.called == []
 
@@ -164,7 +184,7 @@ async def test_rejects_unsafe_motion_arguments_before_mcp_call():
         "moveit_plan_free_motion",
         {
             "robot_name": "UR10",
-            "position": {
+            "target_pose": {
                 "position": {"x": 99, "y": 0, "z": 0},
                 "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
             },
@@ -181,7 +201,7 @@ async def test_rejects_extra_arguments_before_mcp_call():
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
     await bridge.connect()
 
-    output = await bridge.call_tool("moveit_get_robot_status", {"robot_name": "UR10", "unexpected": True})
+    output = await bridge.call_tool("moveit_get_current_pose", {"robot_name": "UR10", "unexpected": True})
 
     assert json.loads(output)["error"].startswith("Unexpected argument")
     assert server.called == []
@@ -211,57 +231,11 @@ async def test_disconnect_cleans_up_server():
 
 @pytest.mark.asyncio
 async def test_bridge_advertises_agent_friendly_descriptions():
-    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeExpandedServer())
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeLiveShapeServer())
 
     await bridge.connect()
 
     tools = {tool["name"]: tool for tool in bridge.function_tools()}
-    assert "fresh robot state" in tools["moveit_get_robot_status"]["description"]
-    assert "relative movement" in tools["moveit_plan_relative_motion"]["description"]
-    assert "named robot poses" in tools["moveit_list_named_poses"]["description"]
-    assert "named robot pose" in tools["moveit_plan_named_pose"]["description"]
-
-
-@pytest.mark.asyncio
-async def test_validation_failure_returns_structured_retry_guidance_without_mcp_call():
-    server = FakeExpandedServer()
-    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
-    await bridge.connect()
-
-    output = await bridge.call_tool("moveit_get_robot_status", {"robot_name": "UR5"})
-
-    assert json.loads(output) == {
-        "ok": False,
-        "error": "Only Vizor robot UR10 is allowed",
-        "correction": 'Retry with robot_name="UR10".',
-        "retryable": True,
-        "suggested_next_tool": "moveit_get_robot_status",
-    }
-    assert server.called == []
-
-
-@pytest.mark.asyncio
-async def test_calls_new_relative_motion_tool_when_advertised():
-    server = FakeExpandedServer()
-    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
-    await bridge.connect()
-
-    await bridge.call_tool(
-        "moveit_plan_relative_motion",
-        {
-            "robot_name": "UR10",
-            "delta": {"x": 0.0, "y": 0.0, "z": 0.05},
-            "motion_type": "free",
-        },
-    )
-
-    assert server.called == [
-        (
-            "plan_relative_motion",
-            {
-                "robot_name": "UR10",
-                "delta": {"x": 0.0, "y": 0.0, "z": 0.05},
-                "motion_type": "free",
-            },
-        )
-    ]
+    assert "current end-effector pose" in tools["moveit_get_current_pose"]["description"]
+    assert "target pose" in tools["moveit_plan_free_motion"]["description"]
+    assert "returned plan" in tools["moveit_execute_plan"]["description"]

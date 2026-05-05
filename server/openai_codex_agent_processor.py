@@ -20,6 +20,8 @@ MAX_CODEX_TOOL_TURNS = 3
 VIZOR_ROBOT_NAME = "UR10"
 PLAN_TOOL_NAMES = {"moveit_plan_free_motion", "moveit_plan_cartesian_motion"}
 OBSERVE_TOOL_NAMES = ("moveit_get_current_pose", "moveit_get_robot_status")
+FREE_MOTION_TOOL_NAMES = {"moveit_plan_free_motion", "moveit_plan_and_execute_free_motion"}
+CARTESIAN_MOTION_TOOL_NAMES = {"moveit_plan_cartesian_motion", "moveit_plan_and_execute_cartesian_motion"}
 
 
 class OpenAICodexAgentProcessor:
@@ -101,6 +103,7 @@ class OpenAICodexAgentProcessor:
                 backend_client=backend_client,
                 tool_bridge=tool_bridge,
                 tools=tools,
+                user_text=turn.user_text,
             )
             yield result.text or "I completed the action but have nothing to report."
         except CodexBackendError as exc:
@@ -140,13 +143,18 @@ class OpenAICodexAgentProcessor:
         backend_client: CodexBackendClient,
         tool_bridge: RobotMCPBridge,
         tools: list[dict[str, Any]],
+        user_text: str,
     ) -> CodexResponseResult:
         turns = 0
         while result.tool_calls and turns < MAX_CODEX_TOOL_TURNS:
             turns += 1
             input_items.extend(result.output_items)
             for tool_call in result.tool_calls:
-                output = await self._call_robot_tool(tool_bridge, tool_call.name, tool_call.arguments)
+                output = await self._call_robot_tool(
+                    tool_bridge,
+                    tool_call.name,
+                    self._repaired_tool_arguments(tool_call.name, tool_call.arguments, user_text),
+                )
                 input_items.append(
                     {
                         "type": "function_call_output",
@@ -185,12 +193,67 @@ class OpenAICodexAgentProcessor:
         except RobotMCPError as exc:
             return json.dumps({"error": str(exc)}, ensure_ascii=False)
 
+    def _repaired_tool_arguments(self, name: str, arguments: dict[str, Any], user_text: str) -> dict[str, Any]:
+        if name in FREE_MOTION_TOOL_NAMES and not _has_any_argument(arguments, ("target_pose", "position")):
+            target_pose = self._relative_target_pose(user_text)
+            if target_pose is not None:
+                return {**arguments, "target_pose": target_pose}
+        if name in CARTESIAN_MOTION_TOOL_NAMES and not _has_any_argument(arguments, ("waypoints", "positions")):
+            target_pose = self._relative_target_pose(user_text)
+            if target_pose is not None:
+                return {**arguments, "waypoints": [target_pose]}
+        return arguments
+
+    def _relative_target_pose(self, user_text: str) -> dict[str, float] | None:
+        pose = self._robot_context.latest_tcp_pose()
+        if pose is None:
+            return None
+        position = pose.get("position") if isinstance(pose.get("position"), dict) else pose
+        if not isinstance(position, dict):
+            return None
+        try:
+            x = float(position["x"])
+            y = float(position["y"])
+            z = float(position["z"])
+        except (KeyError, TypeError, ValueError):
+            return None
+
+        delta = _relative_delta(user_text)
+        if delta is None:
+            return None
+        dx, dy, dz = delta
+        return {"x": round(x + dx, 4), "y": round(y + dy, 4), "z": round(z + dz, 4)}
+
 
 def _first_available_tool(tools: list[dict[str, Any]], names: tuple[str, ...]) -> str | None:
     tool_names = {tool.get("name") for tool in tools}
     for name in names:
         if name in tool_names:
             return name
+    return None
+
+
+def _has_any_argument(arguments: dict[str, Any], names: tuple[str, ...]) -> bool:
+    return any(name in arguments and arguments[name] is not None for name in names)
+
+
+def _relative_delta(text: str) -> tuple[float, float, float] | None:
+    lower = text.lower()
+    distance = 0.05 if any(word in lower for word in ("bit", "slightly")) else 0.10
+    if any(word in lower for word in ("lot", "far")):
+        distance = 0.30
+    if "up" in lower or "raise" in lower:
+        return (0.0, 0.0, distance)
+    if "down" in lower or "lower" in lower:
+        return (0.0, 0.0, -distance)
+    if "left" in lower:
+        return (0.0, distance, 0.0)
+    if "right" in lower:
+        return (0.0, -distance, 0.0)
+    if "forward" in lower:
+        return (distance, 0.0, 0.0)
+    if "back" in lower:
+        return (-distance, 0.0, 0.0)
     return None
 
 

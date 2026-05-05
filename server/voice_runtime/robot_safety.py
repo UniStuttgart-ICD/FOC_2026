@@ -6,44 +6,45 @@ from typing import Any
 
 VIZOR_ROBOT_NAME = "UR10"
 WORKSPACE_ABS_LIMIT_M = 1.5
-RELATIVE_DELTA_ABS_LIMIT_M = 0.30
 DEFAULT_TIMEOUT_MAX_S = 60.0
 
 AGENT_TO_LEGACY_MCP_TOOL_NAMES = {
+    "moveit_get_current_pose": "get_current_pose",
     "moveit_plan_free_motion": "plan_free_motion",
-    "moveit_plan_linear_motion": "plan_linear_motion",
+    "moveit_plan_cartesian_motion": "plan_cartesian_motion",
     "moveit_execute_plan": "execute_plan",
     "moveit_open_gripper": "open_gripper",
     "moveit_close_gripper": "close_gripper",
-    "moveit_get_robot_status": "get_robot_status",
-    "moveit_plan_relative_motion": "plan_relative_motion",
-    "moveit_list_named_poses": "list_named_poses",
-    "moveit_plan_named_pose": "plan_named_pose",
+    "moveit_attach_object": "attach_object",
 }
-ALLOWED_ROBOT_TOOLS = frozenset(AGENT_TO_LEGACY_MCP_TOOL_NAMES)
+CANONICAL_ONLY_MCP_TOOL_NAMES = {
+    "moveit_plan_and_execute_free_motion",
+    "moveit_plan_and_execute_cartesian_motion",
+}
+ALLOWED_ROBOT_TOOLS = frozenset(AGENT_TO_LEGACY_MCP_TOOL_NAMES) | CANONICAL_ONLY_MCP_TOOL_NAMES
 
 _AGENT_TOOL_DESCRIPTIONS = {
-    "moveit_get_robot_status": "Get fresh robot state: connection/planning status, TCP pose, joints, gripper state, safety state, and recent plan/execution summaries. Call before movement, relative commands, retries, or safety-sensitive actions.",
-    "moveit_plan_free_motion": "Plan a point-to-point MoveIt motion to an absolute target pose. Use for ordinary movement when a straight TCP path is not required.",
-    "moveit_plan_linear_motion": "Plan a straight TCP path to an absolute target pose. Use only when the user asks for a straight or linear motion.",
-    "moveit_execute_plan": "Execute a valid plan_name returned by a successful MoveIt planning tool. Do not invent plan names.",
-    "moveit_open_gripper": "Open the UR10 gripper in simulation.",
-    "moveit_close_gripper": "Close the UR10 gripper in simulation.",
-    "moveit_plan_relative_motion": "Plan a relative movement from the current TCP pose using a small x/y/z delta in meters. Use for voice commands such as move up a bit, go left, lower slightly, or back up.",
-    "moveit_list_named_poses": "List named robot poses available for the UR10, such as home or ready, when exposed by the MoveIt MCP server.",
-    "moveit_plan_named_pose": "Plan motion to a named robot pose such as home, ready, or reset. Use after list_named_poses when the requested pose name is uncertain.",
+    "moveit_get_current_pose": "Observe the UR10 current end-effector pose and planning frame. Call before relative, vague, repeated, or safety-sensitive movement.",
+    "moveit_plan_free_motion": "Plan a collision-aware free-space motion to one absolute target pose in base_link. Use the returned plan_name with moveit_execute_plan.",
+    "moveit_plan_cartesian_motion": "Plan a Cartesian end-effector path through waypoints in base_link. Use for straight-line or waypoint-following motion.",
+    "moveit_plan_and_execute_free_motion": "High-level workflow to plan, execute, and verify one free-space target pose. Use for simple voice moves when no separate plan review is needed.",
+    "moveit_plan_and_execute_cartesian_motion": "High-level workflow to plan, execute, and verify a Cartesian waypoint sequence. Use for straight-line or multi-waypoint voice moves.",
+    "moveit_execute_plan": "Execute a returned plan_name from a successful planning tool. Do not invent plan names.",
+    "moveit_open_gripper": "Open the simulated UR10 gripper state.",
+    "moveit_close_gripper": "Close the simulated UR10 gripper state.",
+    "moveit_attach_object": "Attach an object to the simulated gripper after the gripper has been closed.",
 }
 
 _ALLOWED_ARGUMENTS: dict[str, set[str]] = {
-    "moveit_plan_free_motion": {"robot_name", "position", "timeout_s"},
-    "moveit_plan_linear_motion": {"robot_name", "position", "timeout_s"},
+    "moveit_get_current_pose": {"robot_name", "timeout_s"},
+    "moveit_plan_free_motion": {"robot_name", "target_pose", "position", "plan_name", "timeout_s", "allow_existing_name"},
+    "moveit_plan_cartesian_motion": {"robot_name", "waypoints", "positions", "plan_name", "timeout_s", "allow_existing_name"},
+    "moveit_plan_and_execute_free_motion": {"robot_name", "target_pose", "plan_name", "timeout_s"},
+    "moveit_plan_and_execute_cartesian_motion": {"robot_name", "waypoints", "plan_name", "timeout_s"},
     "moveit_execute_plan": {"robot_name", "plan_name", "timeout_s"},
-    "moveit_open_gripper": {"robot_name", "timeout_s"},
-    "moveit_close_gripper": {"robot_name", "timeout_s"},
-    "moveit_get_robot_status": {"robot_name"},
-    "moveit_plan_relative_motion": {"robot_name", "delta", "motion_type", "timeout_s"},
-    "moveit_list_named_poses": {"robot_name"},
-    "moveit_plan_named_pose": {"robot_name", "pose_name", "timeout_s"},
+    "moveit_open_gripper": {"robot_name"},
+    "moveit_close_gripper": {"robot_name"},
+    "moveit_attach_object": {"robot_name", "object_name"},
 }
 
 
@@ -56,6 +57,8 @@ class RobotSafetyError(ValueError):
 
 
 def canonical_mcp_tool_name(agent_tool_name: str) -> str:
+    if agent_tool_name in CANONICAL_ONLY_MCP_TOOL_NAMES:
+        return agent_tool_name
     try:
         return AGENT_TO_LEGACY_MCP_TOOL_NAMES[agent_tool_name]
     except KeyError as exc:
@@ -79,7 +82,7 @@ def structured_robot_error(
     exc: RobotSafetyError,
     *,
     retryable: bool = True,
-    suggested_next_tool: str | None = "moveit_get_robot_status",
+    suggested_next_tool: str | None = "moveit_get_current_pose",
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "ok": False,
@@ -107,10 +110,21 @@ def validate_robot_tool_call(name: str, arguments: dict[str, Any]) -> None:
             correction="Remove unsupported arguments and retry.",
         )
 
-    _validate_robot_name(arguments.get("robot_name"))
+    _validate_robot_name(arguments.get("robot_name", VIZOR_ROBOT_NAME))
 
-    if name in {"moveit_plan_free_motion", "moveit_plan_linear_motion"}:
-        _validate_pose(arguments.get("position"))
+    if name == "moveit_get_current_pose":
+        _validate_timeout(arguments.get("timeout_s"))
+        return
+
+    if name in {"moveit_plan_free_motion", "moveit_plan_and_execute_free_motion"}:
+        pose = arguments.get("target_pose", arguments.get("position"))
+        _validate_pose(pose)
+        _validate_timeout(arguments.get("timeout_s"))
+        return
+
+    if name in {"moveit_plan_cartesian_motion", "moveit_plan_and_execute_cartesian_motion"}:
+        waypoints = arguments.get("waypoints", arguments.get("positions"))
+        _validate_waypoints(waypoints)
         _validate_timeout(arguments.get("timeout_s"))
         return
 
@@ -124,30 +138,13 @@ def validate_robot_tool_call(name: str, arguments: dict[str, Any]) -> None:
         _validate_timeout(arguments.get("timeout_s"))
         return
 
-    if name in {"moveit_open_gripper", "moveit_close_gripper"}:
-        _validate_timeout(arguments.get("timeout_s"))
-        return
-
-    if name == "moveit_plan_relative_motion":
-        _validate_delta(arguments.get("delta"))
-        motion_type = arguments.get("motion_type", "free")
-        if motion_type not in {"free", "linear"}:
+    if name == "moveit_attach_object":
+        object_name = arguments.get("object_name")
+        if not isinstance(object_name, str) or not object_name.strip():
             raise RobotSafetyError(
-                "motion_type must be free or linear",
-                correction='Retry with motion_type="free" or motion_type="linear".',
+                "Expected a non-empty object_name",
+                correction="Retry with the object name to attach.",
             )
-        _validate_timeout(arguments.get("timeout_s"))
-        return
-
-    if name == "moveit_plan_named_pose":
-        pose_name = arguments.get("pose_name")
-        if not isinstance(pose_name, str) or not pose_name.strip():
-            raise RobotSafetyError(
-                "Expected a non-empty pose_name",
-                correction="Retry with a named pose returned by moveit_list_named_poses.",
-            )
-        _validate_timeout(arguments.get("timeout_s"))
-        return
 
 
 def executable_plan_name(output: str) -> str | None:
@@ -208,11 +205,11 @@ def _validate_timeout(timeout_s: Any) -> None:
 def _validate_pose(value: Any) -> None:
     if not isinstance(value, dict):
         raise RobotSafetyError(
-            "Expected position with position and orientation fields",
-            correction="Retry with a MoveIt pose target inside the simulation workspace.",
+            "Expected target_pose with position fields",
+            correction="Retry with a MoveIt target pose inside the simulation workspace.",
         )
 
-    position = value.get("position")
+    position = value.get("position") if isinstance(value.get("position"), dict) else value
     if not isinstance(position, dict):
         raise RobotSafetyError(
             "Expected position coordinates",
@@ -227,6 +224,8 @@ def _validate_pose(value: Any) -> None:
             )
 
     orientation = value.get("orientation")
+    if orientation is None:
+        return
     if not isinstance(orientation, dict):
         raise RobotSafetyError(
             "Expected orientation quaternion",
@@ -241,19 +240,14 @@ def _validate_pose(value: Any) -> None:
             )
 
 
-def _validate_delta(value: Any) -> None:
-    if not isinstance(value, dict):
+def _validate_waypoints(value: Any) -> None:
+    if not isinstance(value, list) or not value:
         raise RobotSafetyError(
-            "Expected delta coordinates",
-            correction="Retry with delta x, y, and z coordinates in meters.",
+            "Expected at least one waypoint",
+            correction="Retry with one or more target poses inside the simulation workspace.",
         )
-    for axis in ("x", "y", "z"):
-        coordinate = _finite_float(value.get(axis))
-        if coordinate is None or abs(coordinate) > RELATIVE_DELTA_ABS_LIMIT_M:
-            raise RobotSafetyError(
-                "Relative motion is outside safe delta range",
-                correction=f"Retry with x/y/z deltas within +/-{RELATIVE_DELTA_ABS_LIMIT_M:.2f} m.",
-            )
+    for waypoint in value:
+        _validate_pose(waypoint)
 
 
 def _finite_number(value: Any) -> bool:

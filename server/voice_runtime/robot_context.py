@@ -24,7 +24,7 @@ class RobotContextStore:
         lines = [
             "Last-known robot context:",
             "- This context is advisory only.",
-            "- For movement, relative commands, retries, or safety-sensitive actions, call moveit_get_robot_status first.",
+            "- For movement, relative commands, retries, or safety-sensitive actions, call moveit_get_current_pose first.",
             f"- status age: {age}",
         ]
         if self._snapshot.robot_name is None:
@@ -41,18 +41,26 @@ class RobotContextStore:
             lines.append(f"- last execution: {self._snapshot.last_execution_result}")
         return "\n".join(lines)
 
+    def latest_tcp_pose(self) -> dict[str, Any] | None:
+        if self._snapshot.tcp_pose is None:
+            return None
+        return dict(self._snapshot.tcp_pose)
+
     def update_from_tool_result(self, tool_name: str, output: str) -> None:
-        if tool_name != "moveit_get_robot_status":
+        if tool_name not in {"moveit_get_current_pose", "moveit_get_robot_status"}:
             return
         structured_content = _structured_content(output)
         if not isinstance(structured_content, dict) or structured_content.get("ok") is not True:
             return
 
         self._snapshot.observed_at_s = time.monotonic()
-        robot_name = structured_content.get("robot_name")
+        robot_name = structured_content.get("robot_name", structured_content.get("robot"))
         if isinstance(robot_name, str):
             self._snapshot.robot_name = robot_name
         tcp_pose = structured_content.get("tcp_pose")
+        raw = structured_content.get("raw")
+        if not isinstance(tcp_pose, dict) and isinstance(raw, dict):
+            tcp_pose = raw.get("pose")
         if isinstance(tcp_pose, dict):
             self._snapshot.tcp_pose = tcp_pose
         gripper = structured_content.get("gripper")
