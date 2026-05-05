@@ -63,8 +63,9 @@ class CodexBackendClient:
         try:
             async with self._client.stream("POST", self._url, headers=headers, json=body) as response:
                 if response.status_code >= 400:
+                    error_detail = await _response_error_detail(response)
                     raise CodexBackendError(
-                        f"OpenAI Codex backend request failed: HTTP {response.status_code}"
+                        _backend_error_message(response.status_code, error_detail, body)
                     )
                 return await _parse_sse_response(response)
         except httpx.HTTPError as exc:
@@ -100,6 +101,63 @@ def _build_headers(credentials: CodexCredentials) -> dict[str, str]:
         "accept": "text/event-stream",
         "content-type": "application/json",
     }
+
+
+async def _response_error_detail(response: httpx.Response) -> str:
+    content = await response.aread()
+    if not content:
+        return ""
+    text = content.decode(response.encoding or "utf-8", errors="replace").strip()
+    if not text:
+        return ""
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return _truncate(text)
+    return _truncate(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+
+
+def _backend_error_message(status_code: int, detail: str, body: dict[str, Any]) -> str:
+    parts = [f"OpenAI Codex backend request failed: HTTP {status_code}"]
+    if detail:
+        parts.append(detail)
+    parts.append(f"input_summary={_input_summary(body.get('input'))}")
+    parts.append(f"tool_names={_tool_names(body.get('tools'))}")
+    return "; ".join(parts)
+
+
+def _input_summary(input_items: Any) -> list[dict[str, Any]]:
+    if not isinstance(input_items, list):
+        return []
+    summary: list[dict[str, Any]] = []
+    for index, item in enumerate(input_items):
+        if isinstance(item, dict):
+            summary.append(
+                {
+                    "index": index,
+                    "type": item.get("type"),
+                    "role": item.get("role"),
+                }
+            )
+        else:
+            summary.append({"index": index, "type": type(item).__name__, "role": None})
+    return summary
+
+
+def _tool_names(tools: Any) -> list[str]:
+    if not isinstance(tools, list):
+        return []
+    names: list[str] = []
+    for tool in tools:
+        if isinstance(tool, dict) and isinstance(tool.get("name"), str):
+            names.append(tool["name"])
+    return names
+
+
+def _truncate(text: str, max_length: int = 1000) -> str:
+    if len(text) <= max_length:
+        return text
+    return f"{text[:max_length]}..."
 
 
 async def _parse_sse_response(response: httpx.Response) -> CodexResponseResult:

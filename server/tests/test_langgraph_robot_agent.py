@@ -1,4 +1,5 @@
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -231,6 +232,27 @@ async def test_graph_observes_current_pose_before_simple_codex_response() -> Non
     ]
     assert "Last-known robot context" in fixture.backend.requests[0]["instructions"]
     assert "robot: UR10" in fixture.backend.requests[0]["instructions"]
+
+
+@pytest.mark.asyncio
+async def test_graph_uses_easy_assistant_history_items_without_synthetic_output_ids() -> None:
+    fixture = make_graph([CodexResponseResult(text="ok")])
+    messages: list[Mapping[str, Any]] = [
+        {"role": "user", "content": "move up"},
+        {"role": "assistant", "content": "Moved up."},
+        {"role": "user", "content": "again"},
+    ]
+
+    await fixture.graph.run_turn(AgentTurnInput(user_text="again", messages=messages))
+
+    assert fixture.backend.requests[0]["input_items"] == [
+        {"role": "user", "content": [{"type": "input_text", "text": "move up"}]},
+        {"role": "assistant", "content": "Moved up."},
+        {"role": "user", "content": [{"type": "input_text", "text": "again"}]},
+    ]
+    assistant_item = fixture.backend.requests[0]["input_items"][1]
+    assert "id" not in assistant_item
+    assert "status" not in assistant_item
 
 
 @pytest.mark.asyncio

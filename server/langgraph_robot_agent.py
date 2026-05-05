@@ -314,7 +314,6 @@ def _relative_delta(text: str) -> tuple[float, float, float] | None:
 
 def _input_items_from_messages(messages: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
-    assistant_index = 0
     for msg in messages:
         role = msg.get("role")
         if role not in {"user", "assistant"}:
@@ -325,8 +324,7 @@ def _input_items_from_messages(messages: list[Mapping[str, Any]]) -> list[dict[s
         if role == "user":
             items.append(_user_input_item(text))
         else:
-            assistant_index += 1
-            items.append(_assistant_output_item(text, assistant_index))
+            items.append(_assistant_input_item(text))
     return items
 
 
@@ -334,14 +332,8 @@ def _user_input_item(text: str) -> dict[str, Any]:
     return {"role": "user", "content": [{"type": "input_text", "text": text}]}
 
 
-def _assistant_output_item(text: str, index: int) -> dict[str, Any]:
-    return {
-        "type": "message",
-        "role": "assistant",
-        "content": [{"type": "output_text", "text": text, "annotations": []}],
-        "status": "completed",
-        "id": f"history-assistant-{index}",
-    }
+def _assistant_input_item(text: str) -> dict[str, Any]:
+    return {"role": "assistant", "content": text}
 
 
 def _message_text(msg: Mapping[str, Any]) -> str | None:

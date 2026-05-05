@@ -72,9 +72,9 @@ Mave, move up a bit.
 
 Local debug profiles are local STT/TTS debug profiles, not fully offline profiles. Benchmark profiles use streaming STT/TTS providers.
 
-### Robot Safety coverage
+### Robot movement safety
 
-All robot tool calls go through Codex and `RobotMCPBridge`, where canonical `moveit_*` calls are locally validated by `voice_runtime.robot_safety` before reaching the MCP server.
+Robot movement safety is delegated to MoveIt planning/execution and the robot simulation stack. The voice agent routes movement through MoveIt workflows. Local validation may reject unsupported or malformed `moveit_*` calls for clearer errors, but it is not the source of movement safety.
 
 ## Setup
 

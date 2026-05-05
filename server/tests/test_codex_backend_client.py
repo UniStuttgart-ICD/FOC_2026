@@ -155,19 +155,34 @@ async def test_preserves_reasoning_output_items_for_tool_continuation():
 
 
 @pytest.mark.asyncio
-async def test_backend_error_is_sanitized():
+async def test_backend_error_includes_safe_response_diagnostics_without_tokens():
+    captured = {}
+
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(401, json={"detail": "Unauthorized"})
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(
+            400,
+            json={"detail": "Invalid input item", "code": "bad_request"},
+        )
 
     client = CodexBackendClient(http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
 
-    with pytest.raises(CodexBackendError, match="OpenAI Codex backend request failed: HTTP 401"):
+    with pytest.raises(CodexBackendError) as exc_info:
         await client.create_response(
             CodexCredentials(access="secret-token", refresh="refresh-token", account_id="acct-1"),
             model="gpt-5.4-mini",
             instructions="system",
-            input_items=[],
-            tools=[],
+            input_items=[{"role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            tools=[{"type": "function", "name": "moveit_get_current_pose"}],
         )
+
+    message = str(exc_info.value)
+    assert "OpenAI Codex backend request failed: HTTP 400" in message
+    assert "Invalid input item" in message
+    assert "input_summary=[{'index': 0, 'type': None, 'role': 'user'}]" in message
+    assert "tool_names=['moveit_get_current_pose']" in message
+    assert "secret-token" not in message
+    assert "refresh-token" not in message
+    assert captured["body"]["model"] == "gpt-5.4-mini"
 
     await client.close()

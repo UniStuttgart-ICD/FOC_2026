@@ -1,32 +1,94 @@
-# Voice Runtime Context
+# Voice Robot Agent Context
 
-This glossary describes the implemented orthogonal Voice Runtime modules in `server/voice_runtime/` after Issue 7.
+This glossary defines the project language for the Pipecat voice robot agent target architecture. It describes concepts and ownership, not transient implementation details.
 
-## Domain glossary
+## Language
 
-- **Voice Runtime**: The reusable module set that runs a Pipecat robot voice pipeline: profile policy, wake command handling, agent turn framing, robot safety, metrics, and processor assembly.
-- **Runtime Profile**: A TOML-selected configuration parsed by `voice_runtime.profiles`; it owns provider/category validation, defaults, required environment names, wake and emergency-stop profile fields, MCP URL, and metrics policy without constructing processors.
-- **Voice Command**: The Mave command module in `voice_runtime.wake_command`; its audio Adapter gates audio before STT, emits `WakeDetectedFrame`, replays buffered audio, and its transcript Adapter strips the wake phrase after STT and rearms the gate.
-- **Agent Turn**: One backend response to the latest user text; `AgentTurnProcessor` wraps Codex OAuth backend output in Pipecat LLM frames and exposes explicit connect/disconnect lifecycle.
-- **Agent Orchestration**: Dialogue and tool-loop control behind the Agent Turn seam; LangGraph may own this, but Pipecat remains the Voice Runtime owner.
-- **Codex OAuth Backend**: The ChatGPT Codex backend accessed with Pi-managed OpenAI Codex OAuth tokens, not a standard OpenAI API-key chat model.
-- **Robot Observation**: A fresh `moveit_get_current_pose` read before Codex reasoning when the tool is available; last-known context is advisory only.
-- **Robot Safety**: A pure policy module that validates allowed MoveIt tool names, UR10 robot name, workspace bounds, timeouts, canonical-to-legacy tool names, plan-before-execute helpers, and execution-result text.
-- **Robot Tool Adapter**: The app/backend seam that exposes or executes robot tools and must call Robot Safety before robot execution to be locally enforced; `RobotMCPBridge` is the current Codex Robot Tool Adapter.
-- **Executable Plan**: A successful planning result that Robot Safety marks safe to execute by extracting a valid returned plan name.
-- **Safety Coverage**: Codex robot tools through `RobotMCPBridge` are locally enforced by `voice_runtime.robot_safety` before MCP execution.
-- **Voice Metrics**: The semantic turn timeline in `voice_runtime.voice_metrics` plus app Adapters for Pipecat frame observation and JSONL persistence; wake metrics use `WakeDetectedFrame` rather than processor class names.
-- **Voice Runtime Assembly**: The pure processor-ordering interface in `voice_runtime.assembly`; it orders transport input, optional Voice Command audio Adapter, STT, optional Voice Command transcript Adapter, user aggregation, Agent Turn, TTS, transport output, and assistant aggregation.
-- **Orthogonality Goal**: Keep each Module small, reusable, and locally owned: pure policy Modules avoid Pipecat and app imports, Adapters isolate provider/backend details, and assembly owns ordering instead of scattering topology across the app.
+### Voice Runtime
+
+**Voice Runtime**:
+The reusable runtime that turns realtime browser audio into an **Agent Turn** and assistant speech.
+
+**Runtime Profile**:
+App configuration that selects voice, agent, robot, and metrics adapters without constructing them.
+
+**Voice Command**:
+A wake-gated spoken command, normally beginning with "Mave".
+
+**Agent Turn**:
+One backend response to the latest user command, exposed to Voice Runtime as assistant text chunks.
+
+**Voice Metrics**:
+Semantic timing for wake, speech capture, STT, agent response, TTS first audio, and TTS completion.
+
+**Voice Runtime Assembly**:
+The processor-ordering interface for transport input, optional Voice Command audio gate, STT, optional Voice Command transcript adapter, user aggregation, Agent Turn, TTS, transport output, and assistant aggregation.
+
+### Agent Control
+
+**Agent Control Module**:
+The target module for Codex-backed intent handling and Agent Orchestration.
+
+**Codex OAuth Backend**:
+The ChatGPT Codex backend accessed with Pi-managed OpenAI Codex OAuth tokens, not a standard OpenAI API-key chat model.
+
+**Agent Orchestration**:
+Dialogue and tool-loop control behind the Agent Turn seam; LangGraph may own this, but Pipecat remains the Voice Runtime owner.
+
+**Robot Agent Prompt**:
+The concise Codex behavior prompt aligned with Agent Orchestration, robot tool feedback, and the robot tool contract.
+
+### Robot Control
+
+**Robot Control Module**:
+The target module for robot-side control concerns: Task Policy, Robot Call Validation, Robot Tool Adapter, and Robot Context.
+
+**Robot Observation**:
+A fresh robot-state read before movement, retries, relative commands, or safety-sensitive actions; last-known context is advisory only.
+
+**Robot Context**:
+Advisory recent robot observations, planning results, gripper state, and execution results.
+
+**Task Policy Layer**:
+A deterministic pre-tool layer for obvious robot-step preconditions before Robot Call Validation and MoveIt; v1 covers fresh pose before motion, no blind execute, and basic gripper/attach ordering.
+
+**Task Policy Decision**:
+The structured allow/block result from the Task Policy Layer, with correction text and a suggested next tool when a step is blocked.
+
+**Robot Call Validation**:
+Lightweight local validation for allowed MoveIt tool names, UR10 robot name, argument shape, target bounds, timeouts, canonical-to-legacy tool names, executable plan names, and clearer error text; it is not a task policy layer and is not the source of movement safety.
+
+**Robot Tool Adapter**:
+The Agent/Robot Control seam that exposes and executes robot tools while routing movement through MoveIt workflows.
+
+**Executable Plan**:
+A successful MoveIt planning result with `ok=true`, `feedback.can_execute=true`, and a valid returned `raw.plan_name` that can be executed through a MoveIt execution workflow.
+
+**MoveIt Safety Boundary**:
+The accepted movement-safety boundary; robot movement safety is delegated to MoveIt planning/execution and the robot simulation stack.
 
 ## Relationships
 
-- **Voice Runtime Assembly** contains exactly one **Agent Turn** processor in the current pipeline.
-- **Agent Orchestration** happens inside the **Agent Turn** backend and does not reorder **Voice Runtime Assembly**.
-- **Robot Observation** updates advisory robot context before **Agent Orchestration** calls the **Codex OAuth Backend**.
-- **Agent Orchestration** calls the **Codex OAuth Backend** through the existing Codex client so Pi-managed OAuth tokens remain the credential source.
-- **Robot Tool Adapter** must pass robot execution through **Robot Safety** before MCP execution.
-- An **Executable Plan** may be auto-executed only through the **Robot Tool Adapter** and **Robot Safety** boundary.
+- **Voice Runtime Assembly** contains exactly one **Agent Turn** processor in the voice pipeline.
+- **Agent Orchestration** happens behind **Agent Turn** and does not reorder **Voice Runtime Assembly**.
+- **Agent Control Module** satisfies the **Agent Turn** backend seam and may use **Robot Control Module**.
+- **Voice Runtime** must not own **Task Policy Layer**, **Robot Call Validation**, **Robot Tool Adapter**, or **Robot Context**.
+- **Task Policy Layer** runs before **Robot Call Validation**.
+- **Robot Call Validation** may reject malformed tool calls, but it does not validate task-level intent and is not the source of movement safety.
+- **Robot Tool Adapter** routes movement through the **MoveIt Safety Boundary**.
+- An **Executable Plan** may be auto-executed only through a MoveIt execution workflow.
+- A blocked **Task Policy Decision** is returned to **Agent Orchestration** as structured tool feedback, not as a movement-safety claim.
+
+## Example dialogue
+
+> **Dev:** "Should `robot_safety` decide whether a whole pick-and-place task is safe?"
+> **Domain expert:** "No. Call that **Robot Call Validation**: it rejects malformed or unsupported tool calls. **Task Policy Layer** handles obvious step preconditions. **MoveIt Safety Boundary** owns movement safety."
+
+## Flagged ambiguities
+
+- "Safety Coverage" previously meant local enforcement by `voice_runtime.robot_safety`; resolved: movement safety means the **MoveIt Safety Boundary**, while **Robot Call Validation** is ergonomic validation only.
+- "Motion Safety Layer" is ambiguous; resolved: use **Robot Call Validation** for local tool-call validation and **MoveIt Safety Boundary** for movement safety.
+- `voice_runtime.robot_safety` and `voice_runtime.robot_context` are legacy placements; resolved target home is the **Robot Control Module**.
 
 ## Current limitation
 

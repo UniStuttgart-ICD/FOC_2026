@@ -212,13 +212,7 @@ async def test_sends_available_context_history_to_codex_backend():
 
     assert backend.requests[0]["input_items"] == [
         {"role": "user", "content": [{"type": "input_text", "text": "move up"}]},
-        {
-            "type": "message",
-            "role": "assistant",
-            "content": [{"type": "output_text", "text": "Moved up.", "annotations": []}],
-            "status": "completed",
-            "id": "history-assistant-1",
-        },
+        {"role": "assistant", "content": "Moved up."},
         {"role": "user", "content": [{"type": "input_text", "text": "again"}]},
     ]
     assert bridge.calls == [("moveit_get_current_pose", {"robot_name": "UR10"})]

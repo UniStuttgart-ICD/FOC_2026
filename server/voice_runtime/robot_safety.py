@@ -49,7 +49,7 @@ _ALLOWED_ARGUMENTS: dict[str, set[str]] = {
 
 
 class RobotSafetyError(ValueError):
-    """Raised when a robot tool call violates local safety policy."""
+    """Raised when a robot tool call violates local validation policy."""
 
     def __init__(self, message: str, *, correction: str):
         super().__init__(message)

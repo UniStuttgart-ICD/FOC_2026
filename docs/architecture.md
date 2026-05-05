@@ -18,14 +18,11 @@ Owns wake phrase detection, pre-buffer replay, wake phrase stripping, finalized 
 
 Owns Pipecat LLM frame semantics for one Agent Turn. Codex OAuth is the only supported backend Adapter behind this seam.
 
-### Robot Safety
+### Robot movement safety and call validation
 
-Owns allowed robot tools, UR10-only validation, workspace limits, canonical tool-name policy, plan-before-execute helpers, and execution result interpretation.
+Robot movement safety is delegated to MoveIt planning/execution and the robot simulation stack. The Voice Runtime routes movement through MoveIt workflows.
 
-Safety coverage is local to the Codex robot bridge:
-
-- Codex through `RobotMCPBridge` is locally enforced because the bridge validates each robot tool call before MCP execution.
-- All supported robot tool calls go through `RobotMCPBridge` and `voice_runtime.robot_safety`.
+`voice_runtime.robot_safety` is local Robot Call Validation: it owns allowed tool names, UR10 argument checks, workspace-shaped argument checks, canonical tool-name policy, plan-before-execute helpers, and execution result interpretation for clearer errors. It is not the source of movement safety.
 
 ### Voice Metrics
 
@@ -47,5 +44,5 @@ To reuse these Modules in a similar project:
 2. Provide Robot Tool Adapters for the target MCP or tool layer.
 3. Choose an Agent Turn backend Adapter.
 4. Build a Pipecat pipeline with Voice Runtime Assembly using the Voice Command, STT, Agent Turn, TTS, and Voice Metrics Adapters.
-5. Document Robot Safety coverage per Agent Turn backend. Do not imply direct MCP backends are locally safety-enforced.
+5. Document that movement safety is delegated to MoveIt planning/execution for each Robot Tool Adapter. Do not imply local validation is the source of movement safety.
 6. Treat emergency stop as scaffold-only unless a runtime bypass Adapter is implemented.
