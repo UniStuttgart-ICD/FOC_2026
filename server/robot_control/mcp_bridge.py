@@ -86,15 +86,16 @@ class RobotMCPBridge:
         return tools
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        normalized_arguments = _normalize_agent_arguments(name, arguments)
         try:
-            validate_robot_tool_call(name, arguments)
+            validate_robot_tool_call(name, normalized_arguments)
         except RobotCallValidationError as exc:
             return _serialize_validation_failure(exc)
 
         backing_tool_name = self._backing_tool_names.get(name)
         if backing_tool_name is None:
             raise RobotMCPError(f"Tool is not allowed: {name}")
-        result = await self._server.call_tool(backing_tool_name, arguments)
+        result = await self._server.call_tool(backing_tool_name, normalized_arguments)
         return _serialize_tool_result(result)
 
     @staticmethod
@@ -102,6 +103,22 @@ class RobotMCPBridge:
         if tool_name in ALLOWED_ROBOT_TOOLS:
             return tool_name
         return LEGACY_TO_AGENT_TOOL_NAMES.get(tool_name)
+
+
+def _normalize_agent_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    if name not in {
+        "moveit_plan_cartesian_motion",
+        "moveit_plan_and_execute_cartesian_motion",
+    }:
+        return arguments
+    if "waypoints" in arguments:
+        return arguments
+    points = arguments.get("points", arguments.get("positions"))
+    if points is None:
+        return arguments
+    normalized = {key: value for key, value in arguments.items() if key not in {"points", "positions"}}
+    normalized["waypoints"] = points
+    return normalized
 
 
 def _serialize_validation_failure(exc: RobotCallValidationError) -> str:

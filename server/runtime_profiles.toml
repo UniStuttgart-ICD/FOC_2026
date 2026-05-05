@@ -6,7 +6,7 @@ provider = "openwakeword"
 model_path = "models/mave.onnx"
 threshold = 0.5
 candidate_log_threshold = 0.3
-pre_buffer_s = 1.5
+pre_buffer_s = 0.5
 single_command = true
 
 [profiles.hybrid_low_latency.emergency_stop]
@@ -45,7 +45,7 @@ provider = "openwakeword"
 model_path = "models/mave.onnx"
 threshold = 0.5
 candidate_log_threshold = 0.3
-pre_buffer_s = 1.5
+pre_buffer_s = 0.5
 single_command = true
 
 [profiles.openai_all.emergency_stop]
@@ -80,7 +80,7 @@ provider = "openwakeword"
 model_path = "models/mave.onnx"
 threshold = 0.5
 candidate_log_threshold = 0.3
-pre_buffer_s = 1.5
+pre_buffer_s = 0.5
 single_command = true
 
 [profiles.deepgram_all.emergency_stop]
@@ -115,7 +115,7 @@ provider = "openwakeword"
 model_path = "models/mave.onnx"
 threshold = 0.5
 candidate_log_threshold = 0.3
-pre_buffer_s = 1.5
+pre_buffer_s = 0.5
 single_command = true
 
 [profiles.local_current.emergency_stop]

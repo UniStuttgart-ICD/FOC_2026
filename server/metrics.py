@@ -133,6 +133,9 @@ class VoiceMetricsRecorder:
             turn.transcript[:120],
         )
 
+    def discard_turn(self, turn_id: str) -> None:
+        self._turns.pop(turn_id, None)
+
     def _write(self, record: dict[str, Any]) -> None:
         if self._disabled:
             return
@@ -227,14 +230,20 @@ class VoiceMetricsObserver(BaseObserver):
     def _mark_tts_first_audio(self) -> None:
         if self._tts_first_audio_marked:
             return
+        if self._current_turn() is None:
+            return
         self._mark("tts_first_audio")
         self._tts_first_audio_marked = True
 
     def _finish_turn(self) -> None:
         if self._current_turn_id is None:
             return
-        self._mark("tts_done")
-        self._recorder.finish_turn(self._current_turn_id)
+        turn = self._current_turn()
+        if turn is not None and not turn.transcript and not turn.response:
+            self._recorder.discard_turn(self._current_turn_id)
+        else:
+            self._mark("tts_done")
+            self._recorder.finish_turn(self._current_turn_id)
         self._current_turn_id = None
         self._wake_marked = False
         self._stt_marked = False

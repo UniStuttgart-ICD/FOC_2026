@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 from pipecat.frames.frames import (
+    BotStoppedSpeakingFrame,
     LLMFullResponseEndFrame,
     LLMTextFrame,
     TranscriptionFrame,
@@ -184,3 +185,53 @@ async def test_observer_emits_jsonl_from_turn_frames(monkeypatch, tmp_path: Path
     assert data["tts_first_audio_ms"] == 100.0
     assert data["tts_done_ms"] == 100.0
     assert data["total_turn_ms"] == 600.0
+
+
+@pytest.mark.asyncio
+async def test_observer_does_not_record_empty_turn_from_delayed_tts_audio_after_stop(tmp_path: Path):
+    path = tmp_path / "metrics.jsonl"
+    recorder = VoiceMetricsRecorder(
+        profile="hybrid_low_latency",
+        category="benchmark_streaming",
+        path=path,
+        include_text=True,
+    )
+    observer = VoiceMetricsObserver(recorder)
+
+    await observer.on_push_frame(_pushed(UserStartedSpeakingFrame()))
+    await observer.on_push_frame(_pushed(UserStoppedSpeakingFrame()))
+    await observer.on_push_frame(
+        _pushed(TranscriptionFrame(text="move up", user_id="u", timestamp="t", finalized=True))
+    )
+    await observer.on_push_frame(_pushed(LLMTextFrame(text="Moved up.")))
+    await observer.on_push_frame(_pushed(LLMFullResponseEndFrame()))
+    await observer.on_push_frame(
+        _pushed(TTSAudioRawFrame(audio=b"\0\0", sample_rate=16000, num_channels=1))
+    )
+    await observer.on_push_frame(_pushed(TTSStoppedFrame()))
+    await observer.on_push_frame(
+        _pushed(TTSAudioRawFrame(audio=b"\0\0", sample_rate=16000, num_channels=1))
+    )
+    await observer.on_push_frame(_pushed(BotStoppedSpeakingFrame()))
+
+    records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert len(records) == 1
+    assert records[0]["transcript"] == "move up"
+    assert records[0]["response"] == "Moved up."
+
+
+@pytest.mark.asyncio
+async def test_observer_discards_empty_turn_closed_by_stale_bot_stop(tmp_path: Path):
+    path = tmp_path / "metrics.jsonl"
+    recorder = VoiceMetricsRecorder(
+        profile="hybrid_low_latency",
+        category="benchmark_streaming",
+        path=path,
+        include_text=True,
+    )
+    observer = VoiceMetricsObserver(recorder)
+
+    await observer.on_push_frame(_pushed(UserStartedSpeakingFrame()))
+    await observer.on_push_frame(_pushed(BotStoppedSpeakingFrame()))
+
+    assert not path.exists()

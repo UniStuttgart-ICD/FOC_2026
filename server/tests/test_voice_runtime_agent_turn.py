@@ -130,7 +130,7 @@ async def test_agent_turn_emits_fallback_when_backend_yields_no_text() -> None:
     )
 
     text_frames = [frame for frame in processor.pushed if isinstance(frame, LLMTextFrame)]
-    assert [frame.text for frame in text_frames] == ["I completed the action but have nothing to report."]
+    assert [frame.text for frame in text_frames] == ["I could not confirm that the action completed."]
 
 
 @pytest.mark.asyncio

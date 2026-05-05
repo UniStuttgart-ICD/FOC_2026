@@ -18,7 +18,7 @@ from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 logger = logging.getLogger(__name__)
 
-NO_TEXT_RESPONSE = "I completed the action but have nothing to report."
+NO_TEXT_RESPONSE = "I could not confirm that the action completed."
 ERROR_RESPONSE = "I encountered an error. Please try again."
 
 

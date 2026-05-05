@@ -106,6 +106,22 @@ def test_accepts_cartesian_motion_arguments() -> None:
     )
 
 
+def test_accepts_high_level_cartesian_plan_and_execute_with_multiple_waypoints() -> None:
+    validate_robot_tool_call(
+        "moveit_plan_and_execute_cartesian_motion",
+        {
+            "robot_name": "UR10",
+            "waypoints": [
+                VALID_POSE,
+                {**VALID_POSE, "position": {"x": 0.57, "y": 0.49, "z": 0.67}},
+                {**VALID_POSE, "position": {"x": 0.57, "y": 0.29, "z": 0.67}},
+                {**VALID_POSE, "position": {"x": 0.57, "y": 0.39, "z": 0.67}},
+            ],
+            "timeout_s": 10.0,
+        },
+    )
+
+
 def test_rejects_empty_cartesian_waypoints() -> None:
     with pytest.raises(RobotCallValidationError) as exc:
         validate_robot_tool_call("moveit_plan_cartesian_motion", {"robot_name": "UR10", "waypoints": []})

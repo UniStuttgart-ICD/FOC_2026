@@ -4,6 +4,7 @@ import pytest
 
 from voice_runtime.profiles import (
     AgentProfile,
+    default_profiles_path,
     EmergencyStopProfile,
     MetricsProfile,
     ProfileError,
@@ -74,6 +75,18 @@ enabled = false
 
 def _write_profile(path: Path, body: str) -> None:
     path.write_text(body.strip(), encoding="utf-8")
+
+
+def test_bundled_streaming_profiles_keep_wake_prebuffer_short() -> None:
+    server_dir = Path(__file__).resolve().parents[1]
+
+    profile = load_runtime_profile(
+        profiles_path=default_profiles_path(server_dir),
+        server_dir=server_dir,
+        profile_name="hybrid_low_latency",
+    )
+
+    assert profile.wake.pre_buffer_s <= 0.5
 
 
 def test_loads_profile_without_constructing_adapters(tmp_path: Path):

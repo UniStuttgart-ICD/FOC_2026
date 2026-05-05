@@ -34,7 +34,7 @@ CARTESIAN_MOTION_TOOL_NAMES = {
     "moveit_plan_cartesian_motion",
     "moveit_plan_and_execute_cartesian_motion",
 }
-NO_TEXT_RESPONSE = "I completed the action but have nothing to report."
+NO_TEXT_RESPONSE = "I could not confirm that the action completed."
 
 
 class RobotAgentState(TypedDict):
@@ -259,9 +259,40 @@ class LangGraphRobotAgent:
             target_pose = self._relative_target_pose(user_text)
             if target_pose is not None:
                 return {**arguments, "waypoints": [target_pose]}
+            gesture_waypoints = self._cartesian_gesture_waypoints(user_text)
+            if gesture_waypoints is not None:
+                return {**arguments, "waypoints": gesture_waypoints}
         return arguments
 
     def _relative_target_pose(self, user_text: str) -> dict[str, Any] | None:
+        pose_components = self._latest_pose_components()
+        if pose_components is None:
+            return None
+        x, y, z, orientation = pose_components
+
+        delta = _relative_delta(user_text)
+        if delta is None:
+            return None
+        dx, dy, dz = delta
+        return _pose_at(x + dx, y + dy, z + dz, orientation)
+
+    def _cartesian_gesture_waypoints(self, user_text: str) -> list[dict[str, Any]] | None:
+        words = set(re.findall(r"[a-zA-Z']+", user_text.lower()))
+        if "wave" not in words and "waving" not in words:
+            return None
+        pose_components = self._latest_pose_components()
+        if pose_components is None:
+            return None
+        x, y, z, orientation = pose_components
+        lifted_z = z + 0.08
+        return [
+            _pose_at(x, y, lifted_z, orientation),
+            _pose_at(x, y + 0.10, lifted_z, orientation),
+            _pose_at(x, y - 0.10, lifted_z, orientation),
+            _pose_at(x, y, lifted_z, orientation),
+        ]
+
+    def _latest_pose_components(self) -> tuple[float, float, float, dict[str, Any] | None] | None:
         pose = self._robot_context.latest_tcp_pose()
         if pose is None:
             return None
@@ -274,16 +305,19 @@ class LangGraphRobotAgent:
             z = float(position["z"])
         except (KeyError, TypeError, ValueError):
             return None
-
-        delta = _relative_delta(user_text)
-        if delta is None:
-            return None
-        dx, dy, dz = delta
-        target_position = {"x": round(x + dx, 4), "y": round(y + dy, 4), "z": round(z + dz, 4)}
         orientation = pose.get("orientation")
-        if isinstance(orientation, dict):
-            return {"position": target_position, "orientation": dict(orientation)}
-        return target_position
+        return x, y, z, dict(orientation) if isinstance(orientation, dict) else None
+
+
+def _pose_at(
+    x: float, y: float, z: float, orientation: dict[str, Any] | None
+) -> dict[str, Any]:
+    pose: dict[str, Any] = {
+        "position": {"x": round(x, 4), "y": round(y, 4), "z": round(z, 4)}
+    }
+    if orientation is not None:
+        pose["orientation"] = dict(orientation)
+    return pose
 
 
 def _tool_call_to_state(tool_call: Any) -> dict[str, Any]:

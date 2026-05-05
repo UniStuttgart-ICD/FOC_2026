@@ -315,7 +315,7 @@ async def test_graph_stops_after_max_tool_turns() -> None:
 
     text = await fixture.graph.run_turn(turn("pose"))
 
-    assert text == "I completed the action but have nothing to report."
+    assert text == "I could not confirm that the action completed."
     assert len(fixture.backend.requests) == 4
 
 
@@ -401,6 +401,39 @@ async def test_graph_repairs_cartesian_waypoints_from_current_pose() -> None:
             "orientation": {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0},
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_graph_repairs_missing_wave_waypoints_from_current_pose() -> None:
+    tool = tool_call(
+        "moveit_plan_and_execute_cartesian_motion",
+        arguments={"robot_name": "UR10", "plan_name": "wave", "timeout_s": 10},
+    )
+    fixture = make_graph(
+        [
+            CodexResponseResult(
+                tool_calls=[tool],
+                output_items=[
+                    output_item(
+                        "moveit_plan_and_execute_cartesian_motion",
+                        arguments=tool.arguments,
+                    )
+                ],
+            ),
+            CodexResponseResult(text="Waved."),
+        ]
+    )
+
+    await fixture.graph.run_turn(turn("wave to me"))
+
+    waypoints = fixture.bridge.calls[1][1]["waypoints"]
+    assert len(waypoints) >= 4
+    assert {waypoint["position"]["y"] for waypoint in waypoints} >= {0.1, 0.3}
+    assert all(waypoint["position"]["z"] >= 0.38 for waypoint in waypoints)
+    assert all(
+        waypoint["orientation"] == {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0}
+        for waypoint in waypoints
+    )
 
 
 @pytest.mark.asyncio
