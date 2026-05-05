@@ -81,14 +81,14 @@ The accepted movement-safety boundary; robot movement safety is delegated to Mov
 
 ## Example dialogue
 
-> **Dev:** "Should `robot_safety` decide whether a whole pick-and-place task is safe?"
-> **Domain expert:** "No. Call that **Robot Call Validation**: it rejects malformed or unsupported tool calls. **Task Policy Layer** handles obvious step preconditions. **MoveIt Safety Boundary** owns movement safety."
+> **Dev:** "Should Robot Call Validation decide whether a whole pick-and-place task is safe?"
+> **Domain expert:** "No. **Robot Call Validation** rejects malformed or unsupported tool calls. **Task Policy Layer** handles obvious step preconditions. **MoveIt Safety Boundary** owns movement safety."
 
 ## Flagged ambiguities
 
-- "Safety Coverage" previously meant local enforcement by `voice_runtime.robot_safety`; resolved: movement safety means the **MoveIt Safety Boundary**, while **Robot Call Validation** is ergonomic validation only.
+- "Safety Coverage" previously implied local movement-safety enforcement; resolved: movement safety means the **MoveIt Safety Boundary**, while **Robot Call Validation** is ergonomic validation only.
 - "Motion Safety Layer" is ambiguous; resolved: use **Robot Call Validation** for local tool-call validation and **MoveIt Safety Boundary** for movement safety.
-- `voice_runtime.robot_safety` and `voice_runtime.robot_context` are legacy placements; resolved target home is the **Robot Control Module**.
+- Robot-side policy, context, validation, and adapter ownership is resolved to the **Robot Control Module**.
 
 ## Current limitation
 

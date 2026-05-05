@@ -62,7 +62,7 @@ It contains these target submodules:
 
 ### `robot_control`
 
-`robot_control` is the target Module for robot-side control concerns. Extract this Module before extracting `agent_control`.
+`robot_control` is the Module for robot-side control concerns.
 
 It contains these target submodules:
 
@@ -71,7 +71,7 @@ It contains these target submodules:
 - **Robot Tool Adapter**: exposes MoveIt MCP tools to Agent Orchestration and executes tool calls.
 - **Robot Context**: stores advisory recent observations, planning results, gripper state, and execution results.
 
-The target package shape is:
+The package shape is:
 
 ```text
 robot_control/
@@ -81,9 +81,9 @@ robot_control/
   context.py
 ```
 
-`voice_runtime.robot_safety` and `voice_runtime.robot_context` are legacy placements. Their target home is `robot_control`.
+Robot Call Validation, Robot Context, Task Policy, and the Robot Tool Adapter live under `robot_control`.
 
-Extract `robot_control` before extracting `agent_control`, then clean up legacy top-level placements.
+After `robot_control` extraction, extract `agent_control`, then keep any remaining app wiring in the composition root.
 
 **API Boundary:** `robot_control` exposes robot tools and structured tool feedback to `agent_control`. It owns robot-specific vocabulary and must not depend on Pipecat pipeline modules.
 
@@ -154,7 +154,7 @@ Robot Call Validation does not understand user intent, validate arbitrary multi-
 
 ### Robot Control does not belong in Voice Runtime
 
-Task Policy, Robot Call Validation, Robot Tool Adapter, and Robot Context belong to `robot_control`, not `voice_runtime`. Legacy placements under `voice_runtime` should migrate out.
+Task Policy, Robot Call Validation, Robot Tool Adapter, and Robot Context belong to `robot_control`, not `voice_runtime`.
 
 ### Runtime profile files are app configuration
 

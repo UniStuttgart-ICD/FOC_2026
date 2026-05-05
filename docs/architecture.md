@@ -18,11 +18,11 @@ Owns wake phrase detection, pre-buffer replay, wake phrase stripping, finalized 
 
 Owns Pipecat LLM frame semantics for one Agent Turn. Codex OAuth is the only supported backend Adapter behind this seam.
 
-### Robot movement safety and call validation
+### Robot movement safety and Robot Control
 
 Robot movement safety is delegated to MoveIt planning/execution and the robot simulation stack. The Voice Runtime routes movement through MoveIt workflows.
 
-`voice_runtime.robot_safety` is local Robot Call Validation: it owns allowed tool names, UR10 argument checks, workspace-shaped argument checks, canonical tool-name policy, plan-before-execute helpers, and execution result interpretation for clearer errors. It is not the source of movement safety.
+`robot_control` owns Task Policy, Robot Call Validation, Robot Context, and the Robot Tool Adapter. Local Robot Call Validation owns allowed tool names, UR10 argument checks, workspace-shaped argument checks, canonical tool-name policy, plan-before-execute helpers, and execution result interpretation for clearer errors. It is not the source of movement safety.
 
 ### Voice Metrics
 
