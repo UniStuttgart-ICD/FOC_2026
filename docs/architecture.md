@@ -16,16 +16,16 @@ Owns wake phrase detection, pre-buffer replay, wake phrase stripping, finalized 
 
 ### Agent Turn
 
-Owns Pipecat LLM frame semantics for one Agent Turn. Claude and Codex are backend Adapters behind this seam.
+Owns Pipecat LLM frame semantics for one Agent Turn. Codex OAuth is the only supported backend Adapter behind this seam.
 
 ### Robot Safety
 
 Owns allowed robot tools, UR10-only validation, workspace limits, canonical tool-name policy, plan-before-execute helpers, and execution result interpretation.
 
-Safety coverage is per Agent Turn backend:
+Safety coverage is local to the Codex robot bridge:
 
 - Codex through `RobotMCPBridge` is locally enforced because the bridge validates each robot tool call before MCP execution.
-- Direct Claude MCP is prompt-only unless a safe MCP proxy Adapter is added.
+- All supported robot tool calls go through `RobotMCPBridge` and `voice_runtime.robot_safety`.
 
 ### Voice Metrics
 
