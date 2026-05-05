@@ -13,6 +13,7 @@ from codex_backend_client import CodexBackendClient, CodexBackendError, CodexRes
 from prompts import SYSTEM_PROMPT
 from robot_mcp_bridge import RobotMCPBridge, RobotMCPError
 from voice_runtime.agent_turn import AgentTurnInput
+from voice_runtime.robot_context import RobotContextStore
 from voice_runtime.robot_safety import executable_plan_name, execution_result_text
 
 MAX_CODEX_TOOL_TURNS = 3
@@ -41,6 +42,7 @@ class OpenAICodexAgentProcessor:
         self._owns_tool_bridge = tool_bridge is None
         self._connected = False
         self._model_logged = False
+        self._robot_context = RobotContextStore()
 
     async def connect(self) -> None:
         await self._ensure_connected()
@@ -86,7 +88,7 @@ class OpenAICodexAgentProcessor:
             result = await backend_client.create_response(
                 credentials,
                 model=self._model,
-                instructions=SYSTEM_PROMPT,
+                instructions=self._instructions(),
                 input_items=input_items,
                 tools=tools,
             )
@@ -105,6 +107,9 @@ class OpenAICodexAgentProcessor:
         except Exception as exc:
             logger.error(f"OpenAI Codex agent error: {exc}")
             yield "I encountered an error. Please try again."
+
+    def _instructions(self) -> str:
+        return f"{SYSTEM_PROMPT}\n\n{self._robot_context.render_instruction_block()}"
 
     async def _ensure_connected(self) -> None:
         if self._connected:
@@ -143,7 +148,7 @@ class OpenAICodexAgentProcessor:
             result = await backend_client.create_response(
                 credentials,
                 model=self._model,
-                instructions=SYSTEM_PROMPT,
+                instructions=self._instructions(),
                 input_items=input_items,
                 tools=tools,
             )
@@ -152,6 +157,7 @@ class OpenAICodexAgentProcessor:
     async def _call_robot_tool(self, tool_bridge: RobotMCPBridge, name: str, arguments: dict[str, Any]) -> str:
         try:
             output = await tool_bridge.call_tool(name, arguments)
+            self._robot_context.update_from_tool_result(name, output)
             plan_name = executable_plan_name(output)
             if name in PLAN_TOOL_NAMES and plan_name:
                 execution_output = await tool_bridge.call_tool(

@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 
 import pytest
@@ -184,3 +185,84 @@ async def test_disconnect_closes_backend_and_bridge():
 
     assert backend.closed is True
     assert bridge.disconnected is True
+
+
+@pytest.mark.asyncio
+async def test_injects_compact_robot_context_into_codex_instructions():
+    backend = FakeBackend([CodexResponseResult(text="ok")])
+    bridge = FakeBridge()
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=FakeStore(),
+        backend_client=backend,
+        tool_bridge=bridge,
+    )
+
+    await _run_turn(processor, "what can you do?")
+
+    instructions = backend.requests[0]["instructions"]
+    assert "Last-known robot context" in instructions
+    assert "advisory only" in instructions
+    assert "moveit_get_robot_status" in instructions
+
+
+@pytest.mark.asyncio
+async def test_updates_robot_context_after_status_tool_result():
+    status_call = CodexToolCall(
+        call_id="call-1",
+        item_id="item-1",
+        name="moveit_get_robot_status",
+        arguments={"robot_name": "UR10"},
+        raw_arguments='{"robot_name":"UR10"}',
+    )
+    backend = FakeBackend(
+        [
+            CodexResponseResult(
+                tool_calls=[status_call],
+                output_items=[
+                    {
+                        "type": "function_call",
+                        "id": "item-1",
+                        "call_id": "call-1",
+                        "name": "moveit_get_robot_status",
+                        "arguments": '{"robot_name":"UR10"}',
+                    }
+                ],
+            ),
+            CodexResponseResult(text="Robot is ready."),
+        ]
+    )
+
+    class StatusBridge(FakeBridge):
+        async def call_tool(self, name, arguments):
+            self.calls.append((name, arguments))
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": True,
+                        "robot_name": "UR10",
+                        "tcp_pose": {"position": {"x": 0.1, "y": 0.2, "z": 0.3}},
+                        "gripper": {"state": "open"},
+                    }
+                }
+            )
+
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=FakeStore(),
+        backend_client=backend,
+        tool_bridge=StatusBridge(),
+    )
+
+    await _run_turn(processor, "status")
+
+    followup_backend = FakeBackend([CodexResponseResult(text="ok")])
+    processor._backend_client = followup_backend
+    await _run_turn(processor, "where is it?")
+
+    instructions = followup_backend.requests[0]["instructions"]
+    assert "robot: UR10" in instructions
+    assert "x=0.100" in instructions
+    assert "gripper: open" in instructions
