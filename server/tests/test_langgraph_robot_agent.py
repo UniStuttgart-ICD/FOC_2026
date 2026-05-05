@@ -518,7 +518,7 @@ async def test_graph_blocks_blind_execute_plan_even_after_fresh_pose() -> None:
 
 @pytest.mark.asyncio
 async def test_graph_converts_robot_mcp_error_to_structured_tool_output() -> None:
-    from robot_mcp_bridge import RobotMCPError
+    from robot_control.mcp_bridge import RobotMCPError
 
     failing_tool = tool_call(
         "moveit_plan_free_motion",

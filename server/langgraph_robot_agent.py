@@ -21,8 +21,8 @@ from robot_control.call_validation import (
     structured_robot_call_error,
 )
 from robot_control.context import RobotContextStore
+from robot_control.mcp_bridge import RobotMCPError
 from robot_control.task_policy import structured_task_policy_error, validate_task_step
-from robot_mcp_bridge import RobotMCPError
 from voice_runtime.agent_turn import AgentTurnInput
 
 MAX_CODEX_TOOL_TURNS = 3

@@ -4,7 +4,7 @@ import pytest
 from mcp.types import CallToolResult, TextContent, Tool
 
 from robot_control.call_validation import agent_tool_description
-from robot_mcp_bridge import RobotMCPBridge, RobotMCPError
+from robot_control.mcp_bridge import RobotMCPBridge, RobotMCPError
 
 
 class FakeServer:
@@ -214,7 +214,7 @@ async def test_rejects_unknown_tool_before_mcp_call():
 
 
 @pytest.mark.asyncio
-async def test_rejects_unsafe_motion_arguments_before_mcp_call():
+async def test_rejects_out_of_bounds_motion_arguments_before_mcp_call():
     server = FakeServer()
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
     await bridge.connect()

@@ -33,7 +33,7 @@ class MCPServerLike(Protocol):
 
 
 class RobotMCPBridge:
-    """Converts robot MCP tools to Codex function tools and executes safe calls."""
+    """Converts robot MCP tools to Codex function tools and executes validated calls."""
 
     def __init__(self, mcp_server_url: str, *, server: MCPServerLike | None = None):
         self._server = server or MCPServerStreamableHttp(
