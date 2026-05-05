@@ -127,6 +127,45 @@ def output_item(name, call_id="call-1", item_id="item-1", arguments=None):
 
 
 @pytest.mark.asyncio
+async def test_robot_action_preflight_gets_status_before_codex_request():
+    backend = ScriptedBackend([CodexResponseResult(text="I can wave from the current pose.")])
+    bridge = BehaviorBridge()
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=Store(),
+        backend_client=backend,
+        tool_bridge=bridge,
+    )
+
+    chunks = await run_processor(processor, "wave to me")
+
+    assert bridge.calls == [("moveit_get_robot_status", {"robot_name": "UR10"})]
+    assert "robot: UR10" in backend.requests[0]["instructions"]
+    assert "x=0.100" in backend.requests[0]["instructions"]
+    assert chunks == ["I can wave from the current pose."]
+
+
+@pytest.mark.asyncio
+async def test_non_robot_action_does_not_preflight_status():
+    backend = ScriptedBackend([CodexResponseResult(text="I can help with robot commands.")])
+    bridge = BehaviorBridge()
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=Store(),
+        backend_client=backend,
+        tool_bridge=bridge,
+    )
+
+    chunks = await run_processor(processor, "what can you do?")
+
+    assert bridge.calls == []
+    assert "No robot status has been observed yet" in backend.requests[0]["instructions"]
+    assert chunks == ["I can help with robot commands."]
+
+
+@pytest.mark.asyncio
 async def test_relative_movement_behavior_observes_before_answering():
     status = tool_call("moveit_get_robot_status")
     backend = ScriptedBackend(
@@ -181,6 +220,7 @@ async def test_plan_tool_is_auto_executed_once_plan_is_executable():
     chunks = await run_processor(processor, "move up a bit")
 
     assert bridge.calls == [
+        ("moveit_get_robot_status", {"robot_name": "UR10"}),
         ("moveit_plan_free_motion", plan_args),
         ("moveit_execute_plan", {"robot_name": "UR10", "plan_name": "plan-1"}),
     ]
