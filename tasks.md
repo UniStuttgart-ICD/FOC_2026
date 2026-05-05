@@ -18,7 +18,7 @@ Use subagents in this session, but keep implementation mostly sequential where f
 - [x] #4 Block attach until gripper is recently known closed — commit `84e4d75`
 - [x] #5 Expose canonical MoveIt tools through the Robot Tool Adapter — commit `f9739b3`
 - [x] #6 Move Robot Call Validation into `robot_control` — commit `2375ccb`
-- [ ] #7 Move Robot Context into `robot_control`
+- [x] #7 Move Robot Context into `robot_control` — commit `1b06ba1`
 - [ ] #8 Move Robot Tool Adapter into `robot_control`
 - [ ] #9 Enforce target module import directions structurally
 - [ ] #11 Align docs and agent guidance with Robot Control language
@@ -37,9 +37,10 @@ Deferred / separate from these plans:
 - 2026-05-05: #4 complete via parallel subagent worktree and integrated manually. Commit `84e4d75` added recent gripper state memory to legacy Robot Context, attach-object Task Policy checks, and LangGraph attach-ordering coverage. Validation: `uv run pytest tests/test_robot_context.py tests/test_robot_task_policy.py tests/test_robot_control_imports.py tests/test_langgraph_robot_agent.py -q` (`40 passed`), targeted ruff (pass), targeted pyright (0 errors).
 - 2026-05-05: #5 complete via parallel subagent worktree and integrated manually. Commit `f9739b3` maps legacy high-level MoveIt workflow MCP tools to canonical `moveit_*` adapter names while preserving canonical tool preference. Validation: `uv run pytest tests/test_robot_mcp_bridge.py tests/test_voice_runtime_robot_safety.py tests/test_prompts.py -q` (`31 passed`), targeted ruff (pass), targeted pyright (0 errors).
 - 2026-05-05: #6 complete. Commit `2375ccb` moved Robot Call Validation from `voice_runtime.robot_safety` to `robot_control.call_validation`, renamed `RobotCallValidationError` / `structured_robot_call_error`, updated legacy top-level adapter and LangGraph imports, and expanded the Robot Control pure import guard for `call_validation.py`. Validation: `uv run pytest tests/test_robot_call_validation.py tests/test_robot_mcp_bridge.py tests/test_langgraph_robot_agent.py tests/test_robot_control_imports.py -v` (`46 passed`), targeted ruff (pass), targeted pyright (0 errors).
+- 2026-05-05: #7 complete. Commit `1b06ba1` moved Robot Context from `voice_runtime.robot_context` to `robot_control.context`, updated Agent Orchestration/Agent Backend/test imports, and expanded the Robot Control pure import guard for `context.py`. Validation: `uv run pytest tests/test_robot_context.py tests/test_robot_task_policy.py tests/test_langgraph_robot_agent.py tests/test_openai_codex_agent_processor.py tests/test_robot_control_imports.py -v` (`48 passed`), targeted ruff (pass after import sorting), targeted pyright (0 errors).
 
 ## Next wave
 
-1. #7: Move Robot Context into `robot_control` after #6.
-2. #8/#9 extraction import cleanup, then #11 docs and #12 final verification.
+1. #8: Move Robot Tool Adapter into `robot_control` and update runtime imports.
+2. #9 extraction import cleanup, then #11 docs and #12 final verification.
 3. Continue using parallel subagent worktrees whenever issue file sets are independent.
