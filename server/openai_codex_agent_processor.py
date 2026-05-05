@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -21,32 +20,13 @@ MAX_CODEX_TOOL_TURNS = 3
 VIZOR_ROBOT_NAME = "UR10"
 PLAN_TOOL_NAMES = {"moveit_plan_free_motion", "moveit_plan_linear_motion"}
 STATUS_TOOL_NAME = "moveit_get_robot_status"
-ROBOT_ACTION_WORDS = frozenset(
-    {
-        "again",
-        "back",
-        "backward",
-        "close",
-        "down",
-        "forward",
-        "go",
-        "grab",
-        "gripper",
-        "left",
-        "lower",
-        "move",
-        "open",
-        "pose",
-        "position",
-        "raise",
-        "release",
-        "retry",
-        "right",
-        "stop",
-        "up",
-        "wave",
-    }
-)
+STATUS_PREFLIGHT_INTENT_PROMPT = """Decide whether this user turn needs fresh robot status before the main robot agent response.
+
+Return exactly one word: yes or no.
+
+Return yes when the user is asking about robot state, robot position, tool availability, movement, gripper control, retrying, stopping, safety, or any physical robot action.
+Return no for greetings, acknowledgements, or general capability questions that do not require current robot state.
+"""
 
 
 class OpenAICodexAgentProcessor:
@@ -113,7 +93,13 @@ class OpenAICodexAgentProcessor:
         tools = tool_bridge.function_tools()
 
         try:
-            await self._preflight_robot_status(tool_bridge, tools, turn.user_text)
+            await self._preflight_robot_status(
+                credentials=credentials,
+                backend_client=backend_client,
+                tool_bridge=tool_bridge,
+                tools=tools,
+                user_text=turn.user_text,
+            )
             result = await backend_client.create_response(
                 credentials,
                 model=self._model,
@@ -141,12 +127,32 @@ class OpenAICodexAgentProcessor:
         return f"{SYSTEM_PROMPT}\n\n{self._robot_context.render_instruction_block()}"
 
     async def _preflight_robot_status(
-        self, tool_bridge: RobotMCPBridge, tools: list[dict[str, Any]], user_text: str
+        self,
+        *,
+        credentials: Any,
+        backend_client: CodexBackendClient,
+        tool_bridge: RobotMCPBridge,
+        tools: list[dict[str, Any]],
+        user_text: str,
     ) -> None:
-        if not _has_tool(tools, STATUS_TOOL_NAME) or not _needs_robot_status_preflight(user_text):
+        if not _has_tool(tools, STATUS_TOOL_NAME):
             return
-        logger.info("Running robot status preflight before Codex request")
+        if not await self._llm_needs_robot_status_preflight(credentials, backend_client, user_text):
+            return
+        logger.info("Running LLM-inferred robot status preflight before Codex request")
         await self._call_robot_tool(tool_bridge, STATUS_TOOL_NAME, {"robot_name": VIZOR_ROBOT_NAME})
+
+    async def _llm_needs_robot_status_preflight(
+        self, credentials: Any, backend_client: CodexBackendClient, user_text: str
+    ) -> bool:
+        result = await backend_client.create_response(
+            credentials,
+            model=self._model,
+            instructions=STATUS_PREFLIGHT_INTENT_PROMPT,
+            input_items=[_user_input_item(user_text)],
+            tools=[],
+        )
+        return _is_yes(result.text)
 
     async def _ensure_connected(self) -> None:
         if self._connected:
@@ -218,9 +224,8 @@ def _has_tool(tools: list[dict[str, Any]], name: str) -> bool:
     return any(tool.get("name") == name for tool in tools)
 
 
-def _needs_robot_status_preflight(text: str) -> bool:
-    words = set(re.findall(r"[a-zA-Z']+", text.lower()))
-    return bool(words & ROBOT_ACTION_WORDS)
+def _is_yes(text: str) -> bool:
+    return text.strip().lower().startswith("yes")
 
 
 def _input_items_from_messages(messages: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
