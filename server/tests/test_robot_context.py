@@ -54,3 +54,26 @@ def test_robot_context_still_accepts_legacy_status_tool_output() -> None:
     text = store.render_instruction_block()
     assert "gripper: open" in text
     assert "last execution: pass" in text
+
+
+def test_robot_context_reports_recent_and_stale_pose_observations() -> None:
+    now = 100.0
+    store = RobotContextStore(time_fn=lambda: now)
+
+    assert store.has_recent_robot_observation(max_age_s=15.0) is False
+
+    output = json.dumps(
+        {
+            "structured_content": {
+                "ok": True,
+                "robot": "UR10",
+                "raw": {"pose": {"position": {"x": 0.1, "y": 0.2, "z": 0.3}}},
+            }
+        }
+    )
+    store.update_from_tool_result("moveit_get_current_pose", output)
+
+    assert store.has_recent_robot_observation(max_age_s=15.0) is True
+
+    now = 116.0
+    assert store.has_recent_robot_observation(max_age_s=15.0) is False

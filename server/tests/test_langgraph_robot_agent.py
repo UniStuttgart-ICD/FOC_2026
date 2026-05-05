@@ -434,6 +434,56 @@ async def test_graph_auto_executes_executable_plan() -> None:
 
 
 @pytest.mark.asyncio
+async def test_graph_sends_policy_failure_as_tool_output_when_motion_lacks_fresh_observation() -> None:
+    class NoObservationBridge(FakeBridge):
+        def function_tools(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "type": "function",
+                    "name": "moveit_plan_free_motion",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                }
+            ]
+
+        async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+            self.calls.append((name, arguments))
+            return json.dumps({"structured_content": {"ok": True}})
+
+    plan_args = {
+        "robot_name": "UR10",
+        "target_pose": {
+            "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+    }
+    tool = tool_call("moveit_plan_free_motion", arguments=plan_args)
+    fixture = make_graph(
+        [
+            CodexResponseResult(
+                tool_calls=[tool],
+                output_items=[output_item("moveit_plan_free_motion", arguments=plan_args)],
+            ),
+            CodexResponseResult(text="I need a fresh pose before moving."),
+        ],
+        bridge=NoObservationBridge(),
+    )
+
+    text = await fixture.graph.run_turn(turn("move up"))
+
+    assert text == "I need a fresh pose before moving."
+    assert fixture.bridge.calls == []
+    output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])
+    assert output == {
+        "ok": False,
+        "error": "Fresh robot pose is required before motion.",
+        "correction": "Call moveit_get_current_pose, then retry the motion.",
+        "retryable": True,
+        "suggested_next_tool": "moveit_get_current_pose",
+    }
+
+
+@pytest.mark.asyncio
 async def test_graph_converts_robot_mcp_error_to_structured_tool_output() -> None:
     from robot_mcp_bridge import RobotMCPError
 

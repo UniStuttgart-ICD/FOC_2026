@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -16,8 +17,15 @@ class RobotContextSnapshot:
 
 
 class RobotContextStore:
-    def __init__(self) -> None:
+    def __init__(self, *, time_fn: Callable[[], float] = time.monotonic) -> None:
         self._snapshot = RobotContextSnapshot()
+        self._time_fn = time_fn
+
+    def has_recent_robot_observation(self, *, max_age_s: float) -> bool:
+        observed_at_s = self._snapshot.observed_at_s
+        if observed_at_s is None:
+            return False
+        return self._time_fn() - observed_at_s <= max_age_s
 
     def render_instruction_block(self) -> str:
         age = self._status_age_text()
@@ -53,7 +61,7 @@ class RobotContextStore:
         if not isinstance(structured_content, dict) or structured_content.get("ok") is not True:
             return
 
-        self._snapshot.observed_at_s = time.monotonic()
+        self._snapshot.observed_at_s = self._time_fn()
         robot_name = structured_content.get("robot_name", structured_content.get("robot"))
         if isinstance(robot_name, str):
             self._snapshot.robot_name = robot_name
@@ -73,7 +81,7 @@ class RobotContextStore:
     def _status_age_text(self) -> str:
         if self._snapshot.observed_at_s is None:
             return "unknown"
-        return f"{time.monotonic() - self._snapshot.observed_at_s:.1f}s"
+        return f"{self._time_fn() - self._snapshot.observed_at_s:.1f}s"
 
     def _tcp_pose_text(self) -> str | None:
         pose = self._snapshot.tcp_pose
