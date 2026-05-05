@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -222,7 +223,11 @@ class OpenAICodexAgentProcessor:
         if delta is None:
             return None
         dx, dy, dz = delta
-        return {"x": round(x + dx, 4), "y": round(y + dy, 4), "z": round(z + dz, 4)}
+        target_position = {"x": round(x + dx, 4), "y": round(y + dy, 4), "z": round(z + dz, 4)}
+        orientation = pose.get("orientation")
+        if isinstance(orientation, dict):
+            return {"position": target_position, "orientation": dict(orientation)}
+        return target_position
 
 
 def _first_available_tool(tools: list[dict[str, Any]], names: tuple[str, ...]) -> str | None:
@@ -238,22 +243,22 @@ def _has_any_argument(arguments: dict[str, Any], names: tuple[str, ...]) -> bool
 
 
 def _relative_delta(text: str) -> tuple[float, float, float] | None:
-    lower = text.lower()
-    distance = 0.05 if any(word in lower for word in ("bit", "slightly")) else 0.10
-    if any(word in lower for word in ("lot", "far")):
+    words = set(re.findall(r"[a-zA-Z']+", text.lower()))
+    distance = 0.05 if words & {"bit", "slightly"} else 0.10
+    if words & {"lot", "far"}:
         distance = 0.30
-    if "up" in lower or "raise" in lower:
-        return (0.0, 0.0, distance)
-    if "down" in lower or "lower" in lower:
-        return (0.0, 0.0, -distance)
-    if "left" in lower:
-        return (0.0, distance, 0.0)
-    if "right" in lower:
-        return (0.0, -distance, 0.0)
-    if "forward" in lower:
-        return (distance, 0.0, 0.0)
-    if "back" in lower:
+    if "back" in words or "backward" in words:
         return (-distance, 0.0, 0.0)
+    if "forward" in words:
+        return (distance, 0.0, 0.0)
+    if "left" in words:
+        return (0.0, distance, 0.0)
+    if "right" in words:
+        return (0.0, -distance, 0.0)
+    if "up" in words or "raise" in words:
+        return (0.0, 0.0, distance)
+    if "down" in words or "lower" in words:
+        return (0.0, 0.0, -distance)
     return None
 
 

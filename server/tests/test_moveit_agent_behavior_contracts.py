@@ -79,7 +79,12 @@ class BehaviorBridge:
                     "structured_content": {
                         "ok": True,
                         "robot": "UR10",
-                        "raw": {"pose": {"position": {"x": 0.1, "y": 0.2, "z": 0.3}}},
+                        "raw": {
+                            "pose": {
+                                "position": {"x": 0.1, "y": 0.2, "z": 0.3},
+                                "orientation": {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0},
+                            }
+                        },
                     }
                 }
             )
@@ -222,10 +227,88 @@ async def test_repairs_missing_relative_target_pose_from_current_pose_context():
             "robot_name": "UR10",
             "plan_name": "move_up_50mm",
             "timeout_s": 10,
-            "target_pose": {"x": 0.1, "y": 0.2, "z": 0.35},
+            "target_pose": {
+                "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+                "orientation": {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0},
+            },
         },
     )
     assert chunks == ["Moved up 50 mm."]
+
+
+@pytest.mark.asyncio
+async def test_repairs_missing_cartesian_waypoints_from_current_pose_context():
+    tool = tool_call(
+        "moveit_plan_and_execute_cartesian_motion",
+        arguments={"robot_name": "UR10", "plan_name": "move_up_cartesian_50mm", "timeout_s": 10},
+    )
+    backend = ScriptedBackend(
+        [
+            CodexResponseResult(
+                tool_calls=[tool],
+                output_items=[output_item("moveit_plan_and_execute_cartesian_motion", arguments=tool.arguments)],
+            ),
+            CodexResponseResult(text="Moved up 50 mm."),
+        ]
+    )
+    bridge = BehaviorBridge()
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=Store(),
+        backend_client=backend,
+        tool_bridge=bridge,
+    )
+
+    chunks = await run_processor(processor, "move up a bit")
+
+    assert bridge.calls[1] == (
+        "moveit_plan_and_execute_cartesian_motion",
+        {
+            "robot_name": "UR10",
+            "plan_name": "move_up_cartesian_50mm",
+            "timeout_s": 10,
+            "waypoints": [
+                {
+                    "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+                    "orientation": {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0},
+                }
+            ],
+        },
+    )
+    assert chunks == ["Moved up 50 mm."]
+
+
+@pytest.mark.asyncio
+async def test_repairs_back_up_as_negative_x_not_positive_z():
+    tool = tool_call(
+        "moveit_plan_and_execute_free_motion",
+        arguments={"robot_name": "UR10", "plan_name": "back_up_50mm", "timeout_s": 10},
+    )
+    backend = ScriptedBackend(
+        [
+            CodexResponseResult(
+                tool_calls=[tool],
+                output_items=[output_item("moveit_plan_and_execute_free_motion", arguments=tool.arguments)],
+            ),
+            CodexResponseResult(text="Moved back 50 mm."),
+        ]
+    )
+    bridge = BehaviorBridge()
+    processor = OpenAICodexAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        model="gpt-5.4-mini",
+        credential_store=Store(),
+        backend_client=backend,
+        tool_bridge=bridge,
+    )
+
+    await run_processor(processor, "back up a bit")
+
+    assert bridge.calls[1][1]["target_pose"] == {
+        "position": {"x": 0.05, "y": 0.2, "z": 0.3},
+        "orientation": {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0},
+    }
 
 
 @pytest.mark.asyncio

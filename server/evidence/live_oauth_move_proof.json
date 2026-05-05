@@ -1,0 +1,485 @@
+{
+  "turns": [
+    {
+      "user": "move up a bit",
+      "reply": "Moved up 50 mm.",
+      "calls": [
+        {
+          "name": "moveit_get_current_pose",
+          "arguments": {
+            "robot_name": "UR10"
+          },
+          "output": {
+            "content": [
+              "{\n  \"ok\": true,\n  \"robot\": \"UR10\",\n  \"tool\": \"get_current_pose\",\n  \"feedback\": {\n    \"phase\": \"observed\",\n    \"status\": \"current pose observed\",\n    \"message\": \"Current MoveIt pose observed\",\n    \"can_execute\": false\n  },\n  \"verification\": {\n    \"result\": \"pass\",\n    \"checks\": [\n      {\n        \"name\": \"current_pose_observed\",\n        \"passed\": true,\n        \"details\": \"current pose observed\"\n      }\n    ]\n  },\n  \"evidence\": [\n    {\n      \"kind\": \"ros_service\",\n      \"summary\": \"Current MoveIt pose observed\",\n      \"path\": \"/UR10/get_current_pose\"\n    }\n  ],\n  \"raw\": {\n    \"planning_frame\": \"base_link\",\n    \"pose\": {\n      \"position\": {\n        \"x\": 0.5723987767710044,\n        \"y\": 0.39409953282753646,\n        \"z\": 0.6735975991182396\n      },\n      \"orientation\": {\n        \"x\": 3.459787166117382e-11,\n        \"y\": 2.4009489866907815e-11,\n        \"z\": 5.631717314713565e-12,\n        \"w\": 1.0\n      }\n    },\n    \"source\": \"/UR10/get_current_pose\"\n  }\n}"
+            ],
+            "structured_content": {
+              "ok": true,
+              "robot": "UR10",
+              "tool": "get_current_pose",
+              "feedback": {
+                "phase": "observed",
+                "status": "current pose observed",
+                "message": "Current MoveIt pose observed",
+                "can_execute": false
+              },
+              "verification": {
+                "result": "pass",
+                "checks": [
+                  {
+                    "name": "current_pose_observed",
+                    "passed": true,
+                    "details": "current pose observed"
+                  }
+                ]
+              },
+              "evidence": [
+                {
+                  "kind": "ros_service",
+                  "summary": "Current MoveIt pose observed",
+                  "path": "/UR10/get_current_pose"
+                }
+              ],
+              "raw": {
+                "planning_frame": "base_link",
+                "pose": {
+                  "position": {
+                    "x": 0.5723987767710044,
+                    "y": 0.39409953282753646,
+                    "z": 0.6735975991182396
+                  },
+                  "orientation": {
+                    "x": 3.459787166117382e-11,
+                    "y": 2.4009489866907815e-11,
+                    "z": 5.631717314713565e-12,
+                    "w": 1.0
+                  }
+                },
+                "source": "/UR10/get_current_pose"
+              }
+            },
+            "is_error": false
+          }
+        },
+        {
+          "name": "moveit_get_current_pose",
+          "arguments": {
+            "robot_name": "UR10",
+            "timeout_s": 2
+          },
+          "output": {
+            "content": [
+              "{\n  \"ok\": true,\n  \"robot\": \"UR10\",\n  \"tool\": \"get_current_pose\",\n  \"feedback\": {\n    \"phase\": \"observed\",\n    \"status\": \"current pose observed\",\n    \"message\": \"Current MoveIt pose observed\",\n    \"can_execute\": false\n  },\n  \"verification\": {\n    \"result\": \"pass\",\n    \"checks\": [\n      {\n        \"name\": \"current_pose_observed\",\n        \"passed\": true,\n        \"details\": \"current pose observed\"\n      }\n    ]\n  },\n  \"evidence\": [\n    {\n      \"kind\": \"ros_service\",\n      \"summary\": \"Current MoveIt pose observed\",\n      \"path\": \"/UR10/get_current_pose\"\n    }\n  ],\n  \"raw\": {\n    \"planning_frame\": \"base_link\",\n    \"pose\": {\n      \"position\": {\n        \"x\": 0.5723987767710044,\n        \"y\": 0.39409953282753646,\n        \"z\": 0.6735975991182396\n      },\n      \"orientation\": {\n        \"x\": 3.459787166117382e-11,\n        \"y\": 2.4009489866907815e-11,\n        \"z\": 5.631717314713565e-12,\n        \"w\": 1.0\n      }\n    },\n    \"source\": \"/UR10/get_current_pose\"\n  }\n}"
+            ],
+            "structured_content": {
+              "ok": true,
+              "robot": "UR10",
+              "tool": "get_current_pose",
+              "feedback": {
+                "phase": "observed",
+                "status": "current pose observed",
+                "message": "Current MoveIt pose observed",
+                "can_execute": false
+              },
+              "verification": {
+                "result": "pass",
+                "checks": [
+                  {
+                    "name": "current_pose_observed",
+                    "passed": true,
+                    "details": "current pose observed"
+                  }
+                ]
+              },
+              "evidence": [
+                {
+                  "kind": "ros_service",
+                  "summary": "Current MoveIt pose observed",
+                  "path": "/UR10/get_current_pose"
+                }
+              ],
+              "raw": {
+                "planning_frame": "base_link",
+                "pose": {
+                  "position": {
+                    "x": 0.5723987767710044,
+                    "y": 0.39409953282753646,
+                    "z": 0.6735975991182396
+                  },
+                  "orientation": {
+                    "x": 3.459787166117382e-11,
+                    "y": 2.4009489866907815e-11,
+                    "z": 5.631717314713565e-12,
+                    "w": 1.0
+                  }
+                },
+                "source": "/UR10/get_current_pose"
+              }
+            },
+            "is_error": false
+          }
+        },
+        {
+          "name": "moveit_plan_and_execute_free_motion",
+          "arguments": {
+            "robot_name": "UR10",
+            "plan_name": null,
+            "timeout_s": 10,
+            "target_pose": {
+              "position": {
+                "x": 0.5724,
+                "y": 0.3941,
+                "z": 0.7236
+              },
+              "orientation": {
+                "x": 3.459787166117382e-11,
+                "y": 2.4009489866907815e-11,
+                "z": 5.631717314713565e-12,
+                "w": 1.0
+              }
+            }
+          },
+          "output": {
+            "content": [
+              "{\n  \"ok\": true,\n  \"robot\": \"UR10\",\n  \"tool\": \"moveit_plan_and_execute_free_motion\",\n  \"feedback\": {\n    \"phase\": \"executed\",\n    \"status\": \"final joint state matched\",\n    \"message\": \"Execute command published and fake controller joint state matched the planned final positions\",\n    \"can_execute\": false\n  },\n  \"verification\": {\n    \"result\": \"pass\",\n    \"checks\": [\n      {\n        \"name\": \"plan_previously_verified\",\n        \"passed\": true,\n        \"details\": \"plan_free_motion_20260505T101912655923Z_fd6eeb09\"\n      },\n      {\n        \"name\": \"planned_can_execute\",\n        \"passed\": true,\n        \"details\": \"success! \"\n      },\n      {\n        \"name\": \"physical_mode_safe\",\n        \"passed\": true,\n        \"details\": \"False\"\n      },\n      {\n        \"name\": \"execute_command_published\",\n        \"passed\": true,\n        \"details\": \"True\"\n      },\n      {\n        \"name\": \"fake_controller_state_observed\",\n        \"passed\": true,\n        \"details\": \"[0.36482142349384694, -1.1467686320966832, 1.4883417252212507, 1.2292232334853963, -1.5707963270817742, 1.2059749031072093]\"\n      },\n      {\n        \"name\": \"final_joint_positions_match\",\n        \"passed\": true,\n        \"details\": \"expected=[0.36482142349384694, -1.1467686320966832, 1.4883417252212507, 1.2292232334853963, -1.5707963270817742, 1.2059749031072093], observed=[0.36482142349384694, -1.1467686320966832, 1.4883417252212507, 1.2292232334853963, -1.5707963270817742, 1.2059749031072093], tolerance=0.001\"\n      }\n    ]\n  },\n  \"evidence\": [\n    {\n      \"kind\": \"ros_topic\",\n      \"summary\": \"success! \",\n      \"topic\": \"/UR10/request/status\"\n    },\n    {\n      \"kind\": \"ros_topic\",\n      \"summary\": \"plan plan_free_motion_20260505T101912655923Z_fd6eeb09: 19 trajectory points\",\n      \"topic\": \"/UR10/request/planned_path\"\n    },\n    {\n      \"kind\": \"mcp_state\",\n      \"summary\": \"actual plan name: plan_free_motion_20260505T101912655923Z_fd6eeb09\"\n    },\n    {\n      \"kind\": \"ros_param\",\n      \"summary\": \"false\",\n      \"path\": \"/vizor_robot_control/physical\"\n    },\n    {\n      \"kind\": \"ros_topic\",\n      \"summary\": \"[0.36482142349384694, -1.1467686320966832, 1.4883417252212507, 1.2292232334853963, -1.5707963270817742, 1.2059749031072093]\",\n      \"topic\": \"/UR10/move_group/fake_controller_joint_states\"\n    }\n  ],\n  \"plan\": {\n    \"ok\": true,\n    \"plan_name\": \"plan_free_motion_20260505T101912655923Z_fd6eeb09\",\n    \"trajectory_points\": 19,\n    \"can_execute\": true,\n    \"status\": \"success! \"\n  },\n  \"execution\": {\n    \"ok\": true,\n    \"status\": \"final joint state matched\",\n    \"verification_result\": \"pass\"\n  },\n  \"raw\": {\n    \"plan_name\": \"plan_free_motion_20260505T101912655923Z_fd6eeb09\"\n  }\n}"
+            ],
+            "structured_content": {
+              "ok": true,
+              "robot": "UR10",
+              "tool": "moveit_plan_and_execute_free_motion",
+              "feedback": {
+                "phase": "executed",
+                "status": "final joint state matched",
+                "message": "Execute command published and fake controller joint state matched the planned final positions",
+                "can_execute": false
+              },
+              "verification": {
+                "result": "pass",
+                "checks": [
+                  {
+                    "name": "plan_previously_verified",
+                    "passed": true,
+                    "details": "plan_free_motion_20260505T101912655923Z_fd6eeb09"
+                  },
+                  {
+                    "name": "planned_can_execute",
+                    "passed": true,
+                    "details": "success! "
+                  },
+                  {
+                    "name": "physical_mode_safe",
+                    "passed": true,
+                    "details": "False"
+                  },
+                  {
+                    "name": "execute_command_published",
+                    "passed": true,
+                    "details": "True"
+                  },
+                  {
+                    "name": "fake_controller_state_observed",
+                    "passed": true,
+                    "details": "[0.36482142349384694, -1.1467686320966832, 1.4883417252212507, 1.2292232334853963, -1.5707963270817742, 1.2059749031072093]"
+                  },
+                  {
+                    "name": "final_joint_positions_match",
+                    "passed": true,
+                    "details": "expected=[0.36482142349384694, -1.1467686320966832, 1.4883417252212507, 1.2292232334853963, -1.5707963270817742, 1.2059749031072093], observed=[0.36482142349384694, -1.1467686320966832, 1.4883417252212507, 1.2292232334853963, -1.5707963270817742, 1.2059749031072093], tolerance=0.001"
+                  }
+                ]
+              },
+              "evidence": [
+                {
+                  "kind": "ros_topic",
+                  "summary": "success! ",
+                  "topic": "/UR10/request/status"
+                },
+                {
+                  "kind": "ros_topic",
+                  "summary": "plan plan_free_motion_20260505T101912655923Z_fd6eeb09: 19 trajectory points",
+                  "topic": "/UR10/request/planned_path"
+                },
+                {
+                  "kind": "mcp_state",
+                  "summary": "actual plan name: plan_free_motion_20260505T101912655923Z_fd6eeb09"
+                },
+                {
+                  "kind": "ros_param",
+                  "summary": "false",
+                  "path": "/vizor_robot_control/physical"
+                },
+                {
+                  "kind": "ros_topic",
+                  "summary": "[0.36482142349384694, -1.1467686320966832, 1.4883417252212507, 1.2292232334853963, -1.5707963270817742, 1.2059749031072093]",
+                  "topic": "/UR10/move_group/fake_controller_joint_states"
+                }
+              ],
+              "plan": {
+                "ok": true,
+                "plan_name": "plan_free_motion_20260505T101912655923Z_fd6eeb09",
+                "trajectory_points": 19,
+                "can_execute": true,
+                "status": "success! "
+              },
+              "execution": {
+                "ok": true,
+                "status": "final joint state matched",
+                "verification_result": "pass"
+              },
+              "raw": {
+                "plan_name": "plan_free_motion_20260505T101912655923Z_fd6eeb09"
+              }
+            },
+            "is_error": false
+          }
+        }
+      ]
+    },
+    {
+      "user": "move down a bit",
+      "reply": "Moved down 50 mm.",
+      "calls": [
+        {
+          "name": "moveit_get_current_pose",
+          "arguments": {
+            "robot_name": "UR10"
+          },
+          "output": {
+            "content": [
+              "{\n  \"ok\": true,\n  \"robot\": \"UR10\",\n  \"tool\": \"get_current_pose\",\n  \"feedback\": {\n    \"phase\": \"observed\",\n    \"status\": \"current pose observed\",\n    \"message\": \"Current MoveIt pose observed\",\n    \"can_execute\": false\n  },\n  \"verification\": {\n    \"result\": \"pass\",\n    \"checks\": [\n      {\n        \"name\": \"current_pose_observed\",\n        \"passed\": true,\n        \"details\": \"current pose observed\"\n      }\n    ]\n  },\n  \"evidence\": [\n    {\n      \"kind\": \"ros_service\",\n      \"summary\": \"Current MoveIt pose observed\",\n      \"path\": \"/UR10/get_current_pose\"\n    }\n  ],\n  \"raw\": {\n    \"planning_frame\": \"base_link\",\n    \"pose\": {\n      \"position\": {\n        \"x\": 0.5723988675226039,\n        \"y\": 0.3940995674871534,\n        \"z\": 0.7235976221206691\n      },\n      \"orientation\": {\n        \"x\": 3.4597947955295974e-11,\n        \"y\": 2.400928809241283e-11,\n        \"z\": 5.631689559137949e-12,\n        \"w\": 1.0\n      }\n    },\n    \"source\": \"/UR10/get_current_pose\"\n  }\n}"
+            ],
+            "structured_content": {
+              "ok": true,
+              "robot": "UR10",
+              "tool": "get_current_pose",
+              "feedback": {
+                "phase": "observed",
+                "status": "current pose observed",
+                "message": "Current MoveIt pose observed",
+                "can_execute": false
+              },
+              "verification": {
+                "result": "pass",
+                "checks": [
+                  {
+                    "name": "current_pose_observed",
+                    "passed": true,
+                    "details": "current pose observed"
+                  }
+                ]
+              },
+              "evidence": [
+                {
+                  "kind": "ros_service",
+                  "summary": "Current MoveIt pose observed",
+                  "path": "/UR10/get_current_pose"
+                }
+              ],
+              "raw": {
+                "planning_frame": "base_link",
+                "pose": {
+                  "position": {
+                    "x": 0.5723988675226039,
+                    "y": 0.3940995674871534,
+                    "z": 0.7235976221206691
+                  },
+                  "orientation": {
+                    "x": 3.4597947955295974e-11,
+                    "y": 2.400928809241283e-11,
+                    "z": 5.631689559137949e-12,
+                    "w": 1.0
+                  }
+                },
+                "source": "/UR10/get_current_pose"
+              }
+            },
+            "is_error": false
+          }
+        },
+        {
+          "name": "moveit_get_current_pose",
+          "arguments": {
+            "robot_name": "UR10",
+            "timeout_s": 2
+          },
+          "output": {
+            "content": [
+              "{\n  \"ok\": true,\n  \"robot\": \"UR10\",\n  \"tool\": \"get_current_pose\",\n  \"feedback\": {\n    \"phase\": \"observed\",\n    \"status\": \"current pose observed\",\n    \"message\": \"Current MoveIt pose observed\",\n    \"can_execute\": false\n  },\n  \"verification\": {\n    \"result\": \"pass\",\n    \"checks\": [\n      {\n        \"name\": \"current_pose_observed\",\n        \"passed\": true,\n        \"details\": \"current pose observed\"\n      }\n    ]\n  },\n  \"evidence\": [\n    {\n      \"kind\": \"ros_service\",\n      \"summary\": \"Current MoveIt pose observed\",\n      \"path\": \"/UR10/get_current_pose\"\n    }\n  ],\n  \"raw\": {\n    \"planning_frame\": \"base_link\",\n    \"pose\": {\n      \"position\": {\n        \"x\": 0.5723988675226039,\n        \"y\": 0.3940995674871534,\n        \"z\": 0.7235976221206691\n      },\n      \"orientation\": {\n        \"x\": 3.4597947955295974e-11,\n        \"y\": 2.400928809241283e-11,\n        \"z\": 5.631689559137949e-12,\n        \"w\": 1.0\n      }\n    },\n    \"source\": \"/UR10/get_current_pose\"\n  }\n}"
+            ],
+            "structured_content": {
+              "ok": true,
+              "robot": "UR10",
+              "tool": "get_current_pose",
+              "feedback": {
+                "phase": "observed",
+                "status": "current pose observed",
+                "message": "Current MoveIt pose observed",
+                "can_execute": false
+              },
+              "verification": {
+                "result": "pass",
+                "checks": [
+                  {
+                    "name": "current_pose_observed",
+                    "passed": true,
+                    "details": "current pose observed"
+                  }
+                ]
+              },
+              "evidence": [
+                {
+                  "kind": "ros_service",
+                  "summary": "Current MoveIt pose observed",
+                  "path": "/UR10/get_current_pose"
+                }
+              ],
+              "raw": {
+                "planning_frame": "base_link",
+                "pose": {
+                  "position": {
+                    "x": 0.5723988675226039,
+                    "y": 0.3940995674871534,
+                    "z": 0.7235976221206691
+                  },
+                  "orientation": {
+                    "x": 3.4597947955295974e-11,
+                    "y": 2.400928809241283e-11,
+                    "z": 5.631689559137949e-12,
+                    "w": 1.0
+                  }
+                },
+                "source": "/UR10/get_current_pose"
+              }
+            },
+            "is_error": false
+          }
+        },
+        {
+          "name": "moveit_plan_and_execute_free_motion",
+          "arguments": {
+            "robot_name": "UR10",
+            "plan_name": "down_50mm",
+            "timeout_s": 10,
+            "target_pose": {
+              "position": {
+                "x": 0.5724,
+                "y": 0.3941,
+                "z": 0.6736
+              },
+              "orientation": {
+                "x": 3.4597947955295974e-11,
+                "y": 2.400928809241283e-11,
+                "z": 5.631689559137949e-12,
+                "w": 1.0
+              }
+            }
+          },
+          "output": {
+            "content": [
+              "{\n  \"ok\": true,\n  \"robot\": \"UR10\",\n  \"tool\": \"moveit_plan_and_execute_free_motion\",\n  \"feedback\": {\n    \"phase\": \"executed\",\n    \"status\": \"final joint state matched\",\n    \"message\": \"Execute command published and fake controller joint state matched the planned final positions\",\n    \"can_execute\": false\n  },\n  \"verification\": {\n    \"result\": \"pass\",\n    \"checks\": [\n      {\n        \"name\": \"plan_previously_verified\",\n        \"passed\": true,\n        \"details\": \"down_50mm\"\n      },\n      {\n        \"name\": \"planned_can_execute\",\n        \"passed\": true,\n        \"details\": \"success! \"\n      },\n      {\n        \"name\": \"physical_mode_safe\",\n        \"passed\": true,\n        \"details\": \"False\"\n      },\n      {\n        \"name\": \"execute_command_published\",\n        \"passed\": true,\n        \"details\": \"True\"\n      },\n      {\n        \"name\": \"fake_controller_state_observed\",\n        \"passed\": true,\n        \"details\": \"[0.36482142350903213, -1.1163223001510598, 1.5371227860944088, 1.1499958406666149, -1.5707963270817742, 1.2059749030920242]\"\n      },\n      {\n        \"name\": \"final_joint_positions_match\",\n        \"passed\": true,\n        \"details\": \"expected=[0.36482142350903213, -1.1163223001510598, 1.5371227860944088, 1.1499958406666149, -1.5707963270817742, 1.2059749030920242], observed=[0.36482142350903213, -1.1163223001510598, 1.5371227860944088, 1.1499958406666149, -1.5707963270817742, 1.2059749030920242], tolerance=0.001\"\n      }\n    ]\n  },\n  \"evidence\": [\n    {\n      \"kind\": \"ros_topic\",\n      \"summary\": \"success! \",\n      \"topic\": \"/UR10/request/status\"\n    },\n    {\n      \"kind\": \"ros_topic\",\n      \"summary\": \"plan down_50mm: 19 trajectory points\",\n      \"topic\": \"/UR10/request/planned_path\"\n    },\n    {\n      \"kind\": \"mcp_state\",\n      \"summary\": \"actual plan name: down_50mm\"\n    },\n    {\n      \"kind\": \"ros_param\",\n      \"summary\": \"false\",\n      \"path\": \"/vizor_robot_control/physical\"\n    },\n    {\n      \"kind\": \"ros_topic\",\n      \"summary\": \"[0.36482142350903213, -1.1163223001510598, 1.5371227860944088, 1.1499958406666149, -1.5707963270817742, 1.2059749030920242]\",\n      \"topic\": \"/UR10/move_group/fake_controller_joint_states\"\n    }\n  ],\n  \"plan\": {\n    \"ok\": true,\n    \"plan_name\": \"down_50mm\",\n    \"trajectory_points\": 19,\n    \"can_execute\": true,\n    \"status\": \"success! \"\n  },\n  \"execution\": {\n    \"ok\": true,\n    \"status\": \"final joint state matched\",\n    \"verification_result\": \"pass\"\n  },\n  \"raw\": {\n    \"plan_name\": \"down_50mm\"\n  }\n}"
+            ],
+            "structured_content": {
+              "ok": true,
+              "robot": "UR10",
+              "tool": "moveit_plan_and_execute_free_motion",
+              "feedback": {
+                "phase": "executed",
+                "status": "final joint state matched",
+                "message": "Execute command published and fake controller joint state matched the planned final positions",
+                "can_execute": false
+              },
+              "verification": {
+                "result": "pass",
+                "checks": [
+                  {
+                    "name": "plan_previously_verified",
+                    "passed": true,
+                    "details": "down_50mm"
+                  },
+                  {
+                    "name": "planned_can_execute",
+                    "passed": true,
+                    "details": "success! "
+                  },
+                  {
+                    "name": "physical_mode_safe",
+                    "passed": true,
+                    "details": "False"
+                  },
+                  {
+                    "name": "execute_command_published",
+                    "passed": true,
+                    "details": "True"
+                  },
+                  {
+                    "name": "fake_controller_state_observed",
+                    "passed": true,
+                    "details": "[0.36482142350903213, -1.1163223001510598, 1.5371227860944088, 1.1499958406666149, -1.5707963270817742, 1.2059749030920242]"
+                  },
+                  {
+                    "name": "final_joint_positions_match",
+                    "passed": true,
+                    "details": "expected=[0.36482142350903213, -1.1163223001510598, 1.5371227860944088, 1.1499958406666149, -1.5707963270817742, 1.2059749030920242], observed=[0.36482142350903213, -1.1163223001510598, 1.5371227860944088, 1.1499958406666149, -1.5707963270817742, 1.2059749030920242], tolerance=0.001"
+                  }
+                ]
+              },
+              "evidence": [
+                {
+                  "kind": "ros_topic",
+                  "summary": "success! ",
+                  "topic": "/UR10/request/status"
+                },
+                {
+                  "kind": "ros_topic",
+                  "summary": "plan down_50mm: 19 trajectory points",
+                  "topic": "/UR10/request/planned_path"
+                },
+                {
+                  "kind": "mcp_state",
+                  "summary": "actual plan name: down_50mm"
+                },
+                {
+                  "kind": "ros_param",
+                  "summary": "false",
+                  "path": "/vizor_robot_control/physical"
+                },
+                {
+                  "kind": "ros_topic",
+                  "summary": "[0.36482142350903213, -1.1163223001510598, 1.5371227860944088, 1.1499958406666149, -1.5707963270817742, 1.2059749030920242]",
+                  "topic": "/UR10/move_group/fake_controller_joint_states"
+                }
+              ],
+              "plan": {
+                "ok": true,
+                "plan_name": "down_50mm",
+                "trajectory_points": 19,
+                "can_execute": true,
+                "status": "success! "
+              },
+              "execution": {
+                "ok": true,
+                "status": "final joint state matched",
+                "verification_result": "pass"
+              },
+              "raw": {
+                "plan_name": "down_50mm"
+              }
+            },
+            "is_error": false
+          }
+        }
+      ]
+    }
+  ],
+  "tools": [
+    "moveit_get_current_pose",
+    "moveit_plan_free_motion",
+    "moveit_plan_cartesian_motion",
+    "moveit_plan_and_execute_free_motion",
+    "moveit_plan_and_execute_cartesian_motion",
+    "moveit_execute_plan",
+    "moveit_open_gripper",
+    "moveit_close_gripper",
+    "moveit_attach_object"
+  ]
+}
