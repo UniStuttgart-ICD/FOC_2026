@@ -14,6 +14,9 @@ from pipecat.services.whisper.stt import WhisperSTTService
 from config import STTConfig, TTSConfig
 
 
+DEFAULT_CARTESIA_VOICE_ID = "47c38ca4-5f35-497b-b1a3-415245fb35e1"
+
+
 def create_stt_service(config: STTConfig) -> FrameProcessor:
     if config.provider == "whisper":
         return WhisperSTTService(
@@ -50,7 +53,7 @@ def create_tts_service(config: TTSConfig) -> FrameProcessor:
             api_key=os.environ["CARTESIA_API_KEY"],
             settings=CartesiaTTSService.Settings(
                 model=config.model or "sonic-3",
-                voice=config.voice or os.getenv("CARTESIA_VOICE_ID") or "af_heart",
+                voice=config.voice or os.getenv("CARTESIA_VOICE_ID") or DEFAULT_CARTESIA_VOICE_ID,
             ),
         )
     if config.provider == "openai":

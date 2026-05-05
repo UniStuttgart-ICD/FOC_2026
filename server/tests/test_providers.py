@@ -52,6 +52,19 @@ def test_creates_cartesia_tts(monkeypatch):
     service.assert_called_once_with(api_key="ct", settings="settings")
 
 
+def test_creates_cartesia_tts_with_default_voice_id(monkeypatch):
+    monkeypatch.setenv("CARTESIA_API_KEY", "ct")
+    monkeypatch.delenv("CARTESIA_VOICE_ID", raising=False)
+    with patch("providers.CartesiaTTSService") as service:
+        service.Settings = Mock(return_value="settings")
+        create_tts_service(TTSConfig(provider="cartesia", model="sonic-3"))
+
+    service.Settings.assert_called_once_with(
+        model="sonic-3", voice="47c38ca4-5f35-497b-b1a3-415245fb35e1"
+    )
+    service.assert_called_once_with(api_key="ct", settings="settings")
+
+
 def test_creates_openai_tts(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "oa")
     with patch("providers.OpenAITTSService") as service:

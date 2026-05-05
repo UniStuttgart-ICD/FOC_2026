@@ -22,7 +22,7 @@ model = "flux-general-en"
 [profiles.hybrid_low_latency.tts]
 provider = "cartesia"
 model = "sonic-3"
-voice = "af_heart"
+voice = "47c38ca4-5f35-497b-b1a3-415245fb35e1"
 
 [profiles.hybrid_low_latency.agent]
 provider = "openai_codex_oauth"

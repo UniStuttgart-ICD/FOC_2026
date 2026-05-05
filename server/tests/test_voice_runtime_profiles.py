@@ -428,3 +428,4 @@ def test_default_profile_path_and_name_load_current_app_profile():
     assert profile.name == "hybrid_low_latency"
     assert profile.wake.model_path is not None
     assert profile.wake.model_path.name == "mave.onnx"
+    assert profile.tts.voice == "47c38ca4-5f35-497b-b1a3-415245fb35e1"
