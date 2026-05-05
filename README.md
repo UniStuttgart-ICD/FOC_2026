@@ -2,6 +2,8 @@
 
 A Pipecat AI voice agent built with a cascade pipeline (STT → LLM → TTS).
 
+See [Voice Runtime Architecture](docs/architecture.md) for the reusable Module boundaries.
+
 ## Runtime profiles
 
 Default profile:
@@ -69,6 +71,10 @@ Mave, move up a bit.
 ```
 
 Local debug profiles are local STT/TTS debug profiles, not fully offline profiles. Benchmark profiles use streaming STT/TTS providers.
+
+### Robot Safety coverage
+
+Codex through `RobotMCPBridge` is locally enforced. Direct Claude MCP is prompt-only unless a safe MCP proxy Adapter is added.
 
 ## Setup
 
