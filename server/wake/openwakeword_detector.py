@@ -70,12 +70,16 @@ def _ensure_openwakeword_resources(inference_framework: str = "onnx") -> None:
 class OpenWakeWordDetector:
     """Small wrapper around OpenWakeWord for one or more ONNX wake models."""
 
-    def __init__(self, model_path: Path, *, threshold: float = 0.5):
+    def __init__(self, model_path: Path, *, threshold: float = 0.5, vad_threshold: float = 0.0):
         if not model_path.exists():
             raise FileNotFoundError(f"Wake model not found: {model_path}")
         _ensure_openwakeword_resources("onnx")
         self._threshold = threshold
-        self._model = Model(wakeword_models=[str(model_path)], inference_framework="onnx")
+        self._model = Model(
+            wakeword_models=[str(model_path)],
+            inference_framework="onnx",
+            vad_threshold=vad_threshold,
+        )
 
     def predict(self, pcm16: np.ndarray) -> dict[str, float]:
         if pcm16.dtype != np.int16:

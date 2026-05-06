@@ -46,16 +46,23 @@ class MaveVoiceCommandAudioGate(FrameProcessor):
         rearm_delay_s: float = 0.75,
         max_awake_s: float = 8.0,
         candidate_log_threshold: float = 0.3,
+        required_hits: int = 1,
+        wake_threshold: float | None = None,
         time_fn: Callable[[], float] = time.monotonic,
         wake_phrase: str = "mave",
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
+        if required_hits < 1:
+            raise ValueError("required_hits must be at least 1")
         self._detector = detector
         self._pre_buffer_s = pre_buffer_s
         self._rearm_delay_s = rearm_delay_s
         self._max_awake_s = max_awake_s
         self._candidate_log_threshold = candidate_log_threshold
+        self._required_hits = required_hits
+        self._consecutive_hits = 0
+        self._wake_threshold = wake_threshold
         self._time_fn = time_fn
         self._wake_phrase = wake_phrase
         self._ring: deque[InputAudioRawFrame] = deque()
@@ -95,13 +102,50 @@ class MaveVoiceCommandAudioGate(FrameProcessor):
         self._append_ring(frame)
         pcm16 = self._to_mono_int16(frame)
         detected, model_name, score = self._detector.detected(pcm16)
-        if model_name is not None and score >= self._candidate_log_threshold:
-            logger.debug(f"Wake candidate: {model_name}={score:.3f}")
+        rms, peak = _audio_levels(pcm16)
         if not detected:
+            self._consecutive_hits = 0
+            if model_name is not None and score >= self._candidate_log_threshold:
+                logger.debug(
+                    self._diagnostic_message(
+                        "Wake candidate",
+                        model_name=model_name,
+                        score=score,
+                        rms=rms,
+                        peak=peak,
+                        gate_open=False,
+                    )
+                )
+            return
+
+        self._consecutive_hits += 1
+        gate_open = self._consecutive_hits >= self._required_hits
+        if gate_open:
+            log_message = self._diagnostic_message(
+                "Wake word detected",
+                model_name=model_name,
+                score=score,
+                rms=rms,
+                peak=peak,
+                gate_open=True,
+            )
+            logger.info(log_message)
+        elif model_name is not None and score >= self._candidate_log_threshold:
+            logger.debug(
+                self._diagnostic_message(
+                    "Wake candidate",
+                    model_name=model_name,
+                    score=score,
+                    rms=rms,
+                    peak=peak,
+                    gate_open=False,
+                )
+            )
+
+        if self._consecutive_hits < self._required_hits:
             return
 
         event_wake_phrase = model_name or self._wake_phrase
-        logger.info(f"Wake word detected: {event_wake_phrase}={score:.3f}")
         self._awake = True
         self._wake_started_at = now
         buffered = list(self._ring)
@@ -139,6 +183,25 @@ class MaveVoiceCommandAudioGate(FrameProcessor):
         self._ring.clear()
         self._ring_samples = 0
         self._rearm_until = now + self._rearm_delay_s
+        self._consecutive_hits = 0
+
+    def _diagnostic_message(
+        self,
+        prefix: str,
+        *,
+        model_name: str | None,
+        score: float,
+        rms: float,
+        peak: int,
+        gate_open: bool,
+    ) -> str:
+        threshold = "n/a" if self._wake_threshold is None else f"{self._wake_threshold:.3f}"
+        model = model_name or self._wake_phrase
+        return (
+            f"{prefix}: model={model} score={score:.3f} threshold={threshold} "
+            f"hits={self._consecutive_hits}/{self._required_hits} rms={rms:.1f} "
+            f"peak={peak} gate_open={str(gate_open).lower()}"
+        )
 
     @staticmethod
     def _to_mono_int16(frame: InputAudioRawFrame) -> NDArray[np.int16]:
@@ -147,6 +210,15 @@ class MaveVoiceCommandAudioGate(FrameProcessor):
             return pcm
         mono = pcm.reshape(-1, frame.num_channels).mean(axis=1).astype(np.int16)
         return np.asarray(mono, dtype=np.int16)
+
+
+def _audio_levels(pcm16: NDArray[np.int16]) -> tuple[float, int]:
+    if pcm16.size == 0:
+        return 0.0, 0
+    samples = pcm16.astype(np.float64)
+    rms = float(np.sqrt(np.mean(samples * samples)))
+    peak = int(np.max(np.abs(pcm16.astype(np.int32))))
+    return rms, peak
 
 
 class MaveVoiceCommandTranscriptAdapter(FrameProcessor):
@@ -207,6 +279,8 @@ def build_mave_voice_command_processors(
     max_awake_s: float = 8.0,
     single_command: bool = True,
     candidate_log_threshold: float = 0.3,
+    required_hits: int = 1,
+    wake_threshold: float | None = None,
     time_fn: Callable[[], float] = time.monotonic,
 ) -> MaveVoiceCommandProcessors:
     audio_gate = MaveVoiceCommandAudioGate(
@@ -215,6 +289,8 @@ def build_mave_voice_command_processors(
         rearm_delay_s=rearm_delay_s,
         max_awake_s=max_awake_s,
         candidate_log_threshold=candidate_log_threshold,
+        required_hits=required_hits,
+        wake_threshold=wake_threshold,
         time_fn=time_fn,
     )
     transcript_adapter = MaveVoiceCommandTranscriptAdapter(

@@ -46,6 +46,8 @@ def _config(tmp_path: Path, *, metrics_enabled: bool, wake_enabled: bool = False
         wake=WakeConfig(
             provider="openwakeword" if wake_enabled else "none",
             model_path=tmp_path / "mave.onnx" if wake_enabled else None,
+            vad_threshold=0.3,
+            required_hits=2,
             pre_buffer_s=2.0,
             single_command=False,
             candidate_log_threshold=0.4,
@@ -112,9 +114,10 @@ def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tm
     _patch_pipeline_dependencies(monkeypatch)
     monkeypatch.setattr("pipeline_builder.create_stt_service", lambda config: stt)
 
-    def fake_detector(model_path, *, threshold):
+    def fake_detector(model_path, *, threshold, vad_threshold):
         seen_detector_kwargs["model_path"] = model_path
         seen_detector_kwargs["threshold"] = threshold
+        seen_detector_kwargs["vad_threshold"] = vad_threshold
         detector = Mock()
         detector.detected.return_value = (False, None, 0.0)
         return detector
@@ -130,7 +133,13 @@ def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tm
 
     assert isinstance(processors[stt_index - 1], MaveVoiceCommandAudioGate)
     assert isinstance(processors[stt_index + 1], MaveVoiceCommandTranscriptAdapter)
+    assert processors[stt_index - 1]._wake_threshold == 0.5
     assert processors[stt_index - 1]._pre_buffer_s == 2.0
     assert processors[stt_index - 1]._candidate_log_threshold == 0.4
+    assert processors[stt_index - 1]._required_hits == 2
     assert processors[stt_index + 1]._single_command is False
-    assert seen_detector_kwargs == {"model_path": tmp_path / "mave.onnx", "threshold": 0.5}
+    assert seen_detector_kwargs == {
+        "model_path": tmp_path / "mave.onnx",
+        "threshold": 0.5,
+        "vad_threshold": 0.3,
+    }

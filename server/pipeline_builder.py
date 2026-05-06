@@ -43,12 +43,18 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
     voice_command_transcript = None
     if config.wake.provider == "openwakeword":
         assert config.wake.model_path is not None
-        detector = OpenWakeWordDetector(config.wake.model_path, threshold=config.wake.threshold)
+        detector = OpenWakeWordDetector(
+            config.wake.model_path,
+            threshold=config.wake.threshold,
+            vad_threshold=config.wake.vad_threshold,
+        )
         voice_command_processors = build_mave_voice_command_processors(
             detector=detector,
             pre_buffer_s=config.wake.pre_buffer_s,
             single_command=config.wake.single_command,
             candidate_log_threshold=config.wake.candidate_log_threshold,
+            required_hits=config.wake.required_hits,
+            wake_threshold=config.wake.threshold,
         )
         voice_command_audio = voice_command_processors.audio_gate
         voice_command_transcript = voice_command_processors.transcript_adapter

@@ -1,9 +1,10 @@
+import asyncio
 import json
 from dataclasses import dataclass
 from typing import Any
 
 import pytest
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
 from robot_control.context import RobotContextStore
 from voice_runtime.agent_turn import AgentTurnInput
@@ -44,6 +45,38 @@ class FakeBoundChatModel:
     async def ainvoke(self, messages: list[BaseMessage]) -> AIMessage:
         self.requests.append(list(messages))
         return self.responses.pop(0)
+
+
+class RaisingChatModel:
+    def __init__(self, exc: BaseException):
+        self.exc = exc
+
+    def bind_tools(self, tools: list[dict[str, Any]], **kwargs: Any):
+        return RaisingBoundChatModel(self.exc)
+
+
+class RaisingBoundChatModel:
+    def __init__(self, exc: BaseException):
+        self.exc = exc
+
+    async def ainvoke(self, messages: list[BaseMessage]) -> AIMessage:
+        raise self.exc
+
+
+class CapturingLogger:
+    def __init__(self) -> None:
+        self.info_messages: list[str] = []
+        self.warning_messages: list[str] = []
+        self.exception_messages: list[str] = []
+
+    def info(self, message: str, *args: Any) -> None:
+        self.info_messages.append(message.format(*args))
+
+    def warning(self, message: str, *args: Any) -> None:
+        self.warning_messages.append(message.format(*args))
+
+    def exception(self, message: str, *args: Any) -> None:
+        self.exception_messages.append(message.format(*args))
 
 
 class FakeBridge:
@@ -154,6 +187,18 @@ def turn(text: str) -> AgentTurnInput:
     return AgentTurnInput(user_text=text, messages=[{"role": "user", "content": text}])
 
 
+def model_state() -> Any:
+    return {
+        "user_text": "hello",
+        "messages": [HumanMessage(content="hello")],
+        "tools": [],
+        "tool_turns": 0,
+        "observed_this_turn": False,
+        "final_text": "",
+        "error_text": None,
+    }
+
+
 def ai_text(text: str) -> AIMessage:
     return AIMessage(content=text)
 
@@ -190,6 +235,51 @@ async def test_graph_observes_current_pose_before_simple_model_response() -> Non
     assert "Last-known robot context" in str(first_request[0].content)
     assert "robot: UR10" in str(first_request[0].content)
     assert fixture.model.bound_tools == fixture.bridge.function_tools()
+
+
+@pytest.mark.asyncio
+async def test_model_request_logs_failure_before_reraising(monkeypatch: pytest.MonkeyPatch) -> None:
+    from langgraph_robot_agent import LangGraphRobotAgent
+
+    fake_logger = CapturingLogger()
+    monkeypatch.setattr("langgraph_robot_agent.logger", fake_logger)
+    graph = LangGraphRobotAgent(
+        model=RaisingChatModel(RuntimeError("boom")),
+        tool_bridge=FakeBridge(),
+        robot_context=RobotContextStore(),
+        thread_id="test-session",
+    )
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await graph._call_model(model_state())
+
+    assert any("Codex LangChain request start" in message for message in fake_logger.info_messages)
+    assert any(
+        "Codex LangChain request failed" in message and "boom" in message
+        for message in fake_logger.exception_messages
+    )
+
+
+@pytest.mark.asyncio
+async def test_model_request_logs_cancellation_before_reraising(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from langgraph_robot_agent import LangGraphRobotAgent
+
+    fake_logger = CapturingLogger()
+    monkeypatch.setattr("langgraph_robot_agent.logger", fake_logger)
+    graph = LangGraphRobotAgent(
+        model=RaisingChatModel(asyncio.CancelledError()),
+        tool_bridge=FakeBridge(),
+        robot_context=RobotContextStore(),
+        thread_id="test-session",
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        await graph._call_model(model_state())
+
+    assert any("Codex LangChain request start" in message for message in fake_logger.info_messages)
+    assert any("Codex LangChain request cancelled" in message for message in fake_logger.warning_messages)
 
 
 @pytest.mark.asyncio

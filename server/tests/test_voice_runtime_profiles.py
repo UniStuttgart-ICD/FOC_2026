@@ -25,7 +25,9 @@ category = "benchmark_streaming"
 provider = "openwakeword"
 model_path = "models/mave.onnx"
 threshold = 0.5
+vad_threshold = 0.3
 candidate_log_threshold = 0.3
+required_hits = 2
 pre_buffer_s = 1.5
 single_command = true
 [profiles.hybrid_low_latency.emergency_stop]
@@ -104,7 +106,9 @@ def test_loads_profile_without_constructing_adapters(tmp_path: Path):
     assert profile.wake.provider == "openwakeword"
     assert profile.wake.model_path == tmp_path / "models" / "mave.onnx"
     assert profile.wake.threshold == 0.5
+    assert profile.wake.vad_threshold == 0.3
     assert profile.wake.candidate_log_threshold == 0.3
+    assert profile.wake.required_hits == 2
     assert profile.wake.pre_buffer_s == 1.5
     assert profile.wake.single_command is True
     assert profile.emergency_stop.enabled is False
@@ -452,6 +456,70 @@ enabled = false
     )
 
     with pytest.raises(ProfileError, match="threshold must be a number"):
+        load_runtime_profile(profiles_path=profiles_path, server_dir=tmp_path, profile_name="bad")
+
+
+def test_wake_vad_threshold_rejects_boolean(tmp_path: Path):
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profile(
+        profiles_path,
+        """
+[profiles.bad]
+category = "local_debug"
+[profiles.bad.wake]
+provider = "none"
+vad_threshold = true
+[profiles.bad.emergency_stop]
+enabled = false
+[profiles.bad.stt]
+provider = "whisper"
+model = "base"
+[profiles.bad.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.bad.agent]
+provider = "openai_codex_oauth"
+model = "gpt-5.4-mini"
+[profiles.bad.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.bad.metrics]
+enabled = false
+""",
+    )
+
+    with pytest.raises(ProfileError, match="vad_threshold must be a number"):
+        load_runtime_profile(profiles_path=profiles_path, server_dir=tmp_path, profile_name="bad")
+
+
+def test_wake_required_hits_rejects_values_below_one(tmp_path: Path):
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profile(
+        profiles_path,
+        """
+[profiles.bad]
+category = "local_debug"
+[profiles.bad.wake]
+provider = "none"
+required_hits = 0
+[profiles.bad.emergency_stop]
+enabled = false
+[profiles.bad.stt]
+provider = "whisper"
+model = "base"
+[profiles.bad.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.bad.agent]
+provider = "openai_codex_oauth"
+model = "gpt-5.4-mini"
+[profiles.bad.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.bad.metrics]
+enabled = false
+""",
+    )
+
+    with pytest.raises(ProfileError, match="required_hits must be at least 1"):
         load_runtime_profile(profiles_path=profiles_path, server_dir=tmp_path, profile_name="bad")
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import operator
 import uuid
@@ -116,13 +117,34 @@ class LangGraphRobotAgent:
             len(state["messages"]),
             len(tools),
         )
-        message = await model.ainvoke([system, *state["messages"]])
-        logger.info(
-            "Codex LangChain request end elapsed_ms={} tool_calls={} text_len={}",
-            elapsed_ms_since(started),
-            [call.get("name") for call in getattr(message, "tool_calls", [])],
-            len(str(message.content or "")),
-        )
+        try:
+            message = await model.ainvoke([system, *state["messages"]])
+        except asyncio.CancelledError:
+            logger.warning(
+                "Codex LangChain request cancelled elapsed_ms={} tool_turns={} messages={} tools={}",
+                elapsed_ms_since(started),
+                state["tool_turns"],
+                len(state["messages"]),
+                len(tools),
+            )
+            raise
+        except Exception as exc:
+            logger.exception(
+                "Codex LangChain request failed elapsed_ms={} tool_turns={} messages={} tools={} error={}",
+                elapsed_ms_since(started),
+                state["tool_turns"],
+                len(state["messages"]),
+                len(tools),
+                exc,
+            )
+            raise
+        else:
+            logger.info(
+                "Codex LangChain request end elapsed_ms={} tool_calls={} text_len={}",
+                elapsed_ms_since(started),
+                [call.get("name") for call in getattr(message, "tool_calls", [])],
+                len(str(message.content or "")),
+            )
         return {"messages": [message], "tools": tools}
 
     def _route_after_model(self, state: RobotAgentState) -> Literal["execute_robot_tool", "final_response"]:

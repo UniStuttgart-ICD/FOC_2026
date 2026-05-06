@@ -93,6 +93,18 @@ def test_openwakeword_predict_normalizes_scores(monkeypatch, tmp_path):
     assert detector.predict(np.zeros(1600, dtype=np.int16)) == {"mave": 0.75}
 
 
+def test_openwakeword_passes_vad_threshold_to_model(monkeypatch, tmp_path):
+    model_path = tmp_path / "mave.onnx"
+    model_path.write_bytes(b"custom wake model")
+    model_factory = Mock(return_value=Mock())
+    monkeypatch.setattr("wake.openwakeword_detector._ensure_openwakeword_resources", Mock())
+    monkeypatch.setattr("wake.openwakeword_detector.Model", model_factory)
+
+    OpenWakeWordDetector(model_path, vad_threshold=0.3)
+
+    assert model_factory.call_args.kwargs["vad_threshold"] == 0.3
+
+
 @pytest.mark.asyncio
 async def test_blocks_audio_until_wake_detected():
     detector = Mock()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
@@ -20,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 NO_TEXT_RESPONSE = "I could not confirm that the action completed."
 ERROR_RESPONSE = "I encountered an error. Please try again."
+_WAKE_ONLY_TEXT = {"mave", "maeve", "may"}
+_WORD_PATTERN = re.compile(r"[a-z]+", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -49,7 +52,7 @@ def latest_user_text(frame: LLMContextFrame) -> str | None:
 
 def agent_turn_input(frame: LLMContextFrame) -> AgentTurnInput | None:
     user_text = latest_user_text(frame)
-    if not user_text:
+    if not user_text or not is_actionable_user_text(user_text):
         return None
 
     messages = frame.context.messages if frame.context else []
@@ -58,6 +61,18 @@ def agent_turn_input(frame: LLMContextFrame) -> AgentTurnInput | None:
         if isinstance(msg, Mapping):
             mapping_messages.append(cast(Mapping[str, Any], msg))
     return AgentTurnInput(user_text=user_text, messages=mapping_messages)
+
+
+def is_actionable_user_text(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return False
+
+    words = [word.lower() for word in _WORD_PATTERN.findall(stripped)]
+    if len(words) == 1 and words[0] in _WAKE_ONLY_TEXT:
+        return False
+
+    return True
 
 
 class AgentTurnProcessor(FrameProcessor):

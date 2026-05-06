@@ -37,7 +37,9 @@ class WakeProfile:
     provider: WakeProvider
     model_path: Path | None
     threshold: float = 0.5
+    vad_threshold: float = 0.0
     candidate_log_threshold: float = 0.3
+    required_hits: int = 1
     pre_buffer_s: float = 1.5
     single_command: bool = True
 
@@ -165,7 +167,9 @@ def _parse_wake(table: dict[str, Any], server_dir: Path) -> WakeProfile:
         provider=provider,
         model_path=_optional_path(table, "model_path", server_dir),
         threshold=_float(table, "threshold", 0.5),
+        vad_threshold=_float(table, "vad_threshold", 0.0),
         candidate_log_threshold=_float(table, "candidate_log_threshold", 0.3),
+        required_hits=_positive_int(table, "required_hits", 1),
         pre_buffer_s=_float(table, "pre_buffer_s", 1.5),
         single_command=_bool(table, "single_command", True),
     )
@@ -285,6 +289,15 @@ def _float(table: dict[str, Any], key: str, default: float) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ProfileError(f"{key} must be a number")
     return float(value)
+
+
+def _positive_int(table: dict[str, Any], key: str, default: int) -> int:
+    value = table.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ProfileError(f"{key} must be an integer")
+    if value < 1:
+        raise ProfileError(f"{key} must be at least 1")
+    return value
 
 
 def _path(table: dict[str, Any], key: str, server_dir: Path, default: str) -> Path:

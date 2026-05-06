@@ -26,6 +26,18 @@ class CapturingProcessor:
         self.pushed.append((frame, direction))
 
 
+class CapturingLogger:
+    def __init__(self) -> None:
+        self.debug_messages: list[str] = []
+        self.info_messages: list[str] = []
+
+    def debug(self, message: str) -> None:
+        self.debug_messages.append(message)
+
+    def info(self, message: str) -> None:
+        self.info_messages.append(message)
+
+
 def _audio(value: int, samples: int = 1600, channels: int = 1) -> InputAudioRawFrame:
     pcm = np.full(samples * channels, value, dtype=np.int16).tobytes()
     return InputAudioRawFrame(audio=pcm, sample_rate=16000, num_channels=channels)
@@ -91,6 +103,104 @@ async def test_audio_adapter_converts_multichannel_audio_to_mono_for_detection(
 
     pcm16 = detector.detected.call_args.args[0]
     np.testing.assert_array_equal(pcm16, np.array([200, 500], dtype=np.int16))
+
+
+@pytest.mark.asyncio
+async def test_required_hits_blocks_single_high_scoring_frame(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    detector = Mock()
+    detector.detected.return_value = (True, "mave", 0.91)
+    processors = build_mave_voice_command_processors(detector=detector, required_hits=2)
+    audio_capture, _ = _capture(monkeypatch, processors)
+
+    await processors.audio_gate.process_frame(_audio(1), FrameDirection.DOWNSTREAM)
+
+    assert processors.audio_gate.is_awake is False
+    assert not [frame for frame, _ in audio_capture.pushed if isinstance(frame, WakeDetectedFrame)]
+
+
+@pytest.mark.asyncio
+async def test_required_hits_opens_gate_after_consecutive_high_scoring_frames(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    detector = Mock()
+    detector.detected.return_value = (True, "mave", 0.91)
+    processors = build_mave_voice_command_processors(detector=detector, required_hits=2)
+    audio_capture, _ = _capture(monkeypatch, processors)
+
+    await processors.audio_gate.process_frame(_audio(1), FrameDirection.DOWNSTREAM)
+    await processors.audio_gate.process_frame(_audio(2), FrameDirection.DOWNSTREAM)
+
+    wake_events = [
+        frame for frame, _ in audio_capture.pushed if isinstance(frame, WakeDetectedFrame)
+    ]
+    pushed_audio = [
+        frame for frame, _ in audio_capture.pushed if isinstance(frame, InputAudioRawFrame)
+    ]
+    assert len(wake_events) == 1
+    assert [np.frombuffer(frame.audio, dtype=np.int16)[0] for frame in pushed_audio] == [1, 2]
+    assert processors.audio_gate.is_awake is True
+
+
+@pytest.mark.asyncio
+async def test_required_hits_resets_after_intervening_low_frame(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    detector = Mock()
+    detector.detected.side_effect = [
+        (True, "mave", 0.91),
+        (False, "mave", 0.20),
+        (True, "mave", 0.92),
+    ]
+    processors = build_mave_voice_command_processors(detector=detector, required_hits=2)
+    audio_capture, _ = _capture(monkeypatch, processors)
+
+    await processors.audio_gate.process_frame(_audio(1), FrameDirection.DOWNSTREAM)
+    await processors.audio_gate.process_frame(_audio(2), FrameDirection.DOWNSTREAM)
+    await processors.audio_gate.process_frame(_audio(3), FrameDirection.DOWNSTREAM)
+
+    assert processors.audio_gate.is_awake is False
+    assert not [frame for frame, _ in audio_capture.pushed if isinstance(frame, WakeDetectedFrame)]
+
+
+@pytest.mark.asyncio
+async def test_wake_candidate_and_detection_logs_include_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    detector = Mock()
+    detector.detected.return_value = (True, "mave", 0.91)
+    fake_logger = CapturingLogger()
+    monkeypatch.setattr("voice_runtime.wake_command.logger", fake_logger)
+    processors = build_mave_voice_command_processors(
+        detector=detector,
+        candidate_log_threshold=0.5,
+        required_hits=2,
+        wake_threshold=0.85,
+    )
+    _capture(monkeypatch, processors)
+
+    await processors.audio_gate.process_frame(_audio(1000), FrameDirection.DOWNSTREAM)
+    await processors.audio_gate.process_frame(_audio(2000), FrameDirection.DOWNSTREAM)
+
+    assert any(
+        "score=0.910" in message
+        and "threshold=0.850" in message
+        and "hits=1/2" in message
+        and "rms=1000.0" in message
+        and "peak=1000" in message
+        and "gate_open=false" in message
+        for message in fake_logger.debug_messages
+    )
+    assert any(
+        "score=0.910" in message
+        and "threshold=0.850" in message
+        and "hits=2/2" in message
+        and "rms=2000.0" in message
+        and "peak=2000" in message
+        and "gate_open=true" in message
+        for message in fake_logger.info_messages
+    )
 
 
 @pytest.mark.asyncio

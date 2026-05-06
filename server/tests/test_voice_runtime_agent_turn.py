@@ -21,6 +21,7 @@ from voice_runtime.agent_turn import (
     AgentTurnInput,
     AgentTurnProcessor,
     agent_turn_input,
+    is_actionable_user_text,
     latest_user_text,
 )
 
@@ -98,6 +99,36 @@ def test_agent_turn_input_copies_context_messages() -> None:
 
 def test_agent_turn_input_returns_none_without_user_text() -> None:
     assert agent_turn_input(_context_frame([{"role": "assistant", "content": "hello"}])) is None
+
+
+@pytest.mark.parametrize("text", ["Mave", "Maeve", "May", "", "  "])
+def test_wake_only_or_likely_wake_false_positive_text_is_not_actionable(text: str) -> None:
+    assert is_actionable_user_text(text) is False
+
+
+@pytest.mark.parametrize("text", ["stop", "move up", "what can you do?"])
+def test_command_text_is_actionable(text: str) -> None:
+    assert is_actionable_user_text(text) is True
+
+
+@pytest.mark.parametrize("text", ["Mave", "Maeve", "May"])
+def test_agent_turn_input_returns_none_for_wake_only_false_positive_text(text: str) -> None:
+    assert agent_turn_input(_context_frame([{"role": "user", "content": text}])) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("text", ["Mave", "Maeve", "May"])
+async def test_agent_turn_does_not_call_backend_for_wake_only_false_positive_text(
+    text: str,
+) -> None:
+    backend = EchoBackend(["unused"])
+    processor = CapturingProcessor(backend)
+    frame = _context_frame([{"role": "user", "content": text}])
+
+    await processor.process_frame(frame, FrameDirection.DOWNSTREAM)
+
+    assert processor.pushed == [frame]
+    assert backend.turns == []
 
 
 @pytest.mark.asyncio

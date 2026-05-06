@@ -4,8 +4,10 @@ category = "benchmark_streaming"
 [profiles.hybrid_low_latency.wake]
 provider = "openwakeword"
 model_path = "models/mave.onnx"
-threshold = 0.5
-candidate_log_threshold = 0.3
+threshold = 0.85
+vad_threshold = 0.3
+candidate_log_threshold = 0.5
+required_hits = 2
 pre_buffer_s = 0.5
 single_command = true
 
@@ -43,8 +45,10 @@ category = "benchmark_streaming"
 [profiles.openai_all.wake]
 provider = "openwakeword"
 model_path = "models/mave.onnx"
-threshold = 0.5
-candidate_log_threshold = 0.3
+threshold = 0.85
+vad_threshold = 0.3
+candidate_log_threshold = 0.5
+required_hits = 2
 pre_buffer_s = 0.5
 single_command = true
 
@@ -78,8 +82,10 @@ category = "benchmark_streaming"
 [profiles.deepgram_all.wake]
 provider = "openwakeword"
 model_path = "models/mave.onnx"
-threshold = 0.5
-candidate_log_threshold = 0.3
+threshold = 0.85
+vad_threshold = 0.3
+candidate_log_threshold = 0.5
+required_hits = 2
 pre_buffer_s = 0.5
 single_command = true
 
@@ -113,8 +119,10 @@ category = "local_debug"
 [profiles.local_current.wake]
 provider = "openwakeword"
 model_path = "models/mave.onnx"
-threshold = 0.5
-candidate_log_threshold = 0.3
+threshold = 0.85
+vad_threshold = 0.3
+candidate_log_threshold = 0.5
+required_hits = 2
 pre_buffer_s = 0.5
 single_command = true
 
