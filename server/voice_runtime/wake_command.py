@@ -14,7 +14,8 @@ from pipecat.frames.frames import Frame, InputAudioRawFrame, TranscriptionFrame
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 _WAKE_PATTERN = re.compile(
-    r"^\s*(?:hey\s+)?mae?ve(?:\b|[\s,;:!?.-])[\s,;:!?.-]*", re.IGNORECASE
+    r"^\s*(?:hey\s+)?(?:mae?ve|may|mail|nave|names?)(?:\b|[\s,;:!?.-])[\s,;:!?.-]*",
+    re.IGNORECASE,
 )
 
 

@@ -62,6 +62,20 @@ def test_strip_mave_wake_phrase_handles_common_transcription_variants() -> None:
     assert strip_mave_wake_phrase("Mave") == ""
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("May move robot up.", "move robot up."),
+        ("Mail up the robot wave.", "up the robot wave."),
+        ("Names,", ""),
+        ("Name, move robot left.", "move robot left."),
+        ("Nave stop.", "stop."),
+    ],
+)
+def test_strip_mave_wake_phrase_handles_live_run_variants(raw: str, expected: str) -> None:
+    assert strip_mave_wake_phrase(raw) == expected
+
+
 @pytest.mark.asyncio
 async def test_audio_adapter_blocks_until_wake_replays_prebuffer_and_emits_wake_event(
     monkeypatch: pytest.MonkeyPatch,
