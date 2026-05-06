@@ -30,14 +30,99 @@ model = "sonic-3"
 voice = "47c38ca4-5f35-497b-b1a3-415245fb35e1"
 
 [profiles.hybrid_low_latency.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
-reasoning_effort = "medium"
+reasoning_effort = "low"
+api_key_env = "OPENAI_API_KEY"
 
 [profiles.hybrid_low_latency.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
 
 [profiles.hybrid_low_latency.metrics]
+enabled = true
+path = "logs/voice_metrics.jsonl"
+include_text = true
+
+[profiles.hybrid_gemini]
+category = "benchmark_streaming"
+
+[profiles.hybrid_gemini.wake]
+provider = "openwakeword"
+model_path = "models/mave.onnx"
+threshold = 0.7
+vad_threshold = 0.0
+candidate_log_threshold = 0.5
+required_hits = 1
+min_wake_rms = 50.0
+min_wake_peak = 150
+rearm_delay_s = 6.0
+pre_buffer_s = 0.5
+single_command = true
+
+[profiles.hybrid_gemini.emergency_stop]
+enabled = false
+
+[profiles.hybrid_gemini.stt]
+provider = "deepgram_flux"
+model = "flux-general-en"
+
+[profiles.hybrid_gemini.tts]
+provider = "cartesia"
+model = "sonic-3"
+voice = "47c38ca4-5f35-497b-b1a3-415245fb35e1"
+
+[profiles.hybrid_gemini.agent]
+provider = "gemini_api"
+model = "gemini-2.5-flash"
+reasoning_effort = "low"
+thinking_budget = 1024
+api_key_env = "GOOGLE_API_KEY"
+
+[profiles.hybrid_gemini.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+
+[profiles.hybrid_gemini.metrics]
+enabled = true
+path = "logs/voice_metrics.jsonl"
+include_text = true
+
+[profiles.hybrid_codex_oauth]
+category = "benchmark_streaming"
+
+[profiles.hybrid_codex_oauth.wake]
+provider = "openwakeword"
+model_path = "models/mave.onnx"
+threshold = 0.7
+vad_threshold = 0.0
+candidate_log_threshold = 0.5
+required_hits = 1
+min_wake_rms = 50.0
+min_wake_peak = 150
+rearm_delay_s = 6.0
+pre_buffer_s = 0.5
+single_command = true
+
+[profiles.hybrid_codex_oauth.emergency_stop]
+enabled = false
+
+[profiles.hybrid_codex_oauth.stt]
+provider = "deepgram_flux"
+model = "flux-general-en"
+
+[profiles.hybrid_codex_oauth.tts]
+provider = "cartesia"
+model = "sonic-3"
+voice = "47c38ca4-5f35-497b-b1a3-415245fb35e1"
+
+[profiles.hybrid_codex_oauth.agent]
+provider = "openai_codex_oauth"
+model = "gpt-5.4-mini"
+reasoning_effort = "medium"
+
+[profiles.hybrid_codex_oauth.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+
+[profiles.hybrid_codex_oauth.metrics]
 enabled = true
 path = "logs/voice_metrics.jsonl"
 include_text = true

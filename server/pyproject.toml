@@ -37,5 +37,6 @@ pythonpath = ["."]
 markers = [
     "live: manual tests that require live credentials or external services",
     "llm: manual tests that call the real Codex OAuth backend",
+    "native_llm: manual tests that call real API-key LangChain providers",
     "robot_sim: manual tests that require the MoveIt robot simulation stack",
 ]

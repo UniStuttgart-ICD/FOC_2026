@@ -105,6 +105,27 @@ def test_bundled_default_profile_keeps_short_wake_word_activation_usable() -> No
     assert profile.wake.required_hits == 1
 
 
+def test_bundled_default_profile_uses_native_openai_api_agent():
+    profile = load_runtime_profile()
+
+    assert profile.agent.provider == "openai_api"
+    assert profile.agent.api_key_env == "OPENAI_API_KEY"
+
+
+def test_bundled_gemini_profile_is_available():
+    server_dir = Path(__file__).resolve().parents[1]
+
+    profile = load_runtime_profile(
+        profiles_path=default_profiles_path(server_dir),
+        server_dir=server_dir,
+        profile_name="hybrid_gemini",
+    )
+
+    assert profile.agent.provider == "gemini_api"
+    assert profile.agent.model.startswith("gemini-")
+    assert profile.agent.api_key_env in {"GOOGLE_API_KEY", "GEMINI_API_KEY"}
+
+
 def test_wake_profile_parses_audio_guards_and_rearm_delay(tmp_path: Path) -> None:
     profiles_path = tmp_path / "runtime_profiles.toml"
     _write_profile(
@@ -264,6 +285,121 @@ def test_profile_reports_required_env_names_without_reading_env(tmp_path: Path, 
     )
 
     assert profile.required_env_names() == ("DEEPGRAM_API_KEY", "CARTESIA_API_KEY")
+
+
+def test_openai_api_agent_profile_requires_openai_key_env(tmp_path: Path):
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profile(
+        profiles_path,
+        """
+[profiles.openai_api]
+category = "local_debug"
+[profiles.openai_api.wake]
+provider = "none"
+[profiles.openai_api.emergency_stop]
+enabled = false
+[profiles.openai_api.stt]
+provider = "whisper"
+[profiles.openai_api.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.openai_api.agent]
+provider = "openai_api"
+model = "gpt-5.4-mini"
+reasoning_effort = "low"
+[profiles.openai_api.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.openai_api.metrics]
+enabled = false
+""",
+    )
+
+    profile = load_runtime_profile(
+        profiles_path=profiles_path,
+        server_dir=tmp_path,
+        profile_name="openai_api",
+    )
+
+    assert profile.agent.provider == "openai_api"
+    assert profile.agent.api_key_env == "OPENAI_API_KEY"
+    assert profile.agent.reasoning_effort == "low"
+    assert profile.required_env_names() == ("OPENAI_API_KEY",)
+
+
+def test_gemini_api_agent_profile_accepts_thinking_budget_and_key_override(tmp_path: Path):
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profile(
+        profiles_path,
+        """
+[profiles.gemini_api]
+category = "local_debug"
+[profiles.gemini_api.wake]
+provider = "none"
+[profiles.gemini_api.emergency_stop]
+enabled = false
+[profiles.gemini_api.stt]
+provider = "whisper"
+[profiles.gemini_api.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.gemini_api.agent]
+provider = "gemini_api"
+model = "gemini-2.5-flash"
+reasoning_effort = "medium"
+thinking_budget = 1024
+api_key_env = "GEMINI_API_KEY"
+[profiles.gemini_api.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.gemini_api.metrics]
+enabled = false
+""",
+    )
+
+    profile = load_runtime_profile(
+        profiles_path=profiles_path,
+        server_dir=tmp_path,
+        profile_name="gemini_api",
+    )
+
+    assert profile.agent.provider == "gemini_api"
+    assert profile.agent.api_key_env == "GEMINI_API_KEY"
+    assert profile.agent.thinking_budget == 1024
+    assert profile.required_env_names() == ("GEMINI_API_KEY",)
+
+
+def test_gemini_25_pro_rejects_disabled_thinking(tmp_path: Path):
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profile(
+        profiles_path,
+        """
+[profiles.bad_gemini]
+category = "local_debug"
+[profiles.bad_gemini.wake]
+provider = "none"
+[profiles.bad_gemini.emergency_stop]
+enabled = false
+[profiles.bad_gemini.stt]
+provider = "whisper"
+[profiles.bad_gemini.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.bad_gemini.agent]
+provider = "gemini_api"
+model = "gemini-2.5-pro"
+thinking_budget = 0
+[profiles.bad_gemini.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.bad_gemini.metrics]
+enabled = false
+""",
+    )
+
+    with pytest.raises(ProfileError, match="gemini-2.5-pro cannot disable thinking"):
+        load_runtime_profile(
+            profiles_path=profiles_path,
+            server_dir=tmp_path,
+            profile_name="bad_gemini",
+        )
 
 
 def test_cartesia_profile_without_voice_requires_voice_id_env(tmp_path: Path):

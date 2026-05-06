@@ -14,18 +14,23 @@ DEFAULT_PROFILE = "hybrid_low_latency"
 WakeProvider = Literal["none", "openwakeword"]
 STTProvider = Literal["deepgram_flux", "openai_realtime", "whisper"]
 TTSProvider = Literal["cartesia", "openai", "deepgram", "kokoro"]
-AgentProvider = Literal["openai_codex_oauth"]
+AgentProvider = Literal["openai_codex_oauth", "openai_api", "gemini_api"]
 ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
 Category = Literal["benchmark_streaming", "local_debug"]
 
 _WAKE_PROVIDERS = {"none", "openwakeword"}
 _STT_PROVIDERS = {"deepgram_flux", "openai_realtime", "whisper"}
 _TTS_PROVIDERS = {"cartesia", "openai", "deepgram", "kokoro"}
-_AGENT_PROVIDERS = {"openai_codex_oauth"}
+_AGENT_PROVIDERS = {"openai_codex_oauth", "openai_api", "gemini_api"}
 _REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
 _CATEGORIES = {"benchmark_streaming", "local_debug"}
 _STREAMING_STT_PROVIDERS = {"deepgram_flux", "openai_realtime"}
 _STREAMING_TTS_PROVIDERS = {"cartesia", "openai", "deepgram"}
+_DEFAULT_AGENT_KEY_ENV = {
+    "openai_codex_oauth": None,
+    "openai_api": "OPENAI_API_KEY",
+    "gemini_api": "GOOGLE_API_KEY",
+}
 
 
 class ProfileError(ValueError):
@@ -74,6 +79,8 @@ class AgentProfile:
     provider: AgentProvider
     model: str
     reasoning_effort: ReasoningEffort | None = None
+    api_key_env: str | None = None
+    thinking_budget: int | None = None
 
 
 @dataclass(frozen=True)
@@ -106,7 +113,9 @@ class RuntimeProfile:
             names.append("CARTESIA_VOICE_ID")
         if self.stt.provider == "openai_realtime" or self.tts.provider == "openai":
             names.append("OPENAI_API_KEY")
-        return tuple(names)
+        if self.agent.api_key_env is not None:
+            names.append(self.agent.api_key_env)
+        return tuple(dict.fromkeys(names))
 
     @property
     def profile_name(self) -> str:
@@ -215,10 +224,15 @@ def _parse_agent(table: dict[str, Any]) -> AgentProfile:
         ReasoningEffort | None,
         _optional_literal(table, "reasoning_effort", _REASONING_EFFORTS),
     )
+    api_key_env = _optional_string(table, "api_key_env")
+    if api_key_env is None:
+        api_key_env = _DEFAULT_AGENT_KEY_ENV[provider]
     return AgentProfile(
         provider=provider,
         model=_string(table, "model", "gpt-5.4-mini"),
         reasoning_effort=reasoning_effort,
+        api_key_env=api_key_env,
+        thinking_budget=_optional_non_negative_int(table, "thinking_budget"),
     )
 
 
@@ -242,6 +256,12 @@ def _validate_runtime_profile(profile: RuntimeProfile) -> None:
             raise ProfileError("benchmark_streaming profiles require streaming STT")
         if profile.tts.provider not in _STREAMING_TTS_PROVIDERS:
             raise ProfileError("benchmark_streaming profiles require streaming TTS")
+    if (
+        profile.agent.provider == "gemini_api"
+        and profile.agent.model.startswith("gemini-2.5-pro")
+        and profile.agent.thinking_budget == 0
+    ):
+        raise ProfileError("gemini-2.5-pro cannot disable thinking")
 
 
 def _table(data: dict[str, Any], key: str) -> dict[str, Any]:
@@ -308,6 +328,17 @@ def _positive_int(table: dict[str, Any], key: str, default: int) -> int:
 
 def _non_negative_int(table: dict[str, Any], key: str, default: int) -> int:
     value = table.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ProfileError(f"{key} must be an integer")
+    if value < 0:
+        raise ProfileError(f"{key} must be non-negative")
+    return value
+
+
+def _optional_non_negative_int(table: dict[str, Any], key: str) -> int | None:
+    value = table.get(key)
+    if value is None:
+        return None
     if isinstance(value, bool) or not isinstance(value, int):
         raise ProfileError(f"{key} must be an integer")
     if value < 0:
