@@ -48,6 +48,9 @@ def _config(tmp_path: Path, *, metrics_enabled: bool, wake_enabled: bool = False
             model_path=tmp_path / "mave.onnx" if wake_enabled else None,
             vad_threshold=0.3,
             required_hits=2,
+            min_wake_rms=50.0,
+            min_wake_peak=150,
+            rearm_delay_s=6.0,
             pre_buffer_s=2.0,
             single_command=False,
             candidate_log_threshold=0.4,
@@ -137,6 +140,9 @@ def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tm
     assert processors[stt_index - 1]._pre_buffer_s == 2.0
     assert processors[stt_index - 1]._candidate_log_threshold == 0.4
     assert processors[stt_index - 1]._required_hits == 2
+    assert processors[stt_index - 1]._min_wake_rms == 50.0
+    assert processors[stt_index - 1]._min_wake_peak == 150
+    assert processors[stt_index - 1]._rearm_delay_s == 6.0
     assert processors[stt_index + 1]._single_command is False
     assert seen_detector_kwargs == {
         "model_path": tmp_path / "mave.onnx",

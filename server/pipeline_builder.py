@@ -51,9 +51,12 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
         voice_command_processors = build_mave_voice_command_processors(
             detector=detector,
             pre_buffer_s=config.wake.pre_buffer_s,
+            rearm_delay_s=config.wake.rearm_delay_s,
             single_command=config.wake.single_command,
             candidate_log_threshold=config.wake.candidate_log_threshold,
             required_hits=config.wake.required_hits,
+            min_wake_rms=config.wake.min_wake_rms,
+            min_wake_peak=config.wake.min_wake_peak,
             wake_threshold=config.wake.threshold,
         )
         voice_command_audio = voice_command_processors.audio_gate
