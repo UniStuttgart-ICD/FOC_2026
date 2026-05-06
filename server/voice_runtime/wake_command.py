@@ -14,7 +14,8 @@ from pipecat.frames.frames import Frame, InputAudioRawFrame, TranscriptionFrame
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 _WAKE_PATTERN = re.compile(
-    r"^\s*(?:hey\s+)?mae?ve(?:\b|[\s,;:!?.-])[\s,;:!?.-]*", re.IGNORECASE
+    r"^\s*(?:hey\s+)?(?:mae?ve|may|mail|nave|names?)(?:\b|[\s,;:!?.-])[\s,;:!?.-]*",
+    re.IGNORECASE,
 )
 
 
@@ -47,6 +48,8 @@ class MaveVoiceCommandAudioGate(FrameProcessor):
         max_awake_s: float = 8.0,
         candidate_log_threshold: float = 0.3,
         required_hits: int = 1,
+        min_wake_rms: float = 0.0,
+        min_wake_peak: int = 0,
         wake_threshold: float | None = None,
         time_fn: Callable[[], float] = time.monotonic,
         wake_phrase: str = "mave",
@@ -55,12 +58,18 @@ class MaveVoiceCommandAudioGate(FrameProcessor):
         super().__init__(**kwargs)
         if required_hits < 1:
             raise ValueError("required_hits must be at least 1")
+        if min_wake_rms < 0:
+            raise ValueError("min_wake_rms must be non-negative")
+        if min_wake_peak < 0:
+            raise ValueError("min_wake_peak must be non-negative")
         self._detector = detector
         self._pre_buffer_s = pre_buffer_s
         self._rearm_delay_s = rearm_delay_s
         self._max_awake_s = max_awake_s
         self._candidate_log_threshold = candidate_log_threshold
         self._required_hits = required_hits
+        self._min_wake_rms = min_wake_rms
+        self._min_wake_peak = min_wake_peak
         self._consecutive_hits = 0
         self._wake_threshold = wake_threshold
         self._time_fn = time_fn
@@ -70,6 +79,7 @@ class MaveVoiceCommandAudioGate(FrameProcessor):
         self._awake = False
         self._wake_started_at: float | None = None
         self._rearm_until = 0.0
+        self._suppressed = False
 
     @property
     def is_awake(self) -> bool:
@@ -96,6 +106,9 @@ class MaveVoiceCommandAudioGate(FrameProcessor):
             await self.push_frame(frame, direction)
             return
 
+        if self._suppressed:
+            return
+
         if now < self._rearm_until:
             return
 
@@ -116,6 +129,21 @@ class MaveVoiceCommandAudioGate(FrameProcessor):
                         gate_open=False,
                     )
                 )
+            return
+
+        if rms < self._min_wake_rms or peak < self._min_wake_peak:
+            self._consecutive_hits = 0
+            logger.debug(
+                self._diagnostic_message(
+                    "Wake candidate rejected",
+                    model_name=model_name,
+                    score=score,
+                    rms=rms,
+                    peak=peak,
+                    gate_open=False,
+                )
+                + " reason=audio_level"
+            )
             return
 
         self._consecutive_hits += 1
@@ -175,6 +203,14 @@ class MaveVoiceCommandAudioGate(FrameProcessor):
             self._ring_samples -= len(old.audio) // 2 // max(old.num_channels, 1)
 
     def reset(self) -> None:
+        self._reset(now=self._time_fn())
+
+    def suppress(self) -> None:
+        self._reset(now=self._time_fn())
+        self._suppressed = True
+
+    def unsuppress(self) -> None:
+        self._suppressed = False
         self._reset(now=self._time_fn())
 
     def _reset(self, *, now: float) -> None:
@@ -280,6 +316,8 @@ def build_mave_voice_command_processors(
     single_command: bool = True,
     candidate_log_threshold: float = 0.3,
     required_hits: int = 1,
+    min_wake_rms: float = 0.0,
+    min_wake_peak: int = 0,
     wake_threshold: float | None = None,
     time_fn: Callable[[], float] = time.monotonic,
 ) -> MaveVoiceCommandProcessors:
@@ -290,6 +328,8 @@ def build_mave_voice_command_processors(
         max_awake_s=max_awake_s,
         candidate_log_threshold=candidate_log_threshold,
         required_hits=required_hits,
+        min_wake_rms=min_wake_rms,
+        min_wake_peak=min_wake_peak,
         wake_threshold=wake_threshold,
         time_fn=time_fn,
     )

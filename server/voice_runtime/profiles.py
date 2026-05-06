@@ -40,6 +40,9 @@ class WakeProfile:
     vad_threshold: float = 0.0
     candidate_log_threshold: float = 0.3
     required_hits: int = 1
+    min_wake_rms: float = 0.0
+    min_wake_peak: int = 0
+    rearm_delay_s: float = 0.75
     pre_buffer_s: float = 1.5
     single_command: bool = True
 
@@ -170,6 +173,9 @@ def _parse_wake(table: dict[str, Any], server_dir: Path) -> WakeProfile:
         vad_threshold=_float(table, "vad_threshold", 0.0),
         candidate_log_threshold=_float(table, "candidate_log_threshold", 0.3),
         required_hits=_positive_int(table, "required_hits", 1),
+        min_wake_rms=_non_negative_float(table, "min_wake_rms", 0.0),
+        min_wake_peak=_non_negative_int(table, "min_wake_peak", 0),
+        rearm_delay_s=_non_negative_float(table, "rearm_delay_s", 0.75),
         pre_buffer_s=_float(table, "pre_buffer_s", 1.5),
         single_command=_bool(table, "single_command", True),
     )
@@ -297,6 +303,22 @@ def _positive_int(table: dict[str, Any], key: str, default: int) -> int:
         raise ProfileError(f"{key} must be an integer")
     if value < 1:
         raise ProfileError(f"{key} must be at least 1")
+    return value
+
+
+def _non_negative_int(table: dict[str, Any], key: str, default: int) -> int:
+    value = table.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ProfileError(f"{key} must be an integer")
+    if value < 0:
+        raise ProfileError(f"{key} must be non-negative")
+    return value
+
+
+def _non_negative_float(table: dict[str, Any], key: str, default: float) -> float:
+    value = _float(table, key, default)
+    if value < 0:
+        raise ProfileError(f"{key} must be non-negative")
     return value
 
 

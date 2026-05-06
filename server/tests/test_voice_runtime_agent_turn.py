@@ -49,8 +49,8 @@ class EchoBackend:
 
 
 class CapturingProcessor(AgentTurnProcessor):
-    def __init__(self, backend: AgentBackend) -> None:
-        super().__init__(backend=backend)
+    def __init__(self, backend: AgentBackend, **kwargs: Any) -> None:
+        super().__init__(backend=backend, **kwargs)
         self.pushed: list[Frame] = []
 
     async def push_frame(
@@ -104,6 +104,24 @@ def test_agent_turn_input_returns_none_without_user_text() -> None:
 @pytest.mark.parametrize("text", ["Mave", "Maeve", "May", "", "  "])
 def test_wake_only_or_likely_wake_false_positive_text_is_not_actionable(text: str) -> None:
     assert is_actionable_user_text(text) is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Names,",
+        "Name.",
+        "Mail.",
+        "Nave.",
+        "up the robot wave.",
+    ],
+)
+def test_is_actionable_user_text_rejects_live_run_wake_junk(text: str) -> None:
+    assert is_actionable_user_text(text) is False
+
+
+def test_is_actionable_user_text_keeps_command_after_wake_variant_cleanup() -> None:
+    assert is_actionable_user_text("move robot up.") is True
 
 
 @pytest.mark.parametrize("text", ["stop", "move up", "what can you do?"])
@@ -175,6 +193,40 @@ async def test_agent_turn_emits_error_message_when_backend_raises() -> None:
 
     text_frames = [frame for frame in processor.pushed if isinstance(frame, LLMTextFrame)]
     assert [frame.text for frame in text_frames] == ["I encountered an error. Please try again."]
+
+
+@pytest.mark.asyncio
+async def test_agent_turn_processor_calls_lifecycle_callbacks() -> None:
+    events: list[str] = []
+    processor = CapturingProcessor(
+        EchoBackend(["done"]),
+        on_turn_started=lambda: events.append("started"),
+        on_turn_finished=lambda: events.append("finished"),
+    )
+
+    await processor.process_frame(
+        _context_frame([{"role": "user", "content": "move robot up."}]),
+        FrameDirection.DOWNSTREAM,
+    )
+
+    assert events == ["started", "finished"]
+
+
+@pytest.mark.asyncio
+async def test_agent_turn_processor_finishes_lifecycle_after_backend_error() -> None:
+    events: list[str] = []
+    processor = CapturingProcessor(
+        EchoBackend(raises=True),
+        on_turn_started=lambda: events.append("started"),
+        on_turn_finished=lambda: events.append("finished"),
+    )
+
+    await processor.process_frame(
+        _context_frame([{"role": "user", "content": "move robot up."}]),
+        FrameDirection.DOWNSTREAM,
+    )
+
+    assert events == ["started", "finished"]
 
 
 @pytest.mark.asyncio

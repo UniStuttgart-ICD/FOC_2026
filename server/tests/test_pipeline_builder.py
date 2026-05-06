@@ -48,6 +48,9 @@ def _config(tmp_path: Path, *, metrics_enabled: bool, wake_enabled: bool = False
             model_path=tmp_path / "mave.onnx" if wake_enabled else None,
             vad_threshold=0.3,
             required_hits=2,
+            min_wake_rms=50.0,
+            min_wake_peak=150,
+            rearm_delay_s=6.0,
             pre_buffer_s=2.0,
             single_command=False,
             candidate_log_threshold=0.4,
@@ -66,12 +69,18 @@ def _config(tmp_path: Path, *, metrics_enabled: bool, wake_enabled: bool = False
     )
 
 
-def _patch_pipeline_dependencies(monkeypatch):
+def _patch_pipeline_dependencies(monkeypatch, *, agent_processor_kwargs: dict[str, Any] | None = None):
     monkeypatch.setattr("pipeline_builder.create_stt_service", lambda config: FrameProcessor())
     monkeypatch.setattr("pipeline_builder.create_tts_service", lambda config: FrameProcessor())
+
+    def fake_agent_processor(config, *, mcp_server_url, **kwargs):
+        if agent_processor_kwargs is not None:
+            agent_processor_kwargs.update(kwargs)
+        return FrameProcessor()
+
     monkeypatch.setattr(
         "pipeline_builder.create_agent_processor",
-        lambda config, *, mcp_server_url: FrameProcessor(),
+        fake_agent_processor,
     )
     monkeypatch.setattr(
         "pipeline_builder.LLMContextAggregatorPair",
@@ -110,9 +119,16 @@ def test_metrics_observer_is_not_wired_when_metrics_disabled(monkeypatch, tmp_pa
 def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tmp_path: Path):
     stt = FrameProcessor()
     seen_detector_kwargs = {}
+    seen_agent_kwargs: dict[str, Any] = {}
+    wake_config_logs: list[str] = []
 
-    _patch_pipeline_dependencies(monkeypatch)
+    _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
     monkeypatch.setattr("pipeline_builder.create_stt_service", lambda config: stt)
+    monkeypatch.setattr(
+        "pipeline_builder.logger",
+        Mock(info=lambda message, *args: wake_config_logs.append(message.format(*args))),
+        raising=False,
+    )
 
     def fake_detector(model_path, *, threshold, vad_threshold):
         seen_detector_kwargs["model_path"] = model_path
@@ -137,9 +153,24 @@ def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tm
     assert processors[stt_index - 1]._pre_buffer_s == 2.0
     assert processors[stt_index - 1]._candidate_log_threshold == 0.4
     assert processors[stt_index - 1]._required_hits == 2
+    assert processors[stt_index - 1]._min_wake_rms == 50.0
+    assert processors[stt_index - 1]._min_wake_peak == 150
+    assert processors[stt_index - 1]._rearm_delay_s == 6.0
     assert processors[stt_index + 1]._single_command is False
     assert seen_detector_kwargs == {
         "model_path": tmp_path / "mave.onnx",
         "threshold": 0.5,
         "vad_threshold": 0.3,
     }
+    assert callable(seen_agent_kwargs["on_turn_started"])
+    assert callable(seen_agent_kwargs["on_turn_finished"])
+    assert any(
+        "Wake config" in message
+        and "threshold=0.5" in message
+        and "vad_threshold=0.3" in message
+        and "min_wake_rms=50.0" in message
+        and "min_wake_peak=150" in message
+        and "required_hits=2" in message
+        and "rearm_delay_s=6.0" in message
+        for message in wake_config_logs
+    )

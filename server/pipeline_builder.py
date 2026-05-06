@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import cast
 
+from loguru import logger
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.observers.base_observer import BaseObserver
 from pipecat.pipeline.pipeline import Pipeline
@@ -37,7 +38,6 @@ class BuiltPipeline:
 def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipeline:
     stt = create_stt_service(config.stt)
     tts = create_tts_service(config.tts)
-    agent_processor = create_agent_processor(config.agent, mcp_server_url=config.mcp_robot_url)
 
     voice_command_audio = None
     voice_command_transcript = None
@@ -51,13 +51,40 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
         voice_command_processors = build_mave_voice_command_processors(
             detector=detector,
             pre_buffer_s=config.wake.pre_buffer_s,
+            rearm_delay_s=config.wake.rearm_delay_s,
             single_command=config.wake.single_command,
             candidate_log_threshold=config.wake.candidate_log_threshold,
             required_hits=config.wake.required_hits,
+            min_wake_rms=config.wake.min_wake_rms,
+            min_wake_peak=config.wake.min_wake_peak,
             wake_threshold=config.wake.threshold,
         )
         voice_command_audio = voice_command_processors.audio_gate
         voice_command_transcript = voice_command_processors.transcript_adapter
+        logger.info(
+            "Wake config detector={} threshold={} vad_threshold={} candidate_log_threshold={} "
+            "required_hits={} min_wake_rms={} min_wake_peak={} rearm_delay_s={}",
+            config.wake.provider,
+            config.wake.threshold,
+            config.wake.vad_threshold,
+            config.wake.candidate_log_threshold,
+            config.wake.required_hits,
+            config.wake.min_wake_rms,
+            config.wake.min_wake_peak,
+            config.wake.rearm_delay_s,
+        )
+
+    agent_kwargs = {}
+    if voice_command_audio is not None:
+        agent_kwargs = {
+            "on_turn_started": voice_command_audio.suppress,
+            "on_turn_finished": voice_command_audio.unsuppress,
+        }
+    agent_processor = create_agent_processor(
+        config.agent,
+        mcp_server_url=config.mcp_robot_url,
+        **agent_kwargs,
+    )
 
     context = LLMContext()
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(

@@ -62,6 +62,20 @@ def test_strip_mave_wake_phrase_handles_common_transcription_variants() -> None:
     assert strip_mave_wake_phrase("Mave") == ""
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("May move robot up.", "move robot up."),
+        ("Mail up the robot wave.", "up the robot wave."),
+        ("Names,", ""),
+        ("Name, move robot left.", "move robot left."),
+        ("Nave stop.", "stop."),
+    ],
+)
+def test_strip_mave_wake_phrase_handles_live_run_variants(raw: str, expected: str) -> None:
+    assert strip_mave_wake_phrase(raw) == expected
+
+
 @pytest.mark.asyncio
 async def test_audio_adapter_blocks_until_wake_replays_prebuffer_and_emits_wake_event(
     monkeypatch: pytest.MonkeyPatch,
@@ -162,6 +176,69 @@ async def test_required_hits_resets_after_intervening_low_frame(
 
     assert processors.audio_gate.is_awake is False
     assert not [frame for frame, _ in audio_capture.pushed if isinstance(frame, WakeDetectedFrame)]
+
+
+@pytest.mark.asyncio
+async def test_audio_gate_rejects_detected_wake_below_audio_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    detector = Mock()
+    detector.detected.return_value = (True, "mave", 0.996)
+    processors = build_mave_voice_command_processors(
+        detector=detector,
+        min_wake_rms=50.0,
+        min_wake_peak=150,
+        wake_threshold=0.7,
+    )
+    audio_capture, _ = _capture(monkeypatch, processors)
+
+    await processors.audio_gate.process_frame(_audio(25), FrameDirection.DOWNSTREAM)
+
+    assert processors.audio_gate.is_awake is False
+    assert audio_capture.pushed == []
+
+
+@pytest.mark.asyncio
+async def test_audio_gate_accepts_detected_wake_above_audio_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    detector = Mock()
+    detector.detected.return_value = (True, "mave", 0.996)
+    processors = build_mave_voice_command_processors(
+        detector=detector,
+        min_wake_rms=50.0,
+        min_wake_peak=150,
+        wake_threshold=0.7,
+    )
+    audio_capture, _ = _capture(monkeypatch, processors)
+
+    await processors.audio_gate.process_frame(_audio(200), FrameDirection.DOWNSTREAM)
+
+    assert processors.audio_gate.is_awake is True
+    assert any(isinstance(frame, WakeDetectedFrame) for frame, _ in audio_capture.pushed)
+
+
+@pytest.mark.asyncio
+async def test_audio_gate_suppression_drops_audio_until_unsuppressed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    detector = Mock()
+    detector.detected.return_value = (True, "mave", 0.996)
+    processors = build_mave_voice_command_processors(detector=detector, rearm_delay_s=0.0)
+    audio_capture, _ = _capture(monkeypatch, processors)
+
+    processors.audio_gate.suppress()
+    await processors.audio_gate.process_frame(_audio(200), FrameDirection.DOWNSTREAM)
+
+    assert processors.audio_gate.is_awake is False
+    assert audio_capture.pushed == []
+    detector.detected.assert_not_called()
+
+    processors.audio_gate.unsuppress()
+    await processors.audio_gate.process_frame(_audio(200), FrameDirection.DOWNSTREAM)
+
+    assert processors.audio_gate.is_awake is True
+    assert any(isinstance(frame, WakeDetectedFrame) for frame, _ in audio_capture.pushed)
 
 
 @pytest.mark.asyncio
