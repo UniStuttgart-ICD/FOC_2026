@@ -91,6 +91,20 @@ def test_bundled_streaming_profiles_keep_wake_prebuffer_short() -> None:
     assert profile.wake.pre_buffer_s <= 0.5
 
 
+def test_bundled_default_profile_keeps_short_wake_word_activation_usable() -> None:
+    server_dir = Path(__file__).resolve().parents[1]
+
+    profile = load_runtime_profile(
+        profiles_path=default_profiles_path(server_dir),
+        server_dir=server_dir,
+        profile_name="hybrid_low_latency",
+    )
+
+    assert profile.wake.threshold == 0.7
+    assert profile.wake.vad_threshold == 0.0
+    assert profile.wake.required_hits == 1
+
+
 def test_loads_profile_without_constructing_adapters(tmp_path: Path):
     profiles_path = tmp_path / "runtime_profiles.toml"
     _write_profiles(profiles_path)
