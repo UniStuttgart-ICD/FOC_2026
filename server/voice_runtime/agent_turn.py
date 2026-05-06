@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 
 NO_TEXT_RESPONSE = "I could not confirm that the action completed."
 ERROR_RESPONSE = "I encountered an error. Please try again."
-_WAKE_ONLY_TEXT = {"mave", "maeve", "may"}
+_WAKE_ONLY_TEXT = {"mave", "maeve", "may", "mail", "nave", "name", "names"}
+_PROBABLE_WAKE_JUNK_TEXT = {"up the robot wave"}
 _WORD_PATTERN = re.compile(r"[a-z]+", re.IGNORECASE)
 
 
@@ -70,6 +71,10 @@ def is_actionable_user_text(text: str) -> bool:
 
     words = [word.lower() for word in _WORD_PATTERN.findall(stripped)]
     if len(words) == 1 and words[0] in _WAKE_ONLY_TEXT:
+        return False
+
+    normalized = " ".join(words)
+    if normalized in _PROBABLE_WAKE_JUNK_TEXT:
         return False
 
     return True

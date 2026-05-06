@@ -106,6 +106,24 @@ def test_wake_only_or_likely_wake_false_positive_text_is_not_actionable(text: st
     assert is_actionable_user_text(text) is False
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Names,",
+        "Name.",
+        "Mail.",
+        "Nave.",
+        "up the robot wave.",
+    ],
+)
+def test_is_actionable_user_text_rejects_live_run_wake_junk(text: str) -> None:
+    assert is_actionable_user_text(text) is False
+
+
+def test_is_actionable_user_text_keeps_command_after_wake_variant_cleanup() -> None:
+    assert is_actionable_user_text("move robot up.") is True
+
+
 @pytest.mark.parametrize("text", ["stop", "move up", "what can you do?"])
 def test_command_text_is_actionable(text: str) -> None:
     assert is_actionable_user_text(text) is True
