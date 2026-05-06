@@ -443,7 +443,7 @@ provider = "kokoro"
 voice = "af_heart"
 [profiles.anthropic_api.agent]
 provider = "anthropic_api"
-model = "claude-sonnet-4-6-20250827"
+model = "claude-sonnet-4-6"
 reasoning_effort = "medium"
 [profiles.anthropic_api.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"

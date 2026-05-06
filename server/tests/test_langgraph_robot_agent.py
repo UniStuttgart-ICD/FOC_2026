@@ -250,7 +250,13 @@ async def test_graph_observes_current_pose_before_simple_model_response() -> Non
     assert isinstance(first_request[0], SystemMessage)
     assert "Last-known robot context" in str(first_request[0].content)
     assert "robot: UR10" in str(first_request[0].content)
-    assert fixture.model.bound_tools == fixture.bridge.function_tools()
+    assert fixture.model.bound_tools[0] == {
+        "type": "function",
+        "function": {
+            "name": "moveit_get_current_pose",
+            "parameters": {"type": "object"},
+        },
+    }
 
 
 @pytest.mark.asyncio

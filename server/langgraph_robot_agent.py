@@ -174,7 +174,10 @@ class LangGraphRobotAgent:
 
     async def _call_model(self, state: RobotAgentState) -> dict[str, Any]:
         tools = state["tools"] or self._tool_bridge.function_tools()
-        model = self._model.bind_tools(tools, tool_choice=_tool_choice_for_state(state))
+        model = self._model.bind_tools(
+            _tools_for_model_binding(tools),
+            tool_choice=_tool_choice_for_state(state),
+        )
         system = SystemMessage(content=self._instructions())
         started = monotonic_s()
         logger.info(
@@ -439,6 +442,27 @@ def _first_available_tool(tools: list[dict[str, Any]], names: tuple[str, ...]) -
         if name in tool_names:
             return name
     return None
+
+
+def _tools_for_model_binding(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [_tool_for_model_binding(tool) for tool in tools]
+
+
+def _tool_for_model_binding(tool: dict[str, Any]) -> dict[str, Any]:
+    if tool.get("type") != "function" or isinstance(tool.get("function"), dict):
+        return tool
+    name = tool.get("name")
+    if not isinstance(name, str) or not name:
+        return tool
+
+    function: dict[str, Any] = {"name": name}
+    description = tool.get("description")
+    if isinstance(description, str):
+        function["description"] = description
+    parameters = tool.get("parameters")
+    if isinstance(parameters, dict):
+        function["parameters"] = parameters
+    return {"type": "function", "function": function}
 
 
 def _looks_like_robot_action_request(text: str) -> bool:

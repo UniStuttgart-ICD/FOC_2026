@@ -52,7 +52,7 @@ def test_builds_chat_anthropic_with_effort_and_key():
     model = build_agent_chat_model(
         AgentProfile(
             provider="anthropic_api",
-            model="claude-sonnet-4-6-20250827",
+            model="claude-sonnet-4-6",
             reasoning_effort="medium",
             api_key_env="ANTHROPIC_API_KEY",
         ),
@@ -61,7 +61,7 @@ def test_builds_chat_anthropic_with_effort_and_key():
     )
 
     assert isinstance(model, CapturedChatModel)
-    assert model.kwargs["model_name"] == "claude-sonnet-4-6-20250827"
+    assert model.kwargs["model_name"] == "claude-sonnet-4-6"
     assert model.kwargs["api_key"] == "anth-test"
     assert model.kwargs["effort"] == "medium"
 

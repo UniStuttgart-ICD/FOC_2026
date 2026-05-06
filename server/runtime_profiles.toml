@@ -116,7 +116,7 @@ voice = "47c38ca4-5f35-497b-b1a3-415245fb35e1"
 
 [profiles.hybrid_anthropic.agent]
 provider = "anthropic_api"
-model = "claude-sonnet-4-6-20250827"
+model = "claude-sonnet-4-6"
 reasoning_effort = "medium"
 api_key_env = "ANTHROPIC_API_KEY"
 

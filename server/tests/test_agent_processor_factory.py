@@ -62,7 +62,7 @@ def test_creates_anthropic_api_agent_turn_processor(monkeypatch):
     processor = create_agent_processor(
         AgentConfig(
             provider="anthropic_api",
-            model="claude-sonnet-4-6-20250827",
+            model="claude-sonnet-4-6",
             api_key_env="ANTHROPIC_API_KEY",
             reasoning_effort="medium",
         ),

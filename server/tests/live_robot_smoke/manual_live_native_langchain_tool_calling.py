@@ -47,7 +47,7 @@ def _profile_from_env() -> AgentProfile:
     if provider == "anthropic_api":
         return AgentProfile(
             provider="anthropic_api",
-            model=os.getenv("LIVE_ANTHROPIC_MODEL", "claude-sonnet-4-6-20250827"),
+            model=os.getenv("LIVE_ANTHROPIC_MODEL", "claude-sonnet-4-6"),
             reasoning_effort=_reasoning_effort_from_env(),
             api_key_env=os.getenv("LIVE_ANTHROPIC_KEY_ENV", "ANTHROPIC_API_KEY"),
         )
