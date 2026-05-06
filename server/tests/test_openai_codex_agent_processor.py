@@ -6,6 +6,7 @@ import pytest
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
 from codex_auth import CodexAuthError, CodexCredentials
+from codex_streaming_model import StreamingAinvokeChatModel
 from openai_codex_agent_processor import OpenAICodexAgentProcessor
 from voice_runtime.agent_turn import AgentTurnInput
 
@@ -284,7 +285,8 @@ def test_chat_model_for_turn_builds_codex_oauth_model(monkeypatch: pytest.Monkey
 
     chat_model = processor._chat_model_for_turn()
 
-    assert isinstance(chat_model, CapturedChatModel)
+    assert isinstance(chat_model, StreamingAinvokeChatModel)
+    assert isinstance(chat_model._model, CapturedChatModel)
     assert created["model"] == "gpt-5.4-mini"
     assert created["reasoning_effort"] == "medium"
     assert created["text_verbosity"] == "low"

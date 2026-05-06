@@ -10,6 +10,7 @@ from loguru import logger
 
 from codex_auth import CodexAuthError, PiCodexCredentialStore
 from codex_langchain_auth import PiLangChainCodexAuthStore
+from codex_streaming_model import StreamingAinvokeChatModel
 from langgraph_robot_agent import LangGraphRobotAgent
 from robot_control.context import RobotContextStore
 from robot_control.mcp_bridge import RobotMCPBridge
@@ -110,12 +111,14 @@ class OpenAICodexAgentProcessor:
     def _chat_model_for_turn(self) -> Any:
         if self._chat_model is not None:
             return self._chat_model
-        self._chat_model = ChatCodexOAuth(
-            model=self._model,
-            auth_store=PiLangChainCodexAuthStore(),
-            reasoning_effort=self._reasoning_effort,
-            text_verbosity="low",
-            system_prompt_mode="strict",
+        self._chat_model = StreamingAinvokeChatModel(
+            ChatCodexOAuth(
+                model=self._model,
+                auth_store=PiLangChainCodexAuthStore(),
+                reasoning_effort=self._reasoning_effort,
+                text_verbosity="low",
+                system_prompt_mode="strict",
+            )
         )
         return self._chat_model
 
