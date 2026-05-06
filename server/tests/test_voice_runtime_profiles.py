@@ -111,8 +111,8 @@ def test_bundled_default_profile_uses_openai_api_key_agent():
     profile = load_runtime_profile()
 
     assert profile.agent.provider == "openai_api"
-    assert profile.agent.model == "gpt-5.5"
-    assert profile.agent.reasoning_effort == "low"
+    assert profile.agent.model == "gpt-5.4-nano"
+    assert profile.agent.reasoning_effort == "medium"
     assert profile.agent.api_key_env == "OPENAI_API_KEY"
 
 

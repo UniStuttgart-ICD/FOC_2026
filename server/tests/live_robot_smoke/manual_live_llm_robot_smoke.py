@@ -13,7 +13,8 @@ MCP_URL_ENV = "LIVE_LLM_ROBOT_MCP_URL"
 MODEL_ENV = "LIVE_LLM_ROBOT_MODEL"
 EVIDENCE_DIR_ENV = "LIVE_LLM_ROBOT_EVIDENCE_DIR"
 DEFAULT_MCP_URL = "http://127.0.0.1:8765/mcp"
-DEFAULT_MODEL = "gpt-5.4-mini"
+DEFAULT_MODEL = "gpt-5.4-nano"
+DEFAULT_REASONING_EFFORT = "medium"
 
 pytestmark = [
     pytest.mark.asyncio,
@@ -37,6 +38,7 @@ async def live_agent() -> AsyncIterator[tuple[Any, Any]]:
 
     mcp_url = os.getenv(MCP_URL_ENV, DEFAULT_MCP_URL)
     model = os.getenv(MODEL_ENV, DEFAULT_MODEL)
+    reasoning_effort = os.getenv("LIVE_LLM_ROBOT_REASONING_EFFORT", DEFAULT_REASONING_EFFORT)
     recorder = RecordingRobotToolAdapter(RobotMCPBridge(mcp_url))
     processor = LangChainAgentProcessor(
         mcp_url,
@@ -44,7 +46,7 @@ async def live_agent() -> AsyncIterator[tuple[Any, Any]]:
             AgentProfile(
                 provider="openai_api",
                 model=model,
-                reasoning_effort="low",
+                reasoning_effort=reasoning_effort,
                 api_key_env="OPENAI_API_KEY",
             )
         ),

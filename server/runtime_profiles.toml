@@ -31,8 +31,8 @@ voice = "47c38ca4-5f35-497b-b1a3-415245fb35e1"
 
 [profiles.hybrid_low_latency.agent]
 provider = "openai_api"
-model = "gpt-5.5"
-reasoning_effort = "low"
+model = "gpt-5.4-nano"
+reasoning_effort = "medium"
 api_key_env = "OPENAI_API_KEY"
 
 [profiles.hybrid_low_latency.mcp.robot]
@@ -116,8 +116,8 @@ voice = "coral"
 
 [profiles.openai_all.agent]
 provider = "openai_api"
-model = "gpt-5.5"
-reasoning_effort = "low"
+model = "gpt-5.4-nano"
+reasoning_effort = "medium"
 api_key_env = "OPENAI_API_KEY"
 
 [profiles.openai_all.mcp.robot]
@@ -158,8 +158,8 @@ voice = "aura-2-andromeda-en"
 
 [profiles.deepgram_all.agent]
 provider = "openai_api"
-model = "gpt-5.5"
-reasoning_effort = "low"
+model = "gpt-5.4-nano"
+reasoning_effort = "medium"
 api_key_env = "OPENAI_API_KEY"
 
 [profiles.deepgram_all.mcp.robot]
@@ -200,8 +200,8 @@ voice = "af_heart"
 
 [profiles.local_current.agent]
 provider = "openai_api"
-model = "gpt-5.5"
-reasoning_effort = "low"
+model = "gpt-5.4-nano"
+reasoning_effort = "medium"
 api_key_env = "OPENAI_API_KEY"
 
 [profiles.local_current.mcp.robot]
@@ -232,8 +232,8 @@ voice = "af_heart"
 
 [profiles.no_wake_debug.agent]
 provider = "openai_api"
-model = "gpt-5.5"
-reasoning_effort = "low"
+model = "gpt-5.4-nano"
+reasoning_effort = "medium"
 api_key_env = "OPENAI_API_KEY"
 
 [profiles.no_wake_debug.mcp.robot]
