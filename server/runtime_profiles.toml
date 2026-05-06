@@ -86,6 +86,48 @@ enabled = true
 path = "logs/voice_metrics.jsonl"
 include_text = true
 
+[profiles.hybrid_anthropic]
+category = "benchmark_streaming"
+
+[profiles.hybrid_anthropic.wake]
+provider = "openwakeword"
+model_path = "models/mave.onnx"
+threshold = 0.55
+vad_threshold = 0.0
+candidate_log_threshold = 0.45
+required_hits = 1
+min_wake_rms = 4.0
+min_wake_peak = 12
+rearm_delay_s = 6.0
+pre_buffer_s = 0.5
+single_command = true
+
+[profiles.hybrid_anthropic.emergency_stop]
+enabled = false
+
+[profiles.hybrid_anthropic.stt]
+provider = "deepgram_flux"
+model = "flux-general-en"
+
+[profiles.hybrid_anthropic.tts]
+provider = "cartesia"
+model = "sonic-3"
+voice = "47c38ca4-5f35-497b-b1a3-415245fb35e1"
+
+[profiles.hybrid_anthropic.agent]
+provider = "anthropic_api"
+model = "claude-sonnet-4-6-20250827"
+reasoning_effort = "medium"
+api_key_env = "ANTHROPIC_API_KEY"
+
+[profiles.hybrid_anthropic.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+
+[profiles.hybrid_anthropic.metrics]
+enabled = true
+path = "logs/voice_metrics.jsonl"
+include_text = true
+
 [profiles.openai_all]
 category = "benchmark_streaming"
 

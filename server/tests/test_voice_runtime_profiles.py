@@ -111,7 +111,7 @@ def test_bundled_default_profile_uses_openai_api_key_agent():
     profile = load_runtime_profile()
 
     assert profile.agent.provider == "openai_api"
-    assert profile.agent.model == "gpt-5.4-nano"
+    assert profile.agent.model == "gpt-5.4-mini"
     assert profile.agent.reasoning_effort == "medium"
     assert profile.agent.api_key_env == "OPENAI_API_KEY"
 
@@ -128,6 +128,21 @@ def test_bundled_gemini_profile_is_available():
     assert profile.agent.provider == "gemini_api"
     assert profile.agent.model.startswith("gemini-")
     assert profile.agent.api_key_env in {"GOOGLE_API_KEY", "GEMINI_API_KEY"}
+
+
+def test_bundled_anthropic_profile_is_available():
+    server_dir = Path(__file__).resolve().parents[1]
+
+    profile = load_runtime_profile(
+        profiles_path=default_profiles_path(server_dir),
+        server_dir=server_dir,
+        profile_name="hybrid_anthropic",
+    )
+
+    assert profile.agent.provider == "anthropic_api"
+    assert profile.agent.model.startswith("claude-")
+    assert profile.agent.reasoning_effort == "medium"
+    assert profile.agent.api_key_env == "ANTHROPIC_API_KEY"
 
 
 def test_wake_profile_parses_audio_guards_and_rearm_delay(tmp_path: Path) -> None:
@@ -408,6 +423,44 @@ enabled = false
             server_dir=tmp_path,
             profile_name="bad_gemini",
         )
+
+
+def test_anthropic_api_agent_profile_uses_default_key_env(tmp_path: Path):
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profile(
+        profiles_path,
+        """
+[profiles.anthropic_api]
+category = "local_debug"
+[profiles.anthropic_api.wake]
+provider = "none"
+[profiles.anthropic_api.emergency_stop]
+enabled = false
+[profiles.anthropic_api.stt]
+provider = "whisper"
+[profiles.anthropic_api.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.anthropic_api.agent]
+provider = "anthropic_api"
+model = "claude-sonnet-4-6-20250827"
+reasoning_effort = "medium"
+[profiles.anthropic_api.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.anthropic_api.metrics]
+enabled = false
+""",
+    )
+
+    profile = load_runtime_profile(
+        profiles_path=profiles_path,
+        server_dir=tmp_path,
+        profile_name="anthropic_api",
+    )
+
+    assert profile.agent.provider == "anthropic_api"
+    assert profile.agent.api_key_env == "ANTHROPIC_API_KEY"
+    assert profile.required_env_names() == ("ANTHROPIC_API_KEY",)
 
 
 def test_cartesia_profile_without_voice_requires_voice_id_env(tmp_path: Path):

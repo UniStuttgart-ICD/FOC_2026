@@ -44,9 +44,16 @@ def _profile_from_env() -> AgentProfile:
             thinking_budget=int(os.getenv("LIVE_GEMINI_THINKING_BUDGET", "1024")),
             api_key_env=os.getenv("LIVE_GEMINI_KEY_ENV", "GOOGLE_API_KEY"),
         )
+    if provider == "anthropic_api":
+        return AgentProfile(
+            provider="anthropic_api",
+            model=os.getenv("LIVE_ANTHROPIC_MODEL", "claude-sonnet-4-6-20250827"),
+            reasoning_effort=_reasoning_effort_from_env(),
+            api_key_env=os.getenv("LIVE_ANTHROPIC_KEY_ENV", "ANTHROPIC_API_KEY"),
+        )
     return AgentProfile(
         provider="openai_api",
-        model=os.getenv("LIVE_OPENAI_MODEL", "gpt-5.5"),
+        model=os.getenv("LIVE_OPENAI_MODEL", "gpt-5.4-mini"),
         reasoning_effort=_reasoning_effort_from_env(),
         api_key_env=os.getenv("LIVE_OPENAI_KEY_ENV", "OPENAI_API_KEY"),
     )

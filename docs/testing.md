@@ -38,7 +38,7 @@ Optional overrides:
 
 ```bash
 LIVE_LLM_ROBOT_MCP_URL=http://127.0.0.1:8765/mcp
-LIVE_LLM_ROBOT_MODEL=gpt-5.4-nano
+LIVE_LLM_ROBOT_MODEL=gpt-5.4-mini
 LIVE_LLM_ROBOT_REASONING_EFFORT=medium
 LIVE_LLM_ROBOT_EVIDENCE_DIR=evidence/live_smoke
 ```

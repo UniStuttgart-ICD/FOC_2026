@@ -4,6 +4,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from voice_runtime.agent_providers import (
+    AGENT_PROVIDERS,
+    AgentProvider,
+    default_agent_key_env,
+)
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover
@@ -14,23 +20,16 @@ DEFAULT_PROFILE = "hybrid_low_latency"
 WakeProvider = Literal["none", "openwakeword"]
 STTProvider = Literal["deepgram_flux", "openai_realtime", "whisper"]
 TTSProvider = Literal["cartesia", "openai", "deepgram", "kokoro"]
-AgentProvider = Literal["openai_api", "gemini_api"]
 ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
 Category = Literal["benchmark_streaming", "local_debug"]
 
 _WAKE_PROVIDERS = {"none", "openwakeword"}
 _STT_PROVIDERS = {"deepgram_flux", "openai_realtime", "whisper"}
 _TTS_PROVIDERS = {"cartesia", "openai", "deepgram", "kokoro"}
-_AGENT_PROVIDERS = {"openai_api", "gemini_api"}
 _REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
 _CATEGORIES = {"benchmark_streaming", "local_debug"}
 _STREAMING_STT_PROVIDERS = {"deepgram_flux", "openai_realtime"}
 _STREAMING_TTS_PROVIDERS = {"cartesia", "openai", "deepgram"}
-_DEFAULT_AGENT_KEY_ENV = {
-    "openai_api": "OPENAI_API_KEY",
-    "gemini_api": "GOOGLE_API_KEY",
-}
-
 
 class ProfileError(ValueError):
     """Raised when a runtime profile is invalid."""
@@ -218,14 +217,14 @@ def _parse_tts(table: dict[str, Any]) -> TTSProfile:
 
 
 def _parse_agent(table: dict[str, Any]) -> AgentProfile:
-    provider = cast(AgentProvider, _literal(table, "provider", _AGENT_PROVIDERS))
+    provider = cast(AgentProvider, _literal(table, "provider", set(AGENT_PROVIDERS)))
     reasoning_effort = cast(
         ReasoningEffort | None,
         _optional_literal(table, "reasoning_effort", _REASONING_EFFORTS),
     )
     api_key_env = _optional_string(table, "api_key_env")
     if api_key_env is None:
-        api_key_env = _DEFAULT_AGENT_KEY_ENV[provider]
+        api_key_env = default_agent_key_env(provider)
     return AgentProfile(
         provider=provider,
         model=_string(table, "model", "gpt-5.4-mini"),

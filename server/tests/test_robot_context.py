@@ -78,7 +78,9 @@ def test_robot_context_updates_from_robot_state_observation() -> None:
     store.update_from_tool_result("moveit_get_robot_state", output)
 
     assert store.has_recent_robot_observation(max_age_s=1.0)
-    assert store.latest_tcp_pose()["position"]["z"] == 0.62
+    latest_pose = store.latest_tcp_pose()
+    assert latest_pose is not None
+    assert latest_pose["position"]["z"] == 0.62
 
 
 def test_robot_context_reports_recent_and_stale_pose_observations() -> None:

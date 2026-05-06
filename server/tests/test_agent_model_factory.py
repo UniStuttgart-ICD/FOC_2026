@@ -48,6 +48,24 @@ def test_builds_chat_google_with_thinking_budget_and_key():
     assert model.kwargs["thinking_budget"] == 1024
 
 
+def test_builds_chat_anthropic_with_effort_and_key():
+    model = build_agent_chat_model(
+        AgentProfile(
+            provider="anthropic_api",
+            model="claude-sonnet-4-6-20250827",
+            reasoning_effort="medium",
+            api_key_env="ANTHROPIC_API_KEY",
+        ),
+        env={"ANTHROPIC_API_KEY": "anth-test"},
+        chat_anthropic_cls=CapturedChatModel,
+    )
+
+    assert isinstance(model, CapturedChatModel)
+    assert model.kwargs["model_name"] == "claude-sonnet-4-6-20250827"
+    assert model.kwargs["api_key"] == "anth-test"
+    assert model.kwargs["effort"] == "medium"
+
+
 def test_missing_provider_key_raises_clear_error():
     with pytest.raises(ValueError, match="OPENAI_API_KEY is required"):
         build_agent_chat_model(
