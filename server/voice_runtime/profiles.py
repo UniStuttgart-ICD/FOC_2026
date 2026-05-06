@@ -14,20 +14,19 @@ DEFAULT_PROFILE = "hybrid_low_latency"
 WakeProvider = Literal["none", "openwakeword"]
 STTProvider = Literal["deepgram_flux", "openai_realtime", "whisper"]
 TTSProvider = Literal["cartesia", "openai", "deepgram", "kokoro"]
-AgentProvider = Literal["openai_codex_oauth", "openai_api", "gemini_api"]
+AgentProvider = Literal["openai_api", "gemini_api"]
 ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
 Category = Literal["benchmark_streaming", "local_debug"]
 
 _WAKE_PROVIDERS = {"none", "openwakeword"}
 _STT_PROVIDERS = {"deepgram_flux", "openai_realtime", "whisper"}
 _TTS_PROVIDERS = {"cartesia", "openai", "deepgram", "kokoro"}
-_AGENT_PROVIDERS = {"openai_codex_oauth", "openai_api", "gemini_api"}
+_AGENT_PROVIDERS = {"openai_api", "gemini_api"}
 _REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
 _CATEGORIES = {"benchmark_streaming", "local_debug"}
 _STREAMING_STT_PROVIDERS = {"deepgram_flux", "openai_realtime"}
 _STREAMING_TTS_PROVIDERS = {"cartesia", "openai", "deepgram"}
 _DEFAULT_AGENT_KEY_ENV = {
-    "openai_codex_oauth": None,
     "openai_api": "OPENAI_API_KEY",
     "gemini_api": "GOOGLE_API_KEY",
 }

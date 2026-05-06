@@ -36,8 +36,9 @@ model = "sonic-3"
 voice = "test-voice"
 
 [profiles.hybrid_low_latency.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.5"
+api_key_env = "OPENAI_API_KEY"
 
 [profiles.hybrid_low_latency.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -51,6 +52,7 @@ include_text = true
     )
     monkeypatch.setenv("DEEPGRAM_API_KEY", "dg")
     monkeypatch.setenv("CARTESIA_API_KEY", "ct")
+    monkeypatch.setenv("OPENAI_API_KEY", "oa")
 
     config = load_runtime_config(profiles_path=profiles, server_dir=tmp_path)
 
@@ -61,7 +63,11 @@ include_text = true
     assert config.wake.pre_buffer_s == 1.5
     assert config.stt.provider == "deepgram_flux"
     assert config.tts.provider == "cartesia"
-    assert config.agent == AgentConfig(provider="openai_codex_oauth", model="gpt-5.5")
+    assert config.agent == AgentConfig(
+        provider="openai_api",
+        model="gpt-5.5",
+        api_key_env="OPENAI_API_KEY",
+    )
     assert config.mcp_robot_url == "http://127.0.0.1:8765/mcp"
     assert config.metrics.include_text is True
 
@@ -81,7 +87,7 @@ provider = "deepgram_flux"
 [profiles.hybrid_low_latency.tts]
 provider = "cartesia"
 [profiles.hybrid_low_latency.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.5"
 [profiles.hybrid_low_latency.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -101,7 +107,7 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.local_current.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.local_current.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -114,6 +120,7 @@ enabled = false
     monkeypatch.setenv("DEEPGRAM_API_KEY", "dg")
     monkeypatch.setenv("CARTESIA_API_KEY", "ct")
     monkeypatch.setenv("CARTESIA_VOICE_ID", "voice")
+    monkeypatch.setenv("OPENAI_API_KEY", "oa")
 
     config = load_runtime_config(
         profiles_path=profiles,
@@ -139,7 +146,7 @@ provider = "deepgram_flux"
 [profiles.hybrid_low_latency.tts]
 provider = "cartesia"
 [profiles.hybrid_low_latency.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.5"
 [profiles.hybrid_low_latency.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -173,7 +180,7 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.local_current.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.local_current.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -209,7 +216,7 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.local_current.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.local_current.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -246,7 +253,7 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.local_current.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.local_current.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"

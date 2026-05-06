@@ -4,14 +4,8 @@ from typing import Any
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 
-from codex_auth import CodexCredentials
-from openai_codex_agent_processor import OpenAICodexAgentProcessor
+from langchain_agent_processor import LangChainAgentProcessor
 from voice_runtime.agent_turn import AgentTurnInput
-
-
-class Store:
-    def get_credentials(self):
-        return CodexCredentials(access="access", refresh="refresh", account_id="acct")
 
 
 class ScriptedChatModel:
@@ -148,11 +142,10 @@ def tool_call(name: str, call_id: str = "call-1", arguments: dict[str, Any] | No
 def make_processor(responses: list[AIMessage], bridge: BehaviorBridge | None = None):
     selected_bridge = bridge or BehaviorBridge()
     chat_model = ScriptedChatModel(responses)
-    processor = OpenAICodexAgentProcessor(
+    processor = LangChainAgentProcessor(
         "http://127.0.0.1:8765/mcp",
-        model="gpt-5.4-mini",
-        credential_store=Store(),
         chat_model=chat_model,
+        model_label="gpt-5.5",
         tool_bridge=selected_bridge,
     )
     return processor, chat_model, selected_bridge

@@ -36,6 +36,13 @@ def test_accepts_current_pose_observation_arguments():
     validate_robot_tool_call("moveit_get_current_pose", {"robot_name": "UR10", "timeout_s": 2.0})
 
 
+def test_accepts_robot_state_observation_arguments():
+    validate_robot_tool_call("moveit_get_robot_state", {"robot_name": "UR10", "timeout_s": 2.0})
+    assert canonical_mcp_tool_name("moveit_get_robot_state") == "moveit_get_robot_state"
+    assert "pose" in agent_tool_description("moveit_get_robot_state").lower()
+    assert "physical" in agent_tool_description("moveit_get_robot_state").lower()
+
+
 def test_rejects_unknown_tool():
     with pytest.raises(RobotCallValidationError, match="Tool is not allowed"):
         validate_robot_tool_call("move_to_position", {"robot_name": "UR10"})

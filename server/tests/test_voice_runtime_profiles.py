@@ -40,7 +40,7 @@ provider = "cartesia"
 model = "sonic-3"
 voice = "voice-id"
 [profiles.hybrid_low_latency.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 reasoning_effort = "medium"
 [profiles.hybrid_low_latency.mcp.robot]
@@ -64,7 +64,7 @@ device = "cpu"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.no_wake_debug.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.no_wake_debug.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -100,15 +100,19 @@ def test_bundled_default_profile_keeps_short_wake_word_activation_usable() -> No
         profile_name="hybrid_low_latency",
     )
 
-    assert profile.wake.threshold == 0.7
+    assert profile.wake.threshold <= 0.55
     assert profile.wake.vad_threshold == 0.0
     assert profile.wake.required_hits == 1
+    assert profile.wake.min_wake_rms <= 4.7
+    assert profile.wake.min_wake_peak <= 17
 
 
-def test_bundled_default_profile_uses_native_openai_api_agent():
+def test_bundled_default_profile_uses_openai_api_key_agent():
     profile = load_runtime_profile()
 
     assert profile.agent.provider == "openai_api"
+    assert profile.agent.model == "gpt-5.5"
+    assert profile.agent.reasoning_effort == "low"
     assert profile.agent.api_key_env == "OPENAI_API_KEY"
 
 
@@ -152,7 +156,7 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.guarded.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.guarded.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -204,7 +208,7 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.bad.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.bad.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -244,7 +248,7 @@ def test_loads_profile_without_constructing_adapters(tmp_path: Path):
     assert profile.emergency_stop.enabled is False
     assert profile.stt.provider == "deepgram_flux"
     assert profile.tts.provider == "cartesia"
-    assert profile.agent.provider == "openai_codex_oauth"
+    assert profile.agent.provider == "openai_api"
     assert profile.agent.reasoning_effort == "medium"
     assert profile.mcp_robot_url == "http://127.0.0.1:8765/mcp"
     assert profile.metrics.path == tmp_path / "logs" / "voice_metrics.jsonl"
@@ -284,7 +288,11 @@ def test_profile_reports_required_env_names_without_reading_env(tmp_path: Path, 
         profile_name="hybrid_low_latency",
     )
 
-    assert profile.required_env_names() == ("DEEPGRAM_API_KEY", "CARTESIA_API_KEY")
+    assert profile.required_env_names() == (
+        "DEEPGRAM_API_KEY",
+        "CARTESIA_API_KEY",
+        "OPENAI_API_KEY",
+    )
 
 
 def test_openai_api_agent_profile_requires_openai_key_env(tmp_path: Path):
@@ -419,7 +427,7 @@ provider = "deepgram_flux"
 provider = "cartesia"
 model = "sonic-3"
 [profiles.cartesia_without_voice.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.cartesia_without_voice.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -438,6 +446,7 @@ enabled = false
         "DEEPGRAM_API_KEY",
         "CARTESIA_API_KEY",
         "CARTESIA_VOICE_ID",
+        "OPENAI_API_KEY",
     )
 
 
@@ -457,7 +466,7 @@ provider = "openai_realtime"
 [profiles.cloud_mix.tts]
 provider = "deepgram"
 [profiles.cloud_mix.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.cloud_mix.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -475,7 +484,7 @@ enabled = false
     assert profile.required_env_names() == ("DEEPGRAM_API_KEY", "OPENAI_API_KEY")
 
 
-def test_local_profile_has_no_cloud_stt_tts_env_requirements(tmp_path: Path):
+def test_local_profile_requires_only_agent_api_key(tmp_path: Path):
     profiles_path = tmp_path / "runtime_profiles.toml"
     _write_profiles(profiles_path)
 
@@ -485,7 +494,7 @@ def test_local_profile_has_no_cloud_stt_tts_env_requirements(tmp_path: Path):
         profile_name="no_wake_debug",
     )
 
-    assert profile.required_env_names() == ()
+    assert profile.required_env_names() == ("OPENAI_API_KEY",)
 
 
 def test_agent_reasoning_effort_rejects_invalid_value(tmp_path: Path):
@@ -558,7 +567,7 @@ provider = "whisper"
 provider = "cartesia"
 voice = "voice-id"
 [profiles.bad.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.bad.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -588,7 +597,7 @@ provider = "deepgram_flux"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.bad.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.bad.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -619,7 +628,7 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.bad.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.bad.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -651,7 +660,7 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.bad.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.bad.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -691,7 +700,7 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.bad.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.bad.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -723,7 +732,7 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.bad.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.bad.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -755,7 +764,7 @@ model = "base"
 provider = "kokoro"
 voice = "af_heart"
 [profiles.bad.agent]
-provider = "openai_codex_oauth"
+provider = "openai_api"
 model = "gpt-5.4-mini"
 [profiles.bad.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"

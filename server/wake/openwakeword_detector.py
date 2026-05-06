@@ -81,6 +81,22 @@ class OpenWakeWordDetector:
             vad_threshold=vad_threshold,
         )
 
+    @property
+    def vad_enabled(self) -> bool:
+        return self._model.vad_threshold > 0
+
+    def last_vad_score(self) -> float | None:
+        if not self.vad_enabled:
+            return None
+        vad = getattr(self._model, "vad", None)
+        prediction_buffer = getattr(vad, "prediction_buffer", None)
+        if prediction_buffer is None:
+            return 0.0
+        vad_frames = list(prediction_buffer)[-7:-4]
+        if not vad_frames:
+            return 0.0
+        return float(np.max(vad_frames))
+
     def predict(self, pcm16: np.ndarray) -> dict[str, float]:
         if pcm16.dtype != np.int16:
             raise TypeError("OpenWakeWordDetector expects int16 PCM")

@@ -1,4 +1,4 @@
-"""LangGraph orchestration for Codex robot agent turns."""
+"""LangGraph orchestration for robot agent turns."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from robot_control.task_policy import structured_task_policy_error, validate_tas
 from voice_runtime.agent_turn import AgentTurnInput
 from voice_runtime.timing import elapsed_ms_since, monotonic_s
 
-MAX_CODEX_TOOL_TURNS = 3
+MAX_AGENT_TOOL_TURNS = 6
 VIZOR_ROBOT_NAME = "UR10"
 PLAN_TOOL_NAMES = {"moveit_plan_free_motion", "moveit_plan_cartesian_motion"}
 ACTION_TOOL_NAMES = {
@@ -100,7 +100,7 @@ class SupportedAction:
 
 
 class LangGraphRobotAgent:
-    """Runs a Codex robot dialogue turn through a LangGraph state machine."""
+    """Runs a robot dialogue turn through a LangGraph state machine."""
 
     def __init__(
         self,
@@ -113,7 +113,7 @@ class LangGraphRobotAgent:
         self._model = model
         self._tool_bridge = tool_bridge
         self._robot_context = robot_context
-        self._thread_id = thread_id or f"codex-robot-agent-{uuid.uuid4()}"
+        self._thread_id = thread_id or f"robot-agent-{uuid.uuid4()}"
         self._latest_state: dict[str, Any] | None = None
         self._graph = self._compile_graph()
 
@@ -147,6 +147,7 @@ class LangGraphRobotAgent:
         builder.add_node("execute_robot_tool", self._execute_robot_tool)
         builder.add_node("repair_missing_action", self._repair_missing_action)
         builder.add_node("execute_supported_action", self._execute_supported_action)
+        builder.add_node("stop_after_tool_limit", self._stop_after_tool_limit)
         builder.add_node("final_response", self._final_response)
         builder.add_edge(START, "observe_current_pose")
         builder.add_edge("observe_current_pose", "call_model")
@@ -154,6 +155,7 @@ class LangGraphRobotAgent:
         builder.add_edge("execute_robot_tool", "observe_current_pose")
         builder.add_edge("repair_missing_action", "call_model")
         builder.add_edge("execute_supported_action", END)
+        builder.add_edge("stop_after_tool_limit", END)
         builder.add_edge("final_response", END)
         return builder.compile(checkpointer=InMemorySaver())
 
@@ -176,7 +178,7 @@ class LangGraphRobotAgent:
         system = SystemMessage(content=self._instructions())
         started = monotonic_s()
         logger.info(
-            "Codex LangChain request start tool_turns={} messages={} tools={}",
+            "LangChain request start tool_turns={} messages={} tools={}",
             state["tool_turns"],
             len(state["messages"]),
             len(tools),
@@ -185,7 +187,7 @@ class LangGraphRobotAgent:
             message = await model.ainvoke([system, *state["messages"]])
         except asyncio.CancelledError:
             logger.warning(
-                "Codex LangChain request cancelled elapsed_ms={} tool_turns={} messages={} tools={}",
+                "LangChain request cancelled elapsed_ms={} tool_turns={} messages={} tools={}",
                 elapsed_ms_since(started),
                 state["tool_turns"],
                 len(state["messages"]),
@@ -194,7 +196,7 @@ class LangGraphRobotAgent:
             raise
         except Exception as exc:
             logger.exception(
-                "Codex LangChain request failed elapsed_ms={} tool_turns={} messages={} tools={} error={}",
+                "LangChain request failed elapsed_ms={} tool_turns={} messages={} tools={} error={}",
                 elapsed_ms_since(started),
                 state["tool_turns"],
                 len(state["messages"]),
@@ -204,10 +206,10 @@ class LangGraphRobotAgent:
             raise
         else:
             logger.info(
-                "Codex LangChain request end elapsed_ms={} tool_calls={} text_len={}",
+                "LangChain request end elapsed_ms={} tool_calls={} text_len={}",
                 elapsed_ms_since(started),
                 [call.get("name") for call in getattr(message, "tool_calls", [])],
-                len(str(message.content or "")),
+                len(_message_text(message)),
             )
         return {"messages": [message], "tools": tools}
 
@@ -217,6 +219,7 @@ class LangGraphRobotAgent:
         "execute_robot_tool",
         "repair_missing_action",
         "execute_supported_action",
+        "stop_after_tool_limit",
         "final_response",
     ]:
         if state["error_text"]:
@@ -225,8 +228,8 @@ class LangGraphRobotAgent:
         if last is None:
             return "final_response"
         if last.tool_calls:
-            if state["tool_turns"] >= MAX_CODEX_TOOL_TURNS:
-                return "final_response"
+            if state["tool_turns"] >= MAX_AGENT_TOOL_TURNS:
+                return "stop_after_tool_limit"
             return "execute_robot_tool"
         if _should_repair_missing_action(state, last):
             return "repair_missing_action"
@@ -331,13 +334,29 @@ class LangGraphRobotAgent:
             "action_tool_ran": action_tool_ran,
         }
 
+    def _stop_after_tool_limit(self, state: RobotAgentState) -> dict[str, Any]:
+        last = _last_ai_message(state["messages"])
+        if last is None:
+            return {"final_text": NO_TEXT_RESPONSE}
+
+        return {
+            "messages": [
+                ToolMessage(
+                    content=_tool_limit_error(str(tool_call.get("name") or "")),
+                    tool_call_id=str(tool_call.get("id") or ""),
+                )
+                for tool_call in last.tool_calls
+            ],
+            "final_text": NO_TEXT_RESPONSE,
+        }
+
     def _final_response(self, state: RobotAgentState) -> dict[str, Any]:
         if state["error_text"]:
             return {"final_text": state["error_text"]}
         last = _last_ai_message(state["messages"])
         if last is None:
             return {"final_text": NO_TEXT_RESPONSE}
-        text = str(last.content or "").strip()
+        text = _message_text(last)
         if (
             not text
             and state["needs_action_tool"]
@@ -394,6 +413,26 @@ def _last_ai_message(messages: list[BaseMessage]) -> AIMessage | None:
     return None
 
 
+def _message_text(message: BaseMessage) -> str:
+    content = message.content
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts: list[str] = []
+        for part in content:
+            if isinstance(part, str) and part.strip():
+                parts.append(part.strip())
+            elif (
+                isinstance(part, dict)
+                and part.get("type") == "text"
+                and isinstance(part.get("text"), str)
+                and part["text"].strip()
+            ):
+                parts.append(part["text"].strip())
+        return "\n".join(parts)
+    return ""
+
+
 def _first_available_tool(tools: list[dict[str, Any]], names: tuple[str, ...]) -> str | None:
     tool_names = {tool.get("name") for tool in tools}
     for name in names:
@@ -414,9 +453,9 @@ def _should_repair_missing_action(state: RobotAgentState, last: AIMessage) -> bo
         return False
     if state["missing_action_repairs"] >= MAX_MISSING_ACTION_REPAIRS:
         return False
-    if state["tool_turns"] >= MAX_CODEX_TOOL_TURNS:
+    if state["tool_turns"] >= MAX_AGENT_TOOL_TURNS:
         return False
-    text = str(last.content or "").casefold()
+    text = _message_text(last).casefold()
     return not text or any(term in text for term in FUTURE_PROMISE_TERMS)
 
 
@@ -431,7 +470,7 @@ def _should_execute_supported_action_fallback(
         return False
     if state["missing_action_repairs"] < MAX_MISSING_ACTION_REPAIRS:
         return False
-    text = str(last.content or "").casefold()
+    text = _message_text(last).casefold()
     if text and not any(term in text for term in FUTURE_PROMISE_TERMS):
         return False
     return _supported_action_from_text(state["user_text"], robot_context.latest_tcp_pose()) is not None
@@ -636,6 +675,19 @@ def _one_tool_at_a_time_error(next_tool_name: str) -> str:
             "error": "Only one robot tool call may be executed per model turn.",
             "correction": "Wait for the previous tool result, then retry this tool call if still needed.",
             "retryable": True,
+            "suggested_next_tool": next_tool_name or None,
+        },
+        ensure_ascii=False,
+    )
+
+
+def _tool_limit_error(next_tool_name: str) -> str:
+    return json.dumps(
+        {
+            "ok": False,
+            "error": "Robot tool turn limit reached.",
+            "correction": "Stop tool use and explain the blocker to the user.",
+            "retryable": False,
             "suggested_next_tool": next_tool_name or None,
         },
         ensure_ascii=False,

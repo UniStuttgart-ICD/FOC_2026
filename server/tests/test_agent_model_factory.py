@@ -15,7 +15,7 @@ def test_builds_chat_openai_with_reasoning_effort_and_key():
     model = build_agent_chat_model(
         AgentProfile(
             provider="openai_api",
-            model="gpt-5.4-mini",
+            model="gpt-5.5",
             reasoning_effort="low",
             api_key_env="OPENAI_API_KEY",
         ),
@@ -24,7 +24,7 @@ def test_builds_chat_openai_with_reasoning_effort_and_key():
     )
 
     assert isinstance(model, CapturedChatModel)
-    assert model.kwargs["model"] == "gpt-5.4-mini"
+    assert model.kwargs["model"] == "gpt-5.5"
     assert model.kwargs["api_key"] == "sk-test"
     assert model.kwargs["reasoning_effort"] == "low"
 

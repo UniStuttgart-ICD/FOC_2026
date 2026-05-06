@@ -16,7 +16,7 @@ Owns wake phrase detection, pre-buffer replay, wake phrase stripping, finalized 
 
 ### Agent Turn
 
-Owns Pipecat LLM frame semantics for one Agent Turn. Codex OAuth is the only supported backend Adapter behind this seam.
+Owns Pipecat LLM frame semantics for one Agent Turn. Native LangChain API-backed models are the supported backend Adapters behind this seam.
 
 ### Robot movement safety and Robot Control
 

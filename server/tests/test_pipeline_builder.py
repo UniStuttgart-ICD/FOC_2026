@@ -58,7 +58,7 @@ def _config(tmp_path: Path, *, metrics_enabled: bool, wake_enabled: bool = False
         emergency_stop=EmergencyStopConfig(enabled=False),
         stt=STTConfig(provider="whisper", model="base", device="cpu"),
         tts=TTSConfig(provider="kokoro", voice="af_heart"),
-        agent=AgentConfig(provider="openai_codex_oauth", model="gpt-5.4-mini"),
+        agent=AgentConfig(provider="openai_api", model="gpt-5.4-mini"),
         mcp_robot_url="http://127.0.0.1:8765/mcp",
         metrics=MetricsConfig(
             enabled=metrics_enabled,

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 NO_TEXT_RESPONSE = "I could not confirm that the action completed."
 ERROR_RESPONSE = "I encountered an error. Please try again."
-_WAKE_ONLY_TEXT = {"mave", "maeve", "may", "mail", "nave", "name", "names"}
+_WAKE_ONLY_TEXT = {"mave", "maeve", "may", "mail", "nave", "name", "names", "base"}
 _PROBABLE_WAKE_JUNK_TEXT = {"up the robot wave"}
 _WORD_PATTERN = re.compile(r"[a-z]+", re.IGNORECASE)
 

@@ -8,21 +8,21 @@ Run deterministic tests from `server/`:
 uv run pytest
 ```
 
-Default tests must not require Codex OAuth, MoveIt MCP, STT/TTS providers, wake-word models beyond existing unit-test fixtures, browser audio, or robot simulation infrastructure.
+Default tests must not require live provider API keys, MoveIt MCP, STT/TTS providers, wake-word models beyond existing unit-test fixtures, browser audio, or robot simulation infrastructure.
 
 ## Manual live LLM robot smoke tests
 
 Manual live smoke tests send text through the Agent Turn seam:
 
 ```text
-AgentTurnInput -> OpenAICodexAgentProcessor -> Codex OAuth backend -> RobotMCPBridge -> MoveIt simulation
+AgentTurnInput -> LangChainAgentProcessor -> API-backed chat model -> RobotMCPBridge -> MoveIt simulation
 ```
 
 They do not exercise wake, STT, TTS, browser audio, or the full Pipecat voice pipeline.
 
 ### Prerequisites
 
-- Pi is logged in with the `openai-codex` OAuth profile.
+- `OPENAI_API_KEY` is set.
 - The MoveIt MCP server is reachable.
 - The UR10 simulation is running in safe simulation mode.
 

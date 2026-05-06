@@ -27,16 +27,16 @@ The processor-ordering interface for transport input, optional Voice Command aud
 ### Agent Control
 
 **Agent Control Module**:
-The target module for Codex-backed intent handling and Agent Orchestration.
+The target module for API-key-backed LangChain intent handling and Agent Orchestration.
 
-**Codex OAuth Backend**:
-The ChatGPT Codex backend accessed with Pi-managed OpenAI Codex OAuth tokens, not a standard OpenAI API-key chat model.
+**LangChain API Backend**:
+The native LangChain chat-model backend accessed with provider API keys.
 
 **Agent Orchestration**:
 Dialogue and tool-loop control behind the Agent Turn seam; LangGraph may own this, but Pipecat remains the Voice Runtime owner.
 
 **Robot Agent Prompt**:
-The concise Codex behavior prompt aligned with Agent Orchestration, robot tool feedback, and the robot tool contract.
+The concise behavior prompt aligned with Agent Orchestration, robot tool feedback, and the robot tool contract.
 
 ### Robot Control
 
@@ -70,7 +70,7 @@ The accepted movement-safety boundary; robot movement safety is delegated to Mov
 ### Testing
 
 **Live LLM Robot Eval**:
-An opt-in manual run that uses the real Codex OAuth backend and the MoveIt simulation stack to evaluate robot-agent behavior from natural-language commands.
+An opt-in manual run that uses the real API-key LangChain backend and the MoveIt simulation stack to evaluate robot-agent behavior from natural-language commands.
 
 **Live LLM Robot Smoke Test**:
 A deterministic-leaning Live LLM Robot Eval that sends text through the Agent Turn seam and uses pass/fail assertions based on observed tool calls and MoveIt simulation results.

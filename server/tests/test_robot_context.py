@@ -35,7 +35,7 @@ def test_robot_context_updates_from_current_pose_tool_output() -> None:
     assert "z=0.300" in text
 
 
-def test_robot_context_still_accepts_legacy_status_tool_output() -> None:
+def test_robot_context_ignores_legacy_status_tool_output() -> None:
     store = RobotContextStore()
     output = json.dumps(
         {
@@ -52,8 +52,33 @@ def test_robot_context_still_accepts_legacy_status_tool_output() -> None:
     store.update_from_tool_result("moveit_get_robot_status", output)
 
     text = store.render_instruction_block()
-    assert "gripper: open" in text
-    assert "last execution: pass" in text
+    assert "gripper: open" not in text
+    assert "last execution: pass" not in text
+
+
+def test_robot_context_updates_from_robot_state_observation() -> None:
+    store = RobotContextStore(time_fn=lambda: 10.0)
+    output = json.dumps(
+        {
+            "structured_content": {
+                "ok": True,
+                "robot": "UR10",
+                "raw": {
+                    "pose": {
+                        "position": {"x": 0.57, "y": 0.39, "z": 0.62},
+                        "orientation": {"x": 0.0, "y": -0.70710678, "z": -0.70710678, "w": 0.0},
+                    },
+                    "physical_mode": False,
+                    "joint_state": [0, -1.57, 1.57, 0, 0, 0],
+                },
+            }
+        }
+    )
+
+    store.update_from_tool_result("moveit_get_robot_state", output)
+
+    assert store.has_recent_robot_observation(max_age_s=1.0)
+    assert store.latest_tcp_pose()["position"]["z"] == 0.62
 
 
 def test_robot_context_reports_recent_and_stale_pose_observations() -> None:

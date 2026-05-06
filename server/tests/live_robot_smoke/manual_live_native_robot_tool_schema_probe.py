@@ -34,7 +34,7 @@ async def test_live_model_fills_real_moveit_tool_arguments_without_execution():
         model = build_agent_chat_model(
             AgentProfile(
                 provider="openai_api",
-                model=os.getenv("LIVE_OPENAI_MODEL", "gpt-5.4-mini"),
+                model=os.getenv("LIVE_OPENAI_MODEL", "gpt-5.5"),
                 reasoning_effort=_reasoning_effort_from_env(),
                 api_key_env="OPENAI_API_KEY",
             )

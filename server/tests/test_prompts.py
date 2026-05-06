@@ -4,6 +4,7 @@ from prompts import SYSTEM_PROMPT
 
 CANONICAL_TOOLS = {
     "moveit_get_current_pose",
+    "moveit_get_robot_state",
     "moveit_plan_free_motion",
     "moveit_plan_cartesian_motion",
     "moveit_plan_and_execute_free_motion",
@@ -54,6 +55,14 @@ def test_prompt_requires_fresh_pose_for_state_dependent_actions() -> None:
     assert "relative" in prompt
     assert "fresh" in prompt
     assert "last-known context is advisory" in prompt
+
+
+def test_prompt_distinguishes_pose_observation_from_robot_state_observation() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+    assert "moveit_get_robot_state" in prompt
+    assert "readiness" in prompt
+    assert "failed motion" in prompt
+    assert "moveit_get_current_pose for ordinary relative motion" in prompt
 
 
 def test_agent_instructions_match_current_moveit_observation_tool() -> None:

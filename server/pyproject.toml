@@ -5,15 +5,14 @@ description = "Voice-controlled UR robot agent"
 requires-python = ">=3.10,<3.13"
 dependencies = [
     "pipecat-ai[cartesia,deepgram,kokoro,openai,runner,silero,webrtc,whisper]",
-    "openai-agents>=0.14.0,<1",
     "openai>=2.29.0,<3",
+    "mcp>=1.26.0,<2",
     "langgraph>=1.0,<2",
     "httpx>=0.28.0,<1",
     "openwakeword>=0.6.0,<1",
     "silero-vad>=6.0.0,<7",
     "tomli>=2.0.0; python_version < '3.11'",
     "langchain-core>=1.2,<2",
-    "langchain-codex-oauth>=1.0,<1.1",
     "langchain-openai>=1.1,<2",
     "langchain-google-genai>=4.0,<5",
 ]
@@ -36,7 +35,7 @@ select = ["I"]
 pythonpath = ["."]
 markers = [
     "live: manual tests that require live credentials or external services",
-    "llm: manual tests that call the real Codex OAuth backend",
+    "llm: manual tests that call real API-backed chat models",
     "native_llm: manual tests that call real API-key LangChain providers",
     "robot_sim: manual tests that require the MoveIt robot simulation stack",
 ]

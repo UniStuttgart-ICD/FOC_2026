@@ -9,7 +9,7 @@ See [Voice Runtime Architecture](docs/architecture.md) for the reusable Module b
 Default profile:
 
 ```text
-hybrid_low_latency = Mave wake word + Deepgram Flux STT + OpenAI Codex OAuth agent + Cartesia Sonic TTS
+hybrid_low_latency = Mave wake word + Deepgram Flux STT + OpenAI API LangChain agent + Cartesia Sonic TTS
 ```
 
 Run the default profile:
@@ -30,6 +30,16 @@ uv run bot.py --profile no_wake_debug
 
 `--profile` overrides `VOICE_PROFILE`.
 
+### Wake tuning
+
+Run the independent wake tuning page from `server/`:
+
+```bash
+uv run python -m wake_tuning.app
+```
+
+Open `http://127.0.0.1:9010`, start the mic, tune the sliders, then use **Save / implement**. Saved values go to `server/wake_tuning_settings.json` and override the selected profile's wake settings when the Pipecat bot starts.
+
 ### Required keys
 
 For the default profile, set:
@@ -37,6 +47,7 @@ For the default profile, set:
 ```dotenv
 DEEPGRAM_API_KEY=
 CARTESIA_API_KEY=
+OPENAI_API_KEY=
 ```
 
 For `openai_all`, set:
@@ -45,16 +56,7 @@ For `openai_all`, set:
 OPENAI_API_KEY=
 ```
 
-For OpenAI Codex OAuth agent auth, run Pi and login with ChatGPT Plus/Pro Codex:
-
-```text
-pi
-/login
-```
-
-The agent reads Pi's `~/.pi/agent/auth.json` `openai-codex` OAuth profile.
-
-`local_current` and `no_wake_debug` use local STT/TTS with the same OpenAI Codex OAuth agent backend as the benchmark profiles. Keep Pi's `openai-codex` OAuth profile and the configured robot MCP URL reachable.
+`local_current` and `no_wake_debug` use local STT/TTS with the same OpenAI API LangChain agent backend as the benchmark profiles. Keep `OPENAI_API_KEY` and the configured robot MCP URL reachable.
 
 ### Wake word
 

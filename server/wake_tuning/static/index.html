@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mave Wake Tuning</title>
+    <style>
+      :root {
+        --ink: #15211d;
+        --paper: #f6f1e6;
+        --panel: #fffaf0;
+        --line: #2a3b35;
+        --muted: #6b746d;
+        --green: #1fc76a;
+        --red: #d94343;
+        --amber: #d79a20;
+        --blue: #236d9b;
+        --shadow: 0 18px 50px rgba(28, 34, 31, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        font-family: "Aptos", "Segoe UI", sans-serif;
+        background:
+          linear-gradient(90deg, rgba(21, 33, 29, 0.08) 1px, transparent 1px),
+          linear-gradient(rgba(21, 33, 29, 0.06) 1px, transparent 1px),
+          radial-gradient(circle at 80% 12%, rgba(31, 199, 106, 0.18), transparent 28rem),
+          var(--paper);
+        background-size: 34px 34px, 34px 34px, auto, auto;
+      }
+
+      main {
+        width: min(1180px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 28px 0 32px;
+      }
+
+      header {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 20px;
+        align-items: end;
+        border-bottom: 2px solid var(--line);
+        padding-bottom: 18px;
+      }
+
+      h1 {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(2.4rem, 7vw, 6.7rem);
+        line-height: 0.86;
+        letter-spacing: 0;
+      }
+
+      .lede {
+        max-width: 760px;
+        margin: 12px 0 0;
+        color: var(--muted);
+        font-size: 1rem;
+      }
+
+      .status-stack {
+        display: grid;
+        justify-items: end;
+        gap: 10px;
+      }
+
+      .lamp {
+        width: 76px;
+        aspect-ratio: 1;
+        border: 3px solid var(--line);
+        border-radius: 50%;
+        background: var(--red);
+        box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.32), 0 0 0 rgba(31, 199, 106, 0);
+        transition: background 80ms linear, box-shadow 80ms linear;
+      }
+
+      .lamp.on {
+        background: var(--green);
+        box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.45), 0 0 38px rgba(31, 199, 106, 0.82);
+      }
+
+      .pill {
+        border: 2px solid var(--line);
+        background: var(--panel);
+        padding: 8px 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        font-size: 0.76rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 18px;
+        margin-top: 18px;
+      }
+
+      section {
+        border: 2px solid var(--line);
+        background: rgba(255, 250, 240, 0.92);
+        box-shadow: var(--shadow);
+      }
+
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 52px;
+        border-bottom: 2px solid var(--line);
+        padding: 12px 14px;
+        background: rgba(35, 109, 155, 0.1);
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 0.92rem;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      .controls {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
+      }
+
+      label {
+        display: grid;
+        grid-template-columns: minmax(140px, 0.7fr) 1fr 72px;
+        gap: 12px;
+        align-items: center;
+        padding: 12px;
+        border: 1px solid rgba(42, 59, 53, 0.34);
+        background: rgba(255, 255, 255, 0.44);
+      }
+
+      .slider-copy {
+        display: grid;
+        gap: 4px;
+      }
+
+      .slider-copy span {
+        font-weight: 800;
+      }
+
+      .slider-copy small {
+        color: var(--muted);
+        font-size: 0.78rem;
+        line-height: 1.25;
+      }
+
+      label output {
+        justify-self: end;
+        font-variant-numeric: tabular-nums;
+        font-weight: 900;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        accent-color: var(--blue);
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 0 14px 14px;
+      }
+
+      button {
+        border: 2px solid var(--line);
+        background: var(--ink);
+        color: var(--paper);
+        padding: 11px 14px;
+        font-weight: 900;
+        cursor: pointer;
+        box-shadow: 4px 4px 0 var(--amber);
+      }
+
+      button.secondary {
+        background: var(--panel);
+        color: var(--ink);
+        box-shadow: 4px 4px 0 rgba(35, 109, 155, 0.32);
+      }
+
+      button.apply {
+        background: var(--blue);
+        box-shadow: 4px 4px 0 var(--green);
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .meter-wrap {
+        padding: 14px;
+      }
+
+      .meter {
+        height: 34px;
+        border: 2px solid var(--line);
+        background: rgba(21, 33, 29, 0.12);
+        overflow: hidden;
+      }
+
+      .bar {
+        width: 0%;
+        height: 100%;
+        background: linear-gradient(90deg, var(--blue), var(--green));
+        transition: width 70ms linear;
+      }
+
+      .readouts {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        padding: 0 14px 14px;
+      }
+
+      .readout {
+        border: 1px solid rgba(42, 59, 53, 0.4);
+        padding: 11px;
+        background: rgba(255, 255, 255, 0.45);
+      }
+
+      .readout b {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--muted);
+        font-size: 0.76rem;
+        text-transform: uppercase;
+      }
+
+      .readout span {
+        font-size: 1.18rem;
+        font-weight: 900;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .readout .small-value {
+        font-size: 0.94rem;
+      }
+
+      .buffer-panel {
+        margin: 0 14px 14px;
+        border: 1px solid rgba(42, 59, 53, 0.4);
+        background: rgba(255, 255, 255, 0.45);
+        padding: 12px;
+      }
+
+      .buffer-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 9px;
+      }
+
+      .buffer-head b {
+        font-size: 0.76rem;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .buffer-head span,
+      .buffer-stats {
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 800;
+      }
+
+      .buffer-rail {
+        position: relative;
+        height: 30px;
+        border: 2px solid var(--line);
+        background:
+          repeating-linear-gradient(90deg, rgba(42, 59, 53, 0.16) 0 1px, transparent 1px 10%),
+          rgba(21, 33, 29, 0.1);
+        overflow: hidden;
+      }
+
+      .buffer-fill,
+      .buffer-replay {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 0%;
+        transition: width 80ms linear;
+      }
+
+      .buffer-fill {
+        background: linear-gradient(90deg, rgba(35, 109, 155, 0.38), rgba(35, 109, 155, 0.72));
+      }
+
+      .buffer-replay {
+        opacity: 0;
+        background: linear-gradient(90deg, rgba(31, 199, 106, 0.65), rgba(215, 154, 32, 0.88));
+      }
+
+      .buffer-replay.on {
+        animation: replay-flash 850ms ease-out;
+      }
+
+      .buffer-stats {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 5px 12px;
+        margin-top: 8px;
+      }
+
+      .buffer-stats output {
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+        font-weight: 900;
+      }
+
+      @keyframes replay-flash {
+        0% {
+          opacity: 1;
+        }
+
+        100% {
+          opacity: 0;
+        }
+      }
+
+      .log {
+        height: 228px;
+        overflow: auto;
+        padding: 14px;
+        border-top: 2px solid var(--line);
+        background: #111b18;
+        color: #d7eadf;
+        font-family: "Cascadia Mono", Consolas, monospace;
+        font-size: 0.84rem;
+      }
+
+      .log div {
+        margin-bottom: 5px;
+      }
+
+      .select-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      select {
+        min-width: 190px;
+        border: 2px solid var(--line);
+        background: var(--panel);
+        padding: 8px;
+        font-weight: 800;
+      }
+
+      @media (max-width: 860px) {
+        header,
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .status-stack {
+          justify-items: start;
+        }
+
+        label {
+          grid-template-columns: 1fr;
+        }
+
+        label output {
+          justify-self: start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Mave Wake Lab</h1>
+          <p class="lede">Tune OpenWakeWord against the live microphone stream, then save those values into the runtime override used by Pipecat.</p>
+        </div>
+        <div class="status-stack">
+          <div id="lamp" class="lamp" aria-label="Wake indicator"></div>
+          <div id="status" class="pill">Idle</div>
+        </div>
+      </header>
+
+      <div class="grid">
+        <section>
+          <div class="panel-head">
+            <h2>Runtime Controls</h2>
+            <div class="select-row">
+              <select id="profile">
+                <option value="hybrid_low_latency">hybrid_low_latency</option>
+                <option value="hybrid_gemini">hybrid_gemini</option>
+                <option value="openai_all">openai_all</option>
+                <option value="deepgram_all">deepgram_all</option>
+                <option value="local_current">local_current</option>
+              </select>
+            </div>
+          </div>
+          <div id="controls" class="controls"></div>
+          <div class="actions">
+            <button id="start">Start mic</button>
+            <button id="stop" class="secondary" disabled>Stop</button>
+            <button id="apply" class="apply">Apply sliders</button>
+            <button id="save">Save / implement</button>
+          </div>
+        </section>
+
+        <section>
+          <div class="panel-head">
+            <h2>Live Wake Signal</h2>
+            <div id="model" class="pill">No model</div>
+          </div>
+          <div class="meter-wrap">
+            <div class="meter"><div id="bar" class="bar"></div></div>
+          </div>
+          <div class="readouts">
+            <div class="readout"><b>Score</b><span id="score">0.000</span></div>
+            <div class="readout"><b>Hits</b><span id="hits">0/1</span></div>
+            <div class="readout"><b>RMS</b><span id="rms">0.0</span></div>
+            <div class="readout"><b>Peak</b><span id="peak">0</span></div>
+            <div class="readout"><b>Decision</b><span id="decision" class="small-value">Idle</span></div>
+            <div class="readout"><b>VAD</b><span id="vad" class="small-value">Off</span></div>
+          </div>
+          <div class="buffer-panel">
+            <div class="buffer-head">
+              <b>Pre-buffer</b>
+              <span id="buffer-label">Holding 0.0s / 0.0s</span>
+            </div>
+            <div class="buffer-rail" aria-label="Pre-buffer held audio">
+              <div id="buffer-fill" class="buffer-fill"></div>
+              <div id="buffer-replay" class="buffer-replay"></div>
+            </div>
+            <div class="buffer-stats">
+              <span>Audio kept before wake</span><output id="buffer-kept">0.0s</output>
+              <span>Would replay on trigger</span><output id="buffer-replayed">--</output>
+            </div>
+          </div>
+          <div id="log" class="log" aria-live="polite"></div>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const fields = [
+        ["threshold", "Wake threshold", "Minimum model score required to trigger. Lower catches softer wakes; higher rejects more false alarms.", 0.01, 0.99, 0.01],
+        ["vad_threshold", "VAD threshold", "OpenWakeWord Silero VAD gate. 0 disables it; higher rejects noise but can miss quiet wakes.", 0, 1, 0.01],
+        ["candidate_log_threshold", "Candidate log", "Near-miss score shown in logs. It does not trigger wake; use it to see almost-detections.", 0, 0.99, 0.01],
+        ["required_hits", "Required hits", "Consecutive above-threshold frames needed. Higher is steadier but slower to trigger.", 1, 5, 1],
+        ["min_wake_rms", "Min RMS", "Minimum average loudness. Raise to ignore room noise; lower for distant or quiet speech.", 0, 500, 1],
+        ["min_wake_peak", "Min peak", "Minimum sample peak. Raise to reject low-level hum; lower for soft speakers.", 0, 2000, 1],
+        ["rearm_delay_s", "Rearm delay", "Cooldown after wake or command before listening again. Higher prevents double-triggers.", 0, 15, 0.1],
+        ["pre_buffer_s", "Pre-buffer", "Audio kept before wake and replayed into STT. Higher preserves first words after \"Mave\".", 0, 3, 0.1],
+      ];
+
+      const state = {
+        settings: {},
+        socket: null,
+        stream: null,
+        audioContext: null,
+        processor: null,
+        source: null,
+        flashTimer: null,
+        lastBlockLogAt: 0,
+        bufferSeconds: 0,
+        lastReplaySeconds: null,
+      };
+
+      const decisions = {
+        triggered: "Triggered",
+        no_score: "No score",
+        below_threshold: "Below threshold",
+        audio_level: "Audio too quiet",
+        waiting_for_hits: "Need more hits",
+      };
+
+      const $ = (id) => document.getElementById(id);
+
+      function log(line) {
+        const node = document.createElement("div");
+        node.textContent = `${new Date().toLocaleTimeString()}  ${line}`;
+        $("log").prepend(node);
+      }
+
+      function setStatus(text) {
+        $("status").textContent = text;
+      }
+
+      function setLamp(on) {
+        $("lamp").classList.toggle("on", on);
+      }
+
+      function renderControls() {
+        $("controls").innerHTML = "";
+        for (const [key, title, description, min, max, step] of fields) {
+          const label = document.createElement("label");
+          const copy = document.createElement("div");
+          const name = document.createElement("span");
+          const help = document.createElement("small");
+          const input = document.createElement("input");
+          const output = document.createElement("output");
+          copy.className = "slider-copy";
+          name.textContent = title;
+          help.textContent = description;
+          input.type = "range";
+          input.min = min;
+          input.max = max;
+          input.step = step;
+          input.value = state.settings[key];
+          output.value = formatValue(key, state.settings[key]);
+          input.addEventListener("input", () => {
+            state.settings[key] = step === 1 ? Number.parseInt(input.value, 10) : Number.parseFloat(input.value);
+            output.value = formatValue(key, state.settings[key]);
+            if (key === "pre_buffer_s") updatePreBuffer(0);
+          });
+          copy.append(name, help);
+          label.append(copy, input, output);
+          $("controls").append(label);
+        }
+      }
+
+      function formatValue(key, value) {
+        return Number.isInteger(value) && key !== "threshold" ? `${value}` : Number(value).toFixed(key.includes("threshold") ? 2 : 1);
+      }
+
+      async function loadSettings() {
+        const response = await fetch(`/api/settings?profile=${encodeURIComponent($("profile").value)}`);
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.detail || "Could not load settings");
+        state.settings = payload.settings;
+        $("model").textContent = payload.model_path ? payload.model_path.split(/[\\/]/).pop() : "No model";
+        renderControls();
+        updatePreBuffer(0);
+        log(`${payload.profile} loaded${payload.saved ? " from tuning override" : " from runtime profile"}`);
+      }
+
+      async function saveSettings() {
+        const response = await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ profile: $("profile").value, settings: state.settings }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.detail || "Save failed");
+        log(`saved ${payload.profile} tuning override`);
+      }
+
+      function connectDetectorSocket() {
+        if (state.socket) state.socket.close();
+        const protocol = location.protocol === "https:" ? "wss" : "ws";
+        const params = new URLSearchParams({
+          profile: $("profile").value,
+          settings: JSON.stringify(state.settings),
+        });
+        state.socket = new WebSocket(`${protocol}://${location.host}/ws/detect?${params.toString()}`);
+        state.socket.binaryType = "arraybuffer";
+        state.socket.onmessage = (event) => {
+          const message = JSON.parse(event.data);
+          if (message.type === "ready") {
+            setStatus("Listening");
+            updateVad(message);
+            log("detector ready");
+            return;
+          }
+          if (message.type === "error") {
+            log(message.message);
+            setStatus("Error");
+            return;
+          }
+          updateDetection(message);
+        };
+        state.socket.onclose = () => {
+          if (state.stream) return;
+          setStatus("Idle");
+        };
+      }
+
+      async function applySliders() {
+        if (!state.stream) {
+          log("settings will be used next time the mic starts");
+          return;
+        }
+        setStatus("Applying");
+        connectDetectorSocket();
+        log("applied sliders to live detector");
+      }
+
+      function downsampleTo16k(input, sampleRate) {
+        if (sampleRate === 16000) return input;
+        const ratio = sampleRate / 16000;
+        const length = Math.floor(input.length / ratio);
+        const output = new Float32Array(length);
+        for (let i = 0; i < length; i += 1) {
+          output[i] = input[Math.floor(i * ratio)];
+        }
+        return output;
+      }
+
+      function floatToInt16(input) {
+        const output = new Int16Array(input.length);
+        for (let i = 0; i < input.length; i += 1) {
+          const s = Math.max(-1, Math.min(1, input[i]));
+          output[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        }
+        return output;
+      }
+
+      async function startMic() {
+        await stopMic();
+        setStatus("Connecting");
+        connectDetectorSocket();
+
+        state.stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
+        state.audioContext = new AudioContext();
+        state.source = state.audioContext.createMediaStreamSource(state.stream);
+        state.processor = state.audioContext.createScriptProcessor(4096, 1, 1);
+        state.processor.onaudioprocess = (event) => {
+          if (!state.socket || state.socket.readyState !== WebSocket.OPEN) return;
+          const input = event.inputBuffer.getChannelData(0);
+          const downsampled = downsampleTo16k(input, state.audioContext.sampleRate);
+          const pcm = floatToInt16(downsampled);
+          updatePreBuffer(pcm.length / 16000);
+          state.socket.send(pcm.buffer);
+        };
+        state.source.connect(state.processor);
+        state.processor.connect(state.audioContext.destination);
+        $("start").disabled = true;
+        $("stop").disabled = false;
+      }
+
+      async function stopMic() {
+        if (state.processor) state.processor.disconnect();
+        if (state.source) state.source.disconnect();
+        if (state.audioContext) await state.audioContext.close();
+        if (state.stream) state.stream.getTracks().forEach((track) => track.stop());
+        if (state.socket) state.socket.close();
+        state.processor = null;
+        state.source = null;
+        state.audioContext = null;
+        state.stream = null;
+        state.socket = null;
+        state.bufferSeconds = 0;
+        state.lastReplaySeconds = null;
+        updatePreBuffer(0);
+        $("start").disabled = false;
+        $("stop").disabled = true;
+        setLamp(false);
+      }
+
+      function updateDetection(message) {
+        $("score").textContent = message.score.toFixed(3);
+        $("hits").textContent = `${message.hits}/${message.required_hits}`;
+        $("rms").textContent = message.rms.toFixed(1);
+        $("peak").textContent = `${message.peak}`;
+        $("decision").textContent = decisions[message.decision] || message.decision || "Unknown";
+        updateVad(message);
+        $("bar").style.width = `${Math.min(100, Math.round(message.score * 100))}%`;
+        if (message.detected) {
+          setLamp(true);
+          flashPreBufferReplay();
+          log(`WAKE ${message.model_name || "mave"} score=${message.score.toFixed(3)} rms=${message.rms.toFixed(1)} peak=${message.peak}`);
+          window.clearTimeout(state.flashTimer);
+          state.flashTimer = window.setTimeout(() => setLamp(false), 850);
+        } else if (message.score >= state.settings.candidate_log_threshold) {
+          logBlockedCandidate(message);
+        }
+      }
+
+      function updateVad(message) {
+        if (!message.vad_enabled) {
+          $("vad").textContent = "Off";
+          return;
+        }
+        const score = message.vad_score;
+        const scoreText = score === null || score === undefined ? "warming" : Number(score).toFixed(2);
+        $("vad").textContent = `${scoreText} / ${Number(message.vad_threshold).toFixed(2)}`;
+      }
+
+      function logBlockedCandidate(message) {
+        const now = Date.now();
+        if (now - state.lastBlockLogAt < 700) return;
+        state.lastBlockLogAt = now;
+        const reason = decisions[message.decision] || message.decision || "blocked";
+        const vad = message.vad_enabled
+          ? ` vad=${message.vad_score === null || message.vad_score === undefined ? "warming" : Number(message.vad_score).toFixed(2)}/${Number(message.vad_threshold).toFixed(2)}`
+          : " vad=off";
+        log(`blocked ${reason} score=${message.score.toFixed(3)} hits=${message.hits}/${message.required_hits} rms=${message.rms.toFixed(1)} peak=${message.peak}${vad}`);
+      }
+
+      function updatePreBuffer(chunkSeconds) {
+        const limit = Math.max(0, Number(state.settings.pre_buffer_s || 0));
+        state.bufferSeconds = Math.min(limit, Math.max(0, state.bufferSeconds + chunkSeconds));
+        const ratio = limit > 0 ? Math.min(100, Math.round((state.bufferSeconds / limit) * 100)) : 0;
+        $("buffer-fill").style.width = `${ratio}%`;
+        $("buffer-label").textContent = `Holding ${state.bufferSeconds.toFixed(1)}s / ${limit.toFixed(1)}s`;
+        $("buffer-kept").value = `${state.bufferSeconds.toFixed(1)}s`;
+        $("buffer-replayed").value = state.lastReplaySeconds === null ? "--" : `${state.lastReplaySeconds.toFixed(1)}s`;
+      }
+
+      function flashPreBufferReplay() {
+        state.lastReplaySeconds = state.bufferSeconds;
+        const limit = Math.max(0, Number(state.settings.pre_buffer_s || 0));
+        const ratio = limit > 0 ? Math.min(100, Math.round((state.lastReplaySeconds / limit) * 100)) : 0;
+        $("buffer-replay").style.width = `${ratio}%`;
+        $("buffer-replay").classList.remove("on");
+        void $("buffer-replay").offsetWidth;
+        $("buffer-replay").classList.add("on");
+        updatePreBuffer(0);
+      }
+
+      $("profile").addEventListener("change", loadSettings);
+      $("start").addEventListener("click", () => startMic().catch((error) => {
+        log(error.message);
+        setStatus("Error");
+      }));
+      $("stop").addEventListener("click", stopMic);
+      $("apply").addEventListener("click", () => applySliders().catch((error) => log(error.message)));
+      $("save").addEventListener("click", () => saveSettings().catch((error) => log(error.message)));
+
+      loadSettings().catch((error) => log(error.message));
+    </script>
+  </body>
+</html>

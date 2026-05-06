@@ -4,12 +4,12 @@ category = "benchmark_streaming"
 [profiles.hybrid_low_latency.wake]
 provider = "openwakeword"
 model_path = "models/mave.onnx"
-threshold = 0.7
+threshold = 0.55
 vad_threshold = 0.0
-candidate_log_threshold = 0.5
+candidate_log_threshold = 0.45
 required_hits = 1
-min_wake_rms = 50.0
-min_wake_peak = 150
+min_wake_rms = 4.0
+min_wake_peak = 12
 rearm_delay_s = 6.0
 pre_buffer_s = 0.5
 single_command = true
@@ -31,7 +31,7 @@ voice = "47c38ca4-5f35-497b-b1a3-415245fb35e1"
 
 [profiles.hybrid_low_latency.agent]
 provider = "openai_api"
-model = "gpt-5.4-mini"
+model = "gpt-5.5"
 reasoning_effort = "low"
 api_key_env = "OPENAI_API_KEY"
 
@@ -49,12 +49,12 @@ category = "benchmark_streaming"
 [profiles.hybrid_gemini.wake]
 provider = "openwakeword"
 model_path = "models/mave.onnx"
-threshold = 0.7
+threshold = 0.55
 vad_threshold = 0.0
-candidate_log_threshold = 0.5
+candidate_log_threshold = 0.45
 required_hits = 1
-min_wake_rms = 50.0
-min_wake_peak = 150
+min_wake_rms = 4.0
+min_wake_peak = 12
 rearm_delay_s = 6.0
 pre_buffer_s = 0.5
 single_command = true
@@ -86,59 +86,18 @@ enabled = true
 path = "logs/voice_metrics.jsonl"
 include_text = true
 
-[profiles.hybrid_codex_oauth]
-category = "benchmark_streaming"
-
-[profiles.hybrid_codex_oauth.wake]
-provider = "openwakeword"
-model_path = "models/mave.onnx"
-threshold = 0.7
-vad_threshold = 0.0
-candidate_log_threshold = 0.5
-required_hits = 1
-min_wake_rms = 50.0
-min_wake_peak = 150
-rearm_delay_s = 6.0
-pre_buffer_s = 0.5
-single_command = true
-
-[profiles.hybrid_codex_oauth.emergency_stop]
-enabled = false
-
-[profiles.hybrid_codex_oauth.stt]
-provider = "deepgram_flux"
-model = "flux-general-en"
-
-[profiles.hybrid_codex_oauth.tts]
-provider = "cartesia"
-model = "sonic-3"
-voice = "47c38ca4-5f35-497b-b1a3-415245fb35e1"
-
-[profiles.hybrid_codex_oauth.agent]
-provider = "openai_codex_oauth"
-model = "gpt-5.4-mini"
-reasoning_effort = "medium"
-
-[profiles.hybrid_codex_oauth.mcp.robot]
-url = "http://127.0.0.1:8765/mcp"
-
-[profiles.hybrid_codex_oauth.metrics]
-enabled = true
-path = "logs/voice_metrics.jsonl"
-include_text = true
-
 [profiles.openai_all]
 category = "benchmark_streaming"
 
 [profiles.openai_all.wake]
 provider = "openwakeword"
 model_path = "models/mave.onnx"
-threshold = 0.7
+threshold = 0.55
 vad_threshold = 0.0
-candidate_log_threshold = 0.5
+candidate_log_threshold = 0.45
 required_hits = 1
-min_wake_rms = 50.0
-min_wake_peak = 150
+min_wake_rms = 4.0
+min_wake_peak = 12
 rearm_delay_s = 6.0
 pre_buffer_s = 0.5
 single_command = true
@@ -156,8 +115,10 @@ model = "gpt-4o-mini-tts"
 voice = "coral"
 
 [profiles.openai_all.agent]
-provider = "openai_codex_oauth"
-model = "gpt-5.4-mini"
+provider = "openai_api"
+model = "gpt-5.5"
+reasoning_effort = "low"
+api_key_env = "OPENAI_API_KEY"
 
 [profiles.openai_all.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -173,12 +134,12 @@ category = "benchmark_streaming"
 [profiles.deepgram_all.wake]
 provider = "openwakeword"
 model_path = "models/mave.onnx"
-threshold = 0.7
+threshold = 0.55
 vad_threshold = 0.0
-candidate_log_threshold = 0.5
+candidate_log_threshold = 0.45
 required_hits = 1
-min_wake_rms = 50.0
-min_wake_peak = 150
+min_wake_rms = 4.0
+min_wake_peak = 12
 rearm_delay_s = 6.0
 pre_buffer_s = 0.5
 single_command = true
@@ -196,8 +157,10 @@ model = "aura-2"
 voice = "aura-2-andromeda-en"
 
 [profiles.deepgram_all.agent]
-provider = "openai_codex_oauth"
-model = "gpt-5.4-mini"
+provider = "openai_api"
+model = "gpt-5.5"
+reasoning_effort = "low"
+api_key_env = "OPENAI_API_KEY"
 
 [profiles.deepgram_all.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -213,12 +176,12 @@ category = "local_debug"
 [profiles.local_current.wake]
 provider = "openwakeword"
 model_path = "models/mave.onnx"
-threshold = 0.7
+threshold = 0.55
 vad_threshold = 0.0
-candidate_log_threshold = 0.5
+candidate_log_threshold = 0.45
 required_hits = 1
-min_wake_rms = 50.0
-min_wake_peak = 150
+min_wake_rms = 4.0
+min_wake_peak = 12
 rearm_delay_s = 6.0
 pre_buffer_s = 0.5
 single_command = true
@@ -236,8 +199,10 @@ provider = "kokoro"
 voice = "af_heart"
 
 [profiles.local_current.agent]
-provider = "openai_codex_oauth"
-model = "gpt-5.4-mini"
+provider = "openai_api"
+model = "gpt-5.5"
+reasoning_effort = "low"
+api_key_env = "OPENAI_API_KEY"
 
 [profiles.local_current.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
@@ -266,8 +231,10 @@ provider = "kokoro"
 voice = "af_heart"
 
 [profiles.no_wake_debug.agent]
-provider = "openai_codex_oauth"
-model = "gpt-5.4-mini"
+provider = "openai_api"
+model = "gpt-5.5"
+reasoning_effort = "low"
+api_key_env = "OPENAI_API_KEY"
 
 [profiles.no_wake_debug.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"

@@ -10,10 +10,10 @@ Benchmark profiles:
 
 Debug profiles:
 
-- `local_current`: local Whisper + Kokoro STT/TTS with Mave wake; Codex OAuth agent
-- `no_wake_debug`: local Whisper + Kokoro STT/TTS without wake; Codex OAuth agent
+- `local_current`: local Whisper + Kokoro STT/TTS with Mave wake; OpenAI API LangChain agent
+- `no_wake_debug`: local Whisper + Kokoro STT/TTS without wake; OpenAI API LangChain agent
 
-These are local STT/TTS debug profiles, not fully offline profiles. They need Pi's `openai-codex` OAuth profile and the configured MCP URL.
+These are local STT/TTS debug profiles, not fully offline profiles. They need `OPENAI_API_KEY` and the configured MCP URL.
 
 ## Running
 

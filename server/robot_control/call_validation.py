@@ -19,13 +19,18 @@ AGENT_TO_LEGACY_MCP_TOOL_NAMES = {
     "moveit_close_gripper": "close_gripper",
     "moveit_attach_object": "attach_object",
 }
-CANONICAL_ONLY_MCP_TOOL_NAMES: frozenset[str] = frozenset()
+CANONICAL_ONLY_MCP_TOOL_NAMES: frozenset[str] = frozenset({"moveit_get_robot_state"})
 ALLOWED_ROBOT_TOOLS = frozenset(AGENT_TO_LEGACY_MCP_TOOL_NAMES) | CANONICAL_ONLY_MCP_TOOL_NAMES
 
 _AGENT_TOOL_DESCRIPTIONS = {
     "moveit_get_current_pose": (
         "Observe the UR10 current end-effector pose, orientation, and planning frame. "
         "Use it to ground gestures before relative, vague, repeated, or safety-sensitive movement."
+    ),
+    "moveit_get_robot_state": (
+        "Observe the UR10 current pose, planning frame, physical-mode flag, and latest "
+        "fake-controller joint state. Use it to diagnose readiness or motion failures; "
+        "use moveit_get_current_pose for ordinary relative motion grounding."
     ),
     "moveit_plan_free_motion": (
         "Plan collision-aware free-space point-to-point motion to one target pose in base_link. "
@@ -59,6 +64,7 @@ _AGENT_TOOL_DESCRIPTIONS = {
 
 _ALLOWED_ARGUMENTS: dict[str, set[str]] = {
     "moveit_get_current_pose": {"robot_name", "timeout_s"},
+    "moveit_get_robot_state": {"robot_name", "timeout_s"},
     "moveit_plan_free_motion": {"robot_name", "target_pose", "position", "plan_name", "timeout_s", "allow_existing_name"},
     "moveit_plan_cartesian_motion": {"robot_name", "waypoints", "positions", "plan_name", "timeout_s", "allow_existing_name"},
     "moveit_plan_and_execute_free_motion": {"robot_name", "target_pose", "plan_name", "timeout_s"},
@@ -134,7 +140,7 @@ def validate_robot_tool_call(name: str, arguments: dict[str, Any]) -> None:
 
     _validate_robot_name(arguments.get("robot_name", VIZOR_ROBOT_NAME))
 
-    if name == "moveit_get_current_pose":
+    if name in {"moveit_get_current_pose", "moveit_get_robot_state"}:
         _validate_timeout(arguments.get("timeout_s"))
         return
 

@@ -42,7 +42,8 @@ class FakeCanonicalServer(FakeServer):
                 name="moveit_get_current_pose",
                 description="Canonical pose",
                 inputSchema={"type": "object"},
-            )
+            ),
+            Tool(name="moveit_get_robot_state", description="State", inputSchema={"type": "object"}),
         ]
 
 
@@ -75,7 +76,7 @@ class FakeLegacyWorkflowServer(FakeServer):
 
 
 @pytest.mark.asyncio
-async def test_lists_only_allowed_tools_as_codex_function_tools_with_canonical_names():
+async def test_lists_only_allowed_tools_as_langchain_function_tools_with_canonical_names():
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeServer())
 
     await bridge.connect()
@@ -141,13 +142,23 @@ async def test_calls_canonical_listed_tool_by_advertised_name():
             "description": agent_tool_description("moveit_get_current_pose"),
             "parameters": {"type": "object"},
             "strict": None,
-        }
+        },
+        {
+            "type": "function",
+            "name": "moveit_get_robot_state",
+            "description": agent_tool_description("moveit_get_robot_state"),
+            "parameters": {"type": "object"},
+            "strict": None,
+        },
     ]
 
     output = await bridge.call_tool("moveit_get_current_pose", {"robot_name": "UR10"})
 
     assert server.called == [("moveit_get_current_pose", {"robot_name": "UR10"})]
     assert json.loads(output) == {"content": ["ok"], "structured_content": {"ok": True}, "is_error": False}
+
+    await bridge.call_tool("moveit_get_robot_state", {"robot_name": "UR10"})
+    assert ("moveit_get_robot_state", {"robot_name": "UR10"}) in server.called
 
 
 @pytest.mark.asyncio

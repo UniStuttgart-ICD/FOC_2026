@@ -22,23 +22,33 @@ pytestmark = [
     pytest.mark.robot_sim,
     pytest.mark.skipif(
         os.getenv(RUN_ENV) != "1",
-        reason=f"manual live robot smoke tests require {RUN_ENV}=1, Codex OAuth login, and MoveIt MCP",
+        reason=f"manual live robot smoke tests require {RUN_ENV}=1, OPENAI_API_KEY, and MoveIt MCP",
     ),
 ]
 
 
 @pytest_asyncio.fixture
 async def live_agent() -> AsyncIterator[tuple[Any, Any]]:
-    from openai_codex_agent_processor import OpenAICodexAgentProcessor
+    from agent_model_factory import build_agent_chat_model
+    from langchain_agent_processor import LangChainAgentProcessor
     from robot_control.mcp_bridge import RobotMCPBridge
     from test_support.live_robot_smoke import RecordingRobotToolAdapter
+    from voice_runtime.profiles import AgentProfile
 
     mcp_url = os.getenv(MCP_URL_ENV, DEFAULT_MCP_URL)
     model = os.getenv(MODEL_ENV, DEFAULT_MODEL)
     recorder = RecordingRobotToolAdapter(RobotMCPBridge(mcp_url))
-    processor = OpenAICodexAgentProcessor(
+    processor = LangChainAgentProcessor(
         mcp_url,
-        model=model,
+        chat_model=build_agent_chat_model(
+            AgentProfile(
+                provider="openai_api",
+                model=model,
+                reasoning_effort="low",
+                api_key_env="OPENAI_API_KEY",
+            )
+        ),
+        model_label=model,
         tool_bridge=recorder,
     )
     try:

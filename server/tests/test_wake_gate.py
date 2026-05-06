@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import numpy as np
@@ -103,6 +104,21 @@ def test_openwakeword_passes_vad_threshold_to_model(monkeypatch, tmp_path):
     OpenWakeWordDetector(model_path, vad_threshold=0.3)
 
     assert model_factory.call_args.kwargs["vad_threshold"] == 0.3
+
+
+def test_openwakeword_exposes_last_vad_score(monkeypatch, tmp_path):
+    model_path = tmp_path / "mave.onnx"
+    model_path.write_bytes(b"custom wake model")
+    model = Mock()
+    model.vad_threshold = 0.3
+    model.vad = SimpleNamespace(prediction_buffer=[0.1, 0.2, 0.7, 0.4, 0.9, 0.2, 0.1])
+    monkeypatch.setattr("wake.openwakeword_detector._ensure_openwakeword_resources", Mock())
+    monkeypatch.setattr("wake.openwakeword_detector.Model", Mock(return_value=model))
+
+    detector = OpenWakeWordDetector(model_path, vad_threshold=0.3)
+
+    assert detector.vad_enabled is True
+    assert detector.last_vad_score() == 0.7
 
 
 @pytest.mark.asyncio

@@ -90,7 +90,7 @@ class RobotContextStore:
             self._snapshot.gripper_state = "open"
             self._snapshot.gripper_observed_at_s = self._time_fn()
             return
-        if tool_name not in {"moveit_get_current_pose", "moveit_get_robot_status"}:
+        if tool_name not in {"moveit_get_current_pose", "moveit_get_robot_state"}:
             return
 
         self._snapshot.observed_at_s = self._time_fn()

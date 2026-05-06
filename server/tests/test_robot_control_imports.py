@@ -12,8 +12,6 @@ ROBOT_CONTROL_FORBIDDEN_ROOTS = {
 }
 PURE_ROBOT_CONTROL_FORBIDDEN_ROOTS = ROBOT_CONTROL_FORBIDDEN_ROOTS | {
     "agents",
-    "codex_auth",
-    "codex_backend_client",
     "langgraph",
     "mcp",
     "openai",

@@ -45,17 +45,16 @@ It contains these target submodules:
 - **Voice Runtime Assembly**: owns processor ordering.
 - **Voice Metrics**: owns semantic turn timing. Pipecat frame observation is a Voice Runtime adapter; JSONL persistence is app configuration.
 
-**API Boundary:** `AgentBackend` is the seam from Voice Runtime into Agent/Robot Control. Voice Runtime knows that an Agent Backend can connect, disconnect, and run one Agent Turn; it does not know how Codex, LangGraph, MCP, or MoveIt work.
+**API Boundary:** `AgentBackend` is the seam from Voice Runtime into Agent/Robot Control. Voice Runtime knows that an Agent Backend can connect, disconnect, and run one Agent Turn; it does not know how LangChain, LangGraph, MCP, or MoveIt work.
 
 ### `agent_control`
 
-`agent_control` is the target Module for Codex-backed Agent Orchestration.
+`agent_control` is the target Module for API-key-backed LangChain Agent Orchestration.
 
 It contains these target submodules:
 
-- **Codex OAuth Backend**: the only target Agent Backend; it uses Pi-managed OpenAI Codex OAuth credentials.
-- **Codex Backend Client**: the ChatGPT Codex backend HTTP/SSE adapter.
-- **Agent Orchestration**: the LangGraph ReAct-style loop that calls Codex, executes returned robot tools, observes robot state, and repeats until done or blocked.
+- **LangChain API Backend**: the target Agent Backend; it uses native LangChain chat models with provider API keys.
+- **Agent Orchestration**: the LangGraph ReAct-style loop that calls the LangChain model, executes returned robot tools, observes robot state, and repeats until done or blocked.
 - **Robot Agent Prompt**: the concise behavior prompt aligned with Agent Orchestration, robot tool feedback, and the robot tool contract.
 
 **API Boundary:** `agent_control` satisfies `voice_runtime.AgentBackend` and depends on `robot_control` for robot execution. LangGraph is an implementation of Agent Orchestration behind the Agent Turn seam; it must not own Pipecat transport, audio frames, wake handling, STT/TTS, interruption behavior, or pipeline ordering.
@@ -92,7 +91,7 @@ After `robot_control` extraction, extract `agent_control`, then keep any remaini
 Task Policy v1 blocks only obvious under-observed or incorrectly ordered tool calls before robot tools run:
 
 ```text
-Codex tool call
+LangChain tool call
   -> Task Policy Layer
   -> Robot Call Validation
   -> MoveIt MCP
@@ -108,13 +107,19 @@ A blocked Task Policy Decision is returned to Agent Orchestration as structured 
 
 ### MoveIt MCP Boundary
 
-MoveIt MCP is the execution seam into the robot simulation stack. The voice agent routes movement through MoveIt planning/execution workflows. MoveIt and the robot simulation stack are the movement-safety boundary.
+MoveIt MCP is the execution seam into the ROS 1 robot simulation stack. The voice agent routes movement through MoveIt planning/execution workflows. MoveIt and the robot simulation stack are the movement-safety boundary.
+
+The host-side ROS 1 MoveIt MCP lives in `C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\moveit_mcp`. It exposes FastMCP tools and talks to ROS 1 through rosbridge. The main entrypoint is `moveit_mcp.server`, the agent-facing tool wrappers live in `moveit_mcp.tools`, and the ROS 1 topic/service adapter lives in `moveit_mcp.vizor_client`.
+
+The Vizor ROS 1 container owns the downstream MoveIt node and robot control code. In the running `vizor-demo` container, the MoveIt server is `/UR10/move_group`, the app-facing control node is `/vizor_robot_control`, and the robot logic is under `/root/catkin_ws/src/vizor_lib/src/vizor_lib/`. Treat container paths as runtime locators; persistent fixes belong in the Docker image source. The local RViz/Vizor image build context is `C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\docker\vizor-rviz`; its `patch-vizor-robot.py` applies the ROS 1 `compute_cartesian_path(..., avoid_collisions=True)` compatibility patch inherited from `cxy201/noetic-vizor`.
+
+Agent-facing robot tools should stay semantic and narrow: observation tools, planning tools, verified execution tools, gripper tools, and future failure-explanation tools. Do not expose broad ROS control or raw topic mutation tools to Agent Orchestration by default.
 
 ### App composition root
 
 `pipeline_builder.py` is the app composition root. It constructs concrete adapters from runtime profiles across Voice Runtime, Agent Control, and Robot Control, then delegates processor ordering to Voice Runtime Assembly.
 
-`agent_processor_factory.py` is a short-term compatibility seam while profiles still carry `agent.provider`. Because the target architecture is Codex-only, this factory should collapse into the composition root unless a second real AgentBackend adapter is introduced.
+`agent_processor_factory.py` is a short-term compatibility seam while profiles still carry `agent.provider`. It constructs the native LangChain backend for supported API providers.
 
 `bot.py` is the runner and lifecycle shell. It owns runner startup, transport creation, profile selection, and client lifecycle hooks only.
 
@@ -126,11 +131,11 @@ Pipecat owns transport, audio frames, wake command handling, STT, TTS, interrupt
 
 ### Agent Orchestration stays behind Agent Turn
 
-Agent Orchestration happens behind the `AgentBackend` / `AgentTurnProcessor` seam. The Voice Runtime sees one Agent Turn; it does not see Codex tool loops, LangGraph state, MCP calls, or robot policy decisions.
+Agent Orchestration happens behind the `AgentBackend` / `AgentTurnProcessor` seam. The Voice Runtime sees one Agent Turn; it does not see LangChain tool loops, LangGraph state, MCP calls, or robot policy decisions.
 
-### Codex-only backend target
+### Native LangChain backend target
 
-The only target Agent Backend is the Codex OAuth Backend. Do not add new non-Codex LLM backends unless a new architecture decision changes this target. A factory with only one adapter is a compatibility seam, not a deep Module.
+The target Agent Backend is the native LangChain backend using provider APIs. Do not reintroduce Codex OAuth unless a new architecture decision changes this target.
 
 ### Robot tools follow the policy-validation-execution order
 
@@ -181,6 +186,20 @@ Agent-facing knowledge must live in repository-local, versioned files. `AGENTS.m
 ### Observability
 
 Voice Metrics are semantic turn timing records. Pipecat frame observation belongs with Voice Runtime adapters. JSONL persistence is app configuration. Robot tool feedback should be structured enough for Codex and humans to understand blocked steps and next actions.
+
+### Reference inspirations
+
+Use these as inspiration for agent-first robotics patterns, not as dependencies or sources of truth:
+
+- [NASA JPL ROSA](https://github.com/nasa-jpl/rosa): ROS agent pattern for introspection-first operation and diagnosis.
+- [RobotMCP ROS MCP Server](https://github.com/robotmcp/ros-mcp-server): MCP boundary pattern for ROS topic/service/action observation and control.
+- [RAI](https://robotecai.github.io/rai/faq/ROS_2_Overview/): connector pattern for agent tools, robot status, and readiness-gated interaction.
+- [ROS-LLM](https://arxiv.org/abs/2406.19741): structured behavior execution and reflection pattern for ROS actions/services.
+- [APYROBO](https://github.com/apyrobo/apyrobo): semantic capability, safety policy, observability, and replay ideas.
+- [Pipecat function calling](https://docs.pipecat.ai/pipecat/learn/function-calling): voice runtime pattern for tool calls inside a conversational pipeline.
+- [OpenAI Realtime MCP](https://developers.openai.com/api/docs/guides/realtime-mcp): MCP lifecycle, tool narrowing, and approval patterns for realtime agents.
+
+Common lesson: the agent owns sequencing and tool choice, while the robot layer owns typed capability boundaries, readiness checks, planning, execution verification, and hard safety constraints.
 
 ### Testing
 

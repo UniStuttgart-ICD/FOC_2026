@@ -113,6 +113,7 @@ def test_wake_only_or_likely_wake_false_positive_text_is_not_actionable(text: st
         "Name.",
         "Mail.",
         "Nave.",
+        "Base.",
         "up the robot wave.",
     ],
 )

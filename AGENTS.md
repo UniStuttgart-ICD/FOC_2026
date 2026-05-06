@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Pipecat voice robot agent: a Python cascade voice pipeline for controlling a UR robot through a MoveIt-routed Codex OAuth agent backend.
+Pipecat voice robot agent: a Python cascade voice pipeline for controlling a UR robot through a MoveIt-routed OpenAI API-key LangGraph agent backend.
 
 ## Project map
 
@@ -10,9 +10,8 @@ Pipecat voice robot agent: a Python cascade voice pipeline for controlling a UR 
 - `server/pipeline_builder.py` - App composition root for concrete adapters and pipeline task assembly.
 - `server/voice_runtime/` - Reusable Pipecat/audio runtime Modules: profiles, voice providers, wake command, Agent Turn seam, assembly, and metrics.
 - `server/robot_control/` - Robot Control Modules: Task Policy, Robot Call Validation, Robot Tool Adapter, and Robot Context.
-- `server/openai_codex_agent_processor.py` - Current Codex OAuth Agent Backend adapter; target home is `server/agent_control/`.
+- `server/langchain_agent_processor.py` - Current API-key LangChain Agent Backend adapter; target home is `server/agent_control/`.
 - `server/langgraph_robot_agent.py` - Current LangGraph Agent Orchestration; target home is `server/agent_control/`.
-- `server/codex_backend_client.py` and `server/codex_auth.py` - Codex backend API client and Pi OAuth credential loading/refresh; target home is `server/agent_control/`.
 - `server/prompts.py` - Robot agent prompt; target home is `server/agent_control/`.
 - `server/runtime_profiles.toml` - App runtime profile definitions.
 - `server/tests/` - Pytest coverage for config, pipeline assembly, Agent Backend, Agent Orchestration, Robot Call Validation, and Codex behavior.
@@ -74,10 +73,10 @@ Run server commands from `server/`.
 - Do not construct STT/TTS internals, Agent Backend internals, robot tools, task policy, or graph nodes in `bot.py`.
 </important>
 
-<important if="you are changing agent backend selection, Codex auth, or runtime profiles">
-- The target Agent Backend is Codex-only. Do not add new non-Codex LLM backends without a new architecture decision.
-- Current Codex auth reads Pi's `~/.pi/agent/auth.json` `openai-codex` OAuth profile.
-- Keep `local_current` and `no_wake_debug` as local STT/TTS profiles, but their Agent Backend should be Codex.
+<important if="you are changing agent backend selection, API-key auth, or runtime profiles">
+- The default live profile `hybrid_low_latency` must use `openai_api` with `OPENAI_API_KEY`, not Codex OAuth.
+- Agent profiles must use native LangChain API providers: `openai_api` or `gemini_api`.
+- Do not reintroduce Codex OAuth profile support unless a new architecture decision asks for it.
 - Runtime profile parsing belongs to `voice_runtime`; concrete profile files remain app configuration.
 </important>
 

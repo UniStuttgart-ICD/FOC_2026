@@ -96,7 +96,7 @@ def ai_tool_call(name: str, args: dict[str, Any], call_id: str = "call-1") -> AI
 
 
 @pytest.mark.asyncio
-async def test_generic_processor_runs_langgraph_without_codex_credentials():
+async def test_generic_processor_runs_langgraph_without_oauth_credentials():
     model = FakeChatModel([ai_text("ready")])
     bridge = FakeBridge()
     processor = LangChainAgentProcessor(

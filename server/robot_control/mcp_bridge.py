@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+from contextlib import AsyncExitStack
+from datetime import timedelta
 from typing import Any, Protocol
 
-from agents.mcp import MCPServerStreamableHttp
+from mcp.client.session import ClientSession
+from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, TextContent, Tool
 
 from robot_control.call_validation import (
@@ -32,16 +35,59 @@ class MCPServerLike(Protocol):
     async def call_tool(self, tool_name: str, arguments: dict[str, Any] | None) -> CallToolResult: ...
 
 
+class StreamableHttpMCPServer:
+    """Small MCP Streamable HTTP client for robot tool discovery and calls."""
+
+    def __init__(self, url: str, *, client_session_timeout_seconds: float = 30):
+        self._url = url
+        self._timeout = timedelta(seconds=client_session_timeout_seconds)
+        self._exit_stack: AsyncExitStack | None = None
+        self._session: ClientSession | None = None
+
+    async def connect(self) -> None:
+        if self._session is not None:
+            return
+        stack = AsyncExitStack()
+        try:
+            read_stream, write_stream, _ = await stack.enter_async_context(
+                streamable_http_client(self._url)
+            )
+            session = await stack.enter_async_context(
+                ClientSession(
+                    read_stream,
+                    write_stream,
+                    read_timeout_seconds=self._timeout,
+                )
+            )
+            await session.initialize()
+        except Exception:
+            await stack.aclose()
+            raise
+        self._exit_stack = stack
+        self._session = session
+
+    async def cleanup(self) -> None:
+        if self._exit_stack is not None:
+            await self._exit_stack.aclose()
+        self._exit_stack = None
+        self._session = None
+
+    async def list_tools(self) -> list[Tool]:
+        if self._session is None:
+            raise RobotMCPError("Robot MCP server is not connected")
+        return list((await self._session.list_tools()).tools)
+
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any] | None) -> CallToolResult:
+        if self._session is None:
+            raise RobotMCPError("Robot MCP server is not connected")
+        return await self._session.call_tool(tool_name, arguments)
+
+
 class RobotMCPBridge:
-    """Converts robot MCP tools to Codex function tools and executes validated calls."""
+    """Converts robot MCP tools to LangChain function tools and executes validated calls."""
 
     def __init__(self, mcp_server_url: str, *, server: MCPServerLike | None = None):
-        self._server = server or MCPServerStreamableHttp(
-            {"url": mcp_server_url},
-            name="robot",
-            cache_tools_list=True,
-            client_session_timeout_seconds=30,
-        )
+        self._server = server or StreamableHttpMCPServer(mcp_server_url)
         self._tools: list[Tool] = []
         self._backing_tool_names: dict[str, str] = {}
         self._connected = False

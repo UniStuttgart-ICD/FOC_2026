@@ -46,7 +46,7 @@ def _profile_from_env() -> AgentProfile:
         )
     return AgentProfile(
         provider="openai_api",
-        model=os.getenv("LIVE_OPENAI_MODEL", "gpt-5.4-mini"),
+        model=os.getenv("LIVE_OPENAI_MODEL", "gpt-5.5"),
         reasoning_effort=_reasoning_effort_from_env(),
         api_key_env=os.getenv("LIVE_OPENAI_KEY_ENV", "OPENAI_API_KEY"),
     )

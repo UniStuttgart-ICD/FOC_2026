@@ -22,6 +22,7 @@ from voice_runtime.profiles import (
     default_profiles_path,
     load_runtime_profile,
 )
+from wake_tuning.settings import WakeTuningError, apply_saved_wake_tuning
 
 WakeConfig = WakeProfile
 EmergencyStopConfig = EmergencyStopProfile
@@ -91,9 +92,12 @@ def load_runtime_config(
             server_dir=server_dir,
             profile_name=selected_profile,
         )
+        profile = apply_saved_wake_tuning(profile)
     except ProfileError as exc:
         message = str(exc).replace("Unknown profile", "Unknown VOICE_PROFILE", 1)
         raise ConfigError(message) from exc
+    except WakeTuningError as exc:
+        raise ConfigError(str(exc)) from exc
 
     missing = [name for name in profile.required_env_names() if not os.getenv(name)]
     if missing:

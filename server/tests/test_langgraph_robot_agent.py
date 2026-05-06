@@ -1,7 +1,7 @@
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
@@ -215,6 +215,10 @@ def ai_text(text: str) -> AIMessage:
     return AIMessage(content=text)
 
 
+def ai_content_parts(parts: list[dict[str, Any]]) -> AIMessage:
+    return AIMessage(content=cast(Any, parts))
+
+
 def ai_tool_call(name: str, args: dict[str, Any], call_id: str = "call-1") -> AIMessage:
     return AIMessage(
         content="",
@@ -250,6 +254,24 @@ async def test_graph_observes_current_pose_before_simple_model_response() -> Non
 
 
 @pytest.mark.asyncio
+async def test_graph_speaks_text_content_part_without_reasoning_metadata() -> None:
+    fixture = make_graph(
+        [
+            ai_content_parts(
+                [
+                    {"type": "reasoning", "summary": []},
+                    {"type": "text", "text": "Moved up 100 mm."},
+                ]
+            )
+        ]
+    )
+
+    text = await fixture.graph.run_turn(turn("move up"))
+
+    assert text == "Moved up 100 mm."
+
+
+@pytest.mark.asyncio
 async def test_model_request_logs_failure_before_reraising(monkeypatch: pytest.MonkeyPatch) -> None:
     from langgraph_robot_agent import LangGraphRobotAgent
 
@@ -265,9 +287,9 @@ async def test_model_request_logs_failure_before_reraising(monkeypatch: pytest.M
     with pytest.raises(RuntimeError, match="boom"):
         await graph._call_model(model_state())
 
-    assert any("Codex LangChain request start" in message for message in fake_logger.info_messages)
+    assert any("LangChain request start" in message for message in fake_logger.info_messages)
     assert any(
-        "Codex LangChain request failed" in message and "boom" in message
+        "LangChain request failed" in message and "boom" in message
         for message in fake_logger.exception_messages
     )
 
@@ -290,8 +312,8 @@ async def test_model_request_logs_cancellation_before_reraising(
     with pytest.raises(asyncio.CancelledError):
         await graph._call_model(model_state())
 
-    assert any("Codex LangChain request start" in message for message in fake_logger.info_messages)
-    assert any("Codex LangChain request cancelled" in message for message in fake_logger.warning_messages)
+    assert any("LangChain request start" in message for message in fake_logger.info_messages)
+    assert any("LangChain request cancelled" in message for message in fake_logger.warning_messages)
 
 
 @pytest.mark.asyncio
@@ -340,14 +362,82 @@ async def test_graph_stops_after_max_tool_turns() -> None:
     fixture = make_graph(
         [
             ai_tool_call("moveit_get_current_pose", {"robot_name": "UR10"}, call_id=f"call-{i}")
-            for i in range(4)
+            for i in range(7)
         ]
     )
 
     text = await fixture.graph.run_turn(turn("pose"))
 
     assert text == "I could not confirm that the action completed."
-    assert len(fixture.model.requests) == 4
+    assert len(fixture.model.requests) == 7
+
+
+@pytest.mark.asyncio
+async def test_graph_preserves_valid_history_after_max_tool_turns() -> None:
+    fixture = make_graph(
+        [
+            *[
+                ai_tool_call(
+                    "moveit_get_current_pose",
+                    {"robot_name": "UR10"},
+                    call_id=f"call-{i}",
+                )
+                for i in range(7)
+            ],
+            ai_text("Recovered."),
+        ]
+    )
+
+    await fixture.graph.run_turn(turn("pose"))
+    text = await fixture.graph.run_turn(turn("hello again"))
+
+    assert text == "Recovered."
+    second_turn_messages = fixture.model.requests[-1][1:]
+    dangling_tool_call_ids: list[str] = []
+    for index, message in enumerate(second_turn_messages[:-1]):
+        if not isinstance(message, AIMessage) or not message.tool_calls:
+            continue
+        next_message = second_turn_messages[index + 1]
+        if not isinstance(next_message, ToolMessage):
+            dangling_tool_call_ids.extend(str(call["id"]) for call in message.tool_calls)
+            continue
+        if next_message.tool_call_id != message.tool_calls[-1]["id"]:
+            dangling_tool_call_ids.extend(str(call["id"]) for call in message.tool_calls)
+
+    assert dangling_tool_call_ids == []
+
+
+@pytest.mark.asyncio
+async def test_graph_allows_observe_action_verify_action_sequence() -> None:
+    wave_args = {
+        "robot_name": "UR10",
+        "waypoints": [
+            {"position": {"x": 0.1, "y": 0.2, "z": 0.3}},
+            {"position": {"x": 0.1, "y": 0.3, "z": 0.3}},
+        ],
+    }
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_get_current_pose", {"robot_name": "UR10"}, call_id="observe-1"),
+            ai_tool_call("moveit_plan_and_execute_cartesian_motion", wave_args, call_id="wave-1"),
+            ai_tool_call("moveit_get_current_pose", {"robot_name": "UR10"}, call_id="observe-2"),
+            ai_tool_call("moveit_plan_and_execute_cartesian_motion", wave_args, call_id="wave-2"),
+            ai_text("Waved."),
+        ]
+    )
+
+    text = await fixture.graph.run_turn(turn("wave"))
+
+    assert text == "Waved."
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_plan_and_execute_cartesian_motion", wave_args),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_plan_and_execute_cartesian_motion", wave_args),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]
 
 
 @pytest.mark.asyncio

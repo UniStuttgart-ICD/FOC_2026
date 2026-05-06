@@ -7,11 +7,8 @@ VOICE_RUNTIME_DIR = SERVER_DIR / "voice_runtime"
 APP_MODULE_ROOTS = {
     "agent_processor_factory",
     "bot",
-    "codex_auth",
-    "codex_backend_client",
     "config",
     "metrics",
-    "openai_codex_agent_processor",
     "pipeline_builder",
     "prompts",
     "providers",
@@ -30,6 +27,13 @@ DELETED_LEGACY_ROBOT_MODULES = {
     SERVER_DIR / "robot_mcp_bridge.py",
     VOICE_RUNTIME_DIR / "robot_context.py",
     VOICE_RUNTIME_DIR / "robot_safety.py",
+}
+DELETED_LEGACY_AGENT_MODULES = {
+    SERVER_DIR / "codex_auth.py",
+    SERVER_DIR / "codex_backend_client.py",
+    SERVER_DIR / "codex_langchain_auth.py",
+    SERVER_DIR / "codex_streaming_model.py",
+    SERVER_DIR / "openai_codex_agent_processor.py",
 }
 PURE_MODULE_FORBIDDEN_ROOTS = {
     "agents",
@@ -69,3 +73,8 @@ def test_pure_voice_runtime_modules_do_not_import_runtime_adapters():
 def test_legacy_robot_modules_are_not_left_in_old_locations():
     for path in DELETED_LEGACY_ROBOT_MODULES:
         assert not path.exists(), f"Legacy robot module still exists: {path}"
+
+
+def test_legacy_codex_oauth_modules_are_removed():
+    for path in DELETED_LEGACY_AGENT_MODULES:
+        assert not path.exists(), f"Legacy Codex OAuth module still exists: {path}"
