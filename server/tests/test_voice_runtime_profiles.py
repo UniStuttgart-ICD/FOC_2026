@@ -105,6 +105,101 @@ def test_bundled_default_profile_keeps_short_wake_word_activation_usable() -> No
     assert profile.wake.required_hits == 1
 
 
+def test_wake_profile_parses_audio_guards_and_rearm_delay(tmp_path: Path) -> None:
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profile(
+        profiles_path,
+        """
+[profiles.guarded]
+category = "local_debug"
+[profiles.guarded.wake]
+provider = "openwakeword"
+model_path = "models/mave.onnx"
+threshold = 0.7
+vad_threshold = 0.0
+candidate_log_threshold = 0.5
+required_hits = 1
+min_wake_rms = 50.0
+min_wake_peak = 150
+rearm_delay_s = 6.0
+[profiles.guarded.emergency_stop]
+enabled = false
+[profiles.guarded.stt]
+provider = "whisper"
+model = "base"
+[profiles.guarded.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.guarded.agent]
+provider = "openai_codex_oauth"
+model = "gpt-5.4-mini"
+[profiles.guarded.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.guarded.metrics]
+enabled = false
+""",
+    )
+
+    profile = load_runtime_profile(
+        profiles_path=profiles_path,
+        server_dir=tmp_path,
+        profile_name="guarded",
+    )
+
+    assert profile.wake.min_wake_rms == 50.0
+    assert profile.wake.min_wake_peak == 150
+    assert profile.wake.rearm_delay_s == 6.0
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("min_wake_rms", "-1"),
+        ("min_wake_peak", "-1"),
+        ("rearm_delay_s", "-0.1"),
+        ("min_wake_rms", "true"),
+        ("min_wake_peak", "false"),
+        ("rearm_delay_s", "true"),
+    ],
+)
+def test_wake_profile_rejects_invalid_audio_guard_values(
+    tmp_path: Path, field: str, value: str
+) -> None:
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profile(
+        profiles_path,
+        f"""
+[profiles.bad]
+category = "local_debug"
+[profiles.bad.wake]
+provider = "none"
+{field} = {value}
+[profiles.bad.emergency_stop]
+enabled = false
+[profiles.bad.stt]
+provider = "whisper"
+model = "base"
+[profiles.bad.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.bad.agent]
+provider = "openai_codex_oauth"
+model = "gpt-5.4-mini"
+[profiles.bad.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.bad.metrics]
+enabled = false
+""",
+    )
+
+    with pytest.raises(ProfileError, match=field):
+        load_runtime_profile(
+            profiles_path=profiles_path,
+            server_dir=tmp_path,
+            profile_name="bad",
+        )
+
+
 def test_loads_profile_without_constructing_adapters(tmp_path: Path):
     profiles_path = tmp_path / "runtime_profiles.toml"
     _write_profiles(profiles_path)
