@@ -56,6 +56,7 @@ async def test_manual_live_llm_robot_smoke_suite(live_agent: tuple[Any, Any]) ->
         validate_ambiguous_clarification,
         validate_bit_movement,
         validate_position_query,
+        validate_up_down_motion,
         validate_wave_motion,
         write_evidence,
     )
@@ -66,6 +67,7 @@ async def test_manual_live_llm_robot_smoke_suite(live_agent: tuple[Any, Any]) ->
         ("current-position", "what is the current position?", validate_position_query),
         ("move-up-bit", "move up a bit", lambda run: validate_bit_movement(run, direction="up")),
         ("move-down-bit", "move down a bit", lambda run: validate_bit_movement(run, direction="down")),
+        ("up-down-motion", "Have the robot move up and down", validate_up_down_motion),
         ("visible-wave", "wave to me", validate_wave_motion),
         ("ambiguous-move-there", "move there", validate_ambiguous_clarification),
     ]

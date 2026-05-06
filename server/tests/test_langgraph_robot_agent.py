@@ -24,8 +24,10 @@ class FakeChatModel:
         self.responses = list(responses)
         self.requests: list[list[BaseMessage]] = []
         self.bound_tools: list[dict[str, Any]] = []
+        self.bind_kwargs: list[dict[str, Any]] = []
 
     def bind_tools(self, tools: list[dict[str, Any]], **kwargs: Any):
+        self.bind_kwargs.append(dict(kwargs))
         clone = FakeBoundChatModel(self.responses, self.requests, list(tools))
         self.bound_tools = clone.bound_tools
         return clone
@@ -159,6 +161,13 @@ class FakeBridge:
             return json.dumps(
                 {"structured_content": {"ok": True, "verification": {"result": "pass"}}}
             )
+        if name in {
+            "moveit_plan_and_execute_free_motion",
+            "moveit_plan_and_execute_cartesian_motion",
+        }:
+            return json.dumps(
+                {"structured_content": {"ok": True, "verification": {"result": "pass"}}}
+            )
         return json.dumps({"structured_content": {"ok": True}})
 
 
@@ -194,6 +203,9 @@ def model_state() -> Any:
         "tools": [],
         "tool_turns": 0,
         "observed_this_turn": False,
+        "needs_action_tool": False,
+        "action_tool_ran": False,
+        "missing_action_repairs": 0,
         "final_text": "",
         "error_text": None,
     }
@@ -355,6 +367,112 @@ async def test_graph_does_not_auto_execute_executable_plan() -> None:
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
         ("moveit_plan_free_motion", plan_args),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_motion_request_retries_when_model_only_promises_action() -> None:
+    cartesian_args = {
+        "robot_name": "UR10",
+        "waypoints": [
+            {"position": {"x": 0.1, "y": 0.2, "z": 0.35}},
+            {"position": {"x": 0.1, "y": 0.2, "z": 0.25}},
+            {"position": {"x": 0.1, "y": 0.2, "z": 0.3}},
+        ],
+    }
+    fixture = make_graph(
+        [
+            ai_text("I’ll get a fresh pose, then do a simple up-down gesture."),
+            ai_tool_call("moveit_plan_and_execute_cartesian_motion", cartesian_args),
+            ai_text("Moved up and down."),
+        ]
+    )
+
+    text = await fixture.graph.run_turn(turn("Have the robot move up and down"))
+
+    assert text == "Moved up and down."
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_plan_and_execute_cartesian_motion", cartesian_args),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]
+    assert len(fixture.model.requests) == 3
+    corrective_request = fixture.model.requests[1]
+    assert any(
+        "did not call a MoveIt action tool" in str(message.content)
+        for message in corrective_request
+        if isinstance(message, HumanMessage)
+    )
+    assert fixture.model.bind_kwargs == [
+        {"tool_choice": "auto"},
+        {"tool_choice": "required"},
+        {"tool_choice": "auto"},
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("prompt", "expected_tools", "expected_reply"),
+    [
+        ("move up a bit", ["moveit_plan_and_execute_free_motion"], "Moved up 50 mm."),
+        ("move down a bit", ["moveit_plan_and_execute_free_motion"], "Moved down 50 mm."),
+        (
+            "Have the robot move up and down",
+            [
+                "moveit_plan_and_execute_free_motion",
+                "moveit_plan_and_execute_free_motion",
+            ],
+            "Moved up and down.",
+        ),
+        (
+            "wave to me",
+            [
+                "moveit_plan_and_execute_free_motion",
+                "moveit_plan_and_execute_free_motion",
+            ],
+            "Waved.",
+        ),
+    ],
+)
+async def test_supported_motion_request_falls_back_after_required_tool_retry_fails(
+    prompt: str,
+    expected_tools: list[str],
+    expected_reply: str,
+) -> None:
+    fixture = make_graph(
+        [
+            ai_text("I’ll use a MoveIt action tool now."),
+            ai_text(""),
+        ]
+    )
+
+    text = await fixture.graph.run_turn(turn(prompt))
+
+    assert text == expected_reply
+    observed_tools = [name for name, _ in fixture.bridge.calls]
+    assert observed_tools == ["moveit_get_current_pose", *expected_tools, "moveit_get_current_pose"]
+    assert fixture.model.bind_kwargs == [
+        {"tool_choice": "auto"},
+        {"tool_choice": "required"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_motion_request_clarifies_after_required_tool_retry_fails() -> None:
+    fixture = make_graph(
+        [
+            ai_text("I’ll move there now."),
+            ai_text(""),
+        ]
+    )
+
+    text = await fixture.graph.run_turn(turn("move there"))
+
+    assert text == "Where would you like me to move?"
+    assert [name for name, _ in fixture.bridge.calls] == ["moveit_get_current_pose"]
+    assert fixture.model.bind_kwargs == [
+        {"tool_choice": "auto"},
+        {"tool_choice": "required"},
     ]
 
 

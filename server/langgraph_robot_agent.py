@@ -6,6 +6,7 @@ import asyncio
 import json
 import operator
 import uuid
+from dataclasses import dataclass
 from typing import Annotated, Any, Literal, TypedDict
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
@@ -28,8 +29,49 @@ from voice_runtime.timing import elapsed_ms_since, monotonic_s
 MAX_CODEX_TOOL_TURNS = 3
 VIZOR_ROBOT_NAME = "UR10"
 PLAN_TOOL_NAMES = {"moveit_plan_free_motion", "moveit_plan_cartesian_motion"}
+ACTION_TOOL_NAMES = {
+    "moveit_plan_free_motion",
+    "moveit_plan_cartesian_motion",
+    "moveit_plan_and_execute_free_motion",
+    "moveit_plan_and_execute_cartesian_motion",
+    "moveit_execute_plan",
+    "moveit_open_gripper",
+    "moveit_close_gripper",
+    "moveit_attach_object",
+}
 OBSERVE_TOOL_NAMES = ("moveit_get_current_pose",)
 NO_TEXT_RESPONSE = "I could not confirm that the action completed."
+MAX_MISSING_ACTION_REPAIRS = 1
+ROBOT_ACTION_TERMS = (
+    "move",
+    "go",
+    "raise",
+    "lower",
+    "lift",
+    "drop",
+    "wave",
+    "draw",
+    "point",
+    "gesture",
+    "open",
+    "close",
+    "grab",
+    "release",
+)
+FUTURE_PROMISE_TERMS = (
+    "i'll",
+    "i’ll",
+    "i will",
+    "i’m",
+    "i’m going to",
+    "i am going to",
+    "let me",
+    "first, then",
+    "then i'll",
+    "then i’ll",
+    "then make",
+    "then do",
+)
 
 
 class RobotAgentState(TypedDict):
@@ -38,8 +80,23 @@ class RobotAgentState(TypedDict):
     tools: list[dict[str, Any]]
     tool_turns: int
     observed_this_turn: bool
+    needs_action_tool: bool
+    action_tool_ran: bool
+    missing_action_repairs: int
     final_text: str
     error_text: str | None
+
+
+@dataclass(frozen=True)
+class SupportedToolStep:
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class SupportedAction:
+    steps: list[SupportedToolStep]
+    success_text: str
 
 
 class LangGraphRobotAgent:
@@ -67,6 +124,9 @@ class LangGraphRobotAgent:
             "tools": [],
             "tool_turns": 0,
             "observed_this_turn": False,
+            "needs_action_tool": _looks_like_robot_action_request(turn.user_text),
+            "action_tool_ran": False,
+            "missing_action_repairs": 0,
             "final_text": "",
             "error_text": None,
         }
@@ -85,11 +145,15 @@ class LangGraphRobotAgent:
         builder.add_node("observe_current_pose", self._observe_current_pose)
         builder.add_node("call_model", self._call_model)
         builder.add_node("execute_robot_tool", self._execute_robot_tool)
+        builder.add_node("repair_missing_action", self._repair_missing_action)
+        builder.add_node("execute_supported_action", self._execute_supported_action)
         builder.add_node("final_response", self._final_response)
         builder.add_edge(START, "observe_current_pose")
         builder.add_edge("observe_current_pose", "call_model")
         builder.add_conditional_edges("call_model", self._route_after_model)
         builder.add_edge("execute_robot_tool", "observe_current_pose")
+        builder.add_edge("repair_missing_action", "call_model")
+        builder.add_edge("execute_supported_action", END)
         builder.add_edge("final_response", END)
         return builder.compile(checkpointer=InMemorySaver())
 
@@ -108,7 +172,7 @@ class LangGraphRobotAgent:
 
     async def _call_model(self, state: RobotAgentState) -> dict[str, Any]:
         tools = state["tools"] or self._tool_bridge.function_tools()
-        model = self._model.bind_tools(tools)
+        model = self._model.bind_tools(tools, tool_choice=_tool_choice_for_state(state))
         system = SystemMessage(content=self._instructions())
         started = monotonic_s()
         logger.info(
@@ -147,15 +211,83 @@ class LangGraphRobotAgent:
             )
         return {"messages": [message], "tools": tools}
 
-    def _route_after_model(self, state: RobotAgentState) -> Literal["execute_robot_tool", "final_response"]:
+    def _route_after_model(
+        self, state: RobotAgentState
+    ) -> Literal[
+        "execute_robot_tool",
+        "repair_missing_action",
+        "execute_supported_action",
+        "final_response",
+    ]:
         if state["error_text"]:
             return "final_response"
         last = _last_ai_message(state["messages"])
-        if last is None or not last.tool_calls:
+        if last is None:
             return "final_response"
-        if state["tool_turns"] >= MAX_CODEX_TOOL_TURNS:
-            return "final_response"
-        return "execute_robot_tool"
+        if last.tool_calls:
+            if state["tool_turns"] >= MAX_CODEX_TOOL_TURNS:
+                return "final_response"
+            return "execute_robot_tool"
+        if _should_repair_missing_action(state, last):
+            return "repair_missing_action"
+        if _should_execute_supported_action_fallback(state, last, self._robot_context):
+            return "execute_supported_action"
+        return "final_response"
+
+    def _repair_missing_action(self, state: RobotAgentState) -> dict[str, Any]:
+        return {
+            "messages": [
+                HumanMessage(
+                    content=(
+                        "The previous response described a future robot action but did not call "
+                        "a MoveIt action tool. For this movement request, call exactly one "
+                        "available MoveIt action tool now, or explain a concrete blocker if no "
+                        "safe tool call is possible. Do not say you will do it later."
+                    )
+                )
+            ],
+            "missing_action_repairs": state["missing_action_repairs"] + 1,
+        }
+
+    async def _execute_supported_action(self, state: RobotAgentState) -> dict[str, Any]:
+        action = _supported_action_from_text(
+            state["user_text"], self._robot_context.latest_tcp_pose()
+        )
+        if action is None:
+            return {"final_text": NO_TEXT_RESPONSE}
+
+        output = ""
+        execution_verified = True
+        for step in action.steps:
+            started = monotonic_s()
+            logger.info("Robot supported-action fallback start name={}", step.name)
+            output = await self._execute_tool(step.name, step.arguments)
+            logger.info(
+                "Robot supported-action fallback end name={} elapsed_ms={}",
+                step.name,
+                elapsed_ms_since(started),
+            )
+            if not _output_has_verified_execution(output):
+                execution_verified = False
+                break
+
+        observed_this_turn = False
+        observe_tool_name = _first_available_tool(
+            state["tools"] or self._tool_bridge.function_tools(), OBSERVE_TOOL_NAMES
+        )
+        if observe_tool_name is not None:
+            _, observed_this_turn = await self._execute_observation_tool(
+                observe_tool_name, {"robot_name": VIZOR_ROBOT_NAME}
+            )
+
+        final_text = (
+            action.success_text if execution_verified else _execution_failure_text(output)
+        )
+        return {
+            "final_text": final_text,
+            "action_tool_ran": True,
+            "observed_this_turn": observed_this_turn,
+        }
 
     async def _execute_robot_tool(self, state: RobotAgentState) -> dict[str, Any]:
         last = _last_ai_message(state["messages"])
@@ -164,6 +296,7 @@ class LangGraphRobotAgent:
 
         tool_messages: list[ToolMessage] = []
         observed_this_turn = state["observed_this_turn"]
+        action_tool_ran = state["action_tool_ran"]
         for index, tool_call in enumerate(last.tool_calls):
             name = str(tool_call.get("name") or "")
             call_args = tool_call.get("args")
@@ -181,6 +314,7 @@ class LangGraphRobotAgent:
                 output, observed_this_turn = await self._execute_observation_tool(name, dict(args))
             else:
                 output = await self._execute_tool(name, dict(args))
+                action_tool_ran = action_tool_ran or name in ACTION_TOOL_NAMES
                 observed_this_turn = False
             logger.info(
                 "Robot tool end name={} call_id={} elapsed_ms={}",
@@ -194,6 +328,7 @@ class LangGraphRobotAgent:
             "messages": tool_messages,
             "tool_turns": state["tool_turns"] + 1,
             "observed_this_turn": observed_this_turn,
+            "action_tool_ran": action_tool_ran,
         }
 
     def _final_response(self, state: RobotAgentState) -> dict[str, Any]:
@@ -203,6 +338,13 @@ class LangGraphRobotAgent:
         if last is None:
             return {"final_text": NO_TEXT_RESPONSE}
         text = str(last.content or "").strip()
+        if (
+            not text
+            and state["needs_action_tool"]
+            and not state["action_tool_ran"]
+            and state["missing_action_repairs"] >= MAX_MISSING_ACTION_REPAIRS
+        ):
+            return {"final_text": "Where would you like me to move?"}
         return {"final_text": text or NO_TEXT_RESPONSE}
 
     def _instructions(self) -> str:
@@ -258,6 +400,217 @@ def _first_available_tool(tools: list[dict[str, Any]], names: tuple[str, ...]) -
         if name in tool_names:
             return name
     return None
+
+
+def _looks_like_robot_action_request(text: str) -> bool:
+    normalized = text.casefold()
+    return any(term in normalized for term in ROBOT_ACTION_TERMS)
+
+
+def _should_repair_missing_action(state: RobotAgentState, last: AIMessage) -> bool:
+    if not state["needs_action_tool"]:
+        return False
+    if state["action_tool_ran"]:
+        return False
+    if state["missing_action_repairs"] >= MAX_MISSING_ACTION_REPAIRS:
+        return False
+    if state["tool_turns"] >= MAX_CODEX_TOOL_TURNS:
+        return False
+    text = str(last.content or "").casefold()
+    return not text or any(term in text for term in FUTURE_PROMISE_TERMS)
+
+
+def _should_execute_supported_action_fallback(
+    state: RobotAgentState,
+    last: AIMessage,
+    robot_context: RobotContextStore,
+) -> bool:
+    if not state["needs_action_tool"]:
+        return False
+    if state["action_tool_ran"]:
+        return False
+    if state["missing_action_repairs"] < MAX_MISSING_ACTION_REPAIRS:
+        return False
+    text = str(last.content or "").casefold()
+    if text and not any(term in text for term in FUTURE_PROMISE_TERMS):
+        return False
+    return _supported_action_from_text(state["user_text"], robot_context.latest_tcp_pose()) is not None
+
+
+def _tool_choice_for_state(state: RobotAgentState) -> str:
+    if (
+        state["needs_action_tool"]
+        and not state["action_tool_ran"]
+        and state["missing_action_repairs"] > 0
+    ):
+        return "required"
+    return "auto"
+
+
+def _supported_action_from_text(text: str, pose: dict[str, Any] | None) -> SupportedAction | None:
+    components = _pose_components(pose)
+    if components is None:
+        return None
+    position, orientation = components
+    normalized = text.casefold()
+
+    if "wave" in normalized:
+        return _free_motion_sequence(
+            position,
+            orientation,
+            [
+                {"dy": 0.10, "dz": 0.08},
+                {"dy": -0.10, "dz": 0.08},
+            ],
+            "Waved.",
+        )
+
+    if "up" in normalized and "down" in normalized:
+        distance_m = _distance_m(normalized, default=0.06)
+        return _free_motion_sequence(
+            position,
+            orientation,
+            [
+                {"dy": 0.0, "dz": distance_m},
+                {"dy": 0.0, "dz": -distance_m},
+            ],
+            "Moved up and down.",
+        )
+
+    if "up" in normalized or "raise" in normalized or "lift" in normalized:
+        distance_m = _distance_m(normalized)
+        return _free_motion_action(position, orientation, distance_m, f"Moved up {distance_m * 1000:.0f} mm.")
+
+    if "down" in normalized or "lower" in normalized or "drop" in normalized:
+        distance_m = _distance_m(normalized)
+        return _free_motion_action(
+            position,
+            orientation,
+            -distance_m,
+            f"Moved down {distance_m * 1000:.0f} mm.",
+        )
+
+    return None
+
+
+def _free_motion_action(
+    position: dict[str, float],
+    orientation: dict[str, float],
+    delta_z_m: float,
+    success_text: str,
+) -> SupportedAction:
+    return SupportedAction(
+        steps=[
+            _free_motion_step(
+                position,
+                orientation,
+                {"dy": 0.0, "dz": delta_z_m},
+            )
+        ],
+        success_text=success_text,
+    )
+
+
+def _free_motion_sequence(
+    position: dict[str, float],
+    orientation: dict[str, float],
+    offsets: list[dict[str, float]],
+    success_text: str,
+) -> SupportedAction:
+    return SupportedAction(
+        steps=[_free_motion_step(position, orientation, offset) for offset in offsets],
+        success_text=success_text,
+    )
+
+
+def _free_motion_step(
+    position: dict[str, float],
+    orientation: dict[str, float],
+    offset: dict[str, float],
+) -> SupportedToolStep:
+    return SupportedToolStep(
+        name="moveit_plan_and_execute_free_motion",
+        arguments={
+            "robot_name": VIZOR_ROBOT_NAME,
+            "target_pose": {
+                "position": {
+                    "x": position["x"],
+                    "y": position["y"] + offset["dy"],
+                    "z": position["z"] + offset["dz"],
+                },
+                "orientation": orientation,
+            },
+            "timeout_s": 10,
+        },
+    )
+
+
+def _distance_m(text: str, *, default: float = 0.10) -> float:
+    if "bit" in text or "slightly" in text:
+        return 0.05
+    if "lot" in text or "far" in text:
+        return 0.30
+    return default
+
+
+def _pose_components(
+    pose: dict[str, Any] | None,
+) -> tuple[dict[str, float], dict[str, float]] | None:
+    if not isinstance(pose, dict):
+        return None
+    raw_position = pose.get("position")
+    raw_orientation = pose.get("orientation")
+    if not isinstance(raw_position, dict) or not isinstance(raw_orientation, dict):
+        return None
+
+    try:
+        position = {
+            "x": float(raw_position["x"]),
+            "y": float(raw_position["y"]),
+            "z": float(raw_position["z"]),
+        }
+        orientation = {
+            "x": float(raw_orientation["x"]),
+            "y": float(raw_orientation["y"]),
+            "z": float(raw_orientation["z"]),
+            "w": float(raw_orientation["w"]),
+        }
+    except (KeyError, TypeError, ValueError):
+        return None
+    return position, orientation
+
+
+def _output_has_verified_execution(output: str) -> bool:
+    structured_content = _structured_content_from_output(output)
+    if not isinstance(structured_content, dict) or structured_content.get("ok") is not True:
+        return False
+    verification = structured_content.get("verification")
+    if isinstance(verification, dict) and verification.get("result") == "pass":
+        return True
+    execution = structured_content.get("execution")
+    return isinstance(execution, dict) and execution.get("verification_result") == "pass"
+
+
+def _execution_failure_text(output: str) -> str:
+    structured_content = _structured_content_from_output(output)
+    if isinstance(structured_content, dict):
+        error = structured_content.get("error")
+        if isinstance(error, str) and error:
+            return error
+        feedback = structured_content.get("feedback")
+        if isinstance(feedback, dict) and isinstance(feedback.get("message"), str):
+            return feedback["message"]
+    return NO_TEXT_RESPONSE
+
+
+def _structured_content_from_output(output: str) -> Any:
+    try:
+        payload = json.loads(output)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload.get("structured_content")
 
 
 def _output_has_current_pose(output: str) -> bool:

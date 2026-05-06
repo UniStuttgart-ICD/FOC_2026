@@ -9,6 +9,7 @@ from test_support.live_robot_smoke import (
     validate_ambiguous_clarification,
     validate_bit_movement,
     validate_position_query,
+    validate_up_down_motion,
     validate_wave_motion,
 )
 
@@ -229,6 +230,67 @@ def test_wave_motion_rejects_timid_sweep() -> None:
     assert "expected at least 0.18 m lateral wave span" in result.reason
 
 
+def test_wave_motion_accepts_visible_verified_free_motion_sweep() -> None:
+    run = LiveSmokeRun(
+        prompt="wave to me",
+        reply="Waved.",
+        tool_calls=[
+            pose_call(z=0.62, y=0.39),
+            verified_free_motion_execution_call(y=0.49, z=0.70),
+            verified_free_motion_execution_call(y=0.29, z=0.70),
+            pose_call(z=0.62, y=0.39),
+        ],
+    )
+
+    result = validate_wave_motion(run)
+
+    assert result.passed is True
+    assert result.reason == "wave executed visible verified free-motion sweep"
+    assert result.details["lateral_span_m"] == pytest.approx(0.20)
+    assert result.details["vertical_lift_m"] == pytest.approx(0.08)
+
+
+def test_up_down_motion_accepts_verified_cartesian_execution() -> None:
+    run = LiveSmokeRun(
+        prompt="Have the robot move up and down",
+        reply="Moved up and down.",
+        tool_calls=[
+            pose_call(z=0.30),
+            verified_cartesian_execution_call(
+                [
+                    waypoint(y=0.20, z=0.36),
+                    waypoint(y=0.20, z=0.24),
+                    waypoint(y=0.20, z=0.30),
+                ]
+            ),
+            pose_call(z=0.30),
+        ],
+    )
+
+    result = validate_up_down_motion(run)
+
+    assert result.passed is True
+    assert result.reason == "up-down motion executed through verified Cartesian tool"
+
+
+def test_up_down_motion_accepts_verified_free_motion_sequence() -> None:
+    run = LiveSmokeRun(
+        prompt="Have the robot move up and down",
+        reply="Moved up and down.",
+        tool_calls=[
+            pose_call(z=0.30),
+            verified_free_motion_execution_call(z=0.36),
+            verified_free_motion_execution_call(z=0.24),
+            pose_call(z=0.30),
+        ],
+    )
+
+    result = validate_up_down_motion(run)
+
+    assert result.passed is True
+    assert result.reason == "up-down motion executed through verified free-motion sequence"
+
+
 def test_ambiguous_command_accepts_clarification_without_motion() -> None:
     run = LiveSmokeRun(
         prompt="move there",
@@ -301,6 +363,29 @@ def verified_execution_call() -> RecordedToolCall:
     return RecordedToolCall(
         name="moveit_plan_and_execute_free_motion",
         arguments={"robot_name": "UR10", "target_pose": {"x": 0.1, "y": 0.2, "z": 0.35}},
+        output_text=json.dumps(output_json),
+        output_json=output_json,
+    )
+
+
+def verified_free_motion_execution_call(
+    *,
+    z: float,
+    x: float = 0.10,
+    y: float = 0.20,
+) -> RecordedToolCall:
+    output_json = {
+        "structured_content": {
+            "ok": True,
+            "verification": {"result": "pass"},
+        }
+    }
+    return RecordedToolCall(
+        name="moveit_plan_and_execute_free_motion",
+        arguments={
+            "robot_name": "UR10",
+            "target_pose": waypoint(x=x, y=y, z=z),
+        },
         output_text=json.dumps(output_json),
         output_json=output_json,
     )

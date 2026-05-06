@@ -218,7 +218,10 @@ def validate_wave_motion(run: LiveSmokeRun) -> ValidationResult:
         call for call in run.tool_calls if call.name == "moveit_plan_and_execute_cartesian_motion"
     ]
     if not cartesian_calls:
-        return ValidationResult(False, "wave did not use moveit_plan_and_execute_cartesian_motion")
+        free_motion_result = _validate_wave_free_motion(run.tool_calls, start)
+        if free_motion_result is not None:
+            return free_motion_result
+        return ValidationResult(False, "wave did not use a verified visible motion sequence")
 
     execution_call = next((call for call in cartesian_calls if _is_verified_execution(call)), None)
     if execution_call is None:
@@ -258,6 +261,26 @@ def validate_wave_motion(run: LiveSmokeRun) -> ValidationResult:
             details,
         )
     return ValidationResult(True, "wave executed visible verified cartesian sweep", details)
+
+
+def validate_up_down_motion(run: LiveSmokeRun) -> ValidationResult:
+    if not _has_call(run.tool_calls, CURRENT_POSE_TOOL_NAME):
+        return ValidationResult(False, "up-down motion did not observe current pose")
+    if not _has_verified_execution(run.tool_calls):
+        return ValidationResult(False, "up-down motion did not execute and verify")
+    cartesian_calls = [
+        call for call in run.tool_calls if call.name == "moveit_plan_and_execute_cartesian_motion"
+    ]
+    if not cartesian_calls:
+        free_motion_calls = [
+            call
+            for call in run.tool_calls
+            if call.name == "moveit_plan_and_execute_free_motion" and _is_verified_execution(call)
+        ]
+        if len(free_motion_calls) >= 2:
+            return ValidationResult(True, "up-down motion executed through verified free-motion sequence")
+        return ValidationResult(False, "up-down motion did not use a verified motion sequence")
+    return ValidationResult(True, "up-down motion executed through verified Cartesian tool")
 
 
 def validate_ambiguous_clarification(run: LiveSmokeRun) -> ValidationResult:
@@ -310,6 +333,48 @@ def _has_verified_execution(calls: list[RecordedToolCall]) -> bool:
     return any(_is_verified_execution(call) for call in calls if call.name in EXECUTION_TOOL_NAMES)
 
 
+def _validate_wave_free_motion(
+    calls: list[RecordedToolCall],
+    start: dict[str, float],
+) -> ValidationResult | None:
+    free_motion_calls = [
+        call
+        for call in calls
+        if call.name == "moveit_plan_and_execute_free_motion" and _is_verified_execution(call)
+    ]
+    if len(free_motion_calls) < 2:
+        return None
+
+    targets = [_target_pose_position(call) for call in free_motion_calls]
+    positions = [position for position in targets if position is not None]
+    if len(positions) != len(free_motion_calls):
+        return ValidationResult(False, "wave free-motion targets must include finite x/y/z positions")
+
+    lateral_span_m = max(position["y"] for position in positions) - min(position["y"] for position in positions)
+    vertical_lift_m = max(position["z"] - start["z"] for position in positions)
+    details = {
+        "start": start,
+        "target_count": len(positions),
+        "lateral_span_m": lateral_span_m,
+        "vertical_lift_m": vertical_lift_m,
+        "expected_lateral_span_m": EXPECTED_WAVE_LATERAL_SPAN_M,
+    }
+
+    if lateral_span_m < MIN_WAVE_LATERAL_SPAN_M:
+        return ValidationResult(
+            False,
+            f"expected at least {MIN_WAVE_LATERAL_SPAN_M} m lateral wave span, got {lateral_span_m:.4f} m",
+            details,
+        )
+    if vertical_lift_m < MIN_WAVE_VERTICAL_LIFT_M:
+        return ValidationResult(
+            False,
+            f"expected at least {MIN_WAVE_VERTICAL_LIFT_M} m vertical wave lift, got {vertical_lift_m:.4f} m",
+            details,
+        )
+    return ValidationResult(True, "wave executed visible verified free-motion sweep", details)
+
+
 def _is_verified_execution(call: RecordedToolCall) -> bool:
     structured = _structured_content(call.output_json)
     if not isinstance(structured, dict) or structured.get("ok") is not True:
@@ -346,6 +411,10 @@ def _waypoint_position(waypoint: Any) -> dict[str, float] | None:
     if x is None or y is None or z is None:
         return None
     return {"x": x, "y": y, "z": z}
+
+
+def _target_pose_position(call: RecordedToolCall) -> dict[str, float] | None:
+    return _waypoint_position(call.arguments.get("target_pose"))
 
 
 def _finite_float(value: Any) -> float | None:
