@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
@@ -81,9 +81,18 @@ def is_actionable_user_text(text: str) -> bool:
 
 
 class AgentTurnProcessor(FrameProcessor):
-    def __init__(self, *, backend: AgentBackend, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        backend: AgentBackend,
+        on_turn_started: Callable[[], None] | None = None,
+        on_turn_finished: Callable[[], None] | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self._backend = backend
+        self._on_turn_started = on_turn_started
+        self._on_turn_finished = on_turn_finished
 
     async def connect(self) -> None:
         await self._backend.connect()
@@ -108,9 +117,15 @@ class AgentTurnProcessor(FrameProcessor):
             await self.push_frame(frame, direction)
             return
 
-        await self.push_frame(LLMFullResponseStartFrame())
-        await self._run_turn(turn)
-        await self.push_frame(LLMFullResponseEndFrame())
+        if self._on_turn_started is not None:
+            self._on_turn_started()
+        try:
+            await self.push_frame(LLMFullResponseStartFrame())
+            await self._run_turn(turn)
+            await self.push_frame(LLMFullResponseEndFrame())
+        finally:
+            if self._on_turn_finished is not None:
+                self._on_turn_finished()
 
     async def _run_turn(self, turn: AgentTurnInput) -> None:
         has_text = False

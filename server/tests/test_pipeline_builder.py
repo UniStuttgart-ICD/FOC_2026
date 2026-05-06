@@ -69,12 +69,18 @@ def _config(tmp_path: Path, *, metrics_enabled: bool, wake_enabled: bool = False
     )
 
 
-def _patch_pipeline_dependencies(monkeypatch):
+def _patch_pipeline_dependencies(monkeypatch, *, agent_processor_kwargs: dict[str, Any] | None = None):
     monkeypatch.setattr("pipeline_builder.create_stt_service", lambda config: FrameProcessor())
     monkeypatch.setattr("pipeline_builder.create_tts_service", lambda config: FrameProcessor())
+
+    def fake_agent_processor(config, *, mcp_server_url, **kwargs):
+        if agent_processor_kwargs is not None:
+            agent_processor_kwargs.update(kwargs)
+        return FrameProcessor()
+
     monkeypatch.setattr(
         "pipeline_builder.create_agent_processor",
-        lambda config, *, mcp_server_url: FrameProcessor(),
+        fake_agent_processor,
     )
     monkeypatch.setattr(
         "pipeline_builder.LLMContextAggregatorPair",
@@ -113,8 +119,9 @@ def test_metrics_observer_is_not_wired_when_metrics_disabled(monkeypatch, tmp_pa
 def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tmp_path: Path):
     stt = FrameProcessor()
     seen_detector_kwargs = {}
+    seen_agent_kwargs: dict[str, Any] = {}
 
-    _patch_pipeline_dependencies(monkeypatch)
+    _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
     monkeypatch.setattr("pipeline_builder.create_stt_service", lambda config: stt)
 
     def fake_detector(model_path, *, threshold, vad_threshold):
@@ -149,3 +156,5 @@ def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tm
         "threshold": 0.5,
         "vad_threshold": 0.3,
     }
+    assert callable(seen_agent_kwargs["on_turn_started"])
+    assert callable(seen_agent_kwargs["on_turn_finished"])

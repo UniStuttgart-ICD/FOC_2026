@@ -79,6 +79,7 @@ class MaveVoiceCommandAudioGate(FrameProcessor):
         self._awake = False
         self._wake_started_at: float | None = None
         self._rearm_until = 0.0
+        self._suppressed = False
 
     @property
     def is_awake(self) -> bool:
@@ -103,6 +104,9 @@ class MaveVoiceCommandAudioGate(FrameProcessor):
 
         if self._awake:
             await self.push_frame(frame, direction)
+            return
+
+        if self._suppressed:
             return
 
         if now < self._rearm_until:
@@ -199,6 +203,14 @@ class MaveVoiceCommandAudioGate(FrameProcessor):
             self._ring_samples -= len(old.audio) // 2 // max(old.num_channels, 1)
 
     def reset(self) -> None:
+        self._reset(now=self._time_fn())
+
+    def suppress(self) -> None:
+        self._reset(now=self._time_fn())
+        self._suppressed = True
+
+    def unsuppress(self) -> None:
+        self._suppressed = False
         self._reset(now=self._time_fn())
 
     def _reset(self, *, now: float) -> None:

@@ -37,7 +37,6 @@ class BuiltPipeline:
 def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipeline:
     stt = create_stt_service(config.stt)
     tts = create_tts_service(config.tts)
-    agent_processor = create_agent_processor(config.agent, mcp_server_url=config.mcp_robot_url)
 
     voice_command_audio = None
     voice_command_transcript = None
@@ -61,6 +60,18 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
         )
         voice_command_audio = voice_command_processors.audio_gate
         voice_command_transcript = voice_command_processors.transcript_adapter
+
+    agent_kwargs = {}
+    if voice_command_audio is not None:
+        agent_kwargs = {
+            "on_turn_started": voice_command_audio.suppress,
+            "on_turn_finished": voice_command_audio.unsuppress,
+        }
+    agent_processor = create_agent_processor(
+        config.agent,
+        mcp_server_url=config.mcp_robot_url,
+        **agent_kwargs,
+    )
 
     context = LLMContext()
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(

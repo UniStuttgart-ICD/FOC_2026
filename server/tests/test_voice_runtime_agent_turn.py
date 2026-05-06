@@ -49,8 +49,8 @@ class EchoBackend:
 
 
 class CapturingProcessor(AgentTurnProcessor):
-    def __init__(self, backend: AgentBackend) -> None:
-        super().__init__(backend=backend)
+    def __init__(self, backend: AgentBackend, **kwargs: Any) -> None:
+        super().__init__(backend=backend, **kwargs)
         self.pushed: list[Frame] = []
 
     async def push_frame(
@@ -193,6 +193,40 @@ async def test_agent_turn_emits_error_message_when_backend_raises() -> None:
 
     text_frames = [frame for frame in processor.pushed if isinstance(frame, LLMTextFrame)]
     assert [frame.text for frame in text_frames] == ["I encountered an error. Please try again."]
+
+
+@pytest.mark.asyncio
+async def test_agent_turn_processor_calls_lifecycle_callbacks() -> None:
+    events: list[str] = []
+    processor = CapturingProcessor(
+        EchoBackend(["done"]),
+        on_turn_started=lambda: events.append("started"),
+        on_turn_finished=lambda: events.append("finished"),
+    )
+
+    await processor.process_frame(
+        _context_frame([{"role": "user", "content": "move robot up."}]),
+        FrameDirection.DOWNSTREAM,
+    )
+
+    assert events == ["started", "finished"]
+
+
+@pytest.mark.asyncio
+async def test_agent_turn_processor_finishes_lifecycle_after_backend_error() -> None:
+    events: list[str] = []
+    processor = CapturingProcessor(
+        EchoBackend(raises=True),
+        on_turn_started=lambda: events.append("started"),
+        on_turn_finished=lambda: events.append("finished"),
+    )
+
+    await processor.process_frame(
+        _context_frame([{"role": "user", "content": "move robot up."}]),
+        FrameDirection.DOWNSTREAM,
+    )
+
+    assert events == ["started", "finished"]
 
 
 @pytest.mark.asyncio
