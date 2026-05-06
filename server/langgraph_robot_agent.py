@@ -3,49 +3,38 @@
 from __future__ import annotations
 
 import json
-import re
+import operator
 import uuid
-from collections.abc import Mapping
-from typing import Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from loguru import logger
 
-from codex_backend_client import CodexResponseResult
 from prompts import SYSTEM_PROMPT
 from robot_control.call_validation import (
     RobotCallValidationError,
     executable_plan_name,
-    execution_result_text,
     structured_robot_call_error,
 )
 from robot_control.context import RobotContextStore
 from robot_control.mcp_bridge import RobotMCPError
 from robot_control.task_policy import structured_task_policy_error, validate_task_step
 from voice_runtime.agent_turn import AgentTurnInput
+from voice_runtime.timing import elapsed_ms_since, monotonic_s
 
 MAX_CODEX_TOOL_TURNS = 3
 VIZOR_ROBOT_NAME = "UR10"
 PLAN_TOOL_NAMES = {"moveit_plan_free_motion", "moveit_plan_cartesian_motion"}
 OBSERVE_TOOL_NAMES = ("moveit_get_current_pose",)
-FREE_MOTION_TOOL_NAMES = {"moveit_plan_free_motion", "moveit_plan_and_execute_free_motion"}
-CARTESIAN_MOTION_TOOL_NAMES = {
-    "moveit_plan_cartesian_motion",
-    "moveit_plan_and_execute_cartesian_motion",
-}
 NO_TEXT_RESPONSE = "I could not confirm that the action completed."
 
 
 class RobotAgentState(TypedDict):
     user_text: str
-    messages: list[Mapping[str, Any]]
-    input_items: list[dict[str, Any]]
+    messages: Annotated[list[BaseMessage], operator.add]
     tools: list[dict[str, Any]]
-    instructions: str
-    pending_tool_calls: list[dict[str, Any]]
-    codex_output_items: list[dict[str, Any]]
-    codex_text: str
     tool_turns: int
     observed_this_turn: bool
     final_text: str
@@ -58,50 +47,32 @@ class LangGraphRobotAgent:
     def __init__(
         self,
         *,
-        model: str,
-        credential_store: Any,
-        backend_client: Any,
+        model: Any,
         tool_bridge: Any,
         robot_context: RobotContextStore,
         thread_id: str | None = None,
-        reasoning_effort: str | None = None,
     ) -> None:
         self._model = model
-        self._credential_store = credential_store
-        self._backend_client = backend_client
         self._tool_bridge = tool_bridge
         self._robot_context = robot_context
         self._thread_id = thread_id or f"codex-robot-agent-{uuid.uuid4()}"
-        self._reasoning_effort = reasoning_effort
-        self._turn_credentials: Any | None = None
         self._latest_state: dict[str, Any] | None = None
         self._graph = self._compile_graph()
 
-    async def run_turn(self, turn: AgentTurnInput, *, credentials: Any | None = None) -> str:
-        turn_credentials = credentials or self._credential_store.get_credentials()
-        previous_credentials = getattr(self, "_turn_credentials", None)
-        self._turn_credentials = turn_credentials
+    async def run_turn(self, turn: AgentTurnInput) -> str:
         state: RobotAgentState = {
             "user_text": turn.user_text,
-            "messages": turn.messages,
-            "input_items": [],
+            "messages": _messages_from_turn(turn),
             "tools": [],
-            "instructions": "",
-            "pending_tool_calls": [],
-            "codex_output_items": [],
-            "codex_text": "",
             "tool_turns": 0,
             "observed_this_turn": False,
             "final_text": "",
             "error_text": None,
         }
-        try:
-            result = await self._graph.ainvoke(
-                state,
-                {"configurable": {"thread_id": self._thread_id}},
-            )
-        finally:
-            self._turn_credentials = previous_credentials
+        result = await self._graph.ainvoke(
+            state,
+            {"configurable": {"thread_id": self._thread_id}},
+        )
         self._latest_state = result
         return str(result.get("final_text") or NO_TEXT_RESPONSE)
 
@@ -111,14 +82,12 @@ class LangGraphRobotAgent:
     def _compile_graph(self):
         builder = StateGraph(RobotAgentState)
         builder.add_node("observe_current_pose", self._observe_current_pose)
-        builder.add_node("call_codex", self._call_codex)
-        builder.add_node("repair_tool_arguments", self._repair_tool_arguments)
+        builder.add_node("call_model", self._call_model)
         builder.add_node("execute_robot_tool", self._execute_robot_tool)
         builder.add_node("final_response", self._final_response)
         builder.add_edge(START, "observe_current_pose")
-        builder.add_edge("observe_current_pose", "call_codex")
-        builder.add_conditional_edges("call_codex", self._route_after_codex)
-        builder.add_edge("repair_tool_arguments", "execute_robot_tool")
+        builder.add_edge("observe_current_pose", "call_model")
+        builder.add_conditional_edges("call_model", self._route_after_model)
         builder.add_edge("execute_robot_tool", "observe_current_pose")
         builder.add_edge("final_response", END)
         return builder.compile(checkpointer=InMemorySaver())
@@ -130,99 +99,92 @@ class LangGraphRobotAgent:
         observe_tool_name = _first_available_tool(tools, OBSERVE_TOOL_NAMES)
         if observe_tool_name is None:
             return {"tools": tools}
-        logger.info(f"Refreshing robot observation before Codex request with {observe_tool_name}")
+        logger.info("Refreshing robot observation before Codex request with {}", observe_tool_name)
         _, observed = await self._execute_observation_tool(
             observe_tool_name, {"robot_name": VIZOR_ROBOT_NAME}
         )
         return {"tools": tools, "observed_this_turn": observed}
 
-    async def _call_codex(self, state: RobotAgentState) -> dict[str, Any]:
-        input_items = state["input_items"] or _input_items_from_messages(state["messages"]) or [
-            _user_input_item(state["user_text"])
-        ]
+    async def _call_model(self, state: RobotAgentState) -> dict[str, Any]:
         tools = state["tools"] or self._tool_bridge.function_tools()
-        instructions = self._instructions()
-        credentials = self._turn_credentials
-        request: dict[str, Any] = {
-            "model": self._model,
-            "instructions": instructions,
-            "input_items": input_items,
-            "tools": tools,
-        }
-        if self._reasoning_effort is not None:
-            request["reasoning_effort"] = self._reasoning_effort
-        result: CodexResponseResult = await self._backend_client.create_response(
-            credentials,
-            **request,
+        model = self._model.bind_tools(tools)
+        system = SystemMessage(content=self._instructions())
+        started = monotonic_s()
+        logger.info(
+            "Codex LangChain request start tool_turns={} messages={} tools={}",
+            state["tool_turns"],
+            len(state["messages"]),
+            len(tools),
         )
-        pending = [_tool_call_to_state(tool_call) for tool_call in result.tool_calls]
-        return {
-            "input_items": input_items,
-            "tools": tools,
-            "instructions": instructions,
-            "pending_tool_calls": pending,
-            "codex_output_items": result.output_items,
-            "codex_text": result.text,
-        }
+        message = await model.ainvoke([system, *state["messages"]])
+        logger.info(
+            "Codex LangChain request end elapsed_ms={} tool_calls={} text_len={}",
+            elapsed_ms_since(started),
+            [call.get("name") for call in getattr(message, "tool_calls", [])],
+            len(str(message.content or "")),
+        )
+        return {"messages": [message], "tools": tools}
 
-    def _route_after_codex(
-        self, state: RobotAgentState
-    ) -> Literal["repair_tool_arguments", "final_response"]:
+    def _route_after_model(self, state: RobotAgentState) -> Literal["execute_robot_tool", "final_response"]:
         if state["error_text"]:
             return "final_response"
-        if not state["pending_tool_calls"]:
+        last = _last_ai_message(state["messages"])
+        if last is None or not last.tool_calls:
             return "final_response"
         if state["tool_turns"] >= MAX_CODEX_TOOL_TURNS:
             return "final_response"
-        return "repair_tool_arguments"
-
-    def _repair_tool_arguments(self, state: RobotAgentState) -> dict[str, Any]:
-        repaired: list[dict[str, Any]] = []
-        for tool_call in state["pending_tool_calls"]:
-            repaired.append(
-                {
-                    **tool_call,
-                    "arguments": self._repaired_tool_arguments(
-                        tool_call["name"], tool_call["arguments"], state["user_text"]
-                    ),
-                }
-            )
-        return {"pending_tool_calls": repaired}
+        return "execute_robot_tool"
 
     async def _execute_robot_tool(self, state: RobotAgentState) -> dict[str, Any]:
-        input_items = [*state["input_items"], *state["codex_output_items"]]
+        last = _last_ai_message(state["messages"])
+        if last is None:
+            return {"messages": [], "tool_turns": state["tool_turns"]}
+
+        tool_messages: list[ToolMessage] = []
         observed_this_turn = state["observed_this_turn"]
-        for tool_call in state["pending_tool_calls"]:
-            if tool_call["name"] in OBSERVE_TOOL_NAMES:
-                output, observed_this_turn = await self._execute_observation_tool(
-                    tool_call["name"], tool_call["arguments"]
+        for index, tool_call in enumerate(last.tool_calls):
+            name = str(tool_call.get("name") or "")
+            call_args = tool_call.get("args")
+            args = call_args if isinstance(call_args, dict) else {}
+            call_id = str(tool_call.get("id") or "")
+            if index > 0:
+                tool_messages.append(
+                    ToolMessage(content=_one_tool_at_a_time_error(name), tool_call_id=call_id)
                 )
+                continue
+
+            started = monotonic_s()
+            logger.info("Robot tool start name={} call_id={}", name, call_id)
+            if name in OBSERVE_TOOL_NAMES:
+                output, observed_this_turn = await self._execute_observation_tool(name, dict(args))
             else:
-                output = await self._execute_tool_call(tool_call)
+                output = await self._execute_tool(name, dict(args))
                 observed_this_turn = False
-            input_items.append(
-                {
-                    "type": "function_call_output",
-                    "call_id": tool_call["call_id"],
-                    "output": output,
-                }
+            logger.info(
+                "Robot tool end name={} call_id={} elapsed_ms={}",
+                name,
+                call_id,
+                elapsed_ms_since(started),
             )
+            tool_messages.append(ToolMessage(content=output, tool_call_id=call_id))
+
         return {
-            "input_items": input_items,
-            "pending_tool_calls": [],
-            "codex_output_items": [],
+            "messages": tool_messages,
             "tool_turns": state["tool_turns"] + 1,
             "observed_this_turn": observed_this_turn,
         }
 
     def _final_response(self, state: RobotAgentState) -> dict[str, Any]:
-        return {"final_text": state["error_text"] or state["codex_text"] or NO_TEXT_RESPONSE}
+        if state["error_text"]:
+            return {"final_text": state["error_text"]}
+        last = _last_ai_message(state["messages"])
+        if last is None:
+            return {"final_text": NO_TEXT_RESPONSE}
+        text = str(last.content or "").strip()
+        return {"final_text": text or NO_TEXT_RESPONSE}
 
     def _instructions(self) -> str:
         return f"{SYSTEM_PROMPT}\n\n{self._robot_context.render_instruction_block()}"
-
-    async def _execute_tool_call(self, tool_call: dict[str, Any]) -> str:
-        return await self._execute_tool(tool_call["name"], tool_call["arguments"])
 
     async def _execute_observation_tool(
         self, name: str, arguments: dict[str, Any]
@@ -247,18 +209,6 @@ class LangGraphRobotAgent:
             plan_name = executable_plan_name(output)
             if name in PLAN_TOOL_NAMES and plan_name:
                 self._robot_context.remember_executable_plan(plan_name)
-                execution_output = await self._call_policy_checked_tool(
-                    "moveit_execute_plan",
-                    {"robot_name": VIZOR_ROBOT_NAME, "plan_name": plan_name},
-                )
-                return json.dumps(
-                    {
-                        "planned": json.loads(output),
-                        "execution": json.loads(execution_output),
-                        "execution_text": execution_result_text(execution_output),
-                    },
-                    ensure_ascii=False,
-                )
             return output
         except RobotMCPError as exc:
             validation_error = RobotCallValidationError(
@@ -267,90 +217,17 @@ class LangGraphRobotAgent:
             )
             return json.dumps(structured_robot_call_error(validation_error), ensure_ascii=False)
 
-    def _repaired_tool_arguments(
-        self, name: str, arguments: dict[str, Any], user_text: str
-    ) -> dict[str, Any]:
-        if name in FREE_MOTION_TOOL_NAMES and not _has_any_argument(
-            arguments, ("target_pose", "position")
-        ):
-            target_pose = self._relative_target_pose(user_text)
-            if target_pose is not None:
-                return {**arguments, "target_pose": target_pose}
-        if name in CARTESIAN_MOTION_TOOL_NAMES and not _has_any_argument(
-            arguments, ("waypoints", "positions")
-        ):
-            target_pose = self._relative_target_pose(user_text)
-            if target_pose is not None:
-                return {**arguments, "waypoints": [target_pose]}
-            gesture_waypoints = self._cartesian_gesture_waypoints(user_text)
-            if gesture_waypoints is not None:
-                return {**arguments, "waypoints": gesture_waypoints}
-        return arguments
-
-    def _relative_target_pose(self, user_text: str) -> dict[str, Any] | None:
-        pose_components = self._latest_pose_components()
-        if pose_components is None:
-            return None
-        x, y, z, orientation = pose_components
-
-        delta = _relative_delta(user_text)
-        if delta is None:
-            return None
-        dx, dy, dz = delta
-        return _pose_at(x + dx, y + dy, z + dz, orientation)
-
-    def _cartesian_gesture_waypoints(self, user_text: str) -> list[dict[str, Any]] | None:
-        words = set(re.findall(r"[a-zA-Z']+", user_text.lower()))
-        if "wave" not in words and "waving" not in words:
-            return None
-        pose_components = self._latest_pose_components()
-        if pose_components is None:
-            return None
-        x, y, z, orientation = pose_components
-        lifted_z = z + 0.08
-        return [
-            _pose_at(x, y, lifted_z, orientation),
-            _pose_at(x, y + 0.10, lifted_z, orientation),
-            _pose_at(x, y - 0.10, lifted_z, orientation),
-            _pose_at(x, y, lifted_z, orientation),
-        ]
-
-    def _latest_pose_components(self) -> tuple[float, float, float, dict[str, Any] | None] | None:
-        pose = self._robot_context.latest_tcp_pose()
-        if pose is None:
-            return None
-        position = pose.get("position") if isinstance(pose.get("position"), dict) else pose
-        if not isinstance(position, dict):
-            return None
-        try:
-            x = float(position["x"])
-            y = float(position["y"])
-            z = float(position["z"])
-        except (KeyError, TypeError, ValueError):
-            return None
-        orientation = pose.get("orientation")
-        return x, y, z, dict(orientation) if isinstance(orientation, dict) else None
 
 
-def _pose_at(
-    x: float, y: float, z: float, orientation: dict[str, Any] | None
-) -> dict[str, Any]:
-    pose: dict[str, Any] = {
-        "position": {"x": round(x, 4), "y": round(y, 4), "z": round(z, 4)}
-    }
-    if orientation is not None:
-        pose["orientation"] = dict(orientation)
-    return pose
+def _messages_from_turn(turn: AgentTurnInput) -> list[BaseMessage]:
+    return [HumanMessage(content=turn.user_text)]
 
 
-def _tool_call_to_state(tool_call: Any) -> dict[str, Any]:
-    return {
-        "call_id": tool_call.call_id,
-        "item_id": tool_call.item_id,
-        "name": tool_call.name,
-        "arguments": dict(tool_call.arguments),
-        "raw_arguments": tool_call.raw_arguments,
-    }
+def _last_ai_message(messages: list[BaseMessage]) -> AIMessage | None:
+    for message in reversed(messages):
+        if isinstance(message, AIMessage):
+            return message
+    return None
 
 
 def _first_available_tool(tools: list[dict[str, Any]], names: tuple[str, ...]) -> str | None:
@@ -377,65 +254,14 @@ def _output_has_current_pose(output: str) -> bool:
     return isinstance(raw, dict) and isinstance(raw.get("pose"), dict)
 
 
-def _has_any_argument(arguments: dict[str, Any], names: tuple[str, ...]) -> bool:
-    return any(name in arguments and arguments[name] is not None for name in names)
-
-
-def _relative_delta(text: str) -> tuple[float, float, float] | None:
-    words = set(re.findall(r"[a-zA-Z']+", text.lower()))
-    distance = 0.05 if words & {"bit", "slightly"} else 0.10
-    if words & {"lot", "far"}:
-        distance = 0.30
-    if "back" in words or "backward" in words:
-        return (-distance, 0.0, 0.0)
-    if "forward" in words:
-        return (distance, 0.0, 0.0)
-    if "left" in words:
-        return (0.0, distance, 0.0)
-    if "right" in words:
-        return (0.0, -distance, 0.0)
-    if "up" in words or "raise" in words:
-        return (0.0, 0.0, distance)
-    if "down" in words or "lower" in words:
-        return (0.0, 0.0, -distance)
-    return None
-
-
-def _input_items_from_messages(messages: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    items: list[dict[str, Any]] = []
-    for msg in messages:
-        role = msg.get("role")
-        if role not in {"user", "assistant"}:
-            continue
-        text = _message_text(msg)
-        if not text:
-            continue
-        if role == "user":
-            items.append(_user_input_item(text))
-        else:
-            items.append(_assistant_input_item(text))
-    return items
-
-
-def _user_input_item(text: str) -> dict[str, Any]:
-    return {"role": "user", "content": [{"type": "input_text", "text": text}]}
-
-
-def _assistant_input_item(text: str) -> dict[str, Any]:
-    return {"role": "assistant", "content": text}
-
-
-def _message_text(msg: Mapping[str, Any]) -> str | None:
-    content = msg.get("content", "")
-    if isinstance(content, str) and content.strip():
-        return content.strip()
-    if isinstance(content, list):
-        parts: list[str] = []
-        for part in content:
-            if not isinstance(part, Mapping):
-                continue
-            text = part.get("text")
-            if isinstance(text, str) and text.strip():
-                parts.append(text.strip())
-        return "\n".join(parts) if parts else None
-    return None
+def _one_tool_at_a_time_error(next_tool_name: str) -> str:
+    return json.dumps(
+        {
+            "ok": False,
+            "error": "Only one robot tool call may be executed per model turn.",
+            "correction": "Wait for the previous tool result, then retry this tool call if still needed.",
+            "retryable": True,
+            "suggested_next_tool": next_tool_name or None,
+        },
+        ensure_ascii=False,
+    )

@@ -1,12 +1,10 @@
 import json
-from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
 import pytest
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
-from codex_auth import CodexAuthError, CodexCredentials
-from codex_backend_client import CodexResponseResult, CodexToolCall
 from robot_control.context import RobotContextStore
 from voice_runtime.agent_turn import AgentTurnInput
 
@@ -20,40 +18,32 @@ def test_langgraph_dependency_is_available() -> None:
     assert START != END
 
 
-class FakeStore:
-    def get_credentials(self) -> CodexCredentials:
-        return CodexCredentials(access="access", refresh="refresh", account_id="acct")
+class FakeChatModel:
+    def __init__(self, responses: list[AIMessage]):
+        self.responses = list(responses)
+        self.requests: list[list[BaseMessage]] = []
+        self.bound_tools: list[dict[str, Any]] = []
+
+    def bind_tools(self, tools: list[dict[str, Any]], **kwargs: Any):
+        clone = FakeBoundChatModel(self.responses, self.requests, list(tools))
+        self.bound_tools = clone.bound_tools
+        return clone
 
 
-class AuthErrorStore:
-    def get_credentials(self) -> CodexCredentials:
-        raise CodexAuthError("login required")
-
-
-class FakeBackend:
-    def __init__(self, results: list[CodexResponseResult]):
-        self.results = list(results)
-        self.requests: list[dict[str, Any]] = []
-
-    async def create_response(
+class FakeBoundChatModel:
+    def __init__(
         self,
-        credentials: CodexCredentials,
-        *,
-        model: str,
-        instructions: str,
-        input_items: list[dict[str, Any]],
-        tools: list[dict[str, Any]],
-    ) -> CodexResponseResult:
-        self.requests.append(
-            {
-                "credentials": credentials,
-                "model": model,
-                "instructions": instructions,
-                "input_items": list(input_items),
-                "tools": list(tools),
-            }
-        )
-        return self.results.pop(0)
+        responses: list[AIMessage],
+        requests: list[list[BaseMessage]],
+        bound_tools: list[dict[str, Any]],
+    ):
+        self.responses = responses
+        self.requests = requests
+        self.bound_tools = bound_tools
+
+    async def ainvoke(self, messages: list[BaseMessage]) -> AIMessage:
+        self.requests.append(list(messages))
+        return self.responses.pop(0)
 
 
 class FakeBridge:
@@ -142,117 +132,84 @@ class FakeBridge:
 @dataclass(frozen=True)
 class GraphFixture:
     graph: Any
-    backend: FakeBackend
+    model: FakeChatModel
     bridge: FakeBridge
 
 
-def make_graph(results: list[CodexResponseResult], *, bridge: FakeBridge | None = None) -> GraphFixture:
+def make_graph(responses: list[AIMessage], *, bridge: FakeBridge | None = None) -> GraphFixture:
     from langgraph_robot_agent import LangGraphRobotAgent
 
-    backend = FakeBackend(results)
+    model = FakeChatModel(responses)
     selected_bridge = bridge or FakeBridge()
     graph = LangGraphRobotAgent(
-        model="gpt-5.4-mini",
-        credential_store=FakeStore(),
-        backend_client=backend,
+        model=model,
         tool_bridge=selected_bridge,
         robot_context=RobotContextStore(),
         thread_id="test-session",
     )
-    return GraphFixture(graph=graph, backend=backend, bridge=selected_bridge)
+    return GraphFixture(graph=graph, model=model, bridge=selected_bridge)
 
 
 def turn(text: str) -> AgentTurnInput:
     return AgentTurnInput(user_text=text, messages=[{"role": "user", "content": text}])
 
 
-def tool_call(
-    name: str,
-    call_id: str = "call-1",
-    item_id: str = "item-1",
-    arguments: dict[str, Any] | None = None,
-) -> CodexToolCall:
-    arguments = arguments or {"robot_name": "UR10"}
-    return CodexToolCall(
-        call_id=call_id,
-        item_id=item_id,
-        name=name,
-        arguments=arguments,
-        raw_arguments=json.dumps(arguments),
+def ai_text(text: str) -> AIMessage:
+    return AIMessage(content=text)
+
+
+def ai_tool_call(name: str, args: dict[str, Any], call_id: str = "call-1") -> AIMessage:
+    return AIMessage(
+        content="",
+        tool_calls=[{"name": name, "args": args, "id": call_id, "type": "tool_call"}],
     )
 
 
-def output_item(
-    name: str,
-    call_id: str = "call-1",
-    item_id: str = "item-1",
-    arguments: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    arguments = arguments or {"robot_name": "UR10"}
-    return {
-        "type": "function_call",
-        "id": item_id,
-        "call_id": call_id,
-        "name": name,
-        "arguments": json.dumps(arguments),
-    }
+def last_tool_message(model: FakeChatModel) -> ToolMessage:
+    message = model.requests[-1][-1]
+    assert isinstance(message, ToolMessage)
+    return message
+
+
+def last_tool_content(model: FakeChatModel) -> str:
+    content = last_tool_message(model).content
+    assert isinstance(content, str)
+    return content
 
 
 @pytest.mark.asyncio
-async def test_graph_auth_error_does_not_observe_robot() -> None:
-    from langgraph_robot_agent import LangGraphRobotAgent
-
-    bridge = FakeBridge()
-    graph = LangGraphRobotAgent(
-        model="gpt-5.4-mini",
-        credential_store=AuthErrorStore(),
-        backend_client=FakeBackend([CodexResponseResult(text="should-not-run")]),
-        tool_bridge=bridge,
-        robot_context=RobotContextStore(),
-        thread_id="test-session",
-    )
-
-    with pytest.raises(CodexAuthError):
-        await graph.run_turn(turn("hello"))
-
-    assert bridge.calls == []
-
-
-@pytest.mark.asyncio
-async def test_graph_observes_current_pose_before_simple_codex_response() -> None:
-    fixture = make_graph([CodexResponseResult(text="oauth-ok")])
+async def test_graph_observes_current_pose_before_simple_model_response() -> None:
+    fixture = make_graph([ai_text("oauth-ok")])
 
     text = await fixture.graph.run_turn(turn("hello"))
 
     assert text == "oauth-ok"
     assert fixture.bridge.calls == [("moveit_get_current_pose", {"robot_name": "UR10"})]
-    assert fixture.backend.requests[0]["model"] == "gpt-5.4-mini"
-    assert fixture.backend.requests[0]["input_items"] == [
-        {"role": "user", "content": [{"type": "input_text", "text": "hello"}]}
-    ]
-    assert "Last-known robot context" in fixture.backend.requests[0]["instructions"]
-    assert "robot: UR10" in fixture.backend.requests[0]["instructions"]
+    first_request = fixture.model.requests[0]
+    assert isinstance(first_request[0], SystemMessage)
+    assert "Last-known robot context" in str(first_request[0].content)
+    assert "robot: UR10" in str(first_request[0].content)
+    assert fixture.model.bound_tools == fixture.bridge.function_tools()
 
 
 @pytest.mark.asyncio
-async def test_graph_uses_easy_assistant_history_items_without_synthetic_output_ids() -> None:
-    fixture = make_graph([CodexResponseResult(text="ok")])
-    messages: list[Mapping[str, Any]] = [
-        {"role": "user", "content": "move up"},
-        {"role": "assistant", "content": "Moved up."},
-        {"role": "user", "content": "again"},
-    ]
+async def test_graph_runs_full_langchain_tool_loop_and_returns_final_model_text() -> None:
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_get_current_pose", {"robot_name": "UR10"}),
+            ai_text("The pose is ready."),
+        ]
+    )
 
-    await fixture.graph.run_turn(AgentTurnInput(user_text="again", messages=messages))
+    text = await fixture.graph.run_turn(turn("where is the pose?"))
 
-    assert fixture.backend.requests[0]["input_items"] == [
-        {"role": "user", "content": [{"type": "input_text", "text": "move up"}]},
-        {"role": "assistant", "content": "Moved up."},
-        {"role": "user", "content": [{"type": "input_text", "text": "again"}]},
+    assert text == "The pose is ready."
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
-    assistant_item = fixture.backend.requests[0]["input_items"][1]
-    assert "id" not in assistant_item
-    assert "status" not in assistant_item
+    assert isinstance(fixture.model.requests[1][-1], ToolMessage)
+    assert fixture.model.requests[1][-1].tool_call_id == "call-1"
 
 
 @pytest.mark.asyncio
@@ -268,7 +225,7 @@ async def test_graph_ignores_legacy_status_as_active_observation_tool() -> None:
                 }
             ]
 
-    fixture = make_graph([CodexResponseResult(text="ok")], bridge=LegacyStatusBridge())
+    fixture = make_graph([ai_text("ok")], bridge=LegacyStatusBridge())
 
     text = await fixture.graph.run_turn(turn("hello"))
 
@@ -277,124 +234,10 @@ async def test_graph_ignores_legacy_status_as_active_observation_tool() -> None:
 
 
 @pytest.mark.asyncio
-async def test_graph_does_not_refresh_pose_before_every_codex_retry_for_observation_loop() -> None:
-    pose = tool_call("moveit_get_current_pose")
-    fixture = make_graph(
-        [
-            CodexResponseResult(
-                tool_calls=[pose],
-                output_items=[output_item("moveit_get_current_pose")],
-            ),
-            CodexResponseResult(text="Robot pose is ready."),
-        ]
-    )
-
-    text = await fixture.graph.run_turn(turn("where is the pose?"))
-
-    assert text == "Robot pose is ready."
-    assert fixture.bridge.calls == [
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
-    ]
-
-
-@pytest.mark.asyncio
-async def test_graph_retries_pose_refresh_after_failed_observation_output() -> None:
-    class FailingPoseBridge(FakeBridge):
-        def __init__(self) -> None:
-            super().__init__()
-            self.pose_attempts = 0
-
-        async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
-            if name != "moveit_get_current_pose":
-                return await super().call_tool(name, arguments)
-            self.calls.append((name, arguments))
-            self.pose_attempts += 1
-            if self.pose_attempts <= 2:
-                return json.dumps(
-                    {
-                        "structured_content": {
-                            "ok": False,
-                            "error": "pose unavailable",
-                            "retryable": True,
-                        }
-                    }
-                )
-            return json.dumps(
-                {
-                    "structured_content": {
-                        "ok": True,
-                        "robot": "UR10",
-                        "raw": {
-                            "pose": {
-                                "position": {"x": 0.1, "y": 0.2, "z": 0.3},
-                                "orientation": {
-                                    "x": 0.0,
-                                    "y": -0.7071,
-                                    "z": -0.7071,
-                                    "w": 0.0,
-                                },
-                            }
-                        },
-                    }
-                }
-            )
-
-    pose = tool_call("moveit_get_current_pose")
-    fixture = make_graph(
-        [
-            CodexResponseResult(
-                tool_calls=[pose],
-                output_items=[output_item("moveit_get_current_pose")],
-            ),
-            CodexResponseResult(text="Robot pose is ready."),
-        ],
-        bridge=FailingPoseBridge(),
-    )
-
-    text = await fixture.graph.run_turn(turn("where is the pose?"))
-
-    assert text == "Robot pose is ready."
-    assert fixture.bridge.calls == [
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
-    ]
-    assert "robot: UR10" in fixture.backend.requests[1]["instructions"]
-
-
-@pytest.mark.asyncio
-async def test_graph_sends_tool_output_back_to_codex() -> None:
-    pose = tool_call("moveit_get_current_pose")
-    fixture = make_graph(
-        [
-            CodexResponseResult(
-                tool_calls=[pose],
-                output_items=[output_item("moveit_get_current_pose")],
-            ),
-            CodexResponseResult(text="Robot pose is ready."),
-        ]
-    )
-
-    text = await fixture.graph.run_turn(turn("where is the pose?"))
-
-    assert text == "Robot pose is ready."
-    assert fixture.bridge.calls == [
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
-    ]
-    assert fixture.backend.requests[1]["input_items"][-1]["type"] == "function_call_output"
-    assert fixture.backend.requests[1]["input_items"][-1]["call_id"] == "call-1"
-
-
-@pytest.mark.asyncio
 async def test_graph_stops_after_max_tool_turns() -> None:
     fixture = make_graph(
         [
-            CodexResponseResult(
-                tool_calls=[tool_call("moveit_get_current_pose", call_id=f"call-{i}")],
-                output_items=[output_item("moveit_get_current_pose", call_id=f"call-{i}")],
-            )
+            ai_tool_call("moveit_get_current_pose", {"robot_name": "UR10"}, call_id=f"call-{i}")
             for i in range(4)
         ]
     )
@@ -402,128 +245,11 @@ async def test_graph_stops_after_max_tool_turns() -> None:
     text = await fixture.graph.run_turn(turn("pose"))
 
     assert text == "I could not confirm that the action completed."
-    assert len(fixture.backend.requests) == 4
+    assert len(fixture.model.requests) == 4
 
 
 @pytest.mark.asyncio
-async def test_graph_repairs_missing_relative_target_pose_and_preserves_orientation() -> None:
-    tool = tool_call(
-        "moveit_plan_and_execute_free_motion",
-        arguments={"robot_name": "UR10", "plan_name": "move_up_50mm", "timeout_s": 10},
-    )
-    fixture = make_graph(
-        [
-            CodexResponseResult(
-                tool_calls=[tool],
-                output_items=[
-                    output_item("moveit_plan_and_execute_free_motion", arguments=tool.arguments)
-                ],
-            ),
-            CodexResponseResult(text="Moved up 50 mm."),
-        ]
-    )
-
-    await fixture.graph.run_turn(turn("move up a bit"))
-
-    assert fixture.bridge.calls[1][1]["target_pose"] == {
-        "position": {"x": 0.1, "y": 0.2, "z": 0.35},
-        "orientation": {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0},
-    }
-
-
-@pytest.mark.asyncio
-async def test_graph_repairs_back_up_as_negative_x() -> None:
-    tool = tool_call(
-        "moveit_plan_and_execute_free_motion",
-        arguments={"robot_name": "UR10", "plan_name": "back_up_50mm", "timeout_s": 10},
-    )
-    fixture = make_graph(
-        [
-            CodexResponseResult(
-                tool_calls=[tool],
-                output_items=[
-                    output_item("moveit_plan_and_execute_free_motion", arguments=tool.arguments)
-                ],
-            ),
-            CodexResponseResult(text="Moved back 50 mm."),
-        ]
-    )
-
-    await fixture.graph.run_turn(turn("back up a bit"))
-
-    assert fixture.bridge.calls[1][1]["target_pose"]["position"] == {
-        "x": 0.05,
-        "y": 0.2,
-        "z": 0.3,
-    }
-
-
-@pytest.mark.asyncio
-async def test_graph_repairs_cartesian_waypoints_from_current_pose() -> None:
-    tool = tool_call(
-        "moveit_plan_and_execute_cartesian_motion",
-        arguments={"robot_name": "UR10", "plan_name": "move_up_cartesian_50mm", "timeout_s": 10},
-    )
-    fixture = make_graph(
-        [
-            CodexResponseResult(
-                tool_calls=[tool],
-                output_items=[
-                    output_item(
-                        "moveit_plan_and_execute_cartesian_motion",
-                        arguments=tool.arguments,
-                    )
-                ],
-            ),
-            CodexResponseResult(text="Moved up 50 mm."),
-        ]
-    )
-
-    await fixture.graph.run_turn(turn("move up a bit"))
-
-    assert fixture.bridge.calls[1][1]["waypoints"] == [
-        {
-            "position": {"x": 0.1, "y": 0.2, "z": 0.35},
-            "orientation": {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0},
-        }
-    ]
-
-
-@pytest.mark.asyncio
-async def test_graph_repairs_missing_wave_waypoints_from_current_pose() -> None:
-    tool = tool_call(
-        "moveit_plan_and_execute_cartesian_motion",
-        arguments={"robot_name": "UR10", "plan_name": "wave", "timeout_s": 10},
-    )
-    fixture = make_graph(
-        [
-            CodexResponseResult(
-                tool_calls=[tool],
-                output_items=[
-                    output_item(
-                        "moveit_plan_and_execute_cartesian_motion",
-                        arguments=tool.arguments,
-                    )
-                ],
-            ),
-            CodexResponseResult(text="Waved."),
-        ]
-    )
-
-    await fixture.graph.run_turn(turn("wave to me"))
-
-    waypoints = fixture.bridge.calls[1][1]["waypoints"]
-    assert len(waypoints) >= 4
-    assert {waypoint["position"]["y"] for waypoint in waypoints} >= {0.1, 0.3}
-    assert all(waypoint["position"]["z"] >= 0.38 for waypoint in waypoints)
-    assert all(
-        waypoint["orientation"] == {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0}
-        for waypoint in waypoints
-    )
-
-
-@pytest.mark.asyncio
-async def test_graph_auto_executes_executable_plan() -> None:
+async def test_graph_does_not_auto_execute_executable_plan() -> None:
     plan_args = {
         "robot_name": "UR10",
         "target_pose": {
@@ -531,14 +257,61 @@ async def test_graph_auto_executes_executable_plan() -> None:
             "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
         },
     }
-    plan = tool_call("moveit_plan_free_motion", arguments=plan_args)
+    fixture = make_graph([ai_tool_call("moveit_plan_free_motion", plan_args), ai_text("Plan ready.")])
+
+    await fixture.graph.run_turn(turn("move up a bit"))
+
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_plan_free_motion", plan_args),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_graph_does_not_repair_missing_motion_arguments_from_user_text() -> None:
+    incomplete_args = {"robot_name": "UR10", "plan_name": "move_up_50mm", "timeout_s": 10}
     fixture = make_graph(
         [
-            CodexResponseResult(
-                tool_calls=[plan],
-                output_items=[output_item("moveit_plan_free_motion", arguments=plan_args)],
+            ai_tool_call("moveit_plan_and_execute_free_motion", incomplete_args),
+            ai_text("I need complete motion arguments."),
+        ]
+    )
+
+    await fixture.graph.run_turn(turn("move up a bit"))
+
+    assert fixture.bridge.calls[1] == ("moveit_plan_and_execute_free_motion", incomplete_args)
+
+
+@pytest.mark.asyncio
+async def test_graph_rejects_additional_tool_calls_after_first_without_executing_them() -> None:
+    plan_args = {
+        "robot_name": "UR10",
+        "target_pose": {
+            "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+    }
+    fixture = make_graph(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "moveit_plan_free_motion",
+                        "args": plan_args,
+                        "id": "call-1",
+                        "type": "tool_call",
+                    },
+                    {
+                        "name": "moveit_execute_plan",
+                        "args": {"robot_name": "UR10", "plan_name": "plan-1"},
+                        "id": "call-2",
+                        "type": "tool_call",
+                    },
+                ],
             ),
-            CodexResponseResult(text="Moved up 50 mm."),
+            ai_text("Plan is ready; I did not execute twice."),
         ]
     )
 
@@ -547,13 +320,23 @@ async def test_graph_auto_executes_executable_plan() -> None:
     assert fixture.bridge.calls == [
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
         ("moveit_plan_free_motion", plan_args),
-        ("moveit_execute_plan", {"robot_name": "UR10", "plan_name": "plan-1"}),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
+    tool_messages = fixture.model.requests[1][-2:]
+    assert [message.tool_call_id for message in tool_messages if isinstance(message, ToolMessage)] == [
+        "call-1",
+        "call-2",
+    ]
+    rejected = tool_messages[1]
+    assert isinstance(rejected, ToolMessage)
+    assert isinstance(rejected.content, str)
+    rejected_output = json.loads(rejected.content)
+    assert rejected_output["ok"] is False
+    assert rejected_output["suggested_next_tool"] == "moveit_execute_plan"
 
 
 @pytest.mark.asyncio
-async def test_graph_sends_policy_failure_as_tool_output_when_motion_lacks_fresh_observation() -> None:
+async def test_graph_sends_policy_failure_as_tool_message_when_motion_lacks_fresh_observation() -> None:
     class NoObservationBridge(FakeBridge):
         def function_tools(self) -> list[dict[str, Any]]:
             return [
@@ -565,10 +348,6 @@ async def test_graph_sends_policy_failure_as_tool_output_when_motion_lacks_fresh
                 }
             ]
 
-        async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
-            self.calls.append((name, arguments))
-            return json.dumps({"structured_content": {"ok": True}})
-
     plan_args = {
         "robot_name": "UR10",
         "target_pose": {
@@ -576,23 +355,16 @@ async def test_graph_sends_policy_failure_as_tool_output_when_motion_lacks_fresh
             "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
         },
     }
-    tool = tool_call("moveit_plan_free_motion", arguments=plan_args)
     fixture = make_graph(
-        [
-            CodexResponseResult(
-                tool_calls=[tool],
-                output_items=[output_item("moveit_plan_free_motion", arguments=plan_args)],
-            ),
-            CodexResponseResult(text="I need a fresh pose before moving."),
-        ],
+        [ai_tool_call("moveit_plan_free_motion", plan_args), ai_text("I need a fresh pose.")],
         bridge=NoObservationBridge(),
     )
 
     text = await fixture.graph.run_turn(turn("move up"))
 
-    assert text == "I need a fresh pose before moving."
+    assert text == "I need a fresh pose."
     assert fixture.bridge.calls == []
-    output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])
+    output = json.loads(last_tool_content(fixture.model))
     assert output == {
         "ok": False,
         "error": "Fresh robot pose is required before motion.",
@@ -604,17 +376,13 @@ async def test_graph_sends_policy_failure_as_tool_output_when_motion_lacks_fresh
 
 @pytest.mark.asyncio
 async def test_graph_blocks_blind_execute_plan_even_after_fresh_pose() -> None:
-    execute = tool_call(
-        "moveit_execute_plan",
-        arguments={"robot_name": "UR10", "plan_name": "invented-plan"},
-    )
     fixture = make_graph(
         [
-            CodexResponseResult(
-                tool_calls=[execute],
-                output_items=[output_item("moveit_execute_plan", arguments=execute.arguments)],
+            ai_tool_call(
+                "moveit_execute_plan",
+                {"robot_name": "UR10", "plan_name": "invented-plan"},
             ),
-            CodexResponseResult(text="I need to plan before executing."),
+            ai_text("I need to plan before executing."),
         ]
     )
 
@@ -625,7 +393,7 @@ async def test_graph_blocks_blind_execute_plan_even_after_fresh_pose() -> None:
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
-    output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])
+    output = json.loads(last_tool_content(fixture.model))
     assert output == {
         "ok": False,
         "error": "Cannot execute an unknown or stale plan.",
@@ -639,17 +407,6 @@ async def test_graph_blocks_blind_execute_plan_even_after_fresh_pose() -> None:
 async def test_graph_converts_robot_mcp_error_to_structured_tool_output() -> None:
     from robot_control.mcp_bridge import RobotMCPError
 
-    failing_tool = tool_call(
-        "moveit_plan_free_motion",
-        arguments={
-            "robot_name": "UR10",
-            "target_pose": {
-                "position": {"x": 0.1, "y": 0.2, "z": 0.35},
-                "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
-            },
-        },
-    )
-
     class ErrorBridge(FakeBridge):
         async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
             if name == "moveit_get_current_pose":
@@ -658,18 +415,24 @@ async def test_graph_converts_robot_mcp_error_to_structured_tool_output() -> Non
 
     fixture = make_graph(
         [
-            CodexResponseResult(
-                tool_calls=[failing_tool],
-                output_items=[output_item("moveit_plan_free_motion", arguments=failing_tool.arguments)],
+            ai_tool_call(
+                "moveit_plan_free_motion",
+                {
+                    "robot_name": "UR10",
+                    "target_pose": {
+                        "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+                        "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+                    },
+                },
             ),
-            CodexResponseResult(text="The robot server is unavailable."),
+            ai_text("The robot server is unavailable."),
         ],
         bridge=ErrorBridge(),
     )
 
     await fixture.graph.run_turn(turn("move up"))
 
-    output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])
+    output = json.loads(last_tool_content(fixture.model))
     assert output == {
         "ok": False,
         "error": "robot server unavailable",
@@ -681,17 +444,6 @@ async def test_graph_converts_robot_mcp_error_to_structured_tool_output() -> Non
 
 @pytest.mark.asyncio
 async def test_graph_preserves_structured_robot_tool_failure_as_tool_output() -> None:
-    bad_tool = tool_call(
-        "moveit_plan_free_motion",
-        arguments={
-            "robot_name": "UR10",
-            "target_pose": {
-                "position": {"x": 0.1, "y": 0.2, "z": 0.35},
-                "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
-            },
-        },
-    )
-
     class FailureBridge(FakeBridge):
         async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
             self.calls.append((name, arguments))
@@ -709,11 +461,17 @@ async def test_graph_preserves_structured_robot_tool_failure_as_tool_output() ->
 
     fixture = make_graph(
         [
-            CodexResponseResult(
-                tool_calls=[bad_tool],
-                output_items=[output_item("moveit_plan_free_motion", arguments=bad_tool.arguments)],
+            ai_tool_call(
+                "moveit_plan_free_motion",
+                {
+                    "robot_name": "UR10",
+                    "target_pose": {
+                        "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+                        "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+                    },
+                },
             ),
-            CodexResponseResult(text="I need a valid plan before executing."),
+            ai_text("I need a valid plan before executing."),
         ],
         bridge=FailureBridge(),
     )
@@ -721,7 +479,7 @@ async def test_graph_preserves_structured_robot_tool_failure_as_tool_output() ->
     text = await fixture.graph.run_turn(turn("move up"))
 
     assert text == "I need a valid plan before executing."
-    output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])
+    output = json.loads(last_tool_content(fixture.model))
     assert output["ok"] is False
     assert output["retryable"] is True
     assert output["suggested_next_tool"] == "moveit_get_current_pose"
@@ -729,14 +487,15 @@ async def test_graph_preserves_structured_robot_tool_failure_as_tool_output() ->
 
 @pytest.mark.asyncio
 async def test_graph_persists_context_between_turns_with_same_instance() -> None:
-    fixture = make_graph([CodexResponseResult(text="first"), CodexResponseResult(text="second")])
+    fixture = make_graph([ai_text("first"), ai_text("second")])
 
     await fixture.graph.run_turn(turn("first"))
     await fixture.graph.run_turn(turn("second"))
 
-    latest_state = fixture.graph.latest_state()
-    assert "robot: UR10" in latest_state["instructions"]
-    assert latest_state["tool_turns"] == 0
+    system = fixture.model.requests[-1][0]
+    assert isinstance(system, SystemMessage)
+    assert "robot: UR10" in str(system.content)
+    assert fixture.graph.latest_state()["tool_turns"] == 0
 
 
 @pytest.mark.asyncio
@@ -758,17 +517,12 @@ async def test_graph_blocks_attach_before_gripper_is_closed() -> None:
                 },
             ]
 
-    attach = tool_call(
-        "moveit_attach_object",
-        arguments={"robot_name": "UR10", "object_name": "cube"},
-    )
     fixture = make_graph(
         [
-            CodexResponseResult(
-                tool_calls=[attach],
-                output_items=[output_item("moveit_attach_object", arguments=attach.arguments)],
+            ai_tool_call(
+                "moveit_attach_object", {"robot_name": "UR10", "object_name": "cube"}
             ),
-            CodexResponseResult(text="I need to close the gripper before attaching."),
+            ai_text("I need to close the gripper before attaching."),
         ],
         bridge=AttachBridge(),
     )
@@ -780,7 +534,7 @@ async def test_graph_blocks_attach_before_gripper_is_closed() -> None:
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
-    output = json.loads(fixture.backend.requests[1]["input_items"][-1]["output"])
+    output = json.loads(last_tool_content(fixture.model))
     assert output == {
         "ok": False,
         "error": "Cannot attach object before the gripper is known closed.",
@@ -821,30 +575,26 @@ async def test_graph_allows_attach_after_close_gripper_tool_result() -> None:
             self.calls.append((name, arguments))
             return json.dumps({"structured_content": {"ok": True}})
 
-    close = tool_call("moveit_close_gripper", call_id="call-1", arguments={"robot_name": "UR10"})
-    attach = tool_call(
-        "moveit_attach_object",
-        call_id="call-2",
-        arguments={"robot_name": "UR10", "object_name": "cube"},
-    )
     fixture = make_graph(
         [
-            CodexResponseResult(
-                tool_calls=[close, attach],
-                output_items=[
-                    output_item(
-                        "moveit_close_gripper",
-                        call_id="call-1",
-                        arguments=close.arguments,
-                    ),
-                    output_item(
-                        "moveit_attach_object",
-                        call_id="call-2",
-                        arguments=attach.arguments,
-                    ),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "moveit_close_gripper",
+                        "args": {"robot_name": "UR10"},
+                        "id": "call-1",
+                        "type": "tool_call",
+                    },
+                    {
+                        "name": "moveit_attach_object",
+                        "args": {"robot_name": "UR10", "object_name": "cube"},
+                        "id": "call-2",
+                        "type": "tool_call",
+                    },
                 ],
             ),
-            CodexResponseResult(text="Attached the cube."),
+            ai_text("Attached the cube."),
         ],
         bridge=GripperBridge(),
     )
@@ -855,6 +605,5 @@ async def test_graph_allows_attach_after_close_gripper_tool_result() -> None:
     assert fixture.bridge.calls == [
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
         ("moveit_close_gripper", {"robot_name": "UR10"}),
-        ("moveit_attach_object", {"robot_name": "UR10", "object_name": "cube"}),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]

@@ -1,3 +1,9 @@
+"""Legacy custom Codex backend client.
+
+The production robot agent now uses `langchain-codex-oauth` through `ChatCodexOAuth`.
+Keep this module temporarily for parser regression tests and rollback safety.
+"""
+
 from __future__ import annotations
 
 import json

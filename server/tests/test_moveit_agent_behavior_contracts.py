@@ -1,9 +1,10 @@
 import json
+from typing import Any
 
 import pytest
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 
 from codex_auth import CodexCredentials
-from codex_backend_client import CodexResponseResult, CodexToolCall
 from openai_codex_agent_processor import OpenAICodexAgentProcessor
 from voice_runtime.agent_turn import AgentTurnInput
 
@@ -13,24 +14,32 @@ class Store:
         return CodexCredentials(access="access", refresh="refresh", account_id="acct")
 
 
-class ScriptedBackend:
-    def __init__(self, results):
-        self.results = list(results)
-        self.requests = []
+class ScriptedChatModel:
+    def __init__(self, responses: list[AIMessage]):
+        self.responses = list(responses)
+        self.requests: list[list[BaseMessage]] = []
+        self.bound_tools: list[dict[str, Any]] = []
 
-    async def create_response(self, credentials, *, model, instructions, input_items, tools):
-        self.requests.append(
-            {
-                "model": model,
-                "instructions": instructions,
-                "input_items": list(input_items),
-                "tools": list(tools),
-            }
-        )
-        return self.results.pop(0)
+    def bind_tools(self, tools: list[dict[str, Any]], **kwargs: Any):
+        clone = BoundScriptedChatModel(self.responses, self.requests, list(tools))
+        self.bound_tools = clone.bound_tools
+        return clone
 
-    async def close(self):
-        pass
+
+class BoundScriptedChatModel:
+    def __init__(
+        self,
+        responses: list[AIMessage],
+        requests: list[list[BaseMessage]],
+        bound_tools: list[dict[str, Any]],
+    ):
+        self.responses = responses
+        self.requests = requests
+        self.bound_tools = bound_tools
+
+    async def ainvoke(self, messages: list[BaseMessage]) -> AIMessage:
+        self.requests.append(list(messages))
+        return self.responses.pop(0)
 
 
 class BehaviorBridge:
@@ -59,6 +68,12 @@ class BehaviorBridge:
             },
             {
                 "type": "function",
+                "name": "moveit_plan_cartesian_motion",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+            {
+                "type": "function",
                 "name": "moveit_execute_plan",
                 "parameters": {"type": "object"},
                 "strict": None,
@@ -66,6 +81,12 @@ class BehaviorBridge:
             {
                 "type": "function",
                 "name": "moveit_plan_and_execute_free_motion",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+            {
+                "type": "function",
+                "name": "moveit_plan_and_execute_cartesian_motion",
                 "parameters": {"type": "object"},
                 "strict": None,
             },
@@ -102,6 +123,8 @@ class BehaviorBridge:
             return json.dumps({"structured_content": {"ok": True, "verification": {"result": "pass"}}})
         if name == "moveit_plan_and_execute_free_motion":
             return json.dumps({"structured_content": {"ok": True, "verification": {"result": "pass"}}})
+        if name == "moveit_plan_and_execute_cartesian_motion":
+            return json.dumps({"structured_content": {"ok": True, "verification": {"result": "pass"}}})
         return json.dumps({"structured_content": {"ok": True}})
 
 
@@ -110,209 +133,96 @@ async def run_processor(processor, text):
     return [chunk async for chunk in processor.run_turn(turn)]
 
 
-def tool_call(name, call_id="call-1", item_id="item-1", arguments=None):
+def ai_text(text: str) -> AIMessage:
+    return AIMessage(content=text)
+
+
+def tool_call(name: str, call_id: str = "call-1", arguments: dict[str, Any] | None = None) -> AIMessage:
     arguments = arguments or {"robot_name": "UR10"}
-    return CodexToolCall(
-        call_id=call_id,
-        item_id=item_id,
-        name=name,
-        arguments=arguments,
-        raw_arguments=json.dumps(arguments),
+    return AIMessage(
+        content="",
+        tool_calls=[{"name": name, "args": arguments, "id": call_id, "type": "tool_call"}],
     )
 
 
-def output_item(name, call_id="call-1", item_id="item-1", arguments=None):
-    arguments = arguments or {"robot_name": "UR10"}
-    return {
-        "type": "function_call",
-        "id": item_id,
-        "call_id": call_id,
-        "name": name,
-        "arguments": json.dumps(arguments),
-    }
-
-
-@pytest.mark.asyncio
-async def test_robot_action_preflight_gets_current_pose_before_codex_request():
-    backend = ScriptedBackend([CodexResponseResult(text="I can wave from the current pose.")])
-    bridge = BehaviorBridge()
+def make_processor(responses: list[AIMessage], bridge: BehaviorBridge | None = None):
+    selected_bridge = bridge or BehaviorBridge()
+    chat_model = ScriptedChatModel(responses)
     processor = OpenAICodexAgentProcessor(
         "http://127.0.0.1:8765/mcp",
         model="gpt-5.4-mini",
         credential_store=Store(),
-        backend_client=backend,
-        tool_bridge=bridge,
+        chat_model=chat_model,
+        tool_bridge=selected_bridge,
     )
+    return processor, chat_model, selected_bridge
+
+
+def system_content(chat_model: ScriptedChatModel, request_index: int = 0) -> str:
+    system = chat_model.requests[request_index][0]
+    assert isinstance(system, SystemMessage)
+    return str(system.content)
+
+
+@pytest.mark.asyncio
+async def test_robot_action_preflight_gets_current_pose_before_model_request():
+    processor, chat_model, bridge = make_processor([ai_text("I can wave from the current pose.")])
 
     chunks = await run_processor(processor, "wave to me")
 
     assert bridge.calls == [("moveit_get_current_pose", {"robot_name": "UR10"})]
-    assert "robot: UR10" in backend.requests[0]["instructions"]
-    assert "x=0.100" in backend.requests[0]["instructions"]
+    assert "robot: UR10" in system_content(chat_model)
+    assert "x=0.100" in system_content(chat_model)
     assert chunks == ["I can wave from the current pose."]
 
 
 @pytest.mark.asyncio
 async def test_non_robot_action_still_gets_current_pose_in_instructions():
-    backend = ScriptedBackend([CodexResponseResult(text="I can help with robot commands.")])
-    bridge = BehaviorBridge()
-    processor = OpenAICodexAgentProcessor(
-        "http://127.0.0.1:8765/mcp",
-        model="gpt-5.4-mini",
-        credential_store=Store(),
-        backend_client=backend,
-        tool_bridge=bridge,
-    )
+    processor, chat_model, bridge = make_processor([ai_text("I can help with robot commands.")])
 
     chunks = await run_processor(processor, "what can you do?")
 
     assert bridge.calls == [("moveit_get_current_pose", {"robot_name": "UR10"})]
-    assert "robot: UR10" in backend.requests[0]["instructions"]
+    assert "robot: UR10" in system_content(chat_model)
     assert chunks == ["I can help with robot commands."]
 
 
 @pytest.mark.asyncio
 async def test_relative_movement_behavior_observes_before_answering():
-    pose = tool_call("moveit_get_current_pose")
-    backend = ScriptedBackend(
+    processor, _, bridge = make_processor(
         [
-            CodexResponseResult(tool_calls=[pose], output_items=[output_item("moveit_get_current_pose")]),
-            CodexResponseResult(text="I checked the robot and can plan the relative move."),
+            tool_call("moveit_get_current_pose"),
+            ai_text("I checked the robot and can plan the relative move."),
         ]
-    )
-    bridge = BehaviorBridge()
-    processor = OpenAICodexAgentProcessor(
-        "http://127.0.0.1:8765/mcp",
-        model="gpt-5.4-mini",
-        credential_store=Store(),
-        backend_client=backend,
-        tool_bridge=bridge,
     )
 
     chunks = await run_processor(processor, "move up a bit")
 
-    assert bridge.calls[0] == ("moveit_get_current_pose", {"robot_name": "UR10"})
+    assert bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]
     assert chunks == ["I checked the robot and can plan the relative move."]
 
 
 @pytest.mark.asyncio
-async def test_repairs_missing_relative_target_pose_from_current_pose_context():
-    tool = tool_call(
-        "moveit_plan_and_execute_free_motion",
-        arguments={"robot_name": "UR10", "plan_name": "move_up_50mm", "timeout_s": 10},
-    )
-    backend = ScriptedBackend(
+async def test_missing_motion_arguments_are_not_repaired_from_user_text():
+    incomplete_args = {"robot_name": "UR10", "plan_name": "move_up_50mm", "timeout_s": 10}
+    processor, _, bridge = make_processor(
         [
-            CodexResponseResult(
-                tool_calls=[tool],
-                output_items=[output_item("moveit_plan_and_execute_free_motion", arguments=tool.arguments)],
-            ),
-            CodexResponseResult(text="Moved up 50 mm."),
+            tool_call("moveit_plan_and_execute_free_motion", arguments=incomplete_args),
+            ai_text("I need complete motion arguments."),
         ]
-    )
-    bridge = BehaviorBridge()
-    processor = OpenAICodexAgentProcessor(
-        "http://127.0.0.1:8765/mcp",
-        model="gpt-5.4-mini",
-        credential_store=Store(),
-        backend_client=backend,
-        tool_bridge=bridge,
     )
 
     chunks = await run_processor(processor, "move up a bit")
 
-    assert bridge.calls[1] == (
-        "moveit_plan_and_execute_free_motion",
-        {
-            "robot_name": "UR10",
-            "plan_name": "move_up_50mm",
-            "timeout_s": 10,
-            "target_pose": {
-                "position": {"x": 0.1, "y": 0.2, "z": 0.35},
-                "orientation": {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0},
-            },
-        },
-    )
-    assert chunks == ["Moved up 50 mm."]
+    assert bridge.calls[1] == ("moveit_plan_and_execute_free_motion", incomplete_args)
+    assert chunks == ["I need complete motion arguments."]
 
 
 @pytest.mark.asyncio
-async def test_repairs_missing_cartesian_waypoints_from_current_pose_context():
-    tool = tool_call(
-        "moveit_plan_and_execute_cartesian_motion",
-        arguments={"robot_name": "UR10", "plan_name": "move_up_cartesian_50mm", "timeout_s": 10},
-    )
-    backend = ScriptedBackend(
-        [
-            CodexResponseResult(
-                tool_calls=[tool],
-                output_items=[output_item("moveit_plan_and_execute_cartesian_motion", arguments=tool.arguments)],
-            ),
-            CodexResponseResult(text="Moved up 50 mm."),
-        ]
-    )
-    bridge = BehaviorBridge()
-    processor = OpenAICodexAgentProcessor(
-        "http://127.0.0.1:8765/mcp",
-        model="gpt-5.4-mini",
-        credential_store=Store(),
-        backend_client=backend,
-        tool_bridge=bridge,
-    )
-
-    chunks = await run_processor(processor, "move up a bit")
-
-    assert bridge.calls[1] == (
-        "moveit_plan_and_execute_cartesian_motion",
-        {
-            "robot_name": "UR10",
-            "plan_name": "move_up_cartesian_50mm",
-            "timeout_s": 10,
-            "waypoints": [
-                {
-                    "position": {"x": 0.1, "y": 0.2, "z": 0.35},
-                    "orientation": {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0},
-                }
-            ],
-        },
-    )
-    assert chunks == ["Moved up 50 mm."]
-
-
-@pytest.mark.asyncio
-async def test_repairs_back_up_as_negative_x_not_positive_z():
-    tool = tool_call(
-        "moveit_plan_and_execute_free_motion",
-        arguments={"robot_name": "UR10", "plan_name": "back_up_50mm", "timeout_s": 10},
-    )
-    backend = ScriptedBackend(
-        [
-            CodexResponseResult(
-                tool_calls=[tool],
-                output_items=[output_item("moveit_plan_and_execute_free_motion", arguments=tool.arguments)],
-            ),
-            CodexResponseResult(text="Moved back 50 mm."),
-        ]
-    )
-    bridge = BehaviorBridge()
-    processor = OpenAICodexAgentProcessor(
-        "http://127.0.0.1:8765/mcp",
-        model="gpt-5.4-mini",
-        credential_store=Store(),
-        backend_client=backend,
-        tool_bridge=bridge,
-    )
-
-    await run_processor(processor, "back up a bit")
-
-    assert bridge.calls[1][1]["target_pose"] == {
-        "position": {"x": 0.05, "y": 0.2, "z": 0.3},
-        "orientation": {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0},
-    }
-
-
-@pytest.mark.asyncio
-async def test_plan_tool_is_auto_executed_once_plan_is_executable():
+async def test_plan_tool_is_not_auto_executed_once_plan_is_executable():
     plan_args = {
         "robot_name": "UR10",
         "target_pose": {
@@ -320,23 +230,8 @@ async def test_plan_tool_is_auto_executed_once_plan_is_executable():
             "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
         },
     }
-    plan = tool_call("moveit_plan_free_motion", arguments=plan_args)
-    backend = ScriptedBackend(
-        [
-            CodexResponseResult(
-                tool_calls=[plan],
-                output_items=[output_item("moveit_plan_free_motion", arguments=plan_args)],
-            ),
-            CodexResponseResult(text="Moved up 50 mm."),
-        ]
-    )
-    bridge = BehaviorBridge()
-    processor = OpenAICodexAgentProcessor(
-        "http://127.0.0.1:8765/mcp",
-        model="gpt-5.4-mini",
-        credential_store=Store(),
-        backend_client=backend,
-        tool_bridge=bridge,
+    processor, _, bridge = make_processor(
+        [tool_call("moveit_plan_free_motion", arguments=plan_args), ai_text("Moved up 50 mm.")]
     )
 
     chunks = await run_processor(processor, "move up a bit")
@@ -344,7 +239,6 @@ async def test_plan_tool_is_auto_executed_once_plan_is_executable():
     assert bridge.calls == [
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
         ("moveit_plan_free_motion", plan_args),
-        ("moveit_execute_plan", {"robot_name": "UR10", "plan_name": "plan-1"}),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
     assert chunks == ["Moved up 50 mm."]
