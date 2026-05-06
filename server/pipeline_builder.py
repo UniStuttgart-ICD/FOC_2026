@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import cast
 
+from loguru import logger
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.observers.base_observer import BaseObserver
 from pipecat.pipeline.pipeline import Pipeline
@@ -60,6 +61,18 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
         )
         voice_command_audio = voice_command_processors.audio_gate
         voice_command_transcript = voice_command_processors.transcript_adapter
+        logger.info(
+            "Wake config detector={} threshold={} vad_threshold={} candidate_log_threshold={} "
+            "required_hits={} min_wake_rms={} min_wake_peak={} rearm_delay_s={}",
+            config.wake.provider,
+            config.wake.threshold,
+            config.wake.vad_threshold,
+            config.wake.candidate_log_threshold,
+            config.wake.required_hits,
+            config.wake.min_wake_rms,
+            config.wake.min_wake_peak,
+            config.wake.rearm_delay_s,
+        )
 
     agent_kwargs = {}
     if voice_command_audio is not None:

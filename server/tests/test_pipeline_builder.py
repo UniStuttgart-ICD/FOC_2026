@@ -120,9 +120,15 @@ def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tm
     stt = FrameProcessor()
     seen_detector_kwargs = {}
     seen_agent_kwargs: dict[str, Any] = {}
+    wake_config_logs: list[str] = []
 
     _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
     monkeypatch.setattr("pipeline_builder.create_stt_service", lambda config: stt)
+    monkeypatch.setattr(
+        "pipeline_builder.logger",
+        Mock(info=lambda message, *args: wake_config_logs.append(message.format(*args))),
+        raising=False,
+    )
 
     def fake_detector(model_path, *, threshold, vad_threshold):
         seen_detector_kwargs["model_path"] = model_path
@@ -158,3 +164,13 @@ def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tm
     }
     assert callable(seen_agent_kwargs["on_turn_started"])
     assert callable(seen_agent_kwargs["on_turn_finished"])
+    assert any(
+        "Wake config" in message
+        and "threshold=0.5" in message
+        and "vad_threshold=0.3" in message
+        and "min_wake_rms=50.0" in message
+        and "min_wake_peak=150" in message
+        and "required_hits=2" in message
+        and "rearm_delay_s=6.0" in message
+        for message in wake_config_logs
+    )
