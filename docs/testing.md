@@ -57,3 +57,27 @@ Each case writes minimal JSON evidence under `server/evidence/live_smoke/` by de
 ## Exploratory gesture evals
 
 Prompts such as `wave to me` and `draw a star` are exploratory evals. They are useful for behavior review, but they are not part of the pass/fail testing pipeline until their assertions become deterministic and actionable.
+
+## Model Eval Module
+
+Use `model_eval` to compare API-backed robot-agent model candidates without starting ROS. The default adapter is simulated and records evidence under `server/evidence/model_eval/<timestamp>/`.
+The CLI exits nonzero when no candidate passes the correctness gate.
+
+```powershell
+cd server
+uv run python -m model_eval run --matrix evals/model_matrix.example.toml --pack core_robot_commands
+```
+
+Use live MCP only when the MoveIt MCP server and ROS 1 stack are running.
+
+```powershell
+cd server
+uv run python -m model_eval run --matrix evals/model_matrix.example.toml --pack core_robot_commands --adapter live-mcp --mcp-url http://127.0.0.1:8765/mcp
+```
+
+The pytest wrapper is gated.
+
+```powershell
+cd server
+$env:RUN_MODEL_EVAL='1'; uv run pytest tests/live_robot_smoke/manual_model_eval.py -v
+```
