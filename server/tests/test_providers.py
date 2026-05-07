@@ -1,11 +1,11 @@
 from unittest.mock import Mock, patch
 
 from config import STTConfig, TTSConfig
-from providers import create_stt_service, create_tts_service
+from voice_runtime.providers import create_stt_service, create_tts_service
 
 
 def test_creates_whisper_stt():
-    with patch("providers.WhisperSTTService") as service:
+    with patch("voice_runtime.providers.WhisperSTTService") as service:
         service.Settings = Mock(return_value="settings")
         create_stt_service(STTConfig(provider="whisper", model="base", device="cuda"))
 
@@ -14,7 +14,7 @@ def test_creates_whisper_stt():
 
 
 def test_creates_kokoro_tts():
-    with patch("providers.KokoroTTSService") as service:
+    with patch("voice_runtime.providers.KokoroTTSService") as service:
         service.Settings = Mock(return_value="settings")
         create_tts_service(TTSConfig(provider="kokoro", voice="af_heart"))
 
@@ -24,7 +24,7 @@ def test_creates_kokoro_tts():
 
 def test_creates_deepgram_flux_stt(monkeypatch):
     monkeypatch.setenv("DEEPGRAM_API_KEY", "dg")
-    with patch("providers.DeepgramFluxSTTService") as service:
+    with patch("voice_runtime.providers.DeepgramFluxSTTService") as service:
         service.Settings = Mock(return_value="settings")
         create_stt_service(STTConfig(provider="deepgram_flux", model="flux-general-en"))
 
@@ -34,7 +34,7 @@ def test_creates_deepgram_flux_stt(monkeypatch):
 
 def test_creates_openai_realtime_stt(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "oa")
-    with patch("providers.OpenAIRealtimeSTTService") as service:
+    with patch("voice_runtime.providers.OpenAIRealtimeSTTService") as service:
         service.Settings = Mock(return_value="settings")
         create_stt_service(STTConfig(provider="openai_realtime", model="gpt-4o-mini-transcribe"))
 
@@ -44,7 +44,7 @@ def test_creates_openai_realtime_stt(monkeypatch):
 
 def test_creates_cartesia_tts(monkeypatch):
     monkeypatch.setenv("CARTESIA_API_KEY", "ct")
-    with patch("providers.CartesiaTTSService") as service:
+    with patch("voice_runtime.providers.CartesiaTTSService") as service:
         service.Settings = Mock(return_value="settings")
         create_tts_service(TTSConfig(provider="cartesia", model="sonic-3", voice="voice-id"))
 
@@ -55,7 +55,7 @@ def test_creates_cartesia_tts(monkeypatch):
 def test_creates_cartesia_tts_with_default_voice_id(monkeypatch):
     monkeypatch.setenv("CARTESIA_API_KEY", "ct")
     monkeypatch.delenv("CARTESIA_VOICE_ID", raising=False)
-    with patch("providers.CartesiaTTSService") as service:
+    with patch("voice_runtime.providers.CartesiaTTSService") as service:
         service.Settings = Mock(return_value="settings")
         create_tts_service(TTSConfig(provider="cartesia", model="sonic-3"))
 
@@ -67,7 +67,7 @@ def test_creates_cartesia_tts_with_default_voice_id(monkeypatch):
 
 def test_creates_openai_tts(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "oa")
-    with patch("providers.OpenAITTSService") as service:
+    with patch("voice_runtime.providers.OpenAITTSService") as service:
         service.Settings = Mock(return_value="settings")
         create_tts_service(TTSConfig(provider="openai", model="gpt-4o-mini-tts", voice="coral"))
 
@@ -77,7 +77,7 @@ def test_creates_openai_tts(monkeypatch):
 
 def test_creates_deepgram_tts(monkeypatch):
     monkeypatch.setenv("DEEPGRAM_API_KEY", "dg")
-    with patch("providers.DeepgramTTSService") as service:
+    with patch("voice_runtime.providers.DeepgramTTSService") as service:
         service.Settings = Mock(return_value="settings")
         create_tts_service(TTSConfig(provider="deepgram", model="aura-2", voice="aura-2-andromeda-en"))
 
