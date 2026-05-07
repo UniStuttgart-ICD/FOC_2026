@@ -105,6 +105,43 @@ def test_tremolo_changes_bytes_and_preserves_length() -> None:
     assert len(processed) == len(audio)
 
 
+def test_pitch_shift_changes_bytes_and_preserves_length() -> None:
+    audio = sine_pcm16(seconds=0.25)
+
+    processed = process_pcm16(
+        audio,
+        sample_rate=24000,
+        num_channels=1,
+        settings=VoiceModulationSettings(enabled=True, pitch_shift_semitones=-5.0),
+    )
+
+    assert processed != audio
+    assert len(processed) == len(audio)
+
+
+def test_chorus_echo_and_noise_change_bytes_and_preserve_length() -> None:
+    audio = sine_pcm16(seconds=0.25)
+
+    processed = process_pcm16(
+        audio,
+        sample_rate=24000,
+        num_channels=1,
+        settings=VoiceModulationSettings(
+            enabled=True,
+            chorus_rate_hz=0.8,
+            chorus_depth_ms=16.0,
+            chorus_mix=0.4,
+            echo_delay_ms=35.0,
+            echo_feedback=0.25,
+            echo_mix=0.25,
+            noise_mix=0.01,
+        ),
+    )
+
+    assert processed != audio
+    assert len(processed) == len(audio)
+
+
 def test_filters_change_bytes_and_preserve_length() -> None:
     audio = sine_pcm16()
 

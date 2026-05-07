@@ -103,6 +103,22 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"audio": asdict(encode_preview(rendered))}
 
+    @app.post("/api/preview/source")
+    def preview_source(payload: dict[str, object]) -> dict[str, object]:
+        profile_name = _string(payload.get("profile_name"), "profile_name")
+        text = _string(payload.get("text"), "text")
+        try:
+            profile = load_runtime_profile(server_dir=root, profile_name=profile_name)
+            clean_audio = synthesize(profile.tts, text)
+        except ProfileError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except VoicePreviewError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "profile": profile_name,
+            "audio": asdict(encode_preview(clean_audio)),
+        }
+
     @app.post("/api/preview/tts")
     def preview_tts(payload: dict[str, object]) -> dict[str, object]:
         profile_name = _string(payload.get("profile_name"), "profile_name")

@@ -25,9 +25,17 @@ class VoiceModulationSettings:
     high_cut_hz: float = 0.0
     drive: float = 0.0
     bit_depth: int = 16
+    pitch_shift_semitones: float = 0.0
     ring_mod_hz: float = 0.0
     tremolo_hz: float = 0.0
     tremolo_depth: float = 0.0
+    chorus_rate_hz: float = 0.0
+    chorus_depth_ms: float = 0.0
+    chorus_mix: float = 0.0
+    echo_delay_ms: float = 0.0
+    echo_feedback: float = 0.0
+    echo_mix: float = 0.0
+    noise_mix: float = 0.0
     limiter: bool = True
 
     def to_dict(self) -> dict[str, Any]:
@@ -43,9 +51,17 @@ class VoiceModulationSettings:
         _range(self.drive, "drive", 0.0, 1.0)
         if self.bit_depth < 4 or self.bit_depth > 16:
             raise VoiceModulationError("bit_depth must be between 4 and 16")
+        _range(self.pitch_shift_semitones, "pitch_shift_semitones", -12.0, 12.0)
         _range(self.ring_mod_hz, "ring_mod_hz", 0.0, 2000.0)
         _range(self.tremolo_hz, "tremolo_hz", 0.0, 20.0)
         _range(self.tremolo_depth, "tremolo_depth", 0.0, 1.0)
+        _range(self.chorus_rate_hz, "chorus_rate_hz", 0.0, 8.0)
+        _range(self.chorus_depth_ms, "chorus_depth_ms", 0.0, 35.0)
+        _range(self.chorus_mix, "chorus_mix", 0.0, 1.0)
+        _range(self.echo_delay_ms, "echo_delay_ms", 0.0, 600.0)
+        _range(self.echo_feedback, "echo_feedback", 0.0, 0.95)
+        _range(self.echo_mix, "echo_mix", 0.0, 1.0)
+        _range(self.noise_mix, "noise_mix", 0.0, 0.2)
 
 
 BUILT_IN_PRESETS: dict[str, VoiceModulationSettings] = {
@@ -59,6 +75,7 @@ BUILT_IN_PRESETS: dict[str, VoiceModulationSettings] = {
         high_cut_hz=5200.0,
         drive=0.25,
         bit_depth=9,
+        pitch_shift_semitones=0.0,
         ring_mod_hz=38.0,
         tremolo_hz=0.0,
         tremolo_depth=0.0,
@@ -73,9 +90,11 @@ BUILT_IN_PRESETS: dict[str, VoiceModulationSettings] = {
         high_cut_hz=3200.0,
         drive=0.18,
         bit_depth=12,
+        pitch_shift_semitones=0.0,
         ring_mod_hz=0.0,
         tremolo_hz=0.0,
         tremolo_depth=0.0,
+        noise_mix=0.02,
         limiter=True,
     ),
     "small_speaker": VoiceModulationSettings(
@@ -87,6 +106,7 @@ BUILT_IN_PRESETS: dict[str, VoiceModulationSettings] = {
         high_cut_hz=4200.0,
         drive=0.1,
         bit_depth=13,
+        pitch_shift_semitones=0.0,
         ring_mod_hz=0.0,
         tremolo_hz=0.0,
         tremolo_depth=0.0,
@@ -101,9 +121,78 @@ BUILT_IN_PRESETS: dict[str, VoiceModulationSettings] = {
         high_cut_hz=2600.0,
         drive=0.32,
         bit_depth=7,
+        pitch_shift_semitones=-1.5,
         ring_mod_hz=22.0,
         tremolo_hz=6.0,
         tremolo_depth=0.35,
+        echo_delay_ms=85.0,
+        echo_feedback=0.18,
+        echo_mix=0.22,
+        limiter=True,
+    ),
+    "giant": VoiceModulationSettings(
+        enabled=True,
+        preset_name="giant",
+        gain_db=1.0,
+        wet_mix=0.92,
+        low_cut_hz=60.0,
+        high_cut_hz=6200.0,
+        drive=0.12,
+        bit_depth=16,
+        pitch_shift_semitones=-5.0,
+        chorus_rate_hz=0.35,
+        chorus_depth_ms=8.0,
+        chorus_mix=0.16,
+        limiter=True,
+    ),
+    "wide_chorus": VoiceModulationSettings(
+        enabled=True,
+        preset_name="wide_chorus",
+        gain_db=0.5,
+        wet_mix=0.85,
+        low_cut_hz=90.0,
+        high_cut_hz=9000.0,
+        drive=0.04,
+        bit_depth=16,
+        pitch_shift_semitones=0.5,
+        chorus_rate_hz=0.7,
+        chorus_depth_ms=18.0,
+        chorus_mix=0.36,
+        limiter=True,
+    ),
+    "echo_room": VoiceModulationSettings(
+        enabled=True,
+        preset_name="echo_room",
+        gain_db=0.0,
+        wet_mix=0.9,
+        low_cut_hz=120.0,
+        high_cut_hz=7600.0,
+        drive=0.06,
+        bit_depth=16,
+        echo_delay_ms=140.0,
+        echo_feedback=0.38,
+        echo_mix=0.34,
+        limiter=True,
+    ),
+    "ghost": VoiceModulationSettings(
+        enabled=True,
+        preset_name="ghost",
+        gain_db=-1.0,
+        wet_mix=0.88,
+        low_cut_hz=180.0,
+        high_cut_hz=8200.0,
+        drive=0.08,
+        bit_depth=14,
+        pitch_shift_semitones=4.0,
+        tremolo_hz=2.4,
+        tremolo_depth=0.18,
+        chorus_rate_hz=0.45,
+        chorus_depth_ms=22.0,
+        chorus_mix=0.28,
+        echo_delay_ms=190.0,
+        echo_feedback=0.26,
+        echo_mix=0.22,
+        noise_mix=0.025,
         limiter=True,
     ),
 }
@@ -120,9 +209,17 @@ def settings_from_mapping(data: dict[str, Any]) -> VoiceModulationSettings:
             high_cut_hz=_float(data, "high_cut_hz", 0.0),
             drive=_float(data, "drive", 0.0),
             bit_depth=_int(data, "bit_depth", 16),
+            pitch_shift_semitones=_float(data, "pitch_shift_semitones", 0.0),
             ring_mod_hz=_float(data, "ring_mod_hz", 0.0),
             tremolo_hz=_float(data, "tremolo_hz", 0.0),
             tremolo_depth=_float(data, "tremolo_depth", 0.0),
+            chorus_rate_hz=_float(data, "chorus_rate_hz", 0.0),
+            chorus_depth_ms=_float(data, "chorus_depth_ms", 0.0),
+            chorus_mix=_float(data, "chorus_mix", 0.0),
+            echo_delay_ms=_float(data, "echo_delay_ms", 0.0),
+            echo_feedback=_float(data, "echo_feedback", 0.0),
+            echo_mix=_float(data, "echo_mix", 0.0),
+            noise_mix=_float(data, "noise_mix", 0.0),
             limiter=_bool(data, "limiter", True),
         )
     except KeyError as exc:

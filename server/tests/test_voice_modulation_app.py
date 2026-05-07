@@ -333,6 +333,36 @@ def test_tts_preview_route_uses_injected_synthesizer(tmp_path, monkeypatch) -> N
     assert calls == [(TTSProfile(provider="kokoro", voice="af_heart"), "Status report.")]
 
 
+def test_source_preview_route_returns_clean_audio_without_modulation(tmp_path, monkeypatch) -> None:
+    from voice_modulation.app import create_app
+    from voice_modulation.preview import AudioBytes
+
+    _write_profiles(tmp_path / "runtime_profiles.toml")
+    calls: list[tuple[TTSProfile, str]] = []
+
+    def fake_synthesizer(tts: TTSProfile, text: str) -> AudioBytes:
+        calls.append((tts, text))
+        return AudioBytes(pcm16=_pcm16(), sample_rate=16000, channels=1)
+
+    dsp = types.ModuleType("voice_modulation.dsp")
+    cast(Any, dsp).process_pcm16 = lambda *args, **kwargs: pytest.fail("source route modulated")
+    monkeypatch.setitem(sys.modules, "voice_modulation.dsp", dsp)
+    client = TestClient(create_app(server_dir=tmp_path, preview_synthesizer=fake_synthesizer))
+
+    response = client.post(
+        "/api/preview/source",
+        json={"profile_name": "local_current", "text": "Status report."},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["profile"] == "local_current"
+    assert "modulated" not in body
+    assert body["audio"]["sample_rate"] == 16000
+    assert base64.b64decode(body["audio"]["wav_base64"]).startswith(b"RIFF")
+    assert calls == [(TTSProfile(provider="kokoro", voice="af_heart"), "Status report.")]
+
+
 def test_effect_preview_route_uses_dsp_process_pcm16(tmp_path, monkeypatch) -> None:
     from voice_modulation.app import create_app
     from voice_modulation.preview import AudioBytes, encode_preview
@@ -374,6 +404,8 @@ def test_index_page_serves_voice_mod_lab_workbench(tmp_path) -> None:
     assert response.status_code == 200
     assert "Voice Mod Lab" in response.text
     assert "profileSelect" in response.text
+    assert "sourceBtn" in response.text
+    assert "renderBtn" in response.text
     assert "low_battery" in response.text
 
 

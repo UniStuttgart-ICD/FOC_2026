@@ -156,6 +156,10 @@
       margin: 10px 0 14px;
     }
 
+    .action-row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .button,
     button {
       min-height: 40px;
@@ -191,6 +195,15 @@
     }
 
     .generate:hover { background: #bd4f40; }
+
+    .render {
+      min-height: 48px;
+      background: var(--teal);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .render:hover { background: var(--teal-dark); }
 
     .audio-grid {
       display: grid;
@@ -255,6 +268,24 @@
     .controls {
       display: grid;
       gap: 12px;
+    }
+
+    .control-group {
+      display: grid;
+      gap: 2px;
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+
+    .control-group h3 {
+      margin: 6px 0 0;
+      padding: 6px 0 3px;
+      color: var(--teal-dark);
+      border-bottom: 1px solid rgba(13, 94, 91, 0.35);
+      font-size: 12px;
+      letter-spacing: 0;
+      text-transform: uppercase;
     }
 
     .control {
@@ -392,7 +423,8 @@
           <button class="ghost phrase-btn" data-text="Mave, run the longer diagnostics phrase so we can hear compression, tremolo, bandwidth cuts, and limiter behavior over a full sentence.">Longer phrase</button>
         </div>
         <div class="action-row">
-          <button id="generateBtn" class="generate">Generate</button>
+          <button id="sourceBtn" class="generate">Generate source</button>
+          <button id="renderBtn" class="render" disabled>Render modulation</button>
         </div>
 
         <div class="audio-grid">
@@ -435,20 +467,48 @@
       robot: "Ringed and reduced",
       radio: "Band-limited grit",
       small_speaker: "Compact driver",
-      low_battery: "Faltering power"
+      low_battery: "Faltering power",
+      giant: "Lowered body",
+      wide_chorus: "Doubled and wide",
+      echo_room: "Short reflection",
+      ghost: "Lifted spectral haze"
     };
-    const sliders = [
-      ["gain_db", "Gain", -24, 24, 0.5, " dB"],
-      ["wet_mix", "Wet mix", 0, 1, 0.01, ""],
-      ["low_cut_hz", "Low cut", 0, 4000, 10, " Hz"],
-      ["high_cut_hz", "High cut", 0, 24000, 50, " Hz"],
-      ["drive", "Drive", 0, 1, 0.01, ""],
-      ["bit_depth", "Bit depth", 4, 16, 1, " bit"],
-      ["ring_mod_hz", "Ring modulation", 0, 2000, 1, " Hz"],
-      ["tremolo_hz", "Tremolo rate", 0, 20, 0.1, " Hz"],
-      ["tremolo_depth", "Tremolo depth", 0, 1, 0.01, ""]
+    const controlGroups = [
+      {
+        name: "Tone",
+        controls: [
+          ["gain_db", "Gain", -24, 24, 0.5, " dB"],
+          ["wet_mix", "Wet mix", 0, 1, 0.01, ""],
+          ["low_cut_hz", "Low cut", 0, 4000, 10, " Hz"],
+          ["high_cut_hz", "High cut", 0, 24000, 50, " Hz"],
+          ["drive", "Drive", 0, 1, 0.01, ""],
+          ["bit_depth", "Bit depth", 4, 16, 1, " bit"],
+          ["pitch_shift_semitones", "Pitch shift", -12, 12, 0.1, " st"]
+        ]
+      },
+      {
+        name: "Motion",
+        controls: [
+          ["ring_mod_hz", "Ring modulation", 0, 2000, 1, " Hz"],
+          ["tremolo_hz", "Tremolo rate", 0, 20, 0.1, " Hz"],
+          ["tremolo_depth", "Tremolo depth", 0, 1, 0.01, ""],
+          ["chorus_rate_hz", "Chorus rate", 0, 8, 0.05, " Hz"],
+          ["chorus_depth_ms", "Chorus depth", 0, 35, 0.5, " ms"],
+          ["chorus_mix", "Chorus mix", 0, 1, 0.01, ""]
+        ]
+      },
+      {
+        name: "Space + texture",
+        controls: [
+          ["echo_delay_ms", "Echo delay", 0, 600, 5, " ms"],
+          ["echo_feedback", "Echo feedback", 0, 0.95, 0.01, ""],
+          ["echo_mix", "Echo mix", 0, 1, 0.01, ""],
+          ["noise_mix", "Noise texture", 0, 0.2, 0.001, ""]
+        ]
+      }
     ];
-    const state = { profiles: [], presets: {}, settings: null, clean: null };
+    const sliders = controlGroups.flatMap((group) => group.controls);
+    const state = { profiles: [], presets: {}, settings: null, clean: null, sourceKey: "" };
     const $ = (id) => document.getElementById(id);
 
     function setStatus(text, tone = "") {
@@ -467,6 +527,37 @@
       const url = audioUrl(audio);
       player.src = url;
       player.dataset.url = url;
+    }
+
+    function clearPlayer(id) {
+      const player = $(id);
+      if (player.dataset.url) URL.revokeObjectURL(player.dataset.url);
+      player.removeAttribute("src");
+      player.removeAttribute("data-url");
+      player.load();
+    }
+
+    function currentSourceKey() {
+      return `${$("profileSelect").value}\n${$("phrase").value}`;
+    }
+
+    function setRenderEnabled() {
+      $("renderBtn").disabled = !state.clean;
+    }
+
+    function clearSource() {
+      state.clean = null;
+      state.sourceKey = "";
+      clearPlayer("cleanAudio");
+      clearPlayer("modAudio");
+      setRenderEnabled();
+    }
+
+    function markEffectsDirty() {
+      $("saveStatus").textContent = "Unsaved";
+      if (state.clean) {
+        setStatus("Settings changed. Render modulation to hear the new sound.", "");
+      }
     }
 
     function readSettings() {
@@ -494,26 +585,31 @@
     }
 
     function renderControls() {
-      $("controls").innerHTML = sliders.map(([key, label, min, max, step]) => `
-        <div class="control">
-          <label for="ctl_${key}">
-            ${label}
-            <input id="ctl_${key}" type="range" min="${min}" max="${max}" step="${step}">
-          </label>
-          <output id="out_${key}"></output>
-        </div>
+      $("controls").innerHTML = controlGroups.map((group) => `
+        <section class="control-group">
+          <h3>${group.name}</h3>
+          ${group.controls.map(([key, label, min, max, step]) => `
+            <div class="control">
+              <label for="ctl_${key}">
+                ${label}
+                <input id="ctl_${key}" type="range" min="${min}" max="${max}" step="${step}">
+              </label>
+              <output id="out_${key}"></output>
+            </div>
+          `).join("")}
+        </section>
       `).join("");
       for (const [key, , , , , suffix] of sliders) {
         $(`ctl_${key}`).addEventListener("input", () => {
           state.settings = readSettings();
           state.settings.preset_name = "custom";
           $(`out_${key}`).textContent = `${state.settings[key]}${suffix}`;
-          $("saveStatus").textContent = "Unsaved";
+          markEffectsDirty();
         });
       }
       $("limiter").addEventListener("change", () => {
         state.settings = readSettings();
-        $("saveStatus").textContent = "Unsaved";
+        markEffectsDirty();
       });
     }
 
@@ -532,10 +628,14 @@
       $("profileSelect").innerHTML = state.profiles.map((profile) =>
         `<option value="${profile.name}">${profile.name}</option>`
       ).join("");
-      $("profileSelect").addEventListener("change", loadSettings);
+      $("profileSelect").addEventListener("change", () => {
+        clearSource();
+        loadSettings();
+      });
       const hasProfiles = state.profiles.length > 0;
       $("profileSelect").disabled = !hasProfiles;
-      $("generateBtn").disabled = !hasProfiles;
+      $("sourceBtn").disabled = !hasProfiles;
+      setRenderEnabled();
       $("saveBtn").disabled = !hasProfiles;
       if (!hasProfiles) {
         $("providerSummary").textContent = "Provider: unavailable";
@@ -558,7 +658,7 @@
       document.querySelectorAll(".preset-tile").forEach((tile) => {
         tile.addEventListener("click", () => {
           writeSettings(state.presets[tile.dataset.preset]);
-          $("saveStatus").textContent = "Unsaved";
+          markEffectsDirty();
         });
       });
     }
@@ -579,33 +679,58 @@
       $("saveStatus").textContent = data.saved ? "Saved override" : "Built-in clean";
     }
 
-    async function generate() {
+    async function generateSource() {
       const profileName = $("profileSelect").value;
       if (!profileName) {
         setStatus("Select a runtime profile first.", "hot");
         return;
       }
-      $("generateBtn").disabled = true;
-      setStatus("Generating preview...", "");
+      $("sourceBtn").disabled = true;
+      $("renderBtn").disabled = true;
+      setStatus("Generating source voice...", "");
       try {
-        const tts = await api("/api/preview/tts", {
+        const source = await api("/api/preview/source", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ profile_name: profileName, text: $("phrase").value })
         });
-        state.clean = tts.audio;
-        setPlayer("cleanAudio", tts.audio);
+        state.clean = source.audio;
+        state.sourceKey = currentSourceKey();
+        setPlayer("cleanAudio", source.audio);
+        clearPlayer("modAudio");
+        setRenderEnabled();
+        setStatus("Source ready. Render modulation when the settings feel right.", "ok");
+      } catch (error) {
+        clearSource();
+        setStatus(error.message, "hot");
+      } finally {
+        $("sourceBtn").disabled = state.profiles.length === 0;
+      }
+    }
+
+    async function renderModulation() {
+      if (!state.clean) {
+        setStatus("Generate a source voice first.", "hot");
+        return;
+      }
+      if (state.sourceKey && state.sourceKey !== currentSourceKey()) {
+        setStatus("Phrase or profile changed. Generate a fresh source first.", "hot");
+        return;
+      }
+      $("renderBtn").disabled = true;
+      setStatus("Rendering modulation from cached source...", "");
+      try {
         const effect = await api("/api/preview/effect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ audio: tts.audio, settings: readSettings() })
+          body: JSON.stringify({ audio: state.clean, settings: readSettings() })
         });
         setPlayer("modAudio", effect.audio);
-        setStatus("Preview rendered.", "ok");
+        setStatus("Modulation rendered without re-calling TTS.", "ok");
       } catch (error) {
         setStatus(error.message, "hot");
       } finally {
-        $("generateBtn").disabled = state.profiles.length === 0;
+        setRenderEnabled();
       }
     }
 
@@ -633,9 +758,19 @@
     }
 
     document.querySelectorAll(".phrase-btn").forEach((button) => {
-      button.addEventListener("click", () => { $("phrase").value = button.dataset.text; });
+      button.addEventListener("click", () => {
+        $("phrase").value = button.dataset.text;
+        clearSource();
+        setStatus("Phrase changed. Generate a source voice when ready.", "");
+      });
     });
-    $("generateBtn").addEventListener("click", generate);
+    $("phrase").addEventListener("input", () => {
+      if (state.clean) {
+        setStatus("Phrase changed. Generate a fresh source before rendering.", "");
+      }
+    });
+    $("sourceBtn").addEventListener("click", generateSource);
+    $("renderBtn").addEventListener("click", renderModulation);
     $("saveBtn").addEventListener("click", save);
 
     renderControls();

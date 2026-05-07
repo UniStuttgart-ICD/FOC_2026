@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from numpy.typing import NDArray
@@ -16,16 +16,28 @@ class VoiceModulationDspError(ValueError):
 class VoiceModulationState:
     ring_phase: float = 0.0
     tremolo_phase: float = 0.0
+    chorus_phase: float = 0.0
     low_cut_last: NDArray[np.float32] | None = None
     high_cut_last: NDArray[np.float32] | None = None
     high_cut_prev_input: NDArray[np.float32] | None = None
+    echo_buffer: NDArray[np.float32] | None = None
+    echo_index: int = 0
+    chorus_buffer: NDArray[np.float32] | None = None
+    chorus_index: int = 0
+    noise_rng: np.random.Generator = field(default_factory=np.random.default_rng)
 
     def reset(self) -> None:
         self.ring_phase = 0.0
         self.tremolo_phase = 0.0
+        self.chorus_phase = 0.0
         self.low_cut_last = None
         self.high_cut_last = None
         self.high_cut_prev_input = None
+        self.echo_buffer = None
+        self.echo_index = 0
+        self.chorus_buffer = None
+        self.chorus_index = 0
+        self.noise_rng = np.random.default_rng()
 
 
 def process_pcm16(
@@ -57,6 +69,8 @@ def process_pcm16(
         samples = np.asarray(np.tanh(samples * drive) / np.tanh(drive), dtype=np.float32)
     if settings.bit_depth < 16:
         samples = _bit_crush(samples, settings.bit_depth)
+    if settings.pitch_shift_semitones != 0.0:
+        samples = _granular_pitch_shift(samples, sample_rate, settings.pitch_shift_semitones)
     if settings.ring_mod_hz > 0.0:
         samples = _ring_mod(samples, sample_rate, settings.ring_mod_hz, dsp_state)
     if settings.tremolo_hz > 0.0 and settings.tremolo_depth > 0.0:
@@ -67,6 +81,26 @@ def process_pcm16(
             settings.tremolo_depth,
             dsp_state,
         )
+    if settings.chorus_mix > 0.0 and settings.chorus_depth_ms > 0.0:
+        samples = _chorus(
+            samples,
+            sample_rate,
+            settings.chorus_rate_hz,
+            settings.chorus_depth_ms,
+            settings.chorus_mix,
+            dsp_state,
+        )
+    if settings.echo_mix > 0.0 and settings.echo_delay_ms > 0.0:
+        samples = _echo(
+            samples,
+            sample_rate,
+            settings.echo_delay_ms,
+            settings.echo_feedback,
+            settings.echo_mix,
+            dsp_state,
+        )
+    if settings.noise_mix > 0.0:
+        samples = _noise(samples, settings.noise_mix, dsp_state)
 
     wet_mix = np.float32(settings.wet_mix)
     samples = (dry * (np.float32(1.0) - wet_mix)) + (samples * wet_mix)
@@ -165,6 +199,43 @@ def _bit_crush(samples: NDArray[np.float32], bit_depth: int) -> NDArray[np.float
     return np.asarray(np.rint(samples * scale) / scale, dtype=np.float32)
 
 
+def _granular_pitch_shift(
+    samples: NDArray[np.float32],
+    sample_rate: int,
+    semitones: float,
+) -> NDArray[np.float32]:
+    if samples.shape[0] < 4:
+        return samples
+    ratio = np.float32(2.0 ** (semitones / 12.0))
+    grain_length = min(samples.shape[0], max(64, int(sample_rate * 0.045)))
+    hop = max(1, grain_length // 2)
+    window = np.hanning(grain_length).astype(np.float32)
+    source_index = np.arange(samples.shape[0], dtype=np.float32)
+    output = np.zeros_like(samples)
+    weights = np.zeros((samples.shape[0], 1), dtype=np.float32)
+
+    for start in range(0, samples.shape[0], hop):
+        end = min(samples.shape[0], start + grain_length)
+        size = end - start
+        positions = np.asarray(
+            start + (np.arange(size, dtype=np.float32) * ratio),
+            dtype=np.float32,
+        )
+        positions = np.clip(positions, 0.0, np.float32(samples.shape[0] - 1))
+        shifted = np.empty((size, samples.shape[1]), dtype=np.float32)
+        for channel in range(samples.shape[1]):
+            shifted[:, channel] = np.interp(
+                positions,
+                source_index,
+                samples[:, channel],
+            ).astype(np.float32)
+        gain = window[:size].reshape(-1, 1)
+        output[start:end] += shifted * gain
+        weights[start:end] += gain
+
+    return np.asarray(output / np.maximum(weights, np.float32(1e-6)), dtype=np.float32)
+
+
 def _ring_mod(
     samples: NDArray[np.float32],
     sample_rate: int,
@@ -191,6 +262,85 @@ def _tremolo(
     wave = (np.sin(phases, dtype=np.float32) + np.float32(1.0)) * np.float32(0.5)
     modulator = (np.float32(1.0) - np.float32(depth)) + (np.float32(depth) * wave)
     return np.asarray(samples * modulator.reshape(-1, 1), dtype=np.float32)
+
+
+def _echo(
+    samples: NDArray[np.float32],
+    sample_rate: int,
+    delay_ms: float,
+    feedback: float,
+    mix: float,
+    state: VoiceModulationState,
+) -> NDArray[np.float32]:
+    delay_frames = max(1, int(sample_rate * (delay_ms / 1000.0)))
+    if state.echo_buffer is None or state.echo_buffer.shape != (delay_frames, samples.shape[1]):
+        state.echo_buffer = np.zeros((delay_frames, samples.shape[1]), dtype=np.float32)
+        state.echo_index = 0
+
+    output = np.empty_like(samples)
+    wet_mix = np.float32(mix)
+    dry_mix = np.float32(1.0) - wet_mix
+    feedback_gain = np.float32(feedback)
+
+    for index, row in enumerate(samples):
+        delayed = state.echo_buffer[state.echo_index].copy()
+        output[index] = (row * dry_mix) + (delayed * wet_mix)
+        state.echo_buffer[state.echo_index] = row + (delayed * feedback_gain)
+        state.echo_index = (state.echo_index + 1) % delay_frames
+
+    return output
+
+
+def _chorus(
+    samples: NDArray[np.float32],
+    sample_rate: int,
+    rate_hz: float,
+    depth_ms: float,
+    mix: float,
+    state: VoiceModulationState,
+) -> NDArray[np.float32]:
+    base_delay_frames = max(1, int(sample_rate * 0.012))
+    depth_frames = max(1, int(sample_rate * (depth_ms / 1000.0)))
+    buffer_length = base_delay_frames + depth_frames + 3
+    if state.chorus_buffer is None or state.chorus_buffer.shape != (
+        buffer_length,
+        samples.shape[1],
+    ):
+        state.chorus_buffer = np.zeros((buffer_length, samples.shape[1]), dtype=np.float32)
+        state.chorus_index = 0
+
+    output = np.empty_like(samples)
+    wet_mix = np.float32(mix)
+    dry_mix = np.float32(1.0) - wet_mix
+    increment = np.float32((2.0 * np.pi * rate_hz) / sample_rate)
+
+    for index, row in enumerate(samples):
+        state.chorus_buffer[state.chorus_index] = row
+        lfo = (np.sin(np.float32(state.chorus_phase)) + np.float32(1.0)) * np.float32(0.5)
+        delay = np.float32(base_delay_frames) + (np.float32(depth_frames) * lfo)
+        read_position = (np.float32(state.chorus_index) - delay) % np.float32(buffer_length)
+        left_index = int(np.floor(read_position))
+        right_index = (left_index + 1) % buffer_length
+        fraction = read_position - np.float32(left_index)
+        delayed = (
+            state.chorus_buffer[left_index] * (np.float32(1.0) - fraction)
+        ) + (state.chorus_buffer[right_index] * fraction)
+        output[index] = (row * dry_mix) + (delayed * wet_mix)
+        state.chorus_phase = float(
+            (np.float32(state.chorus_phase) + increment) % np.float32(2.0 * np.pi)
+        )
+        state.chorus_index = (state.chorus_index + 1) % buffer_length
+
+    return output
+
+
+def _noise(
+    samples: NDArray[np.float32],
+    mix: float,
+    state: VoiceModulationState,
+) -> NDArray[np.float32]:
+    noise = state.noise_rng.uniform(-1.0, 1.0, size=samples.shape).astype(np.float32)
+    return np.asarray(samples + (noise * np.float32(mix)), dtype=np.float32)
 
 
 def _phases(

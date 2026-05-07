@@ -37,9 +37,17 @@ def _settings_mapping() -> dict[str, object]:
         "high_cut_hz": 3600.0,
         "drive": 0.35,
         "bit_depth": 8,
+        "pitch_shift_semitones": -2.5,
         "ring_mod_hz": 45.0,
         "tremolo_hz": 5.0,
         "tremolo_depth": 0.4,
+        "chorus_rate_hz": 0.8,
+        "chorus_depth_ms": 14.0,
+        "chorus_mix": 0.25,
+        "echo_delay_ms": 125.0,
+        "echo_feedback": 0.35,
+        "echo_mix": 0.2,
+        "noise_mix": 0.015,
         "limiter": True,
     }
 
@@ -100,6 +108,14 @@ def test_settings_from_mapping_validates_ranges() -> None:
 
     bad = _settings_mapping() | {"bit_depth": 3}
     with pytest.raises(VoiceModulationError, match="bit_depth"):
+        settings_from_mapping(bad)
+
+    bad = _settings_mapping() | {"pitch_shift_semitones": 13.0}
+    with pytest.raises(VoiceModulationError, match="pitch_shift_semitones"):
+        settings_from_mapping(bad)
+
+    bad = _settings_mapping() | {"echo_feedback": 1.0}
+    with pytest.raises(VoiceModulationError, match="echo_feedback"):
         settings_from_mapping(bad)
 
 
