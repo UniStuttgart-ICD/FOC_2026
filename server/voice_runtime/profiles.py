@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -89,6 +89,14 @@ class MetricsProfile:
 
 
 @dataclass(frozen=True)
+class ProcessTraceProfile:
+    enabled: bool = True
+    path: Path = field(default_factory=lambda: Path("logs/process_trace.jsonl"))
+    include_text: bool = True
+    include_tool_payloads: bool = True
+
+
+@dataclass(frozen=True)
 class RuntimeProfile:
     name: str
     category: Category
@@ -99,6 +107,7 @@ class RuntimeProfile:
     agent: AgentProfile
     mcp_robot_url: str
     metrics: MetricsProfile
+    process_trace: ProcessTraceProfile
     server_dir: Path
 
     def required_env_names(self) -> tuple[str, ...]:
@@ -154,6 +163,7 @@ def load_runtime_profile(
     mcp = _table(raw_profile, "mcp")
     robot = _table(mcp, "robot")
     metrics = _parse_metrics(_table(raw_profile, "metrics"), server_root)
+    process_trace = _parse_process_trace(_optional_table(raw_profile, "process_trace"), server_root)
 
     profile = RuntimeProfile(
         name=selected_profile,
@@ -165,6 +175,7 @@ def load_runtime_profile(
         agent=agent,
         mcp_robot_url=_string(robot, "url"),
         metrics=metrics,
+        process_trace=process_trace,
         server_dir=server_root,
     )
     _validate_runtime_profile(profile)
@@ -242,6 +253,15 @@ def _parse_metrics(table: dict[str, Any], server_dir: Path) -> MetricsProfile:
     )
 
 
+def _parse_process_trace(table: dict[str, Any], server_dir: Path) -> ProcessTraceProfile:
+    return ProcessTraceProfile(
+        enabled=_bool(table, "enabled", True),
+        path=_path(table, "path", server_dir, "logs/process_trace.jsonl"),
+        include_text=_bool(table, "include_text", True),
+        include_tool_payloads=_bool(table, "include_tool_payloads", True),
+    )
+
+
 def _validate_runtime_profile(profile: RuntimeProfile) -> None:
     if profile.wake.provider == "openwakeword" and profile.wake.model_path is None:
         raise ProfileError("wake.model_path is required when wake.provider = 'openwakeword'")
@@ -264,6 +284,15 @@ def _validate_runtime_profile(profile: RuntimeProfile) -> None:
 
 def _table(data: dict[str, Any], key: str) -> dict[str, Any]:
     value = data.get(key)
+    if not isinstance(value, dict):
+        raise ProfileError(f"[{key}] must be a TOML table")
+    return value
+
+
+def _optional_table(data: dict[str, Any], key: str) -> dict[str, Any]:
+    value = data.get(key)
+    if value is None:
+        return {}
     if not isinstance(value, dict):
         raise ProfileError(f"[{key}] must be a TOML table")
     return value

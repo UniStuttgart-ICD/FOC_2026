@@ -11,6 +11,7 @@ from voice_runtime.profiles import (
     Category,
     EmergencyStopProfile,
     MetricsProfile,
+    ProcessTraceProfile,
     ProfileError,
     RuntimeProfile,
     STTProfile,
@@ -30,6 +31,7 @@ STTConfig = STTProfile
 TTSConfig = TTSProfile
 AgentConfig = AgentProfile
 MetricsConfig = MetricsProfile
+ProcessTraceConfig = ProcessTraceProfile
 
 
 @dataclass(frozen=True)
@@ -43,6 +45,7 @@ class RuntimeConfig:
     agent: AgentConfig
     mcp_robot_url: str
     metrics: MetricsConfig
+    process_trace: ProcessTraceConfig
     server_dir: Path
 
     @classmethod
@@ -57,6 +60,7 @@ class RuntimeConfig:
             agent=profile.agent,
             mcp_robot_url=profile.mcp_robot_url,
             metrics=profile.metrics,
+            process_trace=profile.process_trace,
             server_dir=profile.server_dir,
         )
 
@@ -71,6 +75,7 @@ class RuntimeConfig:
             agent=self.agent,
             mcp_robot_url=self.mcp_robot_url,
             metrics=self.metrics,
+            process_trace=self.process_trace,
             server_dir=self.server_dir,
         ).required_env_names()
 
@@ -116,6 +121,7 @@ __all__ = [
     "DEFAULT_PROFILE",
     "EmergencyStopConfig",
     "MetricsConfig",
+    "ProcessTraceConfig",
     "RuntimeConfig",
     "STTConfig",
     "STTProvider",

@@ -107,6 +107,24 @@ A test-only wrapper around the real Robot Tool Adapter that records each robot t
 **Smoke Movement Bound**:
 A Live LLM Robot Smoke Test rule where "a bit" means about 0.05 m along the intended axis, with tolerant final-pose checks for simulation/controller drift.
 
+**Model Eval Module**:
+The reusable module for comparing LangGraph-backed model candidates against robot-agent scenario packs, timing, validator results, tool behavior, and Live Eval Evidence.
+
+**Model Candidate**:
+One model configuration under evaluation, including provider, model id, reasoning effort, and API key environment variable.
+
+**Eval Scenario Pack**:
+A named set of prompts, validators, and scoring metadata used by the Model Eval Module.
+
+**Eval Tool Adapter**:
+The Robot Tool Adapter used during a Model Eval Module run; v1 defaults to a deterministic simulated MoveIt adapter and can optionally use live MCP.
+
+**Model Fit Score**:
+A correctness-gated ranking for Model Candidates. Robot correctness must pass first; passing candidates are then ranked mainly by realtime latency and tool-loop efficiency.
+
+**Improvisation Fit**:
+The qualitative part of a Model Fit Score that checks whether a model takes bounded embodied initiative for clear gesture requests without inventing scene facts or unsafe targets.
+
 ## Relationships
 
 - **Voice Runtime Assembly** contains exactly one **Agent Turn** processor in the voice pipeline.
@@ -123,6 +141,10 @@ A Live LLM Robot Smoke Test rule where "a bit" means about 0.05 m along the inte
 - A **Manual Live Eval Gate** keeps Live LLM Robot Evals out of normal CI.
 - **Live Eval Evidence** is saved as minimal JSON, not as a human HTML report.
 - A **Recording Robot Tool Adapter** observes live smoke tests without adding production logging hooks.
+- The **Model Eval Module** runs through the **Agent Turn** seam and evaluates **Agent Orchestration**; it does not own the Robot Agent Prompt, Task Policy Layer, Robot Call Validation, or MoveIt Safety Boundary.
+- An **Eval Tool Adapter** satisfies the same robot adapter interface as the production Robot Tool Adapter so model evaluation can switch between simulated and live MCP runs.
+- A **Model Fit Score** treats correctness as a gate and latency as a primary ranking factor for realtime robot use; provider cost is optional metadata, not a v1 ranking input.
+- **Improvisation Fit** rewards bounded expressive action for clear gesture requests such as waving, while ambiguous spatial references still require clarification.
 - **Process Trace** observes runtime behavior but does not own Voice Runtime, Agent Control, Robot Control, policy, validation, MCP execution, or robot safety behavior.
 - A **Trace Turn** may contain Voice Runtime, Agent Control, Robot Control, and MCP **Trace Spans** under one correlated tree.
 - **Voice Metrics** are summary timing records; **Process Trace** is the detailed span/event record for debugging, bottleneck analysis, and future visualization.

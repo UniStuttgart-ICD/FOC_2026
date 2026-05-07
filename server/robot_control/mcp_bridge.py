@@ -9,6 +9,7 @@ from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, TextContent, Tool
 
+from process_trace import NoopProcessTracer, ProcessTracer
 from robot_control.call_validation import (
     AGENT_TO_LEGACY_MCP_TOOL_NAMES,
     ALLOWED_ROBOT_TOOLS,
@@ -86,8 +87,16 @@ class StreamableHttpMCPServer:
 class RobotMCPBridge:
     """Converts robot MCP tools to LangChain function tools and executes validated calls."""
 
-    def __init__(self, mcp_server_url: str, *, server: MCPServerLike | None = None):
+    def __init__(
+        self,
+        mcp_server_url: str,
+        *,
+        server: MCPServerLike | None = None,
+        tracer: ProcessTracer | NoopProcessTracer | None = None,
+    ):
+        self._mcp_server_url = mcp_server_url
         self._server = server or StreamableHttpMCPServer(mcp_server_url)
+        self._tracer = tracer or NoopProcessTracer()
         self._tools: list[Tool] = []
         self._backing_tool_names: dict[str, str] = {}
         self._connected = False
@@ -95,15 +104,21 @@ class RobotMCPBridge:
     async def connect(self) -> None:
         if self._connected:
             return
-        await self._server.connect()
-        selected_tools: dict[str, Tool] = {}
-        for tool in await self._server.list_tools():
-            agent_name = self._agent_tool_name(tool.name)
-            if agent_name is None:
-                continue
-            existing = selected_tools.get(agent_name)
-            if existing is None or tool.name == agent_name:
-                selected_tools[agent_name] = tool
+        async with self._tracer.span(
+            "robot.mcp.connect",
+            "robot_control",
+            attributes={"mcp.url": self._mcp_server_url},
+        ):
+            await self._server.connect()
+        async with self._tracer.span("robot.mcp.list_tools", "robot_control"):
+            selected_tools: dict[str, Tool] = {}
+            for tool in await self._server.list_tools():
+                agent_name = self._agent_tool_name(tool.name)
+                if agent_name is None:
+                    continue
+                existing = selected_tools.get(agent_name)
+                if existing is None or tool.name == agent_name:
+                    selected_tools[agent_name] = tool
         self._tools = list(selected_tools.values())
         self._backing_tool_names = {agent_name: tool.name for agent_name, tool in selected_tools.items()}
         self._connected = True
@@ -133,22 +148,64 @@ class RobotMCPBridge:
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
         normalized_arguments = _normalize_agent_arguments(name, arguments)
-        try:
-            validate_robot_tool_call(name, normalized_arguments)
-        except RobotCallValidationError as exc:
-            return _serialize_validation_failure(exc)
+        validation_attributes = self._tool_attributes(name, normalized_arguments)
+        async with self._tracer.span(
+            "robot.call_validation",
+            "robot_control",
+            attributes=validation_attributes,
+        ):
+            try:
+                validate_robot_tool_call(name, normalized_arguments)
+            except RobotCallValidationError as exc:
+                blocked_attributes: dict[str, Any] = {
+                    "tool.name": name,
+                    "reason": str(exc),
+                    "correction": exc.correction,
+                }
+                if self._tracer.options.include_tool_payloads:
+                    blocked_attributes["tool.arguments"] = normalized_arguments
+                self._tracer.event(
+                    "robot.call_validation.blocked",
+                    "robot_control",
+                    attributes=blocked_attributes,
+                )
+                return _serialize_validation_failure(exc)
 
         backing_tool_name = self._backing_tool_names.get(name)
         if backing_tool_name is None:
             raise RobotMCPError(f"Tool is not allowed: {name}")
-        result = await self._server.call_tool(backing_tool_name, normalized_arguments)
-        return _serialize_tool_result(result)
+        call_attributes = self._tool_attributes(name, normalized_arguments)
+        call_attributes["mcp.tool.name"] = backing_tool_name
+        async with self._tracer.span(
+            "robot.mcp.call_tool",
+            "robot_control",
+            attributes=call_attributes,
+        ):
+            result = await self._server.call_tool(backing_tool_name, normalized_arguments)
+            serialized_output = _serialize_tool_result(result)
+            if self._tracer.options.include_tool_payloads:
+                self._tracer.event(
+                    "robot.mcp.tool_result",
+                    "robot_control",
+                    attributes={
+                        "tool.name": name,
+                        "mcp.tool.name": backing_tool_name,
+                        "tool.result": serialized_output,
+                    },
+                )
+            return serialized_output
 
     @staticmethod
     def _agent_tool_name(tool_name: str) -> str | None:
         if tool_name in ALLOWED_ROBOT_TOOLS:
             return tool_name
         return LEGACY_TO_AGENT_TOOL_NAMES.get(tool_name)
+
+    def _tool_attributes(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        attributes: dict[str, Any] = {"tool.name": name}
+        if self._tracer.options.include_tool_payloads:
+            attributes["tool.arguments"] = arguments
+        return attributes
 
 
 def _normalize_agent_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:

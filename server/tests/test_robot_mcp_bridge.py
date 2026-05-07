@@ -3,6 +3,7 @@ import json
 import pytest
 from mcp.types import CallToolResult, TextContent, Tool
 
+from process_trace import MemoryTraceWriter, ProcessTracer, TraceOptions
 from robot_control.call_validation import agent_tool_description
 from robot_control.mcp_bridge import RobotMCPBridge, RobotMCPError
 
@@ -33,6 +34,14 @@ class FakeServer:
             content=[TextContent(type="text", text="ok")],
             structuredContent={"ok": True},
         )
+
+
+def _trace_record_names(writer):
+    return [record["name"] for record in writer.records]
+
+
+def _trace_record(writer, name):
+    return next(record for record in writer.records if record["name"] == name)
 
 
 class FakeCanonicalServer(FakeServer):
@@ -73,6 +82,84 @@ class FakeLegacyWorkflowServer(FakeServer):
                 inputSchema={"type": "object"},
             ),
         ]
+
+
+@pytest.mark.asyncio
+async def test_connect_emits_mcp_connect_and_list_tools_spans():
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeServer(), tracer=tracer)
+
+    await bridge.connect()
+
+    names = _trace_record_names(writer)
+    assert "robot.mcp.connect" in names
+    assert "robot.mcp.list_tools" in names
+
+
+@pytest.mark.asyncio
+async def test_valid_call_tool_emits_validation_and_mcp_call_spans():
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
+    server = FakeServer()
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server, tracer=tracer)
+    await bridge.connect()
+
+    await bridge.call_tool("moveit_get_current_pose", {"robot_name": "UR10"})
+
+    validation = _trace_record(writer, "robot.call_validation")
+    mcp_call = _trace_record(writer, "robot.mcp.call_tool")
+    assert validation["attributes"] == {
+        "tool.name": "moveit_get_current_pose",
+        "tool.arguments": {"robot_name": "UR10"},
+    }
+    assert mcp_call["attributes"]["tool.name"] == "moveit_get_current_pose"
+    assert mcp_call["attributes"]["mcp.tool.name"] == "get_current_pose"
+    assert mcp_call["attributes"]["tool.arguments"] == {"robot_name": "UR10"}
+
+
+@pytest.mark.asyncio
+async def test_include_tool_payloads_false_omits_tool_arguments():
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer, TraceOptions(include_tool_payloads=False))
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeServer(), tracer=tracer)
+    await bridge.connect()
+
+    await bridge.call_tool("moveit_get_current_pose", {"robot_name": "UR10"})
+
+    for record in writer.records:
+        assert "tool.arguments" not in record["attributes"]
+
+
+@pytest.mark.asyncio
+async def test_validation_failure_emits_blocked_event_and_skips_mcp_call():
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
+    server = FakeServer()
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server, tracer=tracer)
+    await bridge.connect()
+
+    output = await bridge.call_tool("moveit_get_current_pose", {"robot_name": "UR5"})
+
+    assert json.loads(output) == {
+        "ok": False,
+        "error": "Only Vizor robot UR10 is allowed",
+        "correction": 'Retry with robot_name="UR10".',
+        "retryable": True,
+        "suggested_next_tool": "moveit_get_current_pose",
+    }
+    validation = _trace_record(writer, "robot.call_validation")
+    blocked = _trace_record(writer, "robot.call_validation.blocked")
+    assert validation["status"] == "ok"
+    assert blocked["record_type"] == "event"
+    assert blocked["attributes"] == {
+        "tool.name": "moveit_get_current_pose",
+        "reason": "Only Vizor robot UR10 is allowed",
+        "correction": 'Retry with robot_name="UR10".',
+        "tool.arguments": {"robot_name": "UR5"},
+    }
+    assert "robot.mcp.call_tool" not in _trace_record_names(writer)
+    assert server.called == []
 
 
 @pytest.mark.asyncio

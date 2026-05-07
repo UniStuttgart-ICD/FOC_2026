@@ -9,6 +9,7 @@ from config import (
     AgentConfig,
     EmergencyStopConfig,
     MetricsConfig,
+    ProcessTraceConfig,
     RuntimeConfig,
     STTConfig,
     TTSConfig,
@@ -31,6 +32,44 @@ class FakePipelineTask:
         self.observers = observers
 
 
+class FakeJsonlTraceWriter:
+    def __init__(self, path: Path):
+        self.path = path
+
+
+class FakeProcessTracer:
+    def __init__(self, writer, options):
+        self.writer = writer
+        self.options = options
+        self.started_sessions: list[tuple[str, str]] = []
+
+    def start_session(self, profile: str, category: str):
+        self.started_sessions.append((profile, category))
+        return "session-context"
+
+
+class FakeNoopProcessTracer:
+    def __init__(self, options=None):
+        self.options = options
+        self.started_sessions: list[tuple[str, str]] = []
+
+    def start_session(self, profile: str, category: str):
+        self.started_sessions.append((profile, category))
+        return "noop-session-context"
+
+
+class FakeTraceOptions:
+    def __init__(self, *, include_text: bool, include_tool_payloads: bool):
+        self.include_text = include_text
+        self.include_tool_payloads = include_tool_payloads
+
+
+class FakeProcessTraceObserver:
+    def __init__(self, tracer, *, session_context):
+        self.tracer = tracer
+        self.session_context = session_context
+
+
 class FakeTransport:
     def input(self):
         return FrameProcessor()
@@ -39,7 +78,13 @@ class FakeTransport:
         return FrameProcessor()
 
 
-def _config(tmp_path: Path, *, metrics_enabled: bool, wake_enabled: bool = False) -> RuntimeConfig:
+def _config(
+    tmp_path: Path,
+    *,
+    metrics_enabled: bool,
+    process_trace_enabled: bool = False,
+    wake_enabled: bool = False,
+) -> RuntimeConfig:
     return RuntimeConfig(
         profile_name="no_wake_debug",
         category="local_debug",
@@ -65,6 +110,12 @@ def _config(tmp_path: Path, *, metrics_enabled: bool, wake_enabled: bool = False
             path=tmp_path / "metrics.jsonl",
             include_text=True,
         ),
+        process_trace=ProcessTraceConfig(
+            enabled=process_trace_enabled,
+            path=tmp_path / "process_trace.jsonl",
+            include_text=True,
+            include_tool_payloads=False,
+        ),
         server_dir=tmp_path,
     )
 
@@ -88,6 +139,18 @@ def _patch_pipeline_dependencies(monkeypatch, *, agent_processor_kwargs: dict[st
     )
     monkeypatch.setattr("pipeline_builder.Pipeline", FakePipeline)
     monkeypatch.setattr("pipeline_builder.PipelineTask", FakePipelineTask)
+    monkeypatch.setattr("pipeline_builder.JsonlTraceWriter", FakeJsonlTraceWriter, raising=False)
+    monkeypatch.setattr("pipeline_builder.ProcessTracer", FakeProcessTracer, raising=False)
+    monkeypatch.setattr("pipeline_builder.NoopProcessTracer", FakeNoopProcessTracer, raising=False)
+    monkeypatch.setattr("pipeline_builder.TraceOptions", FakeTraceOptions, raising=False)
+    monkeypatch.setattr(
+        "pipeline_builder._create_process_trace_observer",
+        lambda tracer, session_context: FakeProcessTraceObserver(
+            tracer,
+            session_context=session_context,
+        ),
+        raising=False,
+    )
 
 
 def test_metrics_observer_is_wired_when_metrics_enabled(monkeypatch, tmp_path: Path):
@@ -113,6 +176,45 @@ def test_metrics_observer_is_not_wired_when_metrics_disabled(monkeypatch, tmp_pa
     task = cast(Any, built.task)
 
     assert built.metrics is None
+    assert task.observers == []
+
+
+def test_process_trace_observer_and_tracer_are_wired_when_enabled(monkeypatch, tmp_path: Path):
+    seen_agent_kwargs: dict[str, Any] = {}
+    _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
+
+    built = build_pipeline(
+        _config(tmp_path, metrics_enabled=False, process_trace_enabled=True),
+        cast(BaseTransport, FakeTransport()),
+    )
+    task = cast(Any, built.task)
+
+    assert isinstance(built.process_tracer, FakeProcessTracer)
+    assert built.process_tracer.writer.path == tmp_path / "process_trace.jsonl"
+    assert built.process_tracer.options.include_text is True
+    assert built.process_tracer.options.include_tool_payloads is False
+    assert built.process_tracer.started_sessions == [("no_wake_debug", "local_debug")]
+    assert seen_agent_kwargs["tracer"] is built.process_tracer
+    assert len(task.observers) == 1
+    observer = task.observers[0]
+    assert isinstance(observer, FakeProcessTraceObserver)
+    assert observer.tracer is built.process_tracer
+    assert observer.session_context == "session-context"
+
+
+def test_process_trace_disabled_uses_noop_tracer_and_no_observer(monkeypatch, tmp_path: Path):
+    seen_agent_kwargs: dict[str, Any] = {}
+    _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
+
+    built = build_pipeline(
+        _config(tmp_path, metrics_enabled=False, process_trace_enabled=False),
+        cast(BaseTransport, FakeTransport()),
+    )
+    task = cast(Any, built.task)
+
+    assert isinstance(built.process_tracer, FakeNoopProcessTracer)
+    assert built.process_tracer.started_sessions == [("no_wake_debug", "local_debug")]
+    assert seen_agent_kwargs["tracer"] is built.process_tracer
     assert task.observers == []
 
 

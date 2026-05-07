@@ -28,6 +28,12 @@ Robot movement safety is delegated to MoveIt planning/execution and the robot si
 
 Owns per-turn semantic stage transitions and timing semantics. Pipecat frame observation and JSONL persistence are Adapters around the timeline.
 
+### Process Trace
+
+Owns always-on semantic process tracing for voice robot runs. It records local JSONL spans/events for wake, speech capture, STT, Agent Turn, LangGraph nodes, model calls, task policy, robot call validation, MCP tool calls, Robot Context updates, and TTS.
+
+`process_trace` is observational and reusable. Its pure core owns IDs, parentage, timestamps, JSON safety, redaction, and writer failure handling; Pipecat-specific observation remains a thin Adapter.
+
 ### Voice Runtime Assembly
 
 Owns reusable Pipecat processor ordering: transport input, optional Voice Command audio Adapter, STT, optional Voice Command transcript Adapter, user aggregation, Agent Turn, TTS, transport output, and assistant aggregation.
@@ -43,6 +49,7 @@ To reuse these Modules in a similar project:
 1. Provide Runtime Profiles for the target providers.
 2. Provide Robot Tool Adapters for the target MCP or tool layer.
 3. Choose an Agent Turn backend Adapter.
-4. Build a Pipecat pipeline with Voice Runtime Assembly using the Voice Command, STT, Agent Turn, TTS, and Voice Metrics Adapters.
-5. Document that movement safety is delegated to MoveIt planning/execution for each Robot Tool Adapter. Do not imply local validation is the source of movement safety.
-6. Treat emergency stop as scaffold-only unless a runtime bypass Adapter is implemented.
+4. Build a Pipecat pipeline with Voice Runtime Assembly using the Voice Command, STT, Agent Turn, TTS, Voice Metrics, and Process Trace Adapters.
+5. Keep Process Trace local-first and observational unless the project explicitly adds an exporter.
+6. Document that movement safety is delegated to MoveIt planning/execution for each Robot Tool Adapter. Do not imply local validation is the source of movement safety.
+7. Treat emergency stop as scaffold-only unless a runtime bypass Adapter is implemented.
