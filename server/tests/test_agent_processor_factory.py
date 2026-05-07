@@ -11,10 +11,6 @@ class FakeChatModel:
     pass
 
 
-class FakeTracer:
-    pass
-
-
 class FakeLangChainAgentProcessor(FrameProcessor):
     def __init__(self, mcp_server_url, *, chat_model, model_label, tracer):
         super().__init__()
@@ -101,7 +97,7 @@ def test_creates_anthropic_api_agent_turn_processor(monkeypatch):
 
 
 def test_passes_tracer_to_backend_and_agent_turn_processor(monkeypatch):
-    tracer = FakeTracer()
+    tracer = ProcessTracer(MemoryTraceWriter())
     _patch_factory_dependencies(monkeypatch)
 
     processor = create_agent_processor(

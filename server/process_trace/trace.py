@@ -4,6 +4,7 @@ import asyncio
 import logging
 import time
 import uuid
+from contextvars import Token
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Any
@@ -201,7 +202,7 @@ class _TraceSpan:
     _context: TraceContext | None
     _span_id: str | None = None
     _started_at_unix_ns: int | None = None
-    _token: object | None = None
+    _token: Token[TraceContext | None] | None = None
 
     def __enter__(self) -> "_TraceSpan":
         parent_context = self._context or self._tracer.current_context()

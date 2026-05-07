@@ -74,6 +74,7 @@ FUTURE_PROMISE_TERMS = (
     "then make",
     "then do",
 )
+ProcessTracerLike = ProcessTracer | NoopProcessTracer
 
 
 class RobotAgentState(TypedDict):
@@ -111,7 +112,7 @@ class LangGraphRobotAgent:
         tool_bridge: Any,
         robot_context: RobotContextStore,
         thread_id: str | None = None,
-        tracer: ProcessTracer | None = None,
+        tracer: ProcessTracerLike | None = None,
     ) -> None:
         self._model = model
         self._tool_bridge = tool_bridge

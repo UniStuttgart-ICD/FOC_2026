@@ -19,7 +19,13 @@ from pipecat.transports.base_transport import BaseTransport
 from agent_processor_factory import create_agent_processor
 from config import RuntimeConfig
 from metrics import VoiceMetricsObserver, VoiceMetricsRecorder
-from process_trace import JsonlTraceWriter, NoopProcessTracer, ProcessTracer, TraceContext, TraceOptions
+from process_trace import (
+    JsonlTraceWriter,
+    NoopProcessTracer,
+    ProcessTracer,
+    TraceContext,
+    TraceOptions,
+)
 from providers import create_stt_service, create_tts_service
 from voice_runtime.assembly import VoiceRuntimeParts, ordered_voice_runtime_processors
 from voice_runtime.wake_command import build_mave_voice_command_processors
@@ -125,7 +131,7 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
             include_text=config.metrics.include_text,
         )
         observers.append(VoiceMetricsObserver(metrics))
-    if config.process_trace.enabled:
+    if isinstance(process_tracer, ProcessTracer):
         observers.append(_create_process_trace_observer(process_tracer, session_context))
 
     task = PipelineTask(
@@ -155,7 +161,7 @@ def _build_process_tracer(config: RuntimeConfig) -> ProcessTracer | NoopProcessT
 
 
 def _create_process_trace_observer(
-    process_tracer: ProcessTracer | NoopProcessTracer,
+    process_tracer: ProcessTracer,
     session_context: TraceContext,
 ) -> BaseObserver:
     from process_trace.pipecat_observer import ProcessTraceObserver

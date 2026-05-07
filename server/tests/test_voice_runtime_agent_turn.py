@@ -213,6 +213,24 @@ async def test_agent_turn_processor_reuses_current_trace_turn_context() -> None:
 
 
 @pytest.mark.asyncio
+async def test_agent_turn_processor_reuses_tracer_owned_observer_turn_context() -> None:
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
+    processor = CapturingProcessor(EchoBackend(["done"]), tracer=tracer)
+    session_context = tracer.start_session("test", "local_debug")
+    turn_context = tracer.start_turn(context=session_context)
+
+    await processor.process_frame(
+        _context_frame([{"role": "user", "content": "move up"}]), FrameDirection.DOWNSTREAM
+    )
+
+    agent_span = [record for record in writer.records if record["name"] == "voice.agent_turn"][0]
+    turn_starts = [record for record in writer.records if record["name"] == "trace.turn_start"]
+    assert agent_span["turn_id"] == turn_context.turn_id
+    assert len(turn_starts) == 1
+
+
+@pytest.mark.asyncio
 async def test_agent_turn_processor_starts_new_turn_for_independent_context_frames() -> None:
     writer = MemoryTraceWriter()
     tracer = ProcessTracer(writer)

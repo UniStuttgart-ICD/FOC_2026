@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from pipecat.frames.frames import (
     BotStoppedSpeakingFrame,
@@ -38,7 +40,7 @@ def _observer(*, include_text: bool = True):
     return observer, writer
 
 
-def _records(writer: MemoryTraceWriter, name: str) -> list[dict[str, object]]:
+def _records(writer: MemoryTraceWriter, name: str) -> list[dict[str, Any]]:
     return [record for record in writer.records if record["name"] == name]
 
 

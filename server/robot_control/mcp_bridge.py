@@ -157,7 +157,7 @@ class RobotMCPBridge:
             try:
                 validate_robot_tool_call(name, normalized_arguments)
             except RobotCallValidationError as exc:
-                blocked_attributes = {
+                blocked_attributes: dict[str, Any] = {
                     "tool.name": name,
                     "reason": str(exc),
                     "correction": exc.correction,

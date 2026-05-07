@@ -103,6 +103,7 @@ class AgentTurnProcessor(FrameProcessor):
         self._tracer = tracer or NoopProcessTracer()
         self._on_turn_started = on_turn_started
         self._on_turn_finished = on_turn_finished
+        self._last_agent_turn_id: str | None = None
 
     async def connect(self) -> None:
         await self._backend.connect()
@@ -161,8 +162,18 @@ class AgentTurnProcessor(FrameProcessor):
     def _trace_turn_context(self, turn: AgentTurnInput) -> TraceContext:
         active_context = current_trace_context()
         if active_context.turn_id is not None:
+            self._last_agent_turn_id = active_context.turn_id
             return active_context
-        return self._tracer.start_turn(input_text=turn.user_text, context=active_context)
+        tracer_context = self._tracer.current_context()
+        if (
+            tracer_context.turn_id is not None
+            and tracer_context.turn_id != self._last_agent_turn_id
+        ):
+            self._last_agent_turn_id = tracer_context.turn_id
+            return tracer_context
+        turn_context = self._tracer.start_turn(input_text=turn.user_text, context=active_context)
+        self._last_agent_turn_id = turn_context.turn_id
+        return turn_context
 
     async def _run_turn(self, turn: AgentTurnInput) -> str:
         has_text = False

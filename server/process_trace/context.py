@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from typing import Iterator
 
@@ -32,11 +32,11 @@ def use_trace_context(context: TraceContext) -> Iterator[TraceContext]:
         _CURRENT_TRACE_CONTEXT.reset(token)
 
 
-def _set_trace_context(context: TraceContext):
+def _set_trace_context(context: TraceContext) -> Token[TraceContext | None]:
     return _CURRENT_TRACE_CONTEXT.set(context)
 
 
-def _reset_trace_context(token: object) -> None:
+def _reset_trace_context(token: Token[TraceContext | None]) -> None:
     _CURRENT_TRACE_CONTEXT.reset(token)
 
 

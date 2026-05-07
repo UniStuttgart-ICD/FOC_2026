@@ -11,6 +11,8 @@ from robot_control.context import RobotContextStore
 from robot_control.mcp_bridge import RobotMCPBridge
 from voice_runtime.agent_turn import AgentTurnInput
 
+ProcessTracerLike = ProcessTracer | NoopProcessTracer
+
 
 class LangChainAgentProcessor:
     """Runs agent turns through an API-key-backed LangChain chat model."""
@@ -22,7 +24,7 @@ class LangChainAgentProcessor:
         chat_model: Any,
         model_label: str,
         tool_bridge: Any | None = None,
-        tracer: ProcessTracer | None = None,
+        tracer: ProcessTracerLike | None = None,
     ):
         self._mcp_server_url = mcp_server_url
         self._chat_model = chat_model
@@ -110,7 +112,7 @@ class LangChainAgentProcessor:
         return self._graph_agent
 
 
-def _robot_mcp_bridge(mcp_server_url: str, *, tracer: ProcessTracer | NoopProcessTracer) -> Any:
+def _robot_mcp_bridge(mcp_server_url: str, *, tracer: ProcessTracerLike) -> Any:
     if _accepts_tracer_keyword(RobotMCPBridge):
         return RobotMCPBridge(mcp_server_url, tracer=tracer)
     return RobotMCPBridge(mcp_server_url)
