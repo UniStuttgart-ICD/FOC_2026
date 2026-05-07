@@ -40,7 +40,7 @@ New-Item -ItemType Directory -Force $logDir | Out-Null
 uv run python -m wake_tuning.app 1> "$logDir/wake_tuning_server.out.log" 2> "$logDir/wake_tuning_server.err.log"
 ```
 
-Open `http://127.0.0.1:9010`, start the mic, tune the sliders, then use **Save / implement**. Saved values go to ignored local state at `server/state/wake_tuning_settings.json` and override the selected profile's wake settings when the Pipecat bot starts.
+Open `http://127.0.0.1:9010`, start the mic, tune the sliders, then use **Save / implement**. Saved values go to ignored local state at `server/state/wake_tuning_settings.json`. This file is a local override read when the Pipecat bot starts; it does not edit `server/runtime_profiles.toml`.
 
 To make tuned values the shared default, copy the saved profile values into `server/runtime_profiles.toml` and commit the profile change. Do not commit `server/state/wake_tuning_settings.json`.
 

@@ -229,3 +229,5 @@ server/logs/
 
 # Manual live smoke evidence
 server/evidence/live_smoke/
+server/evidence/model_eval/
+server/evidence/model_eval_sharded/
