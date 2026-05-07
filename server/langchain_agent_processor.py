@@ -65,24 +65,23 @@ class LangChainAgentProcessor:
                 await self._ensure_connected()
             except Exception as exc:
                 logger.error("LangChain agent connection error: {}", exc)
-                yield "I can't reach the robot control server right now."
-                return
+                response = "I can't reach the robot control server right now."
+            else:
+                tool_bridge = self._tool_bridge
+                if tool_bridge is None:
+                    response = "I can't reach the robot control server right now."
+                else:
+                    if not self._model_logged:
+                        logger.info("LangChain model: {}", self._model_label)
+                        self._model_logged = True
 
-            tool_bridge = self._tool_bridge
-            if tool_bridge is None:
-                yield "I can't reach the robot control server right now."
-                return
-
-            if not self._model_logged:
-                logger.info("LangChain model: {}", self._model_label)
-                self._model_logged = True
-
-            graph = self._graph_agent_for(self._chat_model, tool_bridge)
-            try:
-                yield await graph.run_turn(turn)
-            except Exception as exc:
-                logger.error("LangChain agent error: {}", exc)
-                yield "I encountered an error. Please try again."
+                    graph = self._graph_agent_for(self._chat_model, tool_bridge)
+                    try:
+                        response = await graph.run_turn(turn)
+                    except Exception as exc:
+                        logger.error("LangChain agent error: {}", exc)
+                        response = "I encountered an error. Please try again."
+        yield response
 
     async def _ensure_connected(self) -> None:
         if self._connected:

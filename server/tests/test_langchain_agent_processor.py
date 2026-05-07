@@ -202,3 +202,47 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
         "model_label": "gpt-5.4-mini",
         "message_count": 1,
     }
+
+
+@pytest.mark.asyncio
+async def test_backend_turn_span_is_recorded_before_yielded_chunk_is_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeGraphAgent:
+        def __init__(
+            self,
+            *,
+            model: Any,
+            tool_bridge: Any,
+            robot_context: Any,
+            thread_id: str,
+            tracer: ProcessTracer,
+        ):
+            pass
+
+        async def run_turn(self, turn: AgentTurnInput) -> str:
+            return f"fake graph: {turn.user_text}"
+
+    monkeypatch.setattr("langchain_agent_processor.LangGraphRobotAgent", FakeGraphAgent)
+    writer = MemoryTraceWriter()
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=FakeChatModel([]),
+        model_label="gpt-5.4-mini",
+        tool_bridge=FakeBridge(),
+        tracer=ProcessTracer(writer),
+    )
+    turn = AgentTurnInput(user_text="hello", messages=[{"role": "user", "content": "hello"}])
+    chunks = processor.run_turn(turn)
+
+    first_chunk = await chunks.__anext__()
+
+    assert first_chunk == "fake graph: hello"
+    backend_spans = records_named(writer, "agent.backend_turn")
+    assert len(backend_spans) == 1
+    assert backend_spans[0]["status"] == "ok"
+    assert "error_type" not in backend_spans[0]["attributes"]
+
+    await chunks.aclose()
+
+    assert records_named(writer, "agent.backend_turn") == backend_spans
