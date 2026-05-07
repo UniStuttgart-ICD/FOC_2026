@@ -52,8 +52,8 @@ class SimulatedMoveItAdapter:
             for name in _SUPPORTED_TOOLS
         ]
 
-    async def call_tool(self, function_name: str, arguments: dict[str, Any]) -> str:
-        if function_name == "moveit_get_current_pose":
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        if name == "moveit_get_current_pose":
             return _tool_output(
                 content=[f"{ROBOT_NAME} pose is x={self._pose['position']['x']}, y={self._pose['position']['y']}, z={self._pose['position']['z']}."],
                 structured_content={
@@ -63,13 +63,13 @@ class SimulatedMoveItAdapter:
                     "raw": {"pose": copy.deepcopy(self._pose)},
                 },
             )
-        if function_name == "moveit_plan_and_execute_cartesian_motion":
+        if name == "moveit_plan_and_execute_cartesian_motion":
             return self._execute_cartesian(arguments)
-        if function_name == "moveit_plan_and_execute_named_pose":
+        if name == "moveit_plan_and_execute_named_pose":
             return self._execute_named_pose(arguments)
-        if function_name == "moveit_plan_and_execute_joint_goal":
+        if name == "moveit_plan_and_execute_joint_goal":
             return self._execute_joint_goal(arguments)
-        if function_name == "moveit_list_available_robots":
+        if name == "moveit_list_available_robots":
             return _tool_output(
                 content=[f"Available robots: {ROBOT_NAME}."],
                 structured_content={
@@ -78,7 +78,7 @@ class SimulatedMoveItAdapter:
                     "raw": {"robots": [ROBOT_NAME]},
                 },
             )
-        return _error_output(f"Tool is not supported by simulated MoveIt adapter: {function_name}")
+        return _error_output(f"Tool is not supported by simulated MoveIt adapter: {name}")
 
     def _execute_cartesian(self, arguments: dict[str, Any]) -> str:
         waypoints = arguments.get("waypoints", arguments.get("positions", arguments.get("points")))

@@ -8,7 +8,6 @@ import pytest
 
 from model_eval.config import EvalAdapterName, EvalRunConfig
 
-
 pytestmark = [pytest.mark.live, pytest.mark.llm]
 
 

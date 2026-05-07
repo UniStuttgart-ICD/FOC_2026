@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Literal, Protocol
+from typing import Any, Protocol
 
+from model_eval.config import EvalAdapterName
 from model_eval.simulated_moveit import SimulatedMoveItAdapter
 from robot_control.mcp_bridge import RobotMCPBridge
-
-try:
-    from model_eval.config import EvalAdapterName
-except ModuleNotFoundError:
-    EvalAdapterName = Literal["simulated", "live-mcp"]
 
 DEFAULT_MCP_URL = "http://127.0.0.1:8765/mcp"
 
@@ -20,7 +16,7 @@ class EvalToolAdapter(Protocol):
 
     def function_tools(self) -> list[dict[str, Any]]: ...
 
-    async def call_tool(self, function_name: str, arguments: dict[str, Any]) -> str: ...
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> str: ...
 
 
 def create_eval_tool_adapter(

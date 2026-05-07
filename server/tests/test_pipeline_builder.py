@@ -267,15 +267,16 @@ def test_logs_use_session_scoped_paths(monkeypatch, tmp_path: Path):
         _config(tmp_path, metrics_enabled=True, process_trace_enabled=True),
         cast(BaseTransport, FakeTransport()),
     )
+    tracer = cast(FakeProcessTracer, built.process_tracer)
 
-    assert built.process_tracer.writer.path == (
+    assert tracer.writer.path == (
         tmp_path
         / "process_trace"
         / "process_trace-20260507T123456Z-01234567.jsonl"
     )
     assert built.metrics is not None
     assert built.metrics._path == tmp_path / "metrics" / "metrics-20260507T123456Z-01234567.jsonl"
-    assert built.process_tracer.started_sessions == [
+    assert tracer.started_sessions == [
         ("no_wake_debug", "local_debug", "0123456789abcdef0123456789abcdef")
     ]
 
