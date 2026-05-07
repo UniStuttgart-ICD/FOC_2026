@@ -26,8 +26,8 @@ from process_trace import (
     TraceContext,
     TraceOptions,
 )
-from voice_runtime.providers import create_stt_service, create_tts_service
 from voice_runtime.assembly import VoiceRuntimeParts, ordered_voice_runtime_processors
+from voice_runtime.providers import create_stt_service, create_tts_service
 from voice_runtime.wake_command import build_mave_voice_command_processors
 from wake.openwakeword_detector import OpenWakeWordDetector
 
