@@ -21,6 +21,15 @@ One backend response to the latest user command, exposed to Voice Runtime as ass
 **Voice Metrics**:
 Semantic timing for wake, speech capture, STT, agent response, TTS first audio, and TTS completion.
 
+**Voice Modulation**:
+Provider-agnostic post-TTS audio shaping applied inside **Voice Runtime** before speech reaches transport output.
+
+**Voice Mod Lab**:
+The local web tuning app for generating TTS reference recordings, previewing **Voice Modulation**, and saving **Voice Modulation Presets**.
+
+**Voice Modulation Preset**:
+A saved set of validated audio-effect settings used by **Voice Modulation** for one **Runtime Profile**.
+
 **Voice Runtime Assembly**:
 The processor-ordering interface for transport input, optional Voice Command audio gate, STT, optional Voice Command transcript adapter, user aggregation, Agent Turn, TTS, transport output, and assistant aggregation.
 
@@ -128,6 +137,8 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 ## Relationships
 
 - **Voice Runtime Assembly** contains exactly one **Agent Turn** processor in the voice pipeline.
+- **Voice Modulation** belongs to **Voice Runtime** and runs after TTS, before transport output.
+- **Voice Mod Lab** may call TTS providers for reference recordings, but it saves **Voice Modulation Presets**, not shared Runtime Profile files.
 - **Agent Orchestration** happens behind **Agent Turn** and does not reorder **Voice Runtime Assembly**.
 - **Agent Control Module** satisfies the **Agent Turn** backend seam and may use **Robot Control Module**.
 - **Voice Runtime** must not own **Task Policy Layer**, **Robot Call Validation**, **Robot Tool Adapter**, or **Robot Context**.
