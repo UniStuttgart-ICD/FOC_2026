@@ -11,17 +11,20 @@ from pipecat.services.openai.stt import OpenAIRealtimeSTTService
 from pipecat.services.openai.tts import OpenAITTSService
 from pipecat.services.whisper.stt import WhisperSTTService
 
-from config import STTConfig, TTSConfig
+from voice_runtime.profiles import STTProfile, TTSProfile
 
 DEFAULT_CARTESIA_VOICE_ID = "47c38ca4-5f35-497b-b1a3-415245fb35e1"
 
 
-def create_stt_service(config: STTConfig) -> FrameProcessor:
+def create_stt_service(config: STTProfile) -> FrameProcessor:
     if config.provider == "whisper":
         return WhisperSTTService(
             device=config.device or "cuda",
             settings=WhisperSTTService.Settings(
-                model=config.model or os.getenv("WHISPER_MODEL") or os.getenv("OPENAI_MODEL") or "base",
+                model=config.model
+                or os.getenv("WHISPER_MODEL")
+                or os.getenv("OPENAI_MODEL")
+                or "base",
             ),
         )
     if config.provider == "deepgram_flux":
@@ -40,7 +43,7 @@ def create_stt_service(config: STTConfig) -> FrameProcessor:
     raise ValueError(f"Unsupported STT provider: {config.provider}")
 
 
-def create_tts_service(config: TTSConfig) -> FrameProcessor:
+def create_tts_service(config: TTSProfile) -> FrameProcessor:
     if config.provider == "kokoro":
         return KokoroTTSService(
             settings=KokoroTTSService.Settings(

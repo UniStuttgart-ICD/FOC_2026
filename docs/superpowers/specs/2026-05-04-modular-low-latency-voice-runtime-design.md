@@ -61,7 +61,7 @@ server/
   bot.py                    # entrypoint only: args/env → transport → runner
   config.py                 # CLI/env/TOML parsing, typed config, validation
   runtime_profiles.toml     # named stack profiles
-  providers.py              # create_stt_service(), create_tts_service()
+  voice_runtime/providers.py  # create_stt_service(), create_tts_service()
   agent_processor_factory.py# create Claude/OpenAI agent processor
   pipeline_builder.py       # assemble Pipecat Pipeline/PipelineTask
   metrics.py                # console + JSONL turn metrics
@@ -241,7 +241,7 @@ Metrics write failure should log a warning and disable metrics, not crash an act
    - Defines `RuntimeConfig`, `WakeConfig`, `EmergencyStopConfig`, `STTConfig`, `TTSConfig`, `AgentConfig`, `MCPConfig`, `MetricsConfig`.
 
 2. **Provider factories**
-   - `providers.py`, `tests/test_providers.py`
+   - `voice_runtime/providers.py`, `tests/test_providers.py`
    - STT: `deepgram_flux`, `openai_realtime`, `whisper`
    - TTS: `cartesia`, `openai`, `deepgram`, `kokoro`
 

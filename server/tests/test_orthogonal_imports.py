@@ -12,7 +12,6 @@ APP_MODULE_ROOTS = {
     "metrics",
     "pipeline_builder",
     "prompts",
-    "providers",
     "robot_control",
     "wake",
 }
@@ -35,6 +34,9 @@ DELETED_LEGACY_AGENT_MODULES = {
     SERVER_DIR / "codex_langchain_auth.py",
     SERVER_DIR / "codex_streaming_model.py",
     SERVER_DIR / "openai_codex_agent_processor.py",
+}
+DELETED_LEGACY_VOICE_PROVIDER_MODULES = {
+    SERVER_DIR / "providers.py",
 }
 PURE_MODULE_FORBIDDEN_ROOTS = {
     "agents",
@@ -107,3 +109,8 @@ def test_legacy_robot_modules_are_not_left_in_old_locations():
 def test_legacy_codex_oauth_modules_are_removed():
     for path in DELETED_LEGACY_AGENT_MODULES:
         assert not path.exists(), f"Legacy Codex OAuth module still exists: {path}"
+
+
+def test_legacy_voice_provider_module_is_not_left_at_app_root():
+    for path in DELETED_LEGACY_VOICE_PROVIDER_MODULES:
+        assert not path.exists(), f"Legacy Voice Providers module still exists: {path}"

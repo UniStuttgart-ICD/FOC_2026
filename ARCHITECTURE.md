@@ -39,7 +39,7 @@ This section names the target Modules and seams. Use symbol search for the menti
 It contains these target submodules:
 
 - **Runtime Profile**: parses runtime profiles and provider policy without constructing processors.
-- **Voice Providers**: constructs STT/TTS adapters for the Voice Runtime; `providers.py` is the legacy top-level placement.
+- **Voice Providers**: constructs STT/TTS adapters for the Voice Runtime in `voice_runtime.providers`.
 - **Voice Command**: owns wake detection, pre-buffer replay, wake phrase stripping, and rearming.
 - **Agent Turn**: exposes the AgentBackend seam and wraps one backend turn in Pipecat LLM frames.
 - **Voice Runtime Assembly**: owns processor ordering.
@@ -177,7 +177,7 @@ Runtime profile parsing belongs to `voice_runtime`; concrete runtime profile fil
 
 ### STT/TTS provider construction belongs to Voice Runtime
 
-STT/TTS provider construction is Voice Runtime adapter work. `providers.py` is a legacy top-level placement; its target home is under `voice_runtime`. `pipeline_builder.py` should remain the only caller.
+STT/TTS provider construction lives in `voice_runtime.providers`. `pipeline_builder.py` should remain the only caller.
 
 ### App shell stays thin
 

@@ -20,6 +20,14 @@ from pipeline_builder import build_pipeline
 from voice_runtime.wake_command import MaveVoiceCommandAudioGate, MaveVoiceCommandTranscriptAdapter
 
 
+def test_pipeline_builder_uses_voice_runtime_provider_factories():
+    import pipeline_builder
+    import voice_runtime.providers
+
+    assert pipeline_builder.create_stt_service is voice_runtime.providers.create_stt_service
+    assert pipeline_builder.create_tts_service is voice_runtime.providers.create_tts_service
+
+
 class FakePipeline:
     def __init__(self, processors):
         self.processors = processors
