@@ -47,6 +47,8 @@ class ProcessTraceObserver(BaseObserver):
         self._stt_span: _OpenSpan | None = None
         self._tts_span: _OpenSpan | None = None
         self._tts_first_audio_recorded = False
+        self._recorded_wake_frame_ids: set[int] = set()
+        self._recorded_stt_frame_ids: set[int] = set()
 
     async def on_push_frame(self, data: FramePushed):
         if data.direction != FrameDirection.DOWNSTREAM:
@@ -69,23 +71,24 @@ class ProcessTraceObserver(BaseObserver):
             self._finish_tts_turn()
 
     def _ensure_turn(self) -> TraceContext:
-        if self._turn_context is not None and self._turn_context.turn_id is not None:
+        if self._turn_context is not None:
             return self._turn_context
-
-        current_context = self._tracer.current_context()
-        if current_context.turn_id is not None:
-            self._turn_context = current_context
-            return current_context
 
         self._turn_context = self._tracer.start_turn(context=self._session_context)
         return self._turn_context
 
     def _record_wake(self, frame: WakeDetectedFrame) -> None:
+        frame_id = id(frame)
+        if frame_id in self._recorded_wake_frame_ids:
+            return
+        self._recorded_wake_frame_ids.add(frame_id)
+
         context = self._ensure_turn()
         attributes: dict[str, Any] = {
-            "wake_phrase": frame.wake_phrase,
             "score": frame.score,
         }
+        if self._tracer.options.include_text:
+            attributes["wake_phrase"] = frame.wake_phrase
         if frame.model_name is not None:
             attributes["model_name"] = frame.model_name
         self._tracer.event("voice.wake", _MODULE, attributes=attributes, context=context)
@@ -108,6 +111,11 @@ class ProcessTraceObserver(BaseObserver):
         self._stt_span = _OpenSpan(ended_at_unix_ns, self._ensure_turn())
 
     def _stop_stt(self, frame: TranscriptionFrame) -> None:
+        frame_id = id(frame)
+        if frame_id in self._recorded_stt_frame_ids:
+            return
+        self._recorded_stt_frame_ids.add(frame_id)
+
         span = self._stt_span or self._open_span()
         attributes = {}
         if self._tracer.options.include_text:

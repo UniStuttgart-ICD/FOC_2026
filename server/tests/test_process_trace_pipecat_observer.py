@@ -63,6 +63,54 @@ async def test_observer_emits_voice_wake_event() -> None:
 
 
 @pytest.mark.asyncio
+async def test_observer_emits_new_turn_for_each_wake_speech_tts_cycle() -> None:
+    observer, writer = _observer()
+
+    for text in ["move up", "move down"]:
+        await observer.on_push_frame(
+            _pushed(WakeDetectedFrame(wake_phrase="mave", model_name="mave", score=0.91))
+        )
+        await observer.on_push_frame(_pushed(UserStartedSpeakingFrame()))
+        await observer.on_push_frame(_pushed(UserStoppedSpeakingFrame()))
+        await observer.on_push_frame(
+            _pushed(TranscriptionFrame(text=text, user_id="u", timestamp="t", finalized=True))
+        )
+        await observer.on_push_frame(_pushed(LLMTextFrame(text="Moving.")))
+        await observer.on_push_frame(_pushed(TTSStoppedFrame()))
+
+    turn_starts = _records(writer, "trace.turn_start")
+    turn_ids = [record["turn_id"] for record in turn_starts]
+    assert len(turn_starts) == 2
+    assert len(set(turn_ids)) == 2
+
+
+@pytest.mark.asyncio
+async def test_observer_dedupes_same_wake_frame_object() -> None:
+    observer, writer = _observer()
+    frame = WakeDetectedFrame(wake_phrase="mave", model_name="mave", score=0.91)
+
+    await observer.on_push_frame(_pushed(frame))
+    await observer.on_push_frame(_pushed(frame))
+
+    assert len(_records(writer, "voice.wake")) == 1
+
+
+@pytest.mark.asyncio
+async def test_observer_omits_wake_phrase_when_include_text_false() -> None:
+    observer, writer = _observer(include_text=False)
+
+    await observer.on_push_frame(
+        _pushed(WakeDetectedFrame(wake_phrase="mave", model_name="mave", score=0.91))
+    )
+
+    wake = _records(writer, "voice.wake")[0]
+    assert wake["attributes"] == {
+        "model_name": "mave",
+        "score": 0.91,
+    }
+
+
+@pytest.mark.asyncio
 async def test_observer_emits_speech_capture_span_from_user_start_stop() -> None:
     observer, writer = _observer()
 
@@ -96,6 +144,18 @@ async def test_observer_emits_stt_span_with_transcript_only_when_include_text_tr
 
     private_stt = _records(private_writer, "voice.stt")[0]
     assert private_stt["attributes"] == {}
+
+
+@pytest.mark.asyncio
+async def test_observer_dedupes_same_finalized_transcription_frame_object() -> None:
+    observer, writer = _observer()
+    frame = TranscriptionFrame(text="move up", user_id="u", timestamp="t", finalized=True)
+
+    await observer.on_push_frame(_pushed(UserStoppedSpeakingFrame()))
+    await observer.on_push_frame(_pushed(frame))
+    await observer.on_push_frame(_pushed(frame))
+
+    assert len(_records(writer, "voice.stt")) == 1
 
 
 @pytest.mark.asyncio

@@ -17,7 +17,13 @@ from pipecat.frames.frames import (
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
-from process_trace import NoopProcessTracer, ProcessTracer, TraceContext, use_trace_context
+from process_trace import (
+    NoopProcessTracer,
+    ProcessTracer,
+    TraceContext,
+    current_trace_context,
+    use_trace_context,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -153,10 +159,10 @@ class AgentTurnProcessor(FrameProcessor):
                 self._on_turn_finished()
 
     def _trace_turn_context(self, turn: AgentTurnInput) -> TraceContext:
-        current_context = self._tracer.current_context()
-        if current_context.turn_id is not None:
-            return current_context
-        return self._tracer.start_turn(input_text=turn.user_text, context=current_context)
+        active_context = current_trace_context()
+        if active_context.turn_id is not None:
+            return active_context
+        return self._tracer.start_turn(input_text=turn.user_text, context=active_context)
 
     async def _run_turn(self, turn: AgentTurnInput) -> str:
         has_text = False
