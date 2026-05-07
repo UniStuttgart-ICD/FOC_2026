@@ -21,7 +21,10 @@ def create_stt_service(config: STTProfile) -> FrameProcessor:
         return WhisperSTTService(
             device=config.device or "cuda",
             settings=WhisperSTTService.Settings(
-                model=config.model or os.getenv("WHISPER_MODEL") or os.getenv("OPENAI_MODEL") or "base",
+                model=config.model
+                or os.getenv("WHISPER_MODEL")
+                or os.getenv("OPENAI_MODEL")
+                or "base",
             ),
         )
     if config.provider == "deepgram_flux":
