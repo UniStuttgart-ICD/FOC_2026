@@ -86,6 +86,16 @@ After `robot_control` extraction, extract `agent_control`, then keep any remaini
 
 **API Boundary:** `robot_control` exposes robot tools and structured tool feedback to `agent_control`. It owns robot-specific vocabulary and must not depend on Pipecat pipeline modules.
 
+### `process_trace`
+
+`process_trace` is the reusable Process Trace Module for voice robot observability. It records semantic spans and events across Voice Runtime, Agent Orchestration, and Robot Control, then writes local append-only JSONL.
+
+It owns trace IDs, session IDs, turn IDs, span parentage, timestamps, JSON-safe attributes, redaction, writer failure handling, and no-op tracing. It does not own runtime behavior, pipeline ordering, model calls, policy decisions, validation, MCP execution, or robot context mutation.
+
+Voice Runtime emits wake, speech capture, STT, Agent Turn, and TTS spans. Agent Control emits backend turn, LangGraph node, graph turn, and model-call spans. Robot Control emits task policy, robot call validation, Robot Context update, and MCP spans.
+
+**API Boundary:** pure `process_trace` core modules must not import Pipecat, LangGraph, LangChain, MCP, Voice Runtime, Agent Control, or Robot Control. Pipecat-specific tracing lives in a thin adapter.
+
 ### Task Policy Layer
 
 Task Policy v1 blocks only obvious under-observed or incorrectly ordered tool calls before robot tools run:
@@ -155,7 +165,7 @@ Robot Call Validation does not understand user intent, validate arbitrary multi-
 
 ### Import directions are constrained
 
-`pipeline_builder.py` is the composition root and may import Voice Runtime, Agent Control, and Robot Control packages. `voice_runtime` must not import `agent_control` or `robot_control`. `agent_control` may import `voice_runtime.agent_turn` types and `robot_control`. `robot_control` must not import `voice_runtime` or `agent_control`.
+`pipeline_builder.py` is the composition root and may import Voice Runtime, Agent Control, Robot Control, and Process Trace packages. `voice_runtime` must not import `agent_control` or `robot_control`. `agent_control` may import `voice_runtime.agent_turn` types and `robot_control`. `robot_control` must not import `voice_runtime` or `agent_control`. Pure `process_trace` core modules must not import runtime/control Modules.
 
 ### Robot Control does not belong in Voice Runtime
 
@@ -185,7 +195,11 @@ Agent-facing knowledge must live in repository-local, versioned files. `AGENTS.m
 
 ### Observability
 
-Voice Metrics are semantic turn timing records. Pipecat frame observation belongs with Voice Runtime adapters. JSONL persistence is app configuration. Robot tool feedback should be structured enough for Codex and humans to understand blocked steps and next actions.
+Voice Metrics are compact semantic turn timing records.
+
+Process Trace is the always-on local trace of a robot voice run. It records wake, speech capture, STT, Agent Turn, LangGraph node, model call, task policy, robot call validation, MCP tool call, Robot Context update, and TTS spans/events in `logs/process_trace.jsonl` by default. The trace is observational; it must not change runtime behavior.
+
+Pipecat frame observation belongs with Voice Runtime adapters. JSONL persistence is app configuration. Robot tool feedback should be structured enough for Codex and humans to understand blocked steps and next actions.
 
 ### Reference inspirations
 

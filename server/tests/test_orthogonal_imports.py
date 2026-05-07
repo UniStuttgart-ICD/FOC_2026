@@ -56,6 +56,13 @@ PROCESS_TRACE_FORBIDDEN_ROOTS = PURE_MODULE_FORBIDDEN_ROOTS | {
     "robot_control",
     "voice_runtime",
 }
+PURE_PROCESS_TRACE_MODULES = {
+    "__init__.py",
+    "context.py",
+    "jsonl.py",
+    "records.py",
+    "trace.py",
+}
 
 
 def _import_roots(path: Path) -> set[str]:
@@ -85,10 +92,11 @@ def test_pure_voice_runtime_modules_do_not_import_runtime_adapters():
 
 
 def test_process_trace_core_modules_do_not_import_runtime_layers():
-    for path in PROCESS_TRACE_DIR.glob("*.py"):
+    for name in PURE_PROCESS_TRACE_MODULES:
+        path = PROCESS_TRACE_DIR / name
         imported = _import_roots(path)
         forbidden = imported & PROCESS_TRACE_FORBIDDEN_ROOTS
-        assert not forbidden, f"{path.name} imports runtime layer module(s): {sorted(forbidden)}"
+        assert not forbidden, f"{name} imports runtime layer module(s): {sorted(forbidden)}"
 
 
 def test_legacy_robot_modules_are_not_left_in_old_locations():
