@@ -2,6 +2,9 @@ from pipecat.processors.frame_processor import FrameProcessor
 
 from agent_processor_factory import create_agent_processor
 from config import AgentConfig
+from langchain_agent_processor import LangChainAgentProcessor
+from process_trace import MemoryTraceWriter, ProcessTracer
+from voice_runtime.agent_turn import AgentTurnProcessor
 
 
 class FakeChatModel:
@@ -116,3 +119,28 @@ def test_passes_tracer_to_backend_and_agent_turn_processor(monkeypatch):
     assert processor.tracer is tracer
     assert isinstance(processor._backend, FakeLangChainAgentProcessor)
     assert processor._backend.tracer is tracer
+
+
+def test_factory_real_processors_accept_tracer(monkeypatch):
+    tracer = ProcessTracer(MemoryTraceWriter())
+    monkeypatch.setattr(
+        "agent_processor_factory.build_agent_chat_model",
+        lambda config: FakeChatModel(),
+        raising=False,
+    )
+
+    processor = create_agent_processor(
+        AgentConfig(
+            provider="openai_api",
+            model="gpt-5.4-mini",
+            reasoning_effort="low",
+            api_key_env="OPENAI_API_KEY",
+        ),
+        mcp_server_url="http://127.0.0.1:8765/mcp",
+        tracer=tracer,
+    )
+
+    assert isinstance(processor, AgentTurnProcessor)
+    assert processor._tracer is tracer
+    assert isinstance(processor._backend, LangChainAgentProcessor)
+    assert processor._backend._tracer is tracer
