@@ -12,6 +12,8 @@ from typing import Any
 from voice_modulation.settings import VoiceModulationSettings
 from voice_runtime.profiles import TTSProfile
 
+PREVIEW_SAMPLE_RATE = 24000
+
 
 class VoicePreviewError(RuntimeError):
     """Raised when a preview cannot be rendered."""
@@ -112,9 +114,10 @@ def synthesize_tts_reference(tts: TTSProfile, text: str) -> AudioBytes:
 
 
 async def _synthesize_tts_reference(tts: TTSProfile, text: str) -> AudioBytes:
-    from pipecat.frames.frames import ErrorFrame, TTSAudioRawFrame
+    from pipecat.frames.frames import EndFrame, ErrorFrame, TTSAudioRawFrame
 
     service, session_to_close = await _create_tts_service(tts)
+    _prime_preview_sample_rate(service)
     chunks: list[bytes] = []
     sample_rate: int | None = None
     channels: int | None = None
@@ -133,7 +136,7 @@ async def _synthesize_tts_reference(tts: TTSProfile, text: str) -> AudioBytes:
         try:
             stop = getattr(service, "stop", None)
             if stop is not None:
-                maybe_awaitable = stop(None)
+                maybe_awaitable = stop(EndFrame())
                 if hasattr(maybe_awaitable, "__await__"):
                     await maybe_awaitable
         finally:
@@ -145,6 +148,12 @@ async def _synthesize_tts_reference(tts: TTSProfile, text: str) -> AudioBytes:
     return AudioBytes(pcm16=b"".join(chunks), sample_rate=sample_rate, channels=channels)
 
 
+def _prime_preview_sample_rate(service: Any) -> None:
+    sample_rate = getattr(service, "sample_rate", None)
+    if isinstance(sample_rate, int) and sample_rate <= 0 and hasattr(service, "_sample_rate"):
+        setattr(service, "_sample_rate", PREVIEW_SAMPLE_RATE)
+
+
 async def _create_tts_service(tts: TTSProfile) -> tuple[Any, Any | None]:
     if tts.provider == "openai":
         from pipecat.services.openai.tts import OpenAITTSService
@@ -154,7 +163,7 @@ async def _create_tts_service(tts: TTSProfile) -> tuple[Any, Any | None]:
                 api_key=os.environ["OPENAI_API_KEY"],
                 model=tts.model or "gpt-4o-mini-tts",
                 voice=tts.voice or "coral",
-                sample_rate=24000,
+                sample_rate=PREVIEW_SAMPLE_RATE,
             ),
             None,
         )
@@ -166,7 +175,7 @@ async def _create_tts_service(tts: TTSProfile) -> tuple[Any, Any | None]:
                 api_key=os.environ["CARTESIA_API_KEY"],
                 model=tts.model or "sonic-3",
                 voice_id=tts.voice or os.getenv("CARTESIA_VOICE_ID"),
-                sample_rate=24000,
+                sample_rate=PREVIEW_SAMPLE_RATE,
             ),
             None,
         )
@@ -177,9 +186,11 @@ async def _create_tts_service(tts: TTSProfile) -> tuple[Any, Any | None]:
         session = aiohttp.ClientSession()
         service = DeepgramHttpTTSService(
             api_key=os.environ["DEEPGRAM_API_KEY"],
-            voice=tts.voice or tts.model or "aura-2-andromeda-en",
             aiohttp_session=session,
-            sample_rate=24000,
+            sample_rate=PREVIEW_SAMPLE_RATE,
+            settings=DeepgramHttpTTSService.Settings(
+                voice=tts.voice or tts.model or "aura-2-andromeda-en"
+            ),
         )
         return service, session
     if tts.provider == "kokoro":

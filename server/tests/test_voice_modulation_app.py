@@ -384,3 +384,43 @@ def test_tts_synthesizer_reports_missing_provider_env(monkeypatch) -> None:
 
     with pytest.raises(VoicePreviewError, match="OPENAI_API_KEY"):
         synthesize_tts_reference(TTSProfile(provider="openai"), "hello")
+
+
+@pytest.mark.asyncio
+async def test_tts_reference_preview_primes_sample_rate_before_run_tts(monkeypatch) -> None:
+    from pipecat.frames.frames import TTSAudioRawFrame
+
+    from voice_modulation import preview
+
+    class FakeTTSService:
+        def __init__(self) -> None:
+            self._sample_rate = 0
+            self.stopped = False
+
+        @property
+        def sample_rate(self) -> int:
+            return self._sample_rate
+
+        async def stop(self, frame) -> None:
+            self.stopped = True
+
+        async def run_tts(self, text: str, context_id: str):
+            assert self.sample_rate == 24000
+            yield TTSAudioRawFrame(
+                audio=b"\x00\x00",
+                sample_rate=self.sample_rate,
+                num_channels=1,
+                context_id=context_id,
+            )
+
+    service = FakeTTSService()
+
+    async def fake_create_tts_service(tts: TTSProfile):
+        return service, None
+
+    monkeypatch.setattr(preview, "_create_tts_service", fake_create_tts_service)
+
+    audio = await preview._synthesize_tts_reference(TTSProfile(provider="deepgram"), "hello")
+
+    assert service.stopped is True
+    assert audio.sample_rate == 24000
