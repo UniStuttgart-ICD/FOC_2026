@@ -6,6 +6,7 @@ import pytest
 from langchain_core.messages import AIMessage, BaseMessage
 
 from langchain_agent_processor import LangChainAgentProcessor
+from process_trace import MemoryTraceWriter, ProcessTracer
 from voice_runtime.agent_turn import AgentTurnInput
 
 
@@ -95,6 +96,10 @@ def ai_tool_call(name: str, args: dict[str, Any], call_id: str = "call-1") -> AI
     )
 
 
+def records_named(writer: MemoryTraceWriter, name: str) -> list[dict[str, Any]]:
+    return [record for record in writer.records if record["name"] == name]
+
+
 @pytest.mark.asyncio
 async def test_generic_processor_runs_langgraph_without_oauth_credentials():
     model = FakeChatModel([ai_text("ready")])
@@ -137,3 +142,63 @@ async def test_generic_processor_executes_model_tool_call():
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
+
+
+@pytest.mark.asyncio
+async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_and_graph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created_bridges: list[Any] = []
+    created_graphs: list[Any] = []
+
+    class CreatedBridge(FakeBridge):
+        def __init__(self, url: str, *, tracer: ProcessTracer):
+            super().__init__()
+            self.url = url
+            self.tracer = tracer
+            created_bridges.append(self)
+
+    class FakeGraphAgent:
+        def __init__(
+            self,
+            *,
+            model: Any,
+            tool_bridge: Any,
+            robot_context: Any,
+            thread_id: str,
+            tracer: ProcessTracer,
+        ):
+            self.model = model
+            self.tool_bridge = tool_bridge
+            self.robot_context = robot_context
+            self.thread_id = thread_id
+            self.tracer = tracer
+            created_graphs.append(self)
+
+        async def run_turn(self, turn: AgentTurnInput) -> str:
+            return f"fake graph: {turn.user_text}"
+
+    monkeypatch.setattr("langchain_agent_processor.RobotMCPBridge", CreatedBridge)
+    monkeypatch.setattr("langchain_agent_processor.LangGraphRobotAgent", FakeGraphAgent)
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=FakeChatModel([]),
+        model_label="gpt-5.4-mini",
+        tracer=tracer,
+    )
+
+    result = await _run_turn(processor, "hello")
+
+    assert result.chunks == ["fake graph: hello"]
+    assert created_bridges[0].tracer is tracer
+    assert created_graphs[0].tracer is tracer
+    backend_span = records_named(writer, "agent.backend_turn")[-1]
+    assert backend_span["record_type"] == "span"
+    assert backend_span["module"] == "agent_control"
+    assert backend_span["status"] == "ok"
+    assert backend_span["attributes"] == {
+        "model_label": "gpt-5.4-mini",
+        "message_count": 1,
+    }

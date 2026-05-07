@@ -6,6 +6,7 @@ from typing import Any, cast
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
+from process_trace import MemoryTraceWriter, ProcessTracer
 from robot_control.context import RobotContextStore
 from voice_runtime.agent_turn import AgentTurnInput
 
@@ -178,7 +179,12 @@ class GraphFixture:
     bridge: FakeBridge
 
 
-def make_graph(responses: list[AIMessage], *, bridge: FakeBridge | None = None) -> GraphFixture:
+def make_graph(
+    responses: list[AIMessage],
+    *,
+    bridge: FakeBridge | None = None,
+    tracer: ProcessTracer | None = None,
+) -> GraphFixture:
     from langgraph_robot_agent import LangGraphRobotAgent
 
     model = FakeChatModel(responses)
@@ -188,6 +194,7 @@ def make_graph(responses: list[AIMessage], *, bridge: FakeBridge | None = None) 
         tool_bridge=selected_bridge,
         robot_context=RobotContextStore(),
         thread_id="test-session",
+        tracer=tracer,
     )
     return GraphFixture(graph=graph, model=model, bridge=selected_bridge)
 
@@ -238,6 +245,10 @@ def last_tool_content(model: FakeChatModel) -> str:
     return content
 
 
+def records_named(writer: MemoryTraceWriter, name: str) -> list[dict[str, Any]]:
+    return [record for record in writer.records if record["name"] == name]
+
+
 @pytest.mark.asyncio
 async def test_graph_observes_current_pose_before_simple_model_response() -> None:
     fixture = make_graph([ai_text("oauth-ok")])
@@ -257,6 +268,120 @@ async def test_graph_observes_current_pose_before_simple_model_response() -> Non
             "parameters": {"type": "object"},
         },
     }
+
+
+@pytest.mark.asyncio
+async def test_graph_turn_emits_graph_and_node_spans() -> None:
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
+    fixture = make_graph([ai_text("oauth-ok")], tracer=tracer)
+
+    text = await fixture.graph.run_turn(turn("hello"))
+
+    assert text == "oauth-ok"
+    span_names = [record["name"] for record in writer.records if record["record_type"] == "span"]
+    assert "agent.graph_turn" in span_names
+    assert "agent.langgraph_node.observe_current_pose" in span_names
+    assert "agent.langgraph_node.call_model" in span_names
+    assert "agent.langgraph_node.final_response" in span_names
+    graph_span = records_named(writer, "agent.graph_turn")[-1]
+    assert graph_span["module"] == "agent_control"
+    assert graph_span["attributes"] == {
+        "thread_id": "test-session",
+        "message_count": 1,
+        "user_text": "hello",
+    }
+    node_span = records_named(writer, "agent.langgraph_node.call_model")[-1]
+    assert node_span["attributes"]["node.name"] == "call_model"
+    assert node_span["attributes"]["message_count"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_call_model_emits_model_call_span() -> None:
+    from langgraph_robot_agent import LangGraphRobotAgent
+
+    writer = MemoryTraceWriter()
+    graph = LangGraphRobotAgent(
+        model=FakeChatModel([ai_text("response")]),
+        tool_bridge=FakeBridge(),
+        robot_context=RobotContextStore(),
+        thread_id="test-session",
+        tracer=ProcessTracer(writer),
+    )
+
+    result = await graph._call_model(model_state())
+
+    assert result["messages"] == [ai_text("response")]
+    model_span = records_named(writer, "agent.model_call")[-1]
+    assert model_span["module"] == "agent_control"
+    assert model_span["status"] == "ok"
+    assert model_span["attributes"] == {
+        "tool_turns": 0,
+        "message_count": 2,
+        "tool_count": 6,
+        "tool_call_count": 0,
+        "tool_call_names": [],
+        "text_length": len("response"),
+    }
+
+
+@pytest.mark.asyncio
+async def test_policy_blocked_call_emits_task_policy_and_does_not_call_mcp() -> None:
+    from langgraph_robot_agent import LangGraphRobotAgent
+
+    writer = MemoryTraceWriter()
+    bridge = FakeBridge()
+    graph = LangGraphRobotAgent(
+        model=FakeChatModel([]),
+        tool_bridge=bridge,
+        robot_context=RobotContextStore(),
+        thread_id="test-session",
+        tracer=ProcessTracer(writer),
+    )
+    plan_args = {
+        "robot_name": "UR10",
+        "target_pose": {
+            "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+    }
+
+    output = await graph._call_policy_checked_tool("moveit_plan_free_motion", plan_args)
+
+    assert bridge.calls == []
+    assert json.loads(output)["ok"] is False
+    policy_span = records_named(writer, "robot.task_policy")[-1]
+    assert policy_span["module"] == "robot_control"
+    assert policy_span["status"] == "ok"
+    assert policy_span["attributes"]["tool.name"] == "moveit_plan_free_motion"
+    assert policy_span["attributes"]["decision_ok"] is False
+    assert policy_span["attributes"]["suggested_next_tool"] == "moveit_get_current_pose"
+
+
+@pytest.mark.asyncio
+async def test_successful_tool_call_emits_context_update() -> None:
+    from langgraph_robot_agent import LangGraphRobotAgent
+
+    writer = MemoryTraceWriter()
+    bridge = FakeBridge()
+    graph = LangGraphRobotAgent(
+        model=FakeChatModel([]),
+        tool_bridge=bridge,
+        robot_context=RobotContextStore(),
+        thread_id="test-session",
+        tracer=ProcessTracer(writer),
+    )
+
+    output = await graph._call_policy_checked_tool(
+        "moveit_get_current_pose", {"robot_name": "UR10"}
+    )
+
+    assert json.loads(output)["structured_content"]["ok"] is True
+    assert bridge.calls == [("moveit_get_current_pose", {"robot_name": "UR10"})]
+    event = records_named(writer, "robot.context_update")[-1]
+    assert event["record_type"] == "event"
+    assert event["module"] == "robot_control"
+    assert event["attributes"] == {"tool.name": "moveit_get_current_pose"}
 
 
 @pytest.mark.asyncio
@@ -554,6 +679,30 @@ async def test_supported_motion_request_falls_back_after_required_tool_retry_fai
 
 
 @pytest.mark.asyncio
+async def test_supported_action_fallback_emits_decision_event() -> None:
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
+    fixture = make_graph(
+        [
+            ai_text("I’ll use a MoveIt action tool now."),
+            ai_text(""),
+        ],
+        tracer=tracer,
+    )
+
+    text = await fixture.graph.run_turn(turn("move up a bit"))
+
+    assert text == "Moved up 50 mm."
+    event = records_named(writer, "agent.supported_action_fallback")[-1]
+    assert event["record_type"] == "event"
+    assert event["module"] == "agent_control"
+    assert event["attributes"] == {
+        "step_count": 1,
+        "tool.names": ["moveit_plan_and_execute_free_motion"],
+    }
+
+
+@pytest.mark.asyncio
 async def test_ambiguous_motion_request_clarifies_after_required_tool_retry_fails() -> None:
     fixture = make_graph(
         [
@@ -596,6 +745,8 @@ async def test_graph_rejects_additional_tool_calls_after_first_without_executing
             "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
         },
     }
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
     fixture = make_graph(
         [
             AIMessage(
@@ -616,7 +767,8 @@ async def test_graph_rejects_additional_tool_calls_after_first_without_executing
                 ],
             ),
             ai_text("Plan is ready; I did not execute twice."),
-        ]
+        ],
+        tracer=tracer,
     )
 
     await fixture.graph.run_turn(turn("move up a bit"))
@@ -637,6 +789,14 @@ async def test_graph_rejects_additional_tool_calls_after_first_without_executing
     rejected_output = json.loads(rejected.content)
     assert rejected_output["ok"] is False
     assert rejected_output["suggested_next_tool"] == "moveit_execute_plan"
+    event = records_named(writer, "agent.extra_tool_call_rejected")[-1]
+    assert event["record_type"] == "event"
+    assert event["module"] == "agent_control"
+    assert event["attributes"] == {
+        "tool.name": "moveit_execute_plan",
+        "tool_call_id": "call-2",
+        "tool_call_index": 1,
+    }
 
 
 @pytest.mark.asyncio

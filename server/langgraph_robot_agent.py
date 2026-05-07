@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import operator
 import uuid
@@ -14,6 +15,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from loguru import logger
 
+from process_trace import NoopProcessTracer, ProcessTracer
 from prompts import SYSTEM_PROMPT
 from robot_control.call_validation import (
     RobotCallValidationError,
@@ -109,11 +111,13 @@ class LangGraphRobotAgent:
         tool_bridge: Any,
         robot_context: RobotContextStore,
         thread_id: str | None = None,
+        tracer: ProcessTracer | None = None,
     ) -> None:
         self._model = model
         self._tool_bridge = tool_bridge
         self._robot_context = robot_context
         self._thread_id = thread_id or f"robot-agent-{uuid.uuid4()}"
+        self._tracer = tracer or NoopProcessTracer()
         self._latest_state: dict[str, Any] | None = None
         self._graph = self._compile_graph()
 
@@ -130,10 +134,21 @@ class LangGraphRobotAgent:
             "final_text": "",
             "error_text": None,
         }
-        result = await self._graph.ainvoke(
-            state,
-            {"configurable": {"thread_id": self._thread_id}},
-        )
+        attributes: dict[str, Any] = {
+            "thread_id": self._thread_id,
+            "message_count": len(state["messages"]),
+        }
+        if self._tracer.options.include_text:
+            attributes["user_text"] = turn.user_text
+        async with self._tracer.span(
+            "agent.graph_turn",
+            "agent_control",
+            attributes=attributes,
+        ):
+            result = await self._graph.ainvoke(
+                state,
+                {"configurable": {"thread_id": self._thread_id}},
+            )
         self._latest_state = result
         return str(result.get("final_text") or NO_TEXT_RESPONSE)
 
@@ -142,13 +157,31 @@ class LangGraphRobotAgent:
 
     def _compile_graph(self):
         builder = StateGraph(RobotAgentState)
-        builder.add_node("observe_current_pose", self._observe_current_pose)
-        builder.add_node("call_model", self._call_model)
-        builder.add_node("execute_robot_tool", self._execute_robot_tool)
-        builder.add_node("repair_missing_action", self._repair_missing_action)
-        builder.add_node("execute_supported_action", self._execute_supported_action)
-        builder.add_node("stop_after_tool_limit", self._stop_after_tool_limit)
-        builder.add_node("final_response", self._final_response)
+        builder.add_node(
+            "observe_current_pose",
+            self._traced_node("observe_current_pose", self._observe_current_pose),
+        )
+        builder.add_node("call_model", self._traced_node("call_model", self._call_model))
+        builder.add_node(
+            "execute_robot_tool",
+            self._traced_node("execute_robot_tool", self._execute_robot_tool),
+        )
+        builder.add_node(
+            "repair_missing_action",
+            self._traced_node("repair_missing_action", self._repair_missing_action),
+        )
+        builder.add_node(
+            "execute_supported_action",
+            self._traced_node("execute_supported_action", self._execute_supported_action),
+        )
+        builder.add_node(
+            "stop_after_tool_limit",
+            self._traced_node("stop_after_tool_limit", self._stop_after_tool_limit),
+        )
+        builder.add_node(
+            "final_response",
+            self._traced_node("final_response", self._final_response),
+        )
         builder.add_edge(START, "observe_current_pose")
         builder.add_edge("observe_current_pose", "call_model")
         builder.add_conditional_edges("call_model", self._route_after_model)
@@ -158,6 +191,24 @@ class LangGraphRobotAgent:
         builder.add_edge("stop_after_tool_limit", END)
         builder.add_edge("final_response", END)
         return builder.compile(checkpointer=InMemorySaver())
+
+    def _traced_node(self, node_name: str, node_fn: Any) -> Any:
+        async def wrapped(state: RobotAgentState) -> dict[str, Any]:
+            async with self._tracer.span(
+                f"agent.langgraph_node.{node_name}",
+                "agent_control",
+                attributes={
+                    "node.name": node_name,
+                    "tool_turns": state.get("tool_turns", 0),
+                    "message_count": len(state.get("messages", [])),
+                },
+            ):
+                result = node_fn(state)
+                if inspect.isawaitable(result):
+                    result = await result
+                return result
+
+        return wrapped
 
     async def _observe_current_pose(self, state: RobotAgentState) -> dict[str, Any]:
         tools = self._tool_bridge.function_tools()
@@ -179,41 +230,57 @@ class LangGraphRobotAgent:
             tool_choice=_tool_choice_for_state(state),
         )
         system = SystemMessage(content=self._instructions())
+        messages = [system, *state["messages"]]
+        trace_attributes: dict[str, Any] = {
+            "tool_turns": state["tool_turns"],
+            "message_count": len(messages),
+            "tool_count": len(tools),
+        }
         started = monotonic_s()
         logger.info(
             "LangChain request start tool_turns={} messages={} tools={}",
             state["tool_turns"],
-            len(state["messages"]),
+            len(messages),
             len(tools),
         )
-        try:
-            message = await model.ainvoke([system, *state["messages"]])
-        except asyncio.CancelledError:
-            logger.warning(
-                "LangChain request cancelled elapsed_ms={} tool_turns={} messages={} tools={}",
-                elapsed_ms_since(started),
-                state["tool_turns"],
-                len(state["messages"]),
-                len(tools),
-            )
-            raise
-        except Exception as exc:
-            logger.exception(
-                "LangChain request failed elapsed_ms={} tool_turns={} messages={} tools={} error={}",
-                elapsed_ms_since(started),
-                state["tool_turns"],
-                len(state["messages"]),
-                len(tools),
-                exc,
-            )
-            raise
-        else:
-            logger.info(
-                "LangChain request end elapsed_ms={} tool_calls={} text_len={}",
-                elapsed_ms_since(started),
-                [call.get("name") for call in getattr(message, "tool_calls", [])],
-                len(_message_text(message)),
-            )
+        async with self._tracer.span(
+            "agent.model_call",
+            "agent_control",
+            attributes=trace_attributes,
+        ):
+            try:
+                message = await model.ainvoke(messages)
+            except asyncio.CancelledError:
+                logger.warning(
+                    "LangChain request cancelled elapsed_ms={} tool_turns={} messages={} tools={}",
+                    elapsed_ms_since(started),
+                    state["tool_turns"],
+                    len(messages),
+                    len(tools),
+                )
+                raise
+            except Exception as exc:
+                logger.exception(
+                    "LangChain request failed elapsed_ms={} tool_turns={} messages={} tools={} error={}",
+                    elapsed_ms_since(started),
+                    state["tool_turns"],
+                    len(messages),
+                    len(tools),
+                    exc,
+                )
+                raise
+            else:
+                tool_calls = getattr(message, "tool_calls", []) or []
+                tool_call_names = [str(call.get("name") or "") for call in tool_calls]
+                trace_attributes["tool_call_count"] = len(tool_calls)
+                trace_attributes["tool_call_names"] = tool_call_names
+                trace_attributes["text_length"] = len(_message_text(message))
+                logger.info(
+                    "LangChain request end elapsed_ms={} tool_calls={} text_len={}",
+                    elapsed_ms_since(started),
+                    tool_call_names,
+                    trace_attributes["text_length"],
+                )
         return {"messages": [message], "tools": tools}
 
     def _route_after_model(
@@ -262,6 +329,14 @@ class LangGraphRobotAgent:
         if action is None:
             return {"final_text": NO_TEXT_RESPONSE}
 
+        self._tracer.event(
+            "agent.supported_action_fallback",
+            "agent_control",
+            attributes={
+                "step_count": len(action.steps),
+                "tool.names": [step.name for step in action.steps],
+            },
+        )
         output = ""
         execution_verified = True
         for step in action.steps:
@@ -309,6 +384,15 @@ class LangGraphRobotAgent:
             args = call_args if isinstance(call_args, dict) else {}
             call_id = str(tool_call.get("id") or "")
             if index > 0:
+                self._tracer.event(
+                    "agent.extra_tool_call_rejected",
+                    "agent_control",
+                    attributes={
+                        "tool.name": name,
+                        "tool_call_id": call_id,
+                        "tool_call_index": index,
+                    },
+                )
                 tool_messages.append(
                     ToolMessage(content=_one_tool_at_a_time_error(name), tool_call_id=call_id)
                 )
@@ -382,11 +466,27 @@ class LangGraphRobotAgent:
         return output, observed
 
     async def _call_policy_checked_tool(self, name: str, arguments: dict[str, Any]) -> str:
-        decision = validate_task_step(name, arguments, self._robot_context)
+        policy_attributes: dict[str, Any] = {"tool.name": name}
+        async with self._tracer.span(
+            "robot.task_policy",
+            "robot_control",
+            attributes=policy_attributes,
+        ):
+            decision = validate_task_step(name, arguments, self._robot_context)
+            policy_attributes["decision_ok"] = decision.ok
+            if decision.error is not None:
+                policy_attributes["error"] = decision.error
+            if decision.suggested_next_tool is not None:
+                policy_attributes["suggested_next_tool"] = decision.suggested_next_tool
         if not decision.ok:
             return json.dumps(structured_task_policy_error(decision), ensure_ascii=False)
         output = await self._tool_bridge.call_tool(name, arguments)
         self._robot_context.update_from_tool_result(name, output)
+        self._tracer.event(
+            "robot.context_update",
+            "robot_control",
+            attributes={"tool.name": name},
+        )
         return output
 
     async def _execute_tool(self, name: str, arguments: dict[str, Any]) -> str:
