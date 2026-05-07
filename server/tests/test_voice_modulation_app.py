@@ -152,6 +152,33 @@ def test_profiles_route_lists_runtime_profiles_with_missing_env(tmp_path, monkey
     ]
 
 
+def test_profiles_route_loads_server_env_file(tmp_path, monkeypatch) -> None:
+    from voice_modulation.app import create_app
+
+    _write_profiles(tmp_path / "runtime_profiles.toml")
+    (tmp_path / ".env").write_text(
+        "\n".join(
+            [
+                "OPENAI_API_KEY=dummy-openai",
+                "DEEPGRAM_API_KEY=dummy-deepgram",
+                "CARTESIA_API_KEY=dummy-cartesia",
+                "GOOGLE_API_KEY=dummy-google",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    for env_name in ("OPENAI_API_KEY", "DEEPGRAM_API_KEY", "CARTESIA_API_KEY", "GOOGLE_API_KEY"):
+        monkeypatch.delenv(env_name, raising=False)
+
+    client = TestClient(create_app(server_dir=tmp_path))
+    response = client.get("/api/profiles")
+
+    assert response.status_code == 200
+    profiles = {profile["name"]: profile for profile in response.json()["profiles"]}
+    assert profiles["local_current"]["missing_env"] == []
+    assert profiles["cartesia_stream"]["missing_env"] == []
+
+
 def test_presets_route_lists_built_in_preset_names(tmp_path) -> None:
     from voice_modulation.app import create_app
 

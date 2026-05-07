@@ -5,6 +5,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Callable
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 
@@ -47,6 +48,7 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="Voice Modulation Lab")
     root = server_dir or Path(__file__).resolve().parents[1]
+    load_dotenv(root / ".env", override=True)
     synthesize = preview_synthesizer or synthesize_tts_reference
 
     @app.get("/", response_class=HTMLResponse)
