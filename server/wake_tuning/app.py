@@ -59,7 +59,7 @@ def get_settings(profile: str = Query(DEFAULT_PROFILE)) -> dict[str, Any]:
         "model_path": str(runtime_profile.wake.model_path) if runtime_profile.wake.model_path else None,
         "settings": asdict(settings),
         "saved": saved is not None,
-        "settings_path": str(default_settings_path(SERVER_DIR)),
+        "settings_path": default_settings_path(SERVER_DIR).as_posix(),
     }
 
 
@@ -78,7 +78,7 @@ def save_settings(request: SaveSettingsRequest) -> dict[str, Any]:
         "ok": True,
         "profile": runtime_profile.profile_name,
         "settings": asdict(settings),
-        "settings_path": str(path),
+        "settings_path": path.as_posix(),
     }
 
 

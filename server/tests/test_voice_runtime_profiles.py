@@ -101,20 +101,20 @@ def test_bundled_default_profile_keeps_short_wake_word_activation_usable() -> No
         profile_name="hybrid_low_latency",
     )
 
-    assert profile.wake.threshold <= 0.55
+    assert profile.wake.threshold == 0.85
     assert profile.wake.vad_threshold == 0.0
     assert profile.wake.required_hits == 1
     assert profile.wake.min_wake_rms <= 4.7
     assert profile.wake.min_wake_peak <= 17
 
 
-def test_bundled_default_profile_uses_openai_api_key_agent():
+def test_bundled_default_profile_uses_gemini_flash_lite_high_reasoning_agent():
     profile = load_runtime_profile()
 
-    assert profile.agent.provider == "openai_api"
-    assert profile.agent.model == "gpt-5.4-mini"
-    assert profile.agent.reasoning_effort == "medium"
-    assert profile.agent.api_key_env == "OPENAI_API_KEY"
+    assert profile.agent.provider == "gemini_api"
+    assert profile.agent.model == "gemini-3.1-flash-lite-preview"
+    assert profile.agent.reasoning_effort == "high"
+    assert profile.agent.api_key_env == "GOOGLE_API_KEY"
 
 
 def test_bundled_gemini_profile_is_available():

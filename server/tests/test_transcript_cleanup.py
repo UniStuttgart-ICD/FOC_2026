@@ -5,11 +5,14 @@ import pytest
 from pipecat.frames.frames import InputAudioRawFrame, TextFrame, TranscriptionFrame
 from pipecat.processors.frame_processor import FrameDirection
 
-from wake.transcript_cleanup import WakePhraseTranscriptCleaner, strip_wake_phrase
-from wake.wake_gate import MaveWakeWordGate
+from voice_runtime.wake_command import (
+    MaveVoiceCommandAudioGate,
+    MaveVoiceCommandTranscriptAdapter,
+    strip_mave_wake_phrase,
+)
 
 
-class CapturingCleaner(WakePhraseTranscriptCleaner):
+class CapturingCleaner(MaveVoiceCommandTranscriptAdapter):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.pushed = []
@@ -18,7 +21,7 @@ class CapturingCleaner(WakePhraseTranscriptCleaner):
         self.pushed.append((frame, direction))
 
 
-class CapturingGate(MaveWakeWordGate):
+class CapturingGate(MaveVoiceCommandAudioGate):
     async def push_frame(self, frame, direction=FrameDirection.DOWNSTREAM):
         pass
 
@@ -29,15 +32,15 @@ def _audio_frame(value: int, samples: int = 1600):
 
 
 def test_strips_leading_mave():
-    assert strip_wake_phrase("Mave, move up a bit") == "move up a bit"
+    assert strip_mave_wake_phrase("Mave, move up a bit") == "move up a bit"
 
 
 def test_strips_hey_mave():
-    assert strip_wake_phrase("hey mave stop") == "stop"
+    assert strip_mave_wake_phrase("hey mave stop") == "stop"
 
 
 def test_leaves_non_wake_text_unchanged():
-    assert strip_wake_phrase("move up a bit") == "move up a bit"
+    assert strip_mave_wake_phrase("move up a bit") == "move up a bit"
 
 
 @pytest.mark.asyncio
@@ -68,7 +71,7 @@ async def test_cleaner_pushes_non_transcription_frames_unchanged():
 
 
 @pytest.mark.asyncio
-async def test_finalized_transcription_through_cleaner_resets_wake_gate():
+async def test_finalized_transcription_through_cleaner_resets_audio_gate():
     detector = Mock()
     detector.detected.return_value = (True, "mave", 0.9)
     gate = CapturingGate(detector=detector, pre_buffer_s=1.5)

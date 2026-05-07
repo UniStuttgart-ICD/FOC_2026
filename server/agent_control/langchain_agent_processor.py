@@ -5,7 +5,7 @@ from typing import Any
 
 from loguru import logger
 
-from langgraph_robot_agent import LangGraphRobotAgent
+from agent_control.langgraph_robot_agent import LangGraphRobotAgent
 from process_trace import NoopProcessTracer, ProcessTracer
 from robot_control.context import RobotContextStore
 from robot_control.mcp_bridge import RobotMCPBridge

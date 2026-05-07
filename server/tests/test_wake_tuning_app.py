@@ -98,3 +98,13 @@ def test_wake_tuning_websocket_reports_detection(monkeypatch, tmp_path):
     assert detection["vad_enabled"] is False
     assert detection["vad_score"] is None
     assert FakeDetector.threshold == 0.37
+
+
+def test_settings_api_reports_default_local_state_path(monkeypatch):
+    monkeypatch.delenv("WAKE_TUNING_SETTINGS_PATH", raising=False)
+    client = TestClient(wake_tuning_app.app)
+
+    response = client.get("/api/settings?profile=hybrid_low_latency")
+
+    assert response.status_code == 200
+    assert response.json()["settings_path"].endswith("state/wake_tuning_settings.json")

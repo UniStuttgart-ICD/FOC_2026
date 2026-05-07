@@ -8,6 +8,7 @@ from wake_tuning.detector import WakeDecisionTracker
 from wake_tuning.settings import (
     WakeTuningError,
     WakeTuningSettings,
+    default_settings_path,
     load_profile_settings,
     save_profile_settings,
 )
@@ -105,6 +106,15 @@ def test_settings_round_trip_per_profile(tmp_path: Path) -> None:
     assert load_profile_settings(settings_path, "missing") is None
 
 
+def test_default_wake_tuning_settings_path_uses_local_state_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("WAKE_TUNING_SETTINGS_PATH", raising=False)
+
+    assert default_settings_path(tmp_path) == tmp_path / "state" / "wake_tuning_settings.json"
+
+
 def test_settings_reject_invalid_threshold() -> None:
     with pytest.raises(WakeTuningError, match="threshold"):
         WakeTuningSettings.from_mapping(
@@ -170,3 +180,28 @@ def test_decision_tracker_reports_below_threshold() -> None:
     assert result.decision == "below_threshold"
     assert result.threshold_hit is False
     assert result.level_hit is True
+
+
+def test_default_hybrid_profile_contains_promoted_wake_tuning_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "WAKE_TUNING_SETTINGS_PATH", str(tmp_path / "missing_wake_tuning_settings.json")
+    )
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-google")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic")
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "test-deepgram")
+    monkeypatch.setenv("CARTESIA_API_KEY", "test-cartesia")
+
+    config = load_runtime_config(profile_name="hybrid_low_latency")
+
+    assert config.wake.threshold == 0.85
+    assert config.wake.vad_threshold == 0.0
+    assert config.wake.candidate_log_threshold == 0.45
+    assert config.wake.required_hits == 1
+    assert config.wake.min_wake_rms == 0.0
+    assert config.wake.min_wake_peak == 12
+    assert config.wake.rearm_delay_s == 6.0
+    assert config.wake.pre_buffer_s == 0.2

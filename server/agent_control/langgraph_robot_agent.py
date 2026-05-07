@@ -15,8 +15,8 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from loguru import logger
 
+from agent_control.prompts import SYSTEM_PROMPT
 from process_trace import NoopProcessTracer, ProcessTracer
-from prompts import SYSTEM_PROMPT
 from robot_control.call_validation import (
     RobotCallValidationError,
     executable_plan_name,
@@ -619,18 +619,10 @@ def _supported_action_from_text(text: str, pose: dict[str, Any] | None) -> Suppo
     normalized = text.casefold()
 
     if "wave" in normalized:
-        return _free_motion_sequence(
-            position,
-            orientation,
-            [
-                {"dy": 0.10, "dz": 0.08},
-                {"dy": -0.10, "dz": 0.08},
-            ],
-            "Waved.",
-        )
+        return _cartesian_wave_action(position, orientation)
 
     if "up" in normalized and "down" in normalized:
-        distance_m = _distance_m(normalized, default=0.06)
+        distance_m = _distance_m(normalized)
         return _free_motion_sequence(
             position,
             orientation,
@@ -643,7 +635,12 @@ def _supported_action_from_text(text: str, pose: dict[str, Any] | None) -> Suppo
 
     if "up" in normalized or "raise" in normalized or "lift" in normalized:
         distance_m = _distance_m(normalized)
-        return _free_motion_action(position, orientation, distance_m, f"Moved up {distance_m * 1000:.0f} mm.")
+        return _free_motion_action(
+            position,
+            orientation,
+            distance_m,
+            f"Moved up {distance_m * 1000:.0f} mm.",
+        )
 
     if "down" in normalized or "lower" in normalized or "drop" in normalized:
         distance_m = _distance_m(normalized)
@@ -687,6 +684,46 @@ def _free_motion_sequence(
     )
 
 
+def _cartesian_wave_action(
+    position: dict[str, float],
+    orientation: dict[str, float],
+) -> SupportedAction:
+    return SupportedAction(
+        steps=[
+            SupportedToolStep(
+                name="moveit_plan_and_execute_cartesian_motion",
+                arguments={
+                    "robot_name": VIZOR_ROBOT_NAME,
+                    "waypoints": [
+                        _cartesian_waypoint(position, orientation, 0.0, 0.15),
+                        _cartesian_waypoint(position, orientation, 0.20, 0.15),
+                        _cartesian_waypoint(position, orientation, -0.20, 0.15),
+                        _cartesian_waypoint(position, orientation, 0.0, 0.15),
+                    ],
+                    "timeout_s": 10,
+                },
+            )
+        ],
+        success_text="Waved.",
+    )
+
+
+def _cartesian_waypoint(
+    position: dict[str, float],
+    orientation: dict[str, float],
+    delta_y_m: float,
+    delta_z_m: float,
+) -> dict[str, dict[str, float]]:
+    return {
+        "position": {
+            "x": position["x"],
+            "y": position["y"] + delta_y_m,
+            "z": position["z"] + delta_z_m,
+        },
+        "orientation": orientation,
+    }
+
+
 def _free_motion_step(
     position: dict[str, float],
     orientation: dict[str, float],
@@ -709,11 +746,11 @@ def _free_motion_step(
     )
 
 
-def _distance_m(text: str, *, default: float = 0.10) -> float:
+def _distance_m(text: str, *, default: float = 0.20) -> float:
     if "bit" in text or "slightly" in text:
         return 0.05
-    if "lot" in text or "far" in text:
-        return 0.30
+    if "lot" in text or "far" in text or "large" in text:
+        return 0.45
     return default
 
 

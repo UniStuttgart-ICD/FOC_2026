@@ -6,7 +6,7 @@ from typing import Literal, cast
 import pytest
 from langchain_core.tools import tool
 
-from agent_model_factory import build_agent_chat_model
+from agent_control.model_factory import build_agent_chat_model
 from voice_runtime.profiles import AgentProfile, ReasoningEffort
 
 pytestmark = [pytest.mark.live, pytest.mark.llm, pytest.mark.native_llm]

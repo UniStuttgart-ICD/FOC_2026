@@ -79,7 +79,7 @@ def default_settings_path(server_dir: Path | None = None) -> Path:
     if configured:
         return Path(configured)
     root = server_dir or Path(__file__).resolve().parents[1]
-    return root / "wake_tuning_settings.json"
+    return root / "state" / "wake_tuning_settings.json"
 
 
 def load_all_settings(path: Path) -> dict[str, WakeTuningSettings]:

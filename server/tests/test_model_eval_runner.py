@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -66,6 +67,12 @@ class MoveUpWithoutFinalObservationBackend(PoseOnlyBackend):
         yield "Moved up a bit."
 
 
+class HangingBackend(PoseOnlyBackend):
+    async def run_turn(self, turn: AgentTurnInput) -> AsyncIterator[str]:
+        await asyncio.sleep(10)
+        yield "never"
+
+
 def _write_matrix(path: Path) -> None:
     path.write_text(
         """
@@ -88,6 +95,7 @@ def _config(tmp_path: Path) -> EvalRunConfig:
         pack_name="core_robot_commands",
         samples=1,
         evidence_root=tmp_path / "evidence",
+        attempt_timeout_s=120.0,
     )
 
 
@@ -129,6 +137,7 @@ async def test_run_eval_suite_runs_selected_scenario_and_writes_evidence(tmp_pat
     assert result.attempts[0].passed is True
     assert result.attempts[0].model_turn_count == 1
     assert result.evidence_dir.exists()
+    assert (result.evidence_dir / "attempts.jsonl").exists()
 
 
 @pytest.mark.asyncio
@@ -171,6 +180,37 @@ async def test_run_eval_suite_records_exception_attempt_and_continues(tmp_path: 
 
 
 @pytest.mark.asyncio
+async def test_run_eval_suite_times_out_hung_attempt_and_writes_jsonl(tmp_path: Path) -> None:
+    progress: list[str] = []
+
+    config = EvalRunConfig(
+        matrix_path=tmp_path / "matrix.toml",
+        pack_name="core_robot_commands",
+        samples=1,
+        evidence_root=tmp_path / "evidence",
+        attempt_timeout_s=0.01,
+    )
+    _write_matrix(config.matrix_path)
+
+    result = await run_eval_suite(
+        config,
+        scenario_names=("current-position",),
+        processor_factory=lambda candidate, recorder, mcp_url: HangingBackend(recorder),
+        adapter_factory=lambda adapter, mcp_url: SimulatedMoveItAdapter(),
+        on_attempt=lambda attempt: progress.append(attempt.reason),
+    )
+
+    assert len(result.attempts) == 1
+    attempt = result.attempts[0]
+    assert attempt.passed is False
+    assert attempt.reason == "timeout"
+    assert attempt.exception == "TimeoutError: attempt exceeded 0.01s"
+    assert attempt.elapsed_s < 1.0
+    assert progress == ["timeout"]
+    assert (result.evidence_dir / "attempts.jsonl").read_text(encoding="utf-8").count("\n") == 1
+
+
+@pytest.mark.asyncio
 async def test_run_eval_suite_observes_final_pose_after_execution(tmp_path: Path) -> None:
     matrix_path = tmp_path / "matrix.toml"
     _write_matrix(matrix_path)
@@ -179,6 +219,7 @@ async def test_run_eval_suite_observes_final_pose_after_execution(tmp_path: Path
         pack_name="core_robot_commands",
         samples=1,
         evidence_root=tmp_path / "evidence",
+        attempt_timeout_s=120.0,
     )
 
     result = await run_eval_suite(

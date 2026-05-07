@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from agent_model_factory import build_agent_chat_model
+from agent_control.model_factory import build_agent_chat_model
 from voice_runtime.profiles import AgentProfile
 
 

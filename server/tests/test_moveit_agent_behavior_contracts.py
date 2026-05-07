@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 
-from langchain_agent_processor import LangChainAgentProcessor
+from agent_control.langchain_agent_processor import LangChainAgentProcessor
 from voice_runtime.agent_turn import AgentTurnInput
 
 

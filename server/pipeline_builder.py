@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import cast
 
 from loguru import logger
@@ -16,7 +19,7 @@ from pipecat.processors.aggregators.llm_response_universal import (
 from pipecat.processors.frame_processor import FrameProcessor
 from pipecat.transports.base_transport import BaseTransport
 
-from agent_processor_factory import create_agent_processor
+from agent_control.factory import create_agent_processor
 from config import RuntimeConfig
 from metrics import VoiceMetricsObserver, VoiceMetricsRecorder
 from process_trace import (
@@ -46,8 +49,14 @@ class BuiltPipeline:
 def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipeline:
     stt = create_stt_service(config.stt)
     tts = create_tts_service(config.tts)
-    process_tracer = _build_process_tracer(config)
-    session_context = process_tracer.start_session(config.profile_name, config.category)
+    session_id = _new_session_id()
+    session_started_at = _utc_now()
+    process_tracer = _build_process_tracer(config, session_id, session_started_at)
+    session_context = process_tracer.start_session(
+        config.profile_name,
+        config.category,
+        session_id=session_id,
+    )
 
     voice_command_audio = None
     voice_command_transcript = None
@@ -127,7 +136,7 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
         metrics = VoiceMetricsRecorder(
             profile=config.profile_name,
             category=config.category,
-            path=config.metrics.path,
+            path=session_log_path(config.metrics.path, session_started_at, session_id),
             include_text=config.metrics.include_text,
         )
         observers.append(VoiceMetricsObserver(metrics))
@@ -150,14 +159,37 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
     )
 
 
-def _build_process_tracer(config: RuntimeConfig) -> ProcessTracer | NoopProcessTracer:
+def session_log_path(base_path: Path, started_at: datetime, session_id: str) -> Path:
+    timestamp = started_at.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    suffix = base_path.suffix or ".jsonl"
+    stem = base_path.stem or "session"
+    session_token = session_id[:8]
+    return base_path.parent / stem / f"{stem}-{timestamp}-{session_token}{suffix}"
+
+
+def _new_session_id() -> str:
+    return uuid.uuid4().hex
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _build_process_tracer(
+    config: RuntimeConfig,
+    session_id: str,
+    session_started_at: datetime,
+) -> ProcessTracer | NoopProcessTracer:
     options = TraceOptions(
         include_text=config.process_trace.include_text,
         include_tool_payloads=config.process_trace.include_tool_payloads,
     )
     if not config.process_trace.enabled:
         return NoopProcessTracer(options)
-    return ProcessTracer(JsonlTraceWriter(config.process_trace.path), options)
+    return ProcessTracer(
+        JsonlTraceWriter(session_log_path(config.process_trace.path, session_started_at, session_id)),
+        options,
+    )
 
 
 def _create_process_trace_observer(

@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import Mock
@@ -49,20 +50,20 @@ class FakeProcessTracer:
     def __init__(self, writer, options):
         self.writer = writer
         self.options = options
-        self.started_sessions: list[tuple[str, str]] = []
+        self.started_sessions: list[tuple[str, str, str | None]] = []
 
-    def start_session(self, profile: str, category: str):
-        self.started_sessions.append((profile, category))
+    def start_session(self, profile: str, category: str, *, session_id: str | None = None):
+        self.started_sessions.append((profile, category, session_id))
         return "session-context"
 
 
 class FakeNoopProcessTracer:
     def __init__(self, options=None):
         self.options = options
-        self.started_sessions: list[tuple[str, str]] = []
+        self.started_sessions: list[tuple[str, str, str | None]] = []
 
-    def start_session(self, profile: str, category: str):
-        self.started_sessions.append((profile, category))
+    def start_session(self, profile: str, category: str, *, session_id: str | None = None):
+        self.started_sessions.append((profile, category, session_id))
         return "noop-session-context"
 
 
@@ -190,6 +191,16 @@ def test_metrics_observer_is_not_wired_when_metrics_disabled(monkeypatch, tmp_pa
 def test_process_trace_observer_and_tracer_are_wired_when_enabled(monkeypatch, tmp_path: Path):
     seen_agent_kwargs: dict[str, Any] = {}
     _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
+    monkeypatch.setattr(
+        "pipeline_builder._utc_now",
+        lambda: datetime(2026, 5, 7, 12, 34, 56, tzinfo=timezone.utc),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "pipeline_builder._new_session_id",
+        lambda: "0123456789abcdef0123456789abcdef",
+        raising=False,
+    )
 
     built = build_pipeline(
         _config(tmp_path, metrics_enabled=False, process_trace_enabled=True),
@@ -198,10 +209,16 @@ def test_process_trace_observer_and_tracer_are_wired_when_enabled(monkeypatch, t
     task = cast(Any, built.task)
 
     assert isinstance(built.process_tracer, FakeProcessTracer)
-    assert built.process_tracer.writer.path == tmp_path / "process_trace.jsonl"
+    assert built.process_tracer.writer.path == (
+        tmp_path
+        / "process_trace"
+        / "process_trace-20260507T123456Z-01234567.jsonl"
+    )
     assert built.process_tracer.options.include_text is True
     assert built.process_tracer.options.include_tool_payloads is False
-    assert built.process_tracer.started_sessions == [("no_wake_debug", "local_debug")]
+    assert built.process_tracer.started_sessions == [
+        ("no_wake_debug", "local_debug", "0123456789abcdef0123456789abcdef")
+    ]
     assert seen_agent_kwargs["tracer"] is built.process_tracer
     assert len(task.observers) == 1
     observer = task.observers[0]
@@ -213,6 +230,11 @@ def test_process_trace_observer_and_tracer_are_wired_when_enabled(monkeypatch, t
 def test_process_trace_disabled_uses_noop_tracer_and_no_observer(monkeypatch, tmp_path: Path):
     seen_agent_kwargs: dict[str, Any] = {}
     _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
+    monkeypatch.setattr(
+        "pipeline_builder._new_session_id",
+        lambda: "0123456789abcdef0123456789abcdef",
+        raising=False,
+    )
 
     built = build_pipeline(
         _config(tmp_path, metrics_enabled=False, process_trace_enabled=False),
@@ -221,9 +243,41 @@ def test_process_trace_disabled_uses_noop_tracer_and_no_observer(monkeypatch, tm
     task = cast(Any, built.task)
 
     assert isinstance(built.process_tracer, FakeNoopProcessTracer)
-    assert built.process_tracer.started_sessions == [("no_wake_debug", "local_debug")]
+    assert built.process_tracer.started_sessions == [
+        ("no_wake_debug", "local_debug", "0123456789abcdef0123456789abcdef")
+    ]
     assert seen_agent_kwargs["tracer"] is built.process_tracer
     assert task.observers == []
+
+
+def test_logs_use_session_scoped_paths(monkeypatch, tmp_path: Path):
+    _patch_pipeline_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        "pipeline_builder._utc_now",
+        lambda: datetime(2026, 5, 7, 12, 34, 56, tzinfo=timezone.utc),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "pipeline_builder._new_session_id",
+        lambda: "0123456789abcdef0123456789abcdef",
+        raising=False,
+    )
+
+    built = build_pipeline(
+        _config(tmp_path, metrics_enabled=True, process_trace_enabled=True),
+        cast(BaseTransport, FakeTransport()),
+    )
+
+    assert built.process_tracer.writer.path == (
+        tmp_path
+        / "process_trace"
+        / "process_trace-20260507T123456Z-01234567.jsonl"
+    )
+    assert built.metrics is not None
+    assert built.metrics._path == tmp_path / "metrics" / "metrics-20260507T123456Z-01234567.jsonl"
+    assert built.process_tracer.started_sessions == [
+        ("no_wake_debug", "local_debug", "0123456789abcdef0123456789abcdef")
+    ]
 
 
 def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tmp_path: Path):

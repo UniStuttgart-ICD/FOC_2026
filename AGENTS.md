@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Pipecat voice robot agent: a Python cascade voice pipeline for controlling a UR robot through a MoveIt-routed OpenAI API-key LangGraph agent backend.
+Pipecat voice robot agent: a Python cascade voice pipeline for controlling a UR robot through a MoveIt-routed API-key LangGraph agent backend.
 
 ## Project map
 
@@ -10,11 +10,9 @@ Pipecat voice robot agent: a Python cascade voice pipeline for controlling a UR 
 - `server/pipeline_builder.py` - App composition root for concrete adapters and pipeline task assembly.
 - `server/voice_runtime/` - Reusable Pipecat/audio runtime Modules: profiles, voice providers, wake command, Agent Turn seam, assembly, and metrics.
 - `server/robot_control/` - Robot Control Modules: Task Policy, Robot Call Validation, Robot Tool Adapter, and Robot Context.
-- `server/langchain_agent_processor.py` - Current API-key LangChain Agent Backend adapter; target home is `server/agent_control/`.
-- `server/langgraph_robot_agent.py` - Current LangGraph Agent Orchestration; target home is `server/agent_control/`.
-- `server/prompts.py` - Robot agent prompt; target home is `server/agent_control/`.
+- `server/agent_control/` - Agent Control Module: native LangChain API Backend, LangGraph Agent Orchestration, Robot Agent Prompt, and Agent Turn factory.
 - `server/runtime_profiles.toml` - App runtime profile definitions.
-- `server/tests/` - Pytest coverage for config, pipeline assembly, Agent Backend, Agent Orchestration, Robot Call Validation, and Codex behavior.
+- `server/tests/` - Pytest coverage for config, pipeline assembly, Agent Backend, Agent Orchestration, Robot Call Validation, and Agent Control behavior.
 - `.pi/plans/`, `docs/superpowers/specs/`, and `docs/superpowers/plans/` - Approved specs and implementation plans.
 
 ## Agent skills
@@ -50,21 +48,21 @@ Run server commands from `server/`.
 - Follow `ARCHITECTURE.md` as the target map.
 - Target packages are `voice_runtime`, `agent_control`, and `robot_control`.
 - Robot-side policy, context, validation, and adapter changes belong under `server/robot_control/`.
-- Extract `agent_control` after Robot Control; keep remaining app wiring in the composition root.
+- Keep app wiring in the composition root; Agent Control implementation belongs under `server/agent_control/`.
 - Update `CONTEXT.md` when domain terms or ownership decisions change.
 </important>
 
 <important if="you are changing imports between Voice Runtime, Agent Control, or Robot Control">
 - `pipeline_builder.py` is the composition root and may import all three packages.
 - `voice_runtime` must not import `agent_control` or `robot_control`.
-- `agent_control` may import `voice_runtime.agent_turn` types and `robot_control`.
+- `agent_control` may import `robot_control` and only these Voice Runtime seams: `voice_runtime.agent_turn`, `voice_runtime.profiles`, `voice_runtime.agent_providers`, and `voice_runtime.timing`.
 - `robot_control` must not import `voice_runtime` or `agent_control`.
 - Add/update structural import tests when target packages exist.
 </important>
 
 <important if="you are changing Pipecat pipeline wiring, wake, STT, TTS, interruption behavior, or metrics">
 - Voice Runtime owns transport, audio frames, wake, STT, TTS, interruption behavior, pipeline backpressure, processor ordering, and voice metrics.
-- Keep robot-control and Codex/LangGraph logic out of `voice_runtime`.
+- Keep robot-control and LangChain/LangGraph logic out of `voice_runtime`.
 - `pipeline_builder.py` constructs concrete adapters; `voice_runtime.assembly` owns processor ordering.
 </important>
 
@@ -74,7 +72,7 @@ Run server commands from `server/`.
 </important>
 
 <important if="you are changing agent backend selection, API-key auth, or runtime profiles">
-- The default live profile `hybrid_low_latency` must use `openai_api` with `OPENAI_API_KEY`, not Codex OAuth.
+- The default live profile `hybrid_low_latency` must use `gemini_api` with `GOOGLE_API_KEY`, not Codex OAuth.
 - Agent profiles must use native LangChain API providers: `openai_api`, `gemini_api`, or `anthropic_api`.
 - Do not reintroduce Codex OAuth profile support unless a new architecture decision asks for it.
 - Runtime profile parsing belongs to `voice_runtime`; concrete profile files remain app configuration.

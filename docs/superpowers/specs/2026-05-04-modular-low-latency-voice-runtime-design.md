@@ -45,7 +45,7 @@ Target pipeline:
 
 ```text
 SmallWebRTC input
-→ MaveWakeWordGate
+→ Voice Command audio gate
 → STT service
 → user aggregator
 → agent processor
@@ -66,11 +66,12 @@ server/
   pipeline_builder.py       # assemble Pipecat Pipeline/PipelineTask
   metrics.py                # console + JSONL turn metrics
 
+  voice_runtime/
+    wake_command.py          # reusable Voice Command audio/transcript adapters
+
   wake/
-    openwakeword_detector.py # OpenWakeWord wrapper
-    wake_gate.py             # Pipecat FrameProcessor before STT
+    openwakeword_detector.py # OpenWakeWord detector adapter
     emergency_stop.py        # emergency stop detector interface
-    transcript_cleanup.py    # strip leading wake phrase
 
   claude_agent_processor.py  # existing Claude SDK + robot MCP processor
   openai_codex_agent_processor.py # OpenAI Codex OAuth agent processor
@@ -249,8 +250,8 @@ Metrics write failure should log a warning and disable metrics, not crash an act
    - Adapt existing OpenAI Codex OAuth plan into unified config.
    - `codex_auth.py`, `openai_codex_agent_processor.py`, `agent_processor_factory.py`, tests.
 
-4. **OpenWakeWord Mave wake gate**
-   - `wake/openwakeword_detector.py`, `wake/wake_gate.py`, `wake/transcript_cleanup.py`, `server/models/mave.onnx`, tests.
+4. **OpenWakeWord Mave Voice Command**
+   - `wake/openwakeword_detector.py`, `voice_runtime/wake_command.py`, `server/models/mave.onnx`, tests.
 
 5. **Emergency stop bypass**
    - `wake/emergency_stop.py`, tests.
@@ -287,5 +288,5 @@ These do not change the architecture, but the implementation plan must resolve t
 
 - Choose the first emergency-stop detector provider/model. Until then, emergency stop config validation must fail fast when enabled without a model.
 - Live-validate OpenAI Codex through OpenAI Agents SDK. If rejected by the Codex backend, keep the auth/config boundary and replace only the processor call loop with direct Codex Responses usage.
-- Confirm exact Pipecat input-audio frame class names in the installed version before implementing `wake_gate.py`.
+- Confirm exact Pipecat input-audio frame class names in the installed version before implementing the Voice Command audio adapter.
 - Confirm exact Pipecat observer/metrics events for STT/TTS TTFB before implementing `metrics.py`.

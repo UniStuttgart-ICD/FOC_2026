@@ -7,11 +7,11 @@ import pytest
 from pipecat.frames.frames import InputAudioRawFrame, TranscriptionFrame
 from pipecat.processors.frame_processor import FrameDirection
 
+from voice_runtime.wake_command import MaveVoiceCommandAudioGate
 from wake.openwakeword_detector import OpenWakeWordDetector, OpenWakeWordResourceError
-from wake.wake_gate import MaveWakeWordGate
 
 
-class CapturingGate(MaveWakeWordGate):
+class CapturingGate(MaveVoiceCommandAudioGate):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.pushed = []

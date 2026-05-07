@@ -4,18 +4,18 @@ from collections.abc import Callable
 
 from pipecat.processors.frame_processor import FrameProcessor
 
-from agent_model_factory import build_agent_chat_model
-from config import AgentConfig
-from langchain_agent_processor import LangChainAgentProcessor
+from agent_control.langchain_agent_processor import LangChainAgentProcessor
+from agent_control.model_factory import build_agent_chat_model
 from process_trace import NoopProcessTracer, ProcessTracer
 from voice_runtime.agent_providers import NATIVE_LANGCHAIN_AGENT_PROVIDERS
 from voice_runtime.agent_turn import AgentTurnProcessor
+from voice_runtime.profiles import AgentProfile
 
 ProcessTracerLike = ProcessTracer | NoopProcessTracer
 
 
 def create_agent_processor(
-    config: AgentConfig,
+    config: AgentProfile,
     *,
     mcp_server_url: str,
     tracer: ProcessTracerLike | None = None,

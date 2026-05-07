@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import time
 from collections.abc import Callable
@@ -7,8 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from agent_model_factory import build_agent_chat_model
-from langchain_agent_processor import LangChainAgentProcessor
+from agent_control.langchain_agent_processor import LangChainAgentProcessor
+from agent_control.model_factory import build_agent_chat_model
 from model_eval.adapters import EvalToolAdapter, create_eval_tool_adapter
 from model_eval.candidates import ModelCandidate
 from model_eval.config import EvalAdapterName, EvalRunConfig, load_model_matrix
@@ -27,6 +28,7 @@ from test_support.live_robot_smoke import (
 
 AdapterFactory = Callable[[EvalAdapterName, str | None], EvalToolAdapter]
 ProcessorFactory = Callable[[ModelCandidate, RecordingRobotToolAdapter, str], Any]
+AttemptCallback = Callable[[AttemptResult], None]
 
 
 @dataclass(frozen=True)
@@ -42,44 +44,48 @@ async def run_eval_suite(
     scenario_names: tuple[str, ...] | None = None,
     processor_factory: ProcessorFactory | None = None,
     adapter_factory: AdapterFactory | None = None,
+    on_attempt: AttemptCallback | None = None,
 ) -> EvalSuiteResult:
     candidates = load_model_matrix(config.matrix_path)
     pack = get_scenario_pack(config.pack_name)
     scenarios = _select_scenarios(pack.scenarios, scenario_names)
     resolved_processor_factory = processor_factory or _build_processor
     resolved_adapter_factory = adapter_factory or _build_adapter
+    evidence_run = EvidenceWriter(config.evidence_root).start(
+        metadata={
+            "pack": config.pack_name,
+            "adapter": config.adapter,
+            "samples": config.samples,
+            "attempt_timeout_s": config.attempt_timeout_s,
+        },
+    )
 
     attempts: list[AttemptResult] = []
     for candidate in candidates:
         for scenario in scenarios:
             for attempt_index in range(config.samples):
-                attempts.append(
-                    await _run_attempt(
-                        candidate=candidate,
-                        scenario=scenario,
-                        attempt_index=attempt_index,
-                        adapter_name=config.adapter,
-                        mcp_url=config.mcp_url,
-                        processor_factory=resolved_processor_factory,
-                        adapter_factory=resolved_adapter_factory,
-                    )
+                attempt = await _run_attempt(
+                    candidate=candidate,
+                    scenario=scenario,
+                    attempt_index=attempt_index,
+                    adapter_name=config.adapter,
+                    mcp_url=config.mcp_url,
+                    attempt_timeout_s=config.attempt_timeout_s,
+                    processor_factory=resolved_processor_factory,
+                    adapter_factory=resolved_adapter_factory,
                 )
+                attempts.append(attempt)
+                evidence_run.append_attempt(attempt)
+                if on_attempt is not None:
+                    on_attempt(attempt)
 
     attempt_results = tuple(attempts)
     summaries = rank_candidates(attempt_results)
-    evidence_dir = EvidenceWriter(config.evidence_root).write(
-        attempts=attempt_results,
-        summaries=summaries,
-        metadata={
-            "pack": config.pack_name,
-            "adapter": config.adapter,
-            "samples": config.samples,
-        },
-    )
+    evidence_run.finalize(attempts=attempt_results, summaries=summaries)
     return EvalSuiteResult(
         attempts=attempt_results,
         summaries=summaries,
-        evidence_dir=evidence_dir,
+        evidence_dir=evidence_run.evidence_dir,
     )
 
 
@@ -90,6 +96,7 @@ async def _run_attempt(
     attempt_index: int,
     adapter_name: EvalAdapterName,
     mcp_url: str | None,
+    attempt_timeout_s: float,
     processor_factory: ProcessorFactory,
     adapter_factory: AdapterFactory,
 ) -> AttemptResult:
@@ -100,15 +107,23 @@ async def _run_attempt(
 
     try:
         processor = processor_factory(candidate, recorder, mcp_url or "")
-        run = await run_agent_turn(processor, recorder, scenario.prompt)
-        if _needs_final_pose_observation(run):
-            await recorder.call_tool(CURRENT_POSE_TOOL_NAME, {"robot_name": "UR10"})
-            run = LiveSmokeRun(
-                prompt=run.prompt,
-                reply=run.reply,
-                tool_calls=recorder.calls,
-            )
-        validation = get_validator(scenario.validator_name)(run)
+        run, validation = await asyncio.wait_for(
+            _execute_attempt_body(
+                processor=processor,
+                recorder=recorder,
+                scenario=scenario,
+            ),
+            timeout=attempt_timeout_s,
+        )
+    except TimeoutError:
+        return _timeout_attempt(
+            candidate=candidate,
+            scenario=scenario,
+            attempt_index=attempt_index,
+            started=started,
+            recorder=recorder,
+            attempt_timeout_s=attempt_timeout_s,
+        )
     except Exception as exc:
         return _exception_attempt(
             candidate=candidate,
@@ -143,6 +158,24 @@ async def _run_attempt(
     )
 
 
+async def _execute_attempt_body(
+    *,
+    processor: Any,
+    recorder: RecordingRobotToolAdapter,
+    scenario: EvalScenario,
+) -> tuple[LiveSmokeRun, Any]:
+    run = await run_agent_turn(processor, recorder, scenario.prompt)
+    if _needs_final_pose_observation(run):
+        await recorder.call_tool(CURRENT_POSE_TOOL_NAME, {"robot_name": "UR10"})
+        run = LiveSmokeRun(
+            prompt=run.prompt,
+            reply=run.reply,
+            tool_calls=recorder.calls,
+        )
+    validation = get_validator(scenario.validator_name)(run)
+    return run, validation
+
+
 def _exception_attempt(
     *,
     candidate: ModelCandidate,
@@ -166,6 +199,32 @@ def _exception_attempt(
         tool_call_count=len(recorder.calls),
         model_turn_count=0,
         exception=f"{type(exc).__name__}: {exc}",
+    )
+
+
+def _timeout_attempt(
+    *,
+    candidate: ModelCandidate,
+    scenario: EvalScenario,
+    attempt_index: int,
+    started: float,
+    recorder: RecordingRobotToolAdapter,
+    attempt_timeout_s: float,
+) -> AttemptResult:
+    return AttemptResult(
+        candidate_label=candidate.label,
+        scenario_name=scenario.name,
+        attempt_index=attempt_index,
+        prompt=scenario.prompt,
+        elapsed_s=time.perf_counter() - started,
+        passed=False,
+        reason="timeout",
+        details={"attempt_timeout_s": attempt_timeout_s},
+        assistant_reply="",
+        tool_calls=[call.as_json() for call in recorder.calls],
+        tool_call_count=len(recorder.calls),
+        model_turn_count=0,
+        exception=f"TimeoutError: attempt exceeded {attempt_timeout_s:g}s",
     )
 
 

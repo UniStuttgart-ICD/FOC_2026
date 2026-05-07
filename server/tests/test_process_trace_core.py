@@ -63,6 +63,22 @@ def test_event_records_have_required_shape() -> None:
     assert event["events"] == []
 
 
+def test_start_session_accepts_supplied_session_id() -> None:
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
+
+    context = tracer.start_session(
+        profile="hybrid_low_latency",
+        category="benchmark_streaming",
+        session_id="session-123",
+    )
+
+    session_start = writer.records[-1]
+    assert context.session_id == "session-123"
+    assert session_start["session_id"] == "session-123"
+    assert session_start["name"] == "trace.session_start"
+
+
 def test_jsonl_trace_writer_writes_valid_jsonl(tmp_path: Path) -> None:
     path = tmp_path / "nested" / "trace.jsonl"
     writer = JsonlTraceWriter(path)

@@ -26,10 +26,13 @@ class EvalRunConfig:
     mcp_url: str = "http://127.0.0.1:8765/mcp"
     samples: int = 1
     evidence_root: Path = Path("evidence/model_eval")
+    attempt_timeout_s: float = 120.0
 
     def __post_init__(self) -> None:
         if self.samples < 1:
             raise ValueError("samples must be at least 1")
+        if self.attempt_timeout_s <= 0:
+            raise ValueError("attempt_timeout_s must be greater than 0")
 
 
 def load_model_matrix(path: Path) -> tuple[ModelCandidate, ...]:

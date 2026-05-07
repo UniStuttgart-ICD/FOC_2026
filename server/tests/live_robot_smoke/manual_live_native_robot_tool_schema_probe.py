@@ -5,7 +5,7 @@ from typing import cast
 
 import pytest
 
-from agent_model_factory import build_agent_chat_model
+from agent_control.model_factory import build_agent_chat_model
 from robot_control.mcp_bridge import RobotMCPBridge
 from voice_runtime.profiles import AgentProfile, ReasoningEffort
 

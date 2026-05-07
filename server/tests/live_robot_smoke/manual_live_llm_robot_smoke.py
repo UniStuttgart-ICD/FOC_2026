@@ -31,8 +31,8 @@ pytestmark = [
 
 @pytest_asyncio.fixture
 async def live_agent() -> AsyncIterator[tuple[Any, Any]]:
-    from agent_model_factory import build_agent_chat_model
-    from langchain_agent_processor import LangChainAgentProcessor
+    from agent_control.langchain_agent_processor import LangChainAgentProcessor
+    from agent_control.model_factory import build_agent_chat_model
     from robot_control.mcp_bridge import RobotMCPBridge
     from test_support.live_robot_smoke import RecordingRobotToolAdapter
     from voice_runtime.profiles import AgentProfile, ReasoningEffort

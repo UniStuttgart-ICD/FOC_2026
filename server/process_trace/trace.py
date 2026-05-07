@@ -40,8 +40,14 @@ class ProcessTracer:
     def options(self) -> TraceOptions:
         return self._options
 
-    def start_session(self, profile: str, category: str) -> TraceContext:
-        context = TraceContext(trace_id=_new_id(), session_id=_new_id())
+    def start_session(
+        self,
+        profile: str,
+        category: str,
+        *,
+        session_id: str | None = None,
+    ) -> TraceContext:
+        context = TraceContext(trace_id=_new_id(), session_id=session_id or _new_id())
         self._current_session_context = context
         self._current_turn_context = None
         self.event(
@@ -267,7 +273,13 @@ class NoopProcessTracer:
     def options(self) -> TraceOptions:
         return self._options
 
-    def start_session(self, profile: str, category: str) -> TraceContext:
+    def start_session(
+        self,
+        profile: str,
+        category: str,
+        *,
+        session_id: str | None = None,
+    ) -> TraceContext:
         return TraceContext()
 
     def start_turn(

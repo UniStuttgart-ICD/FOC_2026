@@ -185,7 +185,7 @@ def make_graph(
     bridge: FakeBridge | None = None,
     tracer: ProcessTracer | None = None,
 ) -> GraphFixture:
-    from langgraph_robot_agent import LangGraphRobotAgent
+    from agent_control.langgraph_robot_agent import LangGraphRobotAgent
 
     model = FakeChatModel(responses)
     selected_bridge = bridge or FakeBridge()
@@ -298,7 +298,7 @@ async def test_graph_turn_emits_graph_and_node_spans() -> None:
 
 @pytest.mark.asyncio
 async def test_call_model_emits_model_call_span() -> None:
-    from langgraph_robot_agent import LangGraphRobotAgent
+    from agent_control.langgraph_robot_agent import LangGraphRobotAgent
 
     writer = MemoryTraceWriter()
     graph = LangGraphRobotAgent(
@@ -327,7 +327,7 @@ async def test_call_model_emits_model_call_span() -> None:
 
 @pytest.mark.asyncio
 async def test_policy_blocked_call_emits_task_policy_and_does_not_call_mcp() -> None:
-    from langgraph_robot_agent import LangGraphRobotAgent
+    from agent_control.langgraph_robot_agent import LangGraphRobotAgent
 
     writer = MemoryTraceWriter()
     bridge = FakeBridge()
@@ -360,7 +360,7 @@ async def test_policy_blocked_call_emits_task_policy_and_does_not_call_mcp() -> 
 
 @pytest.mark.asyncio
 async def test_successful_tool_call_emits_context_update() -> None:
-    from langgraph_robot_agent import LangGraphRobotAgent
+    from agent_control.langgraph_robot_agent import LangGraphRobotAgent
 
     writer = MemoryTraceWriter()
     bridge = FakeBridge()
@@ -404,10 +404,10 @@ async def test_graph_speaks_text_content_part_without_reasoning_metadata() -> No
 
 @pytest.mark.asyncio
 async def test_model_request_logs_failure_before_reraising(monkeypatch: pytest.MonkeyPatch) -> None:
-    from langgraph_robot_agent import LangGraphRobotAgent
+    from agent_control.langgraph_robot_agent import LangGraphRobotAgent
 
     fake_logger = CapturingLogger()
-    monkeypatch.setattr("langgraph_robot_agent.logger", fake_logger)
+    monkeypatch.setattr("agent_control.langgraph_robot_agent.logger", fake_logger)
     graph = LangGraphRobotAgent(
         model=RaisingChatModel(RuntimeError("boom")),
         tool_bridge=FakeBridge(),
@@ -429,10 +429,10 @@ async def test_model_request_logs_failure_before_reraising(monkeypatch: pytest.M
 async def test_model_request_logs_cancellation_before_reraising(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from langgraph_robot_agent import LangGraphRobotAgent
+    from agent_control.langgraph_robot_agent import LangGraphRobotAgent
 
     fake_logger = CapturingLogger()
-    monkeypatch.setattr("langgraph_robot_agent.logger", fake_logger)
+    monkeypatch.setattr("agent_control.langgraph_robot_agent.logger", fake_logger)
     graph = LangGraphRobotAgent(
         model=RaisingChatModel(asyncio.CancelledError()),
         tool_bridge=FakeBridge(),
@@ -647,10 +647,7 @@ async def test_motion_request_retries_when_model_only_promises_action() -> None:
         ),
         (
             "wave to me",
-            [
-                "moveit_plan_and_execute_free_motion",
-                "moveit_plan_and_execute_free_motion",
-            ],
+            ["moveit_plan_and_execute_cartesian_motion"],
             "Waved.",
         ),
     ],
@@ -675,6 +672,152 @@ async def test_supported_motion_request_falls_back_after_required_tool_retry_fai
     assert fixture.model.bind_kwargs == [
         {"tool_choice": "auto"},
         {"tool_choice": "required"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_supported_action_fallback_moves_up_default_distance() -> None:
+    fixture = make_graph(
+        [
+            ai_text("I’ll use a MoveIt action tool now."),
+            ai_text(""),
+        ]
+    )
+
+    text = await fixture.graph.run_turn(turn("move up"))
+
+    assert text == "Moved up 200 mm."
+    assert fixture.bridge.calls[1] == (
+        "moveit_plan_and_execute_free_motion",
+        {
+            "robot_name": "UR10",
+            "target_pose": {
+                "position": {"x": 0.1, "y": 0.2, "z": pytest.approx(0.5)},
+                "orientation": {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0},
+            },
+            "timeout_s": 10,
+        },
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "prompt",
+    ["move up far", "move up a large amount", "move up a lot"],
+)
+async def test_supported_action_fallback_moves_up_large_distance(prompt: str) -> None:
+    fixture = make_graph(
+        [
+            ai_text("I’ll use a MoveIt action tool now."),
+            ai_text(""),
+        ]
+    )
+
+    text = await fixture.graph.run_turn(turn(prompt))
+
+    assert text == "Moved up 450 mm."
+    assert fixture.bridge.calls[1][0] == "moveit_plan_and_execute_free_motion"
+    assert fixture.bridge.calls[1][1]["target_pose"]["position"] == {
+        "x": 0.1,
+        "y": 0.2,
+        "z": pytest.approx(0.75),
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "prompt",
+    ["move up about 10 cm", "move up about halfway"],
+)
+async def test_supported_action_fallback_keeps_about_as_default_distance(
+    prompt: str,
+) -> None:
+    fixture = make_graph(
+        [
+            ai_text("I’ll use a MoveIt action tool now."),
+            ai_text(""),
+        ]
+    )
+
+    text = await fixture.graph.run_turn(turn(prompt))
+
+    assert text == "Moved up 200 mm."
+    assert fixture.bridge.calls[1][0] == "moveit_plan_and_execute_free_motion"
+    assert fixture.bridge.calls[1][1]["target_pose"]["position"] == {
+        "x": 0.1,
+        "y": 0.2,
+        "z": pytest.approx(0.5),
+    }
+
+
+@pytest.mark.asyncio
+async def test_supported_action_fallback_keeps_a_bit_distance() -> None:
+    fixture = make_graph(
+        [
+            ai_text("I’ll use a MoveIt action tool now."),
+            ai_text(""),
+        ]
+    )
+
+    text = await fixture.graph.run_turn(turn("move up a bit"))
+
+    assert text == "Moved up 50 mm."
+    assert fixture.bridge.calls[1][0] == "moveit_plan_and_execute_free_motion"
+    assert fixture.bridge.calls[1][1]["target_pose"]["position"] == {
+        "x": 0.1,
+        "y": 0.2,
+        "z": pytest.approx(0.35),
+    }
+
+
+@pytest.mark.asyncio
+async def test_supported_action_fallback_wave_uses_prompt_contract_offsets() -> None:
+    fixture = make_graph(
+        [
+            ai_text("I’ll use a MoveIt action tool now."),
+            ai_text(""),
+        ]
+    )
+
+    text = await fixture.graph.run_turn(turn("wave to me"))
+
+    orientation = {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0}
+    expected_args = {
+        "robot_name": "UR10",
+        "waypoints": [
+            {
+                "position": {"x": 0.1, "y": 0.2, "z": pytest.approx(0.45)},
+                "orientation": orientation,
+            },
+            {
+                "position": {
+                    "x": 0.1,
+                    "y": pytest.approx(0.4),
+                    "z": pytest.approx(0.45),
+                },
+                "orientation": orientation,
+            },
+            {
+                "position": {
+                    "x": 0.1,
+                    "y": pytest.approx(0.0),
+                    "z": pytest.approx(0.45),
+                },
+                "orientation": orientation,
+            },
+            {
+                "position": {"x": 0.1, "y": 0.2, "z": pytest.approx(0.45)},
+                "orientation": orientation,
+            },
+        ],
+        "timeout_s": 10,
+    }
+
+    assert text == "Waved."
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_plan_and_execute_cartesian_motion", expected_args),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
 
 

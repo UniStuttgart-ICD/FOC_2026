@@ -1,8 +1,8 @@
 from pipecat.processors.frame_processor import FrameProcessor
 
-from agent_processor_factory import create_agent_processor
+from agent_control.factory import create_agent_processor
+from agent_control.langchain_agent_processor import LangChainAgentProcessor
 from config import AgentConfig
-from langchain_agent_processor import LangChainAgentProcessor
 from process_trace import MemoryTraceWriter, ProcessTracer
 from voice_runtime.agent_turn import AgentTurnProcessor
 
@@ -31,16 +31,16 @@ class FakeAgentTurnProcessor(FrameProcessor):
 
 def _patch_factory_dependencies(monkeypatch):
     monkeypatch.setattr(
-        "agent_processor_factory.build_agent_chat_model",
+        "agent_control.factory.build_agent_chat_model",
         lambda config: FakeChatModel(),
         raising=False,
     )
     monkeypatch.setattr(
-        "agent_processor_factory.LangChainAgentProcessor",
+        "agent_control.factory.LangChainAgentProcessor",
         FakeLangChainAgentProcessor,
     )
     monkeypatch.setattr(
-        "agent_processor_factory.AgentTurnProcessor",
+        "agent_control.factory.AgentTurnProcessor",
         FakeAgentTurnProcessor,
     )
 
@@ -120,7 +120,7 @@ def test_passes_tracer_to_backend_and_agent_turn_processor(monkeypatch):
 def test_factory_real_processors_accept_tracer(monkeypatch):
     tracer = ProcessTracer(MemoryTraceWriter())
     monkeypatch.setattr(
-        "agent_processor_factory.build_agent_chat_model",
+        "agent_control.factory.build_agent_chat_model",
         lambda config: FakeChatModel(),
         raising=False,
     )

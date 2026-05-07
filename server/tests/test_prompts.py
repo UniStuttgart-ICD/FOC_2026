@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from prompts import SYSTEM_PROMPT
+from agent_control.prompts import SYSTEM_PROMPT
 
 CANONICAL_TOOLS = {
     "moveit_get_current_pose",
@@ -95,8 +95,8 @@ def test_prompt_contains_move_up_example_matching_default_magnitude() -> None:
     example = _example_region("mave, move up")
 
     assert "z=0.62" in example
-    assert "z=0.72" in example
-    assert "moved up 100 mm" in example
+    assert "z=0.82" in example
+    assert "moved up 200 mm" in example
 
 
 def test_prompt_contains_wave_and_shape_examples_with_human_scale_motion() -> None:
@@ -105,11 +105,13 @@ def test_prompt_contains_wave_and_shape_examples_with_human_scale_motion() -> No
 
     assert "user: \"mave, wave to me\"" in prompt
     assert "moveit_plan_and_execute_cartesian_motion" in wave_example
-    assert "0.10" in wave_example
-    assert "0.08" in wave_example
-    assert "20 cm side-to-side" in wave_example
+    assert "0.20" in wave_example
+    assert "0.15" in wave_example
+    assert "40 cm side-to-side" in wave_example
     assert "user: \"mave, draw a short line\"" in prompt
     assert "user: \"mave, draw a small circle\"" in prompt
+    assert "0.35-0.55 m total span" in prompt
+    assert "1.3 m reach" in prompt
 
 
 def _example_region(user_text: str) -> str:

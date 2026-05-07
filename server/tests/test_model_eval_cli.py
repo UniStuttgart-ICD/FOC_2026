@@ -20,6 +20,7 @@ def test_run_parser_defaults_to_simulated_adapter(tmp_path: Path) -> None:
         mcp_url=args.mcp_url,
         samples=args.samples,
         evidence_root=args.evidence_root,
+        attempt_timeout_s=args.attempt_timeout,
     )
 
     assert config.adapter == "simulated"
@@ -27,6 +28,7 @@ def test_run_parser_defaults_to_simulated_adapter(tmp_path: Path) -> None:
     assert config.mcp_url == "http://127.0.0.1:8765/mcp"
     assert config.samples == 1
     assert config.evidence_root == Path("evidence/model_eval")
+    assert config.attempt_timeout_s == 120.0
 
 
 def test_run_parser_accepts_live_mcp_and_repeated_scenarios(tmp_path: Path) -> None:
@@ -42,6 +44,8 @@ def test_run_parser_accepts_live_mcp_and_repeated_scenarios(tmp_path: Path) -> N
             "http://127.0.0.1:8765/mcp",
             "--samples",
             "3",
+            "--attempt-timeout",
+            "9.5",
             "--evidence-root",
             str(tmp_path / "evidence"),
             "--scenario",
@@ -54,6 +58,7 @@ def test_run_parser_accepts_live_mcp_and_repeated_scenarios(tmp_path: Path) -> N
     assert args.adapter == "live-mcp"
     assert args.mcp_url == "http://127.0.0.1:8765/mcp"
     assert args.samples == 3
+    assert args.attempt_timeout == 9.5
     assert args.evidence_root == tmp_path / "evidence"
     assert args.scenarios == ["current-position", "move-up-bit"]
 
@@ -84,6 +89,7 @@ async def test_async_main_prints_evidence_and_candidate_summaries(
         config: EvalRunConfig,
         *,
         scenario_names: tuple[str, ...] | None = None,
+        on_attempt=None,
     ) -> FakeResult:
         calls.append((config, scenario_names))
         return FakeResult(
@@ -116,6 +122,7 @@ async def test_async_main_prints_evidence_and_candidate_summaries(
                 mcp_url="http://127.0.0.1:8765/mcp",
                 samples=1,
                 evidence_root=Path("evidence/model_eval"),
+                attempt_timeout_s=120.0,
             ),
             ("current-position",),
         )
@@ -150,6 +157,7 @@ async def test_async_main_returns_failure_when_no_candidate_passes(
         config: EvalRunConfig,
         *,
         scenario_names: tuple[str, ...] | None = None,
+        on_attempt=None,
     ) -> FakeResult:
         return FakeResult(
             evidence_dir=tmp_path / "evidence" / "run",
@@ -176,3 +184,33 @@ def test_run_parser_rejects_non_positive_samples(tmp_path: Path) -> None:
                 "0",
             ]
         )
+
+
+@pytest.mark.asyncio
+async def test_run_eval_suite_wrapper_forwards_attempt_callback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from model_eval.__main__ import run_eval_suite
+
+    callback = object()
+    calls = []
+
+    async def fake_runner(config, *, scenario_names=None, on_attempt=None):
+        calls.append((config, scenario_names, on_attempt))
+        return object()
+
+    monkeypatch.setattr("model_eval.runner.run_eval_suite", fake_runner)
+
+    config = EvalRunConfig(
+        matrix_path=tmp_path / "matrix.toml",
+        pack_name="core_robot_commands",
+    )
+    result = await run_eval_suite(
+        config,
+        scenario_names=("current-position",),
+        on_attempt=callback,
+    )
+
+    assert result is not None
+    assert calls == [(config, ("current-position",), callback)]

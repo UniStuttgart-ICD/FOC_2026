@@ -2,14 +2,14 @@
 
 A Pipecat AI voice agent built with a cascade pipeline (STT → LLM → TTS).
 
-See [Voice Runtime Architecture](docs/architecture.md) for the reusable Module boundaries.
+See [Architecture](ARCHITECTURE.md) for the target Module boundaries.
 
 ## Runtime profiles
 
 Default profile:
 
 ```text
-hybrid_low_latency = Mave wake word + Deepgram Flux STT + OpenAI API LangChain agent + Cartesia Sonic TTS
+hybrid_low_latency = Mave wake word + Deepgram Flux STT + Gemini API LangChain agent + Cartesia Sonic TTS
 ```
 
 Run the default profile:
@@ -34,11 +34,15 @@ uv run bot.py --profile no_wake_debug
 
 Run the independent wake tuning page from `server/`:
 
-```bash
-uv run python -m wake_tuning.app
+```powershell
+$logDir = "logs/wake_tuning"
+New-Item -ItemType Directory -Force $logDir | Out-Null
+uv run python -m wake_tuning.app 1> "$logDir/wake_tuning_server.out.log" 2> "$logDir/wake_tuning_server.err.log"
 ```
 
-Open `http://127.0.0.1:9010`, start the mic, tune the sliders, then use **Save / implement**. Saved values go to `server/wake_tuning_settings.json` and override the selected profile's wake settings when the Pipecat bot starts.
+Open `http://127.0.0.1:9010`, start the mic, tune the sliders, then use **Save / implement**. Saved values go to ignored local state at `server/state/wake_tuning_settings.json` and override the selected profile's wake settings when the Pipecat bot starts.
+
+To make tuned values the shared default, copy the saved profile values into `server/runtime_profiles.toml` and commit the profile change. Do not commit `server/state/wake_tuning_settings.json`.
 
 ### Required keys
 
@@ -47,7 +51,7 @@ For the default profile, set:
 ```dotenv
 DEEPGRAM_API_KEY=
 CARTESIA_API_KEY=
-OPENAI_API_KEY=
+GOOGLE_API_KEY=
 ```
 
 For `openai_all`, set:
@@ -56,7 +60,7 @@ For `openai_all`, set:
 OPENAI_API_KEY=
 ```
 
-`local_current` and `no_wake_debug` use local STT/TTS with the same OpenAI API LangChain agent backend as the benchmark profiles. Keep `OPENAI_API_KEY` and the configured robot MCP URL reachable.
+`local_current` and `no_wake_debug` use local STT/TTS with the OpenAI API LangChain agent backend. Keep `OPENAI_API_KEY` and the configured robot MCP URL reachable.
 
 ### Wake word
 

@@ -9,7 +9,7 @@ The system turns a spoken user command into a robot action and a spoken response
 Two planes keep the architecture understandable:
 
 1. **Voice Runtime plane**: owns realtime audio transport, wake command handling, STT, user/assistant aggregation, TTS, interruption behavior, pipeline ordering, and voice metrics.
-2. **Agent/Robot Control plane**: owns intent handling, Codex-backed Agent Orchestration, deterministic robot task policy, robot call validation, MoveIt tool execution, and robot context.
+2. **Agent/Robot Control plane**: owns intent handling, API-key-backed LangChain Agent Orchestration, deterministic robot task policy, robot call validation, MoveIt tool execution, and robot context.
 
 The high-level flow is:
 
@@ -49,15 +49,15 @@ It contains these target submodules:
 
 ### `agent_control`
 
-`agent_control` is the target Module for API-key-backed LangChain Agent Orchestration.
+`agent_control` is the Module for API-key-backed LangChain Agent Orchestration.
 
-It contains these target submodules:
+It contains:
 
-- **LangChain API Backend**: the target Agent Backend; it uses native LangChain chat models with provider API keys.
-- **Agent Orchestration**: the LangGraph ReAct-style loop that calls the LangChain model, executes returned robot tools, observes robot state, and repeats until done or blocked.
-- **Robot Agent Prompt**: the concise behavior prompt aligned with Agent Orchestration, robot tool feedback, and the robot tool contract.
+- **LangChain API Backend**: builds native LangChain chat models and satisfies the Agent Turn backend seam.
+- **Agent Orchestration**: the LangGraph loop that calls the model, executes robot tools through Robot Control, observes Robot Context, and repeats until done or blocked.
+- **Robot Agent Prompt**: the prompt renderer and prompt parts aligned with Robot Call Validation and Robot Tool Adapter feedback.
 
-**API Boundary:** `agent_control` satisfies `voice_runtime.AgentBackend` and depends on `robot_control` for robot execution. LangGraph is an implementation of Agent Orchestration behind the Agent Turn seam; it must not own Pipecat transport, audio frames, wake handling, STT/TTS, interruption behavior, or pipeline ordering.
+**API Boundary:** `agent_control` satisfies `voice_runtime.AgentBackend` and depends on `robot_control` for robot execution. It must not own Pipecat transport, audio frames, wake handling, STT/TTS, interruption behavior, or pipeline ordering.
 
 ### `robot_control`
 
@@ -81,8 +81,6 @@ robot_control/
 ```
 
 Robot Call Validation, Robot Context, Task Policy, and the Robot Tool Adapter live under `robot_control`.
-
-After `robot_control` extraction, extract `agent_control`, then keep any remaining app wiring in the composition root.
 
 **API Boundary:** `robot_control` exposes robot tools and structured tool feedback to `agent_control`. It owns robot-specific vocabulary and must not depend on Pipecat pipeline modules.
 
@@ -129,7 +127,7 @@ Agent-facing robot tools should stay semantic and narrow: observation tools, pla
 
 `pipeline_builder.py` is the app composition root. It constructs concrete adapters from runtime profiles across Voice Runtime, Agent Control, and Robot Control, then delegates processor ordering to Voice Runtime Assembly.
 
-`agent_processor_factory.py` is a short-term compatibility seam while profiles still carry `agent.provider`. It constructs the native LangChain backend for supported API providers.
+`agent_control.factory` (`server/agent_control/factory.py`) is a short-term compatibility seam while profiles still carry `agent.provider`. It constructs the native LangChain backend for supported API providers.
 
 `bot.py` is the runner and lifecycle shell. It owns runner startup, transport creation, profile selection, and client lifecycle hooks only.
 
@@ -165,7 +163,7 @@ Robot Call Validation does not understand user intent, validate arbitrary multi-
 
 ### Import directions are constrained
 
-`pipeline_builder.py` is the composition root and may import Voice Runtime, Agent Control, Robot Control, and Process Trace packages. `voice_runtime` must not import `agent_control` or `robot_control`. `agent_control` may import `voice_runtime.agent_turn` types and `robot_control`. `robot_control` must not import `voice_runtime` or `agent_control`. Pure `process_trace` core modules must not import runtime/control Modules.
+`pipeline_builder.py` is the composition root and may import Voice Runtime, Agent Control, Robot Control, and Process Trace packages. `voice_runtime` must not import `agent_control` or `robot_control`. `agent_control` may import `robot_control` and only these Voice Runtime seams: `voice_runtime.agent_turn`, `voice_runtime.profiles`, `voice_runtime.agent_providers`, and `voice_runtime.timing`. `robot_control` must not import `voice_runtime` or `agent_control`. Pure `process_trace` core modules must not import runtime/control Modules.
 
 ### Robot Control does not belong in Voice Runtime
 
@@ -217,7 +215,7 @@ Common lesson: the agent owns sequencing and tool choice, while the robot layer 
 
 ### Testing
 
-Test Modules through their Interfaces. Voice Runtime tests should not need Codex, MCP, or robot simulation. Robot Control tests should exercise Task Policy, Robot Call Validation, Robot Context, and Robot Tool Adapter behavior without Pipecat. Agent Control tests should exercise Codex/LangGraph behavior through fake Codex and fake robot adapters.
+Test Modules through their Interfaces. Voice Runtime tests should not need LangChain, MCP, or robot simulation. Robot Control tests should exercise Task Policy, Robot Call Validation, Robot Context, and Robot Tool Adapter behavior without Pipecat. Agent Control tests should exercise LangChain/LangGraph behavior through fake models and fake robot adapters.
 
 Import direction invariants should be enforced by structural tests once the target packages exist.
 

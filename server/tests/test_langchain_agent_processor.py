@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage
 
-from langchain_agent_processor import LangChainAgentProcessor
+from agent_control.langchain_agent_processor import LangChainAgentProcessor
 from process_trace import MemoryTraceWriter, ProcessTracer
 from voice_runtime.agent_turn import AgentTurnInput
 
@@ -178,8 +178,8 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
         async def run_turn(self, turn: AgentTurnInput) -> str:
             return f"fake graph: {turn.user_text}"
 
-    monkeypatch.setattr("langchain_agent_processor.RobotMCPBridge", CreatedBridge)
-    monkeypatch.setattr("langchain_agent_processor.LangGraphRobotAgent", FakeGraphAgent)
+    monkeypatch.setattr("agent_control.langchain_agent_processor.RobotMCPBridge", CreatedBridge)
+    monkeypatch.setattr("agent_control.langchain_agent_processor.LangGraphRobotAgent", FakeGraphAgent)
     writer = MemoryTraceWriter()
     tracer = ProcessTracer(writer)
     processor = LangChainAgentProcessor(
@@ -223,7 +223,7 @@ async def test_backend_turn_span_is_recorded_before_yielded_chunk_is_closed(
         async def run_turn(self, turn: AgentTurnInput) -> str:
             return f"fake graph: {turn.user_text}"
 
-    monkeypatch.setattr("langchain_agent_processor.LangGraphRobotAgent", FakeGraphAgent)
+    monkeypatch.setattr("agent_control.langchain_agent_processor.LangGraphRobotAgent", FakeGraphAgent)
     writer = MemoryTraceWriter()
     processor = LangChainAgentProcessor(
         "http://127.0.0.1:8765/mcp",
