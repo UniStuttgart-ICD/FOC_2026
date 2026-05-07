@@ -12,6 +12,7 @@ class VoiceRuntimeParts:
     user_aggregator: object
     agent_turn: object
     tts: object
+    voice_modulation: object | None
     transport_output: object
     assistant_aggregator: object
 
@@ -28,8 +29,9 @@ def ordered_voice_runtime_processors(parts: VoiceRuntimeParts) -> list[object]:
             parts.user_aggregator,
             parts.agent_turn,
             parts.tts,
-            parts.transport_output,
-            parts.assistant_aggregator,
         ]
     )
+    if parts.voice_modulation is not None:
+        processors.append(parts.voice_modulation)
+    processors.extend([parts.transport_output, parts.assistant_aggregator])
     return processors

@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from voice_modulation.settings import VoiceModulationError, apply_saved_voice_modulation
 from voice_runtime.profiles import (
     DEFAULT_PROFILE,
     AgentProfile,
@@ -32,6 +33,7 @@ TTSConfig = TTSProfile
 AgentConfig = AgentProfile
 MetricsConfig = MetricsProfile
 ProcessTraceConfig = ProcessTraceProfile
+VoiceModulationConfig = object
 
 
 @dataclass(frozen=True)
@@ -47,6 +49,7 @@ class RuntimeConfig:
     metrics: MetricsConfig
     process_trace: ProcessTraceConfig
     server_dir: Path
+    voice_modulation: object | None = None
 
     @classmethod
     def from_profile(cls, profile: RuntimeProfile) -> RuntimeConfig:
@@ -62,6 +65,7 @@ class RuntimeConfig:
             metrics=profile.metrics,
             process_trace=profile.process_trace,
             server_dir=profile.server_dir,
+            voice_modulation=profile.voice_modulation,
         )
 
     def required_env_names(self) -> tuple[str, ...]:
@@ -77,6 +81,7 @@ class RuntimeConfig:
             metrics=self.metrics,
             process_trace=self.process_trace,
             server_dir=self.server_dir,
+            voice_modulation=self.voice_modulation,
         ).required_env_names()
 
 
@@ -98,10 +103,13 @@ def load_runtime_config(
             profile_name=selected_profile,
         )
         profile = apply_saved_wake_tuning(profile)
+        profile = apply_saved_voice_modulation(profile)
     except ProfileError as exc:
         message = str(exc).replace("Unknown profile", "Unknown VOICE_PROFILE", 1)
         raise ConfigError(message) from exc
     except WakeTuningError as exc:
+        raise ConfigError(str(exc)) from exc
+    except VoiceModulationError as exc:
         raise ConfigError(str(exc)) from exc
 
     missing = [name for name in profile.required_env_names() if not os.getenv(name)]
@@ -127,6 +135,7 @@ __all__ = [
     "STTProvider",
     "TTSConfig",
     "TTSProvider",
+    "VoiceModulationConfig",
     "WakeConfig",
     "WakeProvider",
     "default_profiles_path",

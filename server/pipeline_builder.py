@@ -29,6 +29,8 @@ from process_trace import (
     TraceContext,
     TraceOptions,
 )
+from voice_modulation.processor import VoiceModulationProcessor
+from voice_modulation.settings import VoiceModulationSettings
 from voice_runtime.assembly import VoiceRuntimeParts, ordered_voice_runtime_processors
 from voice_runtime.providers import create_stt_service, create_tts_service
 from voice_runtime.wake_command import build_mave_voice_command_processors
@@ -49,6 +51,7 @@ class BuiltPipeline:
 def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipeline:
     stt = create_stt_service(config.stt)
     tts = create_tts_service(config.tts)
+    voice_modulation = _create_voice_modulation_processor(config.voice_modulation)
     session_id = _new_session_id()
     session_started_at = _utc_now()
     process_tracer = _build_process_tracer(config, session_id, session_started_at)
@@ -123,6 +126,7 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
                 user_aggregator=user_aggregator,
                 agent_turn=agent_processor,
                 tts=tts,
+                voice_modulation=voice_modulation,
                 transport_output=transport.output(),
                 assistant_aggregator=assistant_aggregator,
             )
@@ -165,6 +169,14 @@ def session_log_path(base_path: Path, started_at: datetime, session_id: str) -> 
     stem = base_path.stem or "session"
     session_token = session_id[:8]
     return base_path.parent / stem / f"{stem}-{timestamp}-{session_token}{suffix}"
+
+
+def _create_voice_modulation_processor(
+    settings: object | None,
+) -> VoiceModulationProcessor | None:
+    if not isinstance(settings, VoiceModulationSettings) or not settings.enabled:
+        return None
+    return VoiceModulationProcessor(settings=settings)
 
 
 def _new_session_id() -> str:

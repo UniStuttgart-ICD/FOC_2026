@@ -44,6 +44,17 @@ Open `http://127.0.0.1:9010`, start the mic, tune the sliders, then use **Save /
 
 To make tuned values the shared default, copy the saved profile values into `server/runtime_profiles.toml` and commit the profile change. Do not commit `server/state/wake_tuning_settings.json`.
 
+### Voice Mod Lab
+
+Run the independent voice modulation workbench:
+
+```powershell
+cd C:\Users\Samuel\Documents\github\pipecat\pipecat-agent\server
+uv run uvicorn voice_modulation.app:app --host 127.0.0.1 --port 8897
+```
+
+Open `http://127.0.0.1:8897`, choose a runtime profile, generate a clean TTS preview, tune the modulation controls, then save local profile overrides to `server/state/voice_modulation_settings.json`. Do not commit the local state file.
+
 ### Required keys
 
 For the default profile, set:

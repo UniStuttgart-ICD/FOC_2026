@@ -109,6 +109,7 @@ class RuntimeProfile:
     metrics: MetricsProfile
     process_trace: ProcessTraceProfile
     server_dir: Path
+    voice_modulation: Any | None = None
 
     def required_env_names(self) -> tuple[str, ...]:
         names: list[str] = []

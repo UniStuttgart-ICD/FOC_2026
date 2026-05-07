@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voice Mod Lab</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      --graphite: #242726;
+      --graphite-2: #343836;
+      --graphite-3: #4a504d;
+      --paper: #f4f1e8;
+      --paper-2: #ddd8cb;
+      --teal: #188b86;
+      --teal-dark: #0d5e5b;
+      --coral: #df6b58;
+      --amber: #c08a22;
+      --ink: #1a1d1c;
+      --line: #8d887d;
+      --shadow: rgba(20, 22, 21, 0.18);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(36, 39, 38, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(36, 39, 38, 0.035) 1px, transparent 1px),
+        var(--paper);
+      background-size: 18px 18px;
+      font-family: "Bahnschrift", "Aptos", "Segoe UI", sans-serif;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+    }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(170px, 260px) 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 18px;
+      color: var(--paper);
+      background: var(--graphite);
+      border-bottom: 5px solid var(--coral);
+      box-shadow: 0 4px 18px var(--shadow);
+    }
+
+    .brand {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .brand strong {
+      font-size: 18px;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .brand span,
+    .summary,
+    .save-status,
+    .hint {
+      font-size: 12px;
+      color: var(--paper-2);
+    }
+
+    .toolbar select {
+      width: 100%;
+      min-height: 40px;
+      color: var(--paper);
+      background: var(--graphite-2);
+      border: 1px solid var(--graphite-3);
+      padding: 0 10px;
+      border-radius: 4px;
+    }
+
+    .summary {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .save-status {
+      min-width: 130px;
+      text-align: right;
+      color: var(--amber);
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) minmax(280px, 380px);
+      gap: 18px;
+      width: min(1320px, 100%);
+      padding: 18px;
+      margin: 0 auto;
+    }
+
+    .workbench,
+    .rack {
+      min-width: 0;
+    }
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 34px;
+      margin-bottom: 10px;
+      border-bottom: 2px solid var(--graphite);
+    }
+
+    .panel-title h1,
+    .panel-title h2 {
+      margin: 0;
+      font-size: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 132px;
+      resize: vertical;
+      padding: 14px;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.52);
+      border: 2px solid var(--line);
+      border-radius: 4px;
+      outline-color: var(--teal);
+      line-height: 1.45;
+    }
+
+    .phrase-row,
+    .action-row,
+    .preset-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .phrase-row {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin: 10px 0 14px;
+    }
+
+    .button,
+    button {
+      min-height: 40px;
+      border: 0;
+      border-radius: 4px;
+      padding: 0 12px;
+      color: var(--paper);
+      background: var(--teal);
+      cursor: pointer;
+      box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+      white-space: nowrap;
+    }
+
+    button:hover { background: var(--teal-dark); }
+    button:disabled { opacity: 0.55; cursor: wait; }
+
+    .ghost {
+      color: var(--ink);
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+    }
+
+    .ghost:hover {
+      color: var(--paper);
+      background: var(--graphite-3);
+    }
+
+    .generate {
+      min-height: 48px;
+      background: var(--coral);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .generate:hover { background: #bd4f40; }
+
+    .audio-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .audio-card,
+    .preset-tile {
+      background: rgba(255, 255, 255, 0.58);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      box-shadow: 0 10px 20px var(--shadow);
+    }
+
+    .audio-card {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      min-width: 0;
+    }
+
+    .audio-card header,
+    .preset-tile strong {
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    audio {
+      width: 100%;
+      min-height: 42px;
+    }
+
+    .preset-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-bottom: 16px;
+    }
+
+    .preset-tile {
+      display: grid;
+      gap: 5px;
+      min-height: 74px;
+      padding: 10px;
+      color: var(--ink);
+      text-align: left;
+      background: rgba(244, 241, 232, 0.82);
+    }
+
+    .preset-tile.active {
+      outline: 3px solid var(--coral);
+      background: #fff7ed;
+    }
+
+    .preset-tile span {
+      color: #55514b;
+      font-size: 12px;
+      white-space: normal;
+    }
+
+    .controls {
+      display: grid;
+      gap: 12px;
+    }
+
+    .control {
+      display: grid;
+      grid-template-columns: minmax(110px, 1fr) 64px;
+      gap: 10px;
+      align-items: center;
+      padding: 9px 0;
+      border-bottom: 1px solid rgba(36, 39, 38, 0.18);
+    }
+
+    .control label {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .control output {
+      min-width: 58px;
+      padding: 5px 6px;
+      text-align: right;
+      color: var(--paper);
+      background: var(--graphite);
+      border-radius: 3px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--teal);
+    }
+
+    .limiter-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 44px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .limiter-row input {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--coral);
+    }
+
+    .save-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .status {
+      min-height: 42px;
+      margin-top: 14px;
+      padding: 10px;
+      color: var(--paper);
+      background: var(--graphite);
+      border-left: 5px solid var(--amber);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .status.ok { border-left-color: var(--teal); }
+    .status.hot { border-left-color: var(--coral); }
+
+    @media (max-width: 860px) {
+      .toolbar,
+      main,
+      .audio-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .summary,
+      .save-status {
+        text-align: left;
+        white-space: normal;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .toolbar,
+      main {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+
+      .phrase-row,
+      .preset-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .control {
+        grid-template-columns: 1fr;
+      }
+
+      .control output {
+        text-align: left;
+      }
+
+      button {
+        white-space: normal;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="toolbar">
+      <div class="brand">
+        <strong>Voice Mod Lab</strong>
+        <span>Workbench</span>
+      </div>
+      <select id="profileSelect" aria-label="Runtime profile"></select>
+      <div>
+        <div id="providerSummary" class="summary">Provider: loading</div>
+        <div id="saveStatus" class="save-status">Idle</div>
+      </div>
+    </header>
+
+    <main>
+      <section class="workbench">
+        <div class="panel-title">
+          <h1>Preview phrase</h1>
+        </div>
+        <textarea id="phrase" spellcheck="true">Mave status report. Motion systems nominal, path planner ready.</textarea>
+        <div class="phrase-row">
+          <button class="ghost phrase-btn" data-text="Mave status report. Motion systems nominal, path planner ready.">Status</button>
+          <button class="ghost phrase-btn" data-text="Mave, move up a bit, then pause for confirmation.">Motion</button>
+          <button class="ghost phrase-btn" data-text="Mave, run the longer diagnostics phrase so we can hear compression, tremolo, bandwidth cuts, and limiter behavior over a full sentence.">Longer phrase</button>
+        </div>
+        <div class="action-row">
+          <button id="generateBtn" class="generate">Generate</button>
+        </div>
+
+        <div class="audio-grid">
+          <article class="audio-card">
+            <header>Clean</header>
+            <audio id="cleanAudio" controls></audio>
+          </article>
+          <article class="audio-card">
+            <header>Modulated</header>
+            <audio id="modAudio" controls></audio>
+          </article>
+        </div>
+        <div id="status" class="status">Load a profile, choose a preset, then generate a preview.</div>
+      </section>
+
+      <aside class="rack">
+        <div class="panel-title">
+          <h2>Preset bay</h2>
+        </div>
+        <div id="presetGrid" class="preset-grid"></div>
+
+        <div class="panel-title">
+          <h2>Controls</h2>
+        </div>
+        <div id="controls" class="controls"></div>
+        <label class="limiter-row">
+          <input id="limiter" type="checkbox">
+          Limiter
+        </label>
+        <div class="save-row">
+          <button id="saveBtn">Save</button>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const presetCopy = {
+      clean: "Dry reference",
+      robot: "Ringed and reduced",
+      radio: "Band-limited grit",
+      small_speaker: "Compact driver",
+      low_battery: "Faltering power"
+    };
+    const sliders = [
+      ["gain_db", "Gain", -24, 24, 0.5, " dB"],
+      ["wet_mix", "Wet mix", 0, 1, 0.01, ""],
+      ["low_cut_hz", "Low cut", 0, 4000, 10, " Hz"],
+      ["high_cut_hz", "High cut", 0, 24000, 50, " Hz"],
+      ["drive", "Drive", 0, 1, 0.01, ""],
+      ["bit_depth", "Bit depth", 4, 16, 1, " bit"],
+      ["ring_mod_hz", "Ring modulation", 0, 2000, 1, " Hz"],
+      ["tremolo_hz", "Tremolo rate", 0, 20, 0.1, " Hz"],
+      ["tremolo_depth", "Tremolo depth", 0, 1, 0.01, ""]
+    ];
+    const state = { profiles: [], presets: {}, settings: null, clean: null };
+    const $ = (id) => document.getElementById(id);
+
+    function setStatus(text, tone = "") {
+      $("status").textContent = text;
+      $("status").className = `status ${tone}`;
+    }
+
+    function audioUrl(audio) {
+      const bytes = Uint8Array.from(atob(audio.wav_base64), (c) => c.charCodeAt(0));
+      return URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+    }
+
+    function setPlayer(id, audio) {
+      const player = $(id);
+      if (player.dataset.url) URL.revokeObjectURL(player.dataset.url);
+      const url = audioUrl(audio);
+      player.src = url;
+      player.dataset.url = url;
+    }
+
+    function readSettings() {
+      const settings = { ...state.settings };
+      for (const [key] of sliders) {
+        const input = $(`ctl_${key}`);
+        settings[key] = key === "bit_depth" ? Number.parseInt(input.value, 10) : Number(input.value);
+      }
+      settings.limiter = $("limiter").checked;
+      return settings;
+    }
+
+    function writeSettings(settings) {
+      state.settings = { ...settings };
+      for (const [key, , , , , suffix] of sliders) {
+        const input = $(`ctl_${key}`);
+        const output = $(`out_${key}`);
+        input.value = settings[key];
+        output.textContent = `${settings[key]}${suffix}`;
+      }
+      $("limiter").checked = settings.limiter;
+      document.querySelectorAll(".preset-tile").forEach((tile) => {
+        tile.classList.toggle("active", tile.dataset.preset === settings.preset_name);
+      });
+    }
+
+    function renderControls() {
+      $("controls").innerHTML = sliders.map(([key, label, min, max, step]) => `
+        <div class="control">
+          <label for="ctl_${key}">
+            ${label}
+            <input id="ctl_${key}" type="range" min="${min}" max="${max}" step="${step}">
+          </label>
+          <output id="out_${key}"></output>
+        </div>
+      `).join("");
+      for (const [key, , , , , suffix] of sliders) {
+        $(`ctl_${key}`).addEventListener("input", () => {
+          state.settings = readSettings();
+          state.settings.preset_name = "custom";
+          $(`out_${key}`).textContent = `${state.settings[key]}${suffix}`;
+          $("saveStatus").textContent = "Unsaved";
+        });
+      }
+      $("limiter").addEventListener("change", () => {
+        state.settings = readSettings();
+        $("saveStatus").textContent = "Unsaved";
+      });
+    }
+
+    async function api(path, options) {
+      const response = await fetch(path, options);
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `${response.status} ${response.statusText}`);
+      }
+      return response.json();
+    }
+
+    async function loadProfiles() {
+      const data = await api("/api/profiles");
+      state.profiles = data.profiles;
+      $("profileSelect").innerHTML = state.profiles.map((profile) =>
+        `<option value="${profile.name}">${profile.name}</option>`
+      ).join("");
+      $("profileSelect").addEventListener("change", loadSettings);
+      const hasProfiles = state.profiles.length > 0;
+      $("profileSelect").disabled = !hasProfiles;
+      $("generateBtn").disabled = !hasProfiles;
+      $("saveBtn").disabled = !hasProfiles;
+      if (!hasProfiles) {
+        $("providerSummary").textContent = "Provider: unavailable";
+        $("saveStatus").textContent = "No profiles";
+        setStatus("No runtime profiles found.", "hot");
+        return;
+      }
+      await loadSettings();
+    }
+
+    async function loadPresets() {
+      const data = await api("/api/presets");
+      state.presets = Object.fromEntries(data.presets.map((preset) => [preset.name, preset.settings]));
+      $("presetGrid").innerHTML = data.presets.map((preset) => `
+        <button class="preset-tile" data-preset="${preset.name}">
+          <strong>${preset.name}</strong>
+          <span>${presetCopy[preset.name] || "Preset"}</span>
+        </button>
+      `).join("");
+      document.querySelectorAll(".preset-tile").forEach((tile) => {
+        tile.addEventListener("click", () => {
+          writeSettings(state.presets[tile.dataset.preset]);
+          $("saveStatus").textContent = "Unsaved";
+        });
+      });
+    }
+
+    async function loadSettings() {
+      const profileName = $("profileSelect").value;
+      const profile = state.profiles.find((item) => item.name === profileName);
+      $("providerSummary").textContent = profile
+        ? `${profile.tts.provider} / ${profile.tts.model || "default"} / ${profile.tts.voice || "default"}`
+        : "Provider: unavailable";
+      if (profile && profile.missing_env.length) {
+        setStatus(`Missing env: ${profile.missing_env.join(", ")}`, "hot");
+      } else {
+        setStatus("Ready.", "ok");
+      }
+      const data = await api(`/api/settings/${encodeURIComponent(profileName)}`);
+      writeSettings(data.settings);
+      $("saveStatus").textContent = data.saved ? "Saved override" : "Built-in clean";
+    }
+
+    async function generate() {
+      const profileName = $("profileSelect").value;
+      if (!profileName) {
+        setStatus("Select a runtime profile first.", "hot");
+        return;
+      }
+      $("generateBtn").disabled = true;
+      setStatus("Generating preview...", "");
+      try {
+        const tts = await api("/api/preview/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ profile_name: profileName, text: $("phrase").value })
+        });
+        state.clean = tts.audio;
+        setPlayer("cleanAudio", tts.audio);
+        const effect = await api("/api/preview/effect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ audio: tts.audio, settings: readSettings() })
+        });
+        setPlayer("modAudio", effect.audio);
+        setStatus("Preview rendered.", "ok");
+      } catch (error) {
+        setStatus(error.message, "hot");
+      } finally {
+        $("generateBtn").disabled = state.profiles.length === 0;
+      }
+    }
+
+    async function save() {
+      const profileName = $("profileSelect").value;
+      if (!profileName) {
+        setStatus("Select a runtime profile first.", "hot");
+        return;
+      }
+      $("saveBtn").disabled = true;
+      try {
+        const data = await api(`/api/settings/${encodeURIComponent(profileName)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(readSettings())
+        });
+        writeSettings(data.settings);
+        $("saveStatus").textContent = "Saved";
+        setStatus("Settings saved.", "ok");
+      } catch (error) {
+        setStatus(error.message, "hot");
+      } finally {
+        $("saveBtn").disabled = state.profiles.length === 0;
+      }
+    }
+
+    document.querySelectorAll(".phrase-btn").forEach((button) => {
+      button.addEventListener("click", () => { $("phrase").value = button.dataset.text; });
+    });
+    $("generateBtn").addEventListener("click", generate);
+    $("saveBtn").addEventListener("click", save);
+
+    renderControls();
+    Promise.all([loadPresets(), loadProfiles()]).catch((error) => setStatus(error.message, "hot"));
+  </script>
+</body>
+</html>

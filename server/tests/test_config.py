@@ -9,6 +9,7 @@ from config import (
     RuntimeConfig,
     load_runtime_config,
 )
+from voice_modulation.settings import VoiceModulationSettings, save_profile_settings
 
 
 def test_loads_default_hybrid_profile(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -77,6 +78,57 @@ include_text = true
         include_text=True,
         include_tool_payloads=True,
     )
+    assert config.voice_modulation == VoiceModulationSettings()
+
+
+def test_saved_voice_modulation_settings_are_loaded_into_runtime_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    profiles = tmp_path / "runtime_profiles.toml"
+    profiles.write_text(
+        """
+[profiles.local_current]
+category = "local_debug"
+[profiles.local_current.wake]
+provider = "none"
+[profiles.local_current.emergency_stop]
+enabled = false
+[profiles.local_current.stt]
+provider = "whisper"
+model = "base"
+[profiles.local_current.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.local_current.agent]
+provider = "openai_api"
+model = "gpt-5.4-mini"
+[profiles.local_current.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.local_current.metrics]
+enabled = false
+""".strip(),
+        encoding="utf-8",
+    )
+    settings_path = tmp_path / "voice_modulation_settings.json"
+    monkeypatch.setenv("VOICE_MODULATION_SETTINGS_PATH", str(settings_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "oa")
+    settings = VoiceModulationSettings(
+        enabled=True,
+        preset_name="robot",
+        gain_db=4.0,
+        wet_mix=0.75,
+        ring_mod_hz=32.0,
+    )
+    save_profile_settings("local_current", settings, settings_path=settings_path)
+
+    config = load_runtime_config(
+        profiles_path=profiles,
+        server_dir=tmp_path,
+        profile_name="local_current",
+    )
+
+    assert config.voice_modulation == settings
 
 
 def test_cli_profile_overrides_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

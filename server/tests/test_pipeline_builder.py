@@ -17,7 +17,9 @@ from config import (
     WakeConfig,
 )
 from metrics import VoiceMetricsObserver
-from pipeline_builder import build_pipeline
+from pipeline_builder import _create_voice_modulation_processor, build_pipeline
+from voice_modulation.processor import VoiceModulationProcessor
+from voice_modulation.settings import VoiceModulationSettings
 from voice_runtime.wake_command import MaveVoiceCommandAudioGate, MaveVoiceCommandTranscriptAdapter
 
 
@@ -93,6 +95,7 @@ def _config(
     metrics_enabled: bool,
     process_trace_enabled: bool = False,
     wake_enabled: bool = False,
+    voice_modulation: object | None = None,
 ) -> RuntimeConfig:
     return RuntimeConfig(
         profile_name="no_wake_debug",
@@ -125,6 +128,7 @@ def _config(
             include_text=True,
             include_tool_payloads=False,
         ),
+        voice_modulation=voice_modulation,
         server_dir=tmp_path,
     )
 
@@ -339,3 +343,45 @@ def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tm
         and "rearm_delay_s=6.0" in message
         for message in wake_config_logs
     )
+
+
+def test_create_voice_modulation_processor_returns_none_for_missing_disabled_or_unknown_settings() -> None:
+    assert _create_voice_modulation_processor(None) is None
+    assert _create_voice_modulation_processor(object()) is None
+    assert _create_voice_modulation_processor(VoiceModulationSettings(enabled=False)) is None
+
+
+def test_create_voice_modulation_processor_returns_processor_for_enabled_settings() -> None:
+    settings = VoiceModulationSettings(enabled=True, gain_db=3.0)
+
+    processor = _create_voice_modulation_processor(settings)
+
+    assert isinstance(processor, VoiceModulationProcessor)
+
+
+def test_enabled_voice_modulation_is_wired_between_tts_and_transport_output(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    _patch_pipeline_dependencies(monkeypatch)
+    tts = FrameProcessor()
+    transport_output = FrameProcessor()
+    monkeypatch.setattr("pipeline_builder.create_tts_service", lambda config: tts)
+
+    class VoiceModulationTransport(FakeTransport):
+        def output(self):
+            return transport_output
+
+    built = build_pipeline(
+        _config(
+            tmp_path,
+            metrics_enabled=False,
+            voice_modulation=VoiceModulationSettings(enabled=True, gain_db=3.0),
+        ),
+        cast(BaseTransport, VoiceModulationTransport()),
+    )
+    processors = cast(FakePipeline, built.pipeline).processors
+    tts_index = processors.index(tts)
+
+    assert isinstance(processors[tts_index + 1], VoiceModulationProcessor)
+    assert processors[tts_index + 2] is transport_output
