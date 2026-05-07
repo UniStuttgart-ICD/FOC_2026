@@ -67,6 +67,23 @@ A successful MoveIt planning result with `ok=true`, `feedback.can_execute=true`,
 **MoveIt Safety Boundary**:
 The accepted movement-safety boundary; robot movement safety is delegated to MoveIt planning/execution and the robot simulation stack.
 
+### Observability
+
+**Process Trace**:
+The reusable cross-cutting trace of a voice robot run, recorded as correlated local spans and events across Voice Runtime, Agent Control, Robot Control, and MCP tool execution.
+
+**Trace Session**:
+One bot runtime session, used to correlate all turns and background lifecycle events in a single run.
+
+**Trace Turn**:
+One spoken user command inside a Trace Session, normally rooted at wake or first user speech and ending after the assistant response/TTS path completes.
+
+**Trace Span**:
+A timed Process Trace record with a name, parent span, status, timestamps, duration, and structured attributes.
+
+**Trace Event**:
+An instant Process Trace record for a semantic event such as wake detection, policy block, validation result, Robot Context update, or lifecycle event.
+
 ### Testing
 
 **Live LLM Robot Eval**:
@@ -106,6 +123,9 @@ A Live LLM Robot Smoke Test rule where "a bit" means about 0.05 m along the inte
 - A **Manual Live Eval Gate** keeps Live LLM Robot Evals out of normal CI.
 - **Live Eval Evidence** is saved as minimal JSON, not as a human HTML report.
 - A **Recording Robot Tool Adapter** observes live smoke tests without adding production logging hooks.
+- **Process Trace** observes runtime behavior but does not own Voice Runtime, Agent Control, Robot Control, policy, validation, MCP execution, or robot safety behavior.
+- A **Trace Turn** may contain Voice Runtime, Agent Control, Robot Control, and MCP **Trace Spans** under one correlated tree.
+- **Voice Metrics** are summary timing records; **Process Trace** is the detailed span/event record for debugging, bottleneck analysis, and future visualization.
 
 ## Example dialogue
 
@@ -118,6 +138,7 @@ A Live LLM Robot Smoke Test rule where "a bit" means about 0.05 m along the inte
 - "Motion Safety Layer" is ambiguous; resolved: use **Robot Call Validation** for local tool-call validation and **MoveIt Safety Boundary** for movement safety.
 - Robot-side policy, context, validation, and adapter ownership is resolved to the **Robot Control Module**.
 - "Live test" was used for both pass/fail smoke testing and open-ended gesture exploration; resolved: use **Live LLM Robot Smoke Test** for manual pass/fail coverage and **Exploratory Gesture Eval** for wave/star-style behavior review.
+- "Metrics" can mean summary turn timing or detailed process tracing; resolved: use **Voice Metrics** for summary timing and **Process Trace** for correlated spans/events.
 
 ## Current limitation
 
