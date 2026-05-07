@@ -17,6 +17,8 @@ from pipecat.frames.frames import (
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
+from process_trace import NoopProcessTracer, ProcessTracer, TraceContext, use_trace_context
+
 logger = logging.getLogger(__name__)
 
 NO_TEXT_RESPONSE = "I could not confirm that the action completed."
@@ -85,12 +87,14 @@ class AgentTurnProcessor(FrameProcessor):
         self,
         *,
         backend: AgentBackend,
+        tracer: ProcessTracer | NoopProcessTracer | None = None,
         on_turn_started: Callable[[], None] | None = None,
         on_turn_finished: Callable[[], None] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._backend = backend
+        self._tracer = tracer or NoopProcessTracer()
         self._on_turn_started = on_turn_started
         self._on_turn_finished = on_turn_finished
 
@@ -121,27 +125,54 @@ class AgentTurnProcessor(FrameProcessor):
             self._on_turn_started()
         try:
             await self.push_frame(LLMFullResponseStartFrame())
-            await self._run_turn(turn)
+            turn_context = self._trace_turn_context(turn)
+            with use_trace_context(turn_context):
+                response_text = ""
+                try:
+                    async with self._tracer.span(
+                        "voice.agent_turn",
+                        "voice_runtime",
+                        context=turn_context,
+                    ):
+                        response_text = await self._run_turn(turn)
+                except Exception:
+                    logger.exception("Agent backend turn failed")
+                    response_text = ERROR_RESPONSE
+                    await self.push_frame(LLMTextFrame(text=ERROR_RESPONSE))
+
+                if self._tracer.options.include_text:
+                    self._tracer.event(
+                        "voice.agent_turn.response",
+                        "voice_runtime",
+                        attributes={"text": response_text},
+                        context=turn_context,
+                    )
             await self.push_frame(LLMFullResponseEndFrame())
         finally:
             if self._on_turn_finished is not None:
                 self._on_turn_finished()
 
-    async def _run_turn(self, turn: AgentTurnInput) -> None:
+    def _trace_turn_context(self, turn: AgentTurnInput) -> TraceContext:
+        current_context = self._tracer.current_context()
+        if current_context.turn_id is not None:
+            return current_context
+        return self._tracer.start_turn(input_text=turn.user_text, context=current_context)
+
+    async def _run_turn(self, turn: AgentTurnInput) -> str:
         has_text = False
-        try:
-            async for chunk in self._backend.run_turn(turn):
-                if not chunk:
-                    continue
-                has_text = True
-                await self.push_frame(LLMTextFrame(text=chunk))
-        except Exception:
-            logger.exception("Agent backend turn failed")
-            await self.push_frame(LLMTextFrame(text=ERROR_RESPONSE))
-            return
+        response_parts: list[str] = []
+        async for chunk in self._backend.run_turn(turn):
+            if not chunk:
+                continue
+            has_text = True
+            response_parts.append(chunk)
+            await self.push_frame(LLMTextFrame(text=chunk))
 
         if not has_text:
             await self.push_frame(LLMTextFrame(text=NO_TEXT_RESPONSE))
+            return NO_TEXT_RESPONSE
+
+        return "".join(response_parts)
 
 
 def _message_text(msg: Mapping[str, Any]) -> str | None:

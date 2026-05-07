@@ -16,6 +16,8 @@ from pipecat.frames.frames import (
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection
 
+from process_trace import MemoryTraceWriter, ProcessTracer, TraceContext, TraceOptions
+from process_trace.context import use_trace_context
 from voice_runtime.agent_turn import (
     AgentBackend,
     AgentTurnInput,
@@ -171,6 +173,59 @@ async def test_agent_turn_wraps_backend_output_in_llm_frames() -> None:
 
 
 @pytest.mark.asyncio
+async def test_agent_turn_processor_emits_voice_agent_turn_on_successful_backend() -> None:
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
+    processor = CapturingProcessor(EchoBackend(["done"]), tracer=tracer)
+
+    await processor.process_frame(
+        _context_frame([{"role": "user", "content": "move up"}]), FrameDirection.DOWNSTREAM
+    )
+
+    agent_span = [record for record in writer.records if record["name"] == "voice.agent_turn"][0]
+    response = [
+        record for record in writer.records if record["name"] == "voice.agent_turn.response"
+    ][0]
+    assert agent_span["record_type"] == "span"
+    assert agent_span["status"] == "ok"
+    assert agent_span["turn_id"]
+    assert response["record_type"] == "event"
+    assert response["attributes"] == {"text": "done"}
+
+
+@pytest.mark.asyncio
+async def test_agent_turn_processor_reuses_current_trace_turn_context() -> None:
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
+    processor = CapturingProcessor(EchoBackend(["done"]), tracer=tracer)
+    turn_context = TraceContext(trace_id="trace", session_id="session", turn_id="turn")
+
+    with use_trace_context(turn_context):
+        await processor.process_frame(
+            _context_frame([{"role": "user", "content": "move up"}]), FrameDirection.DOWNSTREAM
+        )
+
+    agent_span = [record for record in writer.records if record["name"] == "voice.agent_turn"][0]
+    assert agent_span["trace_id"] == "trace"
+    assert agent_span["session_id"] == "session"
+    assert agent_span["turn_id"] == "turn"
+    assert [record["name"] for record in writer.records].count("trace.turn_start") == 0
+
+
+@pytest.mark.asyncio
+async def test_agent_turn_processor_omits_response_text_when_include_text_false() -> None:
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer, TraceOptions(include_text=False))
+    processor = CapturingProcessor(EchoBackend(["done"]), tracer=tracer)
+
+    await processor.process_frame(
+        _context_frame([{"role": "user", "content": "move up"}]), FrameDirection.DOWNSTREAM
+    )
+
+    assert not [record for record in writer.records if record["name"] == "voice.agent_turn.response"]
+
+
+@pytest.mark.asyncio
 async def test_agent_turn_emits_fallback_when_backend_yields_no_text() -> None:
     backend = EchoBackend([])
     processor = CapturingProcessor(backend)
@@ -194,6 +249,27 @@ async def test_agent_turn_emits_error_message_when_backend_raises() -> None:
 
     text_frames = [frame for frame in processor.pushed if isinstance(frame, LLMTextFrame)]
     assert [frame.text for frame in text_frames] == ["I encountered an error. Please try again."]
+
+
+@pytest.mark.asyncio
+async def test_agent_turn_processor_records_span_around_backend_failure() -> None:
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
+    processor = CapturingProcessor(EchoBackend(raises=True), tracer=tracer)
+
+    await processor.process_frame(
+        _context_frame([{"role": "user", "content": "status"}]), FrameDirection.DOWNSTREAM
+    )
+
+    text_frames = [frame for frame in processor.pushed if isinstance(frame, LLMTextFrame)]
+    agent_span = [record for record in writer.records if record["name"] == "voice.agent_turn"][0]
+    response = [
+        record for record in writer.records if record["name"] == "voice.agent_turn.response"
+    ][0]
+    assert [frame.text for frame in text_frames] == ["I encountered an error. Please try again."]
+    assert agent_span["status"] == "error"
+    assert agent_span["attributes"]["error_type"] == "RuntimeError"
+    assert response["attributes"] == {"text": "I encountered an error. Please try again."}
 
 
 @pytest.mark.asyncio
