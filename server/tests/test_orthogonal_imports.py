@@ -3,6 +3,7 @@ from pathlib import Path
 
 SERVER_DIR = Path(__file__).resolve().parents[1]
 VOICE_RUNTIME_DIR = SERVER_DIR / "voice_runtime"
+PROCESS_TRACE_DIR = SERVER_DIR / "process_trace"
 
 APP_MODULE_ROOTS = {
     "agent_processor_factory",
@@ -42,6 +43,19 @@ PURE_MODULE_FORBIDDEN_ROOTS = {
     "openai",
     "pipecat",
 }
+PROCESS_TRACE_FORBIDDEN_ROOTS = PURE_MODULE_FORBIDDEN_ROOTS | {
+    "agent_control",
+    "langchain",
+    "langchain_anthropic",
+    "langchain_core",
+    "langchain_google_genai",
+    "langchain_openai",
+    "langgraph",
+    "langgraph_robot_agent",
+    "langchain_agent_processor",
+    "robot_control",
+    "voice_runtime",
+}
 
 
 def _import_roots(path: Path) -> set[str]:
@@ -68,6 +82,13 @@ def test_pure_voice_runtime_modules_do_not_import_runtime_adapters():
         imported = _import_roots(path)
         forbidden = imported & PURE_MODULE_FORBIDDEN_ROOTS
         assert not forbidden, f"{name} imports adapter-specific module(s): {sorted(forbidden)}"
+
+
+def test_process_trace_core_modules_do_not_import_runtime_layers():
+    for path in PROCESS_TRACE_DIR.glob("*.py"):
+        imported = _import_roots(path)
+        forbidden = imported & PROCESS_TRACE_FORBIDDEN_ROOTS
+        assert not forbidden, f"{path.name} imports runtime layer module(s): {sorted(forbidden)}"
 
 
 def test_legacy_robot_modules_are_not_left_in_old_locations():
