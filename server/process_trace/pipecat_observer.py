@@ -165,3 +165,5 @@ class ProcessTraceObserver(BaseObserver):
         self._stt_span = None
         self._tts_span = None
         self._tts_first_audio_recorded = False
+        self._recorded_wake_frame_ids.clear()
+        self._recorded_stt_frame_ids.clear()

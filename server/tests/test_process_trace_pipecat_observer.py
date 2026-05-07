@@ -96,6 +96,19 @@ async def test_observer_dedupes_same_wake_frame_object() -> None:
 
 
 @pytest.mark.asyncio
+async def test_observer_clears_wake_dedupe_after_turn_completion() -> None:
+    observer, writer = _observer()
+    frame = WakeDetectedFrame(wake_phrase="mave", model_name="mave", score=0.91)
+
+    await observer.on_push_frame(_pushed(frame))
+    await observer.on_push_frame(_pushed(LLMTextFrame(text="Moving.")))
+    await observer.on_push_frame(_pushed(TTSStoppedFrame()))
+    await observer.on_push_frame(_pushed(frame))
+
+    assert len(_records(writer, "voice.wake")) == 2
+
+
+@pytest.mark.asyncio
 async def test_observer_omits_wake_phrase_when_include_text_false() -> None:
     observer, writer = _observer(include_text=False)
 
@@ -156,6 +169,21 @@ async def test_observer_dedupes_same_finalized_transcription_frame_object() -> N
     await observer.on_push_frame(_pushed(frame))
 
     assert len(_records(writer, "voice.stt")) == 1
+
+
+@pytest.mark.asyncio
+async def test_observer_clears_stt_dedupe_after_turn_completion() -> None:
+    observer, writer = _observer()
+    frame = TranscriptionFrame(text="move up", user_id="u", timestamp="t", finalized=True)
+
+    await observer.on_push_frame(_pushed(UserStoppedSpeakingFrame()))
+    await observer.on_push_frame(_pushed(frame))
+    await observer.on_push_frame(_pushed(LLMTextFrame(text="Moving.")))
+    await observer.on_push_frame(_pushed(TTSStoppedFrame()))
+    await observer.on_push_frame(_pushed(UserStoppedSpeakingFrame()))
+    await observer.on_push_frame(_pushed(frame))
+
+    assert len(_records(writer, "voice.stt")) == 2
 
 
 @pytest.mark.asyncio
