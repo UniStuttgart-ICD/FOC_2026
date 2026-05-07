@@ -19,6 +19,7 @@ from pipecat.transports.base_transport import BaseTransport
 from agent_processor_factory import create_agent_processor
 from config import RuntimeConfig
 from metrics import VoiceMetricsObserver, VoiceMetricsRecorder
+from process_trace import JsonlTraceWriter, NoopProcessTracer, ProcessTracer, TraceContext, TraceOptions
 from providers import create_stt_service, create_tts_service
 from voice_runtime.assembly import VoiceRuntimeParts, ordered_voice_runtime_processors
 from voice_runtime.wake_command import build_mave_voice_command_processors
@@ -33,11 +34,14 @@ class BuiltPipeline:
     user_aggregator: FrameProcessor
     assistant_aggregator: FrameProcessor
     metrics: VoiceMetricsRecorder | None
+    process_tracer: ProcessTracer | NoopProcessTracer
 
 
 def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipeline:
     stt = create_stt_service(config.stt)
     tts = create_tts_service(config.tts)
+    process_tracer = _build_process_tracer(config)
+    session_context = process_tracer.start_session(config.profile_name, config.category)
 
     voice_command_audio = None
     voice_command_transcript = None
@@ -83,6 +87,7 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
     agent_processor = create_agent_processor(
         config.agent,
         mcp_server_url=config.mcp_robot_url,
+        tracer=process_tracer,
         **agent_kwargs,
     )
 
@@ -120,6 +125,8 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
             include_text=config.metrics.include_text,
         )
         observers.append(VoiceMetricsObserver(metrics))
+    if config.process_trace.enabled:
+        observers.append(_create_process_trace_observer(process_tracer, session_context))
 
     task = PipelineTask(
         pipeline,
@@ -133,4 +140,24 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
         user_aggregator=user_aggregator,
         assistant_aggregator=assistant_aggregator,
         metrics=metrics,
+        process_tracer=process_tracer,
     )
+
+
+def _build_process_tracer(config: RuntimeConfig) -> ProcessTracer | NoopProcessTracer:
+    options = TraceOptions(
+        include_text=config.process_trace.include_text,
+        include_tool_payloads=config.process_trace.include_tool_payloads,
+    )
+    if not config.process_trace.enabled:
+        return NoopProcessTracer(options)
+    return ProcessTracer(JsonlTraceWriter(config.process_trace.path), options)
+
+
+def _create_process_trace_observer(
+    process_tracer: ProcessTracer | NoopProcessTracer,
+    session_context: TraceContext,
+) -> BaseObserver:
+    from process_trace.pipecat_observer import ProcessTraceObserver
+
+    return ProcessTraceObserver(process_tracer, session_context=session_context)

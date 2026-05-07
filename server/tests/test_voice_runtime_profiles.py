@@ -6,6 +6,7 @@ from voice_runtime.profiles import (
     AgentProfile,
     EmergencyStopProfile,
     MetricsProfile,
+    ProcessTraceProfile,
     ProfileError,
     RuntimeProfile,
     STTProfile,
@@ -267,6 +268,58 @@ def test_loads_profile_without_constructing_adapters(tmp_path: Path):
     assert profile.agent.reasoning_effort == "medium"
     assert profile.mcp_robot_url == "http://127.0.0.1:8765/mcp"
     assert profile.metrics.path == tmp_path / "logs" / "voice_metrics.jsonl"
+    assert profile.process_trace == ProcessTraceProfile(
+        enabled=True,
+        path=tmp_path / "logs" / "process_trace.jsonl",
+        include_text=True,
+        include_tool_payloads=True,
+    )
+
+
+def test_profile_parses_explicit_process_trace_section(tmp_path: Path) -> None:
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profile(
+        profiles_path,
+        """
+[profiles.local]
+category = "local_debug"
+[profiles.local.wake]
+provider = "none"
+[profiles.local.emergency_stop]
+enabled = false
+[profiles.local.stt]
+provider = "whisper"
+model = "base"
+[profiles.local.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.local.agent]
+provider = "openai_api"
+model = "gpt-5.4-mini"
+[profiles.local.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.local.metrics]
+enabled = false
+[profiles.local.process_trace]
+enabled = false
+path = "traces/process.jsonl"
+include_text = false
+include_tool_payloads = false
+""",
+    )
+
+    profile = load_runtime_profile(
+        profiles_path=profiles_path,
+        server_dir=tmp_path,
+        profile_name="local",
+    )
+
+    assert profile.process_trace == ProcessTraceProfile(
+        enabled=False,
+        path=tmp_path / "traces" / "process.jsonl",
+        include_text=False,
+        include_tool_payloads=False,
+    )
 
 
 def test_profile_exports_typed_dataclasses(tmp_path: Path):
@@ -286,6 +339,7 @@ def test_profile_exports_typed_dataclasses(tmp_path: Path):
     assert isinstance(profile.tts, TTSProfile)
     assert isinstance(profile.agent, AgentProfile)
     assert isinstance(profile.metrics, MetricsProfile)
+    assert isinstance(profile.process_trace, ProcessTraceProfile)
 
 
 def test_profile_reports_required_env_names_without_reading_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

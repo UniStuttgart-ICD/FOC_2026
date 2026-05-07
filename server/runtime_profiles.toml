@@ -43,6 +43,12 @@ enabled = true
 path = "logs/voice_metrics.jsonl"
 include_text = true
 
+[profiles.hybrid_low_latency.process_trace]
+enabled = true
+path = "logs/process_trace.jsonl"
+include_text = true
+include_tool_payloads = true
+
 [profiles.hybrid_gemini]
 category = "benchmark_streaming"
 
@@ -86,6 +92,12 @@ enabled = true
 path = "logs/voice_metrics.jsonl"
 include_text = true
 
+[profiles.hybrid_gemini.process_trace]
+enabled = true
+path = "logs/process_trace.jsonl"
+include_text = true
+include_tool_payloads = true
+
 [profiles.hybrid_anthropic]
 category = "benchmark_streaming"
 
@@ -127,6 +139,12 @@ url = "http://127.0.0.1:8765/mcp"
 enabled = true
 path = "logs/voice_metrics.jsonl"
 include_text = true
+
+[profiles.hybrid_anthropic.process_trace]
+enabled = true
+path = "logs/process_trace.jsonl"
+include_text = true
+include_tool_payloads = true
 
 [profiles.openai_all]
 category = "benchmark_streaming"
@@ -170,6 +188,12 @@ enabled = true
 path = "logs/voice_metrics.jsonl"
 include_text = true
 
+[profiles.openai_all.process_trace]
+enabled = true
+path = "logs/process_trace.jsonl"
+include_text = true
+include_tool_payloads = true
+
 [profiles.deepgram_all]
 category = "benchmark_streaming"
 
@@ -211,6 +235,12 @@ url = "http://127.0.0.1:8765/mcp"
 enabled = true
 path = "logs/voice_metrics.jsonl"
 include_text = true
+
+[profiles.deepgram_all.process_trace]
+enabled = true
+path = "logs/process_trace.jsonl"
+include_text = true
+include_tool_payloads = true
 
 [profiles.local_current]
 category = "local_debug"
@@ -254,6 +284,12 @@ enabled = true
 path = "logs/voice_metrics.jsonl"
 include_text = true
 
+[profiles.local_current.process_trace]
+enabled = true
+path = "logs/process_trace.jsonl"
+include_text = true
+include_tool_payloads = true
+
 [profiles.no_wake_debug]
 category = "local_debug"
 
@@ -285,3 +321,9 @@ url = "http://127.0.0.1:8765/mcp"
 enabled = true
 path = "logs/voice_metrics.jsonl"
 include_text = true
+
+[profiles.no_wake_debug.process_trace]
+enabled = true
+path = "logs/process_trace.jsonl"
+include_text = true
+include_tool_payloads = true

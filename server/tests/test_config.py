@@ -5,6 +5,7 @@ import pytest
 from config import (
     AgentConfig,
     ConfigError,
+    ProcessTraceConfig,
     RuntimeConfig,
     load_runtime_config,
 )
@@ -70,6 +71,12 @@ include_text = true
     )
     assert config.mcp_robot_url == "http://127.0.0.1:8765/mcp"
     assert config.metrics.include_text is True
+    assert config.process_trace == ProcessTraceConfig(
+        enabled=True,
+        path=tmp_path / "logs" / "process_trace.jsonl",
+        include_text=True,
+        include_tool_payloads=True,
+    )
 
 
 def test_cli_profile_overrides_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
