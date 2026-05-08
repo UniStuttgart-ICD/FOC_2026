@@ -9,7 +9,7 @@ See [Architecture](ARCHITECTURE.md) for the target Module boundaries.
 Default profile:
 
 ```text
-hybrid_low_latency = Mave wake word + Deepgram Flux STT + Gemini API LangChain agent + Cartesia Sonic TTS
+hybrid_openai_stt = Mave wake word + OpenAI Realtime Whisper STT + Gemini API LangChain agent + Cartesia Sonic TTS
 ```
 
 Run the default profile:
@@ -63,8 +63,8 @@ Open `http://127.0.0.1:8897`, choose a runtime profile, generate a clean TTS pre
 For the default profile, set:
 
 ```dotenv
-DEEPGRAM_API_KEY=
 CARTESIA_API_KEY=
+OPENAI_API_KEY=
 GOOGLE_API_KEY=
 ```
 

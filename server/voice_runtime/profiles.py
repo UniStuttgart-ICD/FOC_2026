@@ -15,7 +15,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
 
-DEFAULT_PROFILE = "hybrid_low_latency"
+DEFAULT_PROFILE = "hybrid_openai_stt"
 
 WakeProvider = Literal["none", "openwakeword"]
 STTProvider = Literal["deepgram_flux", "openai_realtime", "whisper"]

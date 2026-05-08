@@ -72,7 +72,7 @@ Run server commands from `server/`.
 </important>
 
 <important if="you are changing agent backend selection, API-key auth, or runtime profiles">
-- The default live profile `hybrid_low_latency` must use `gemini_api` with `GOOGLE_API_KEY`, not Codex OAuth.
+- The default live profile `hybrid_openai_stt` must use `gemini_api` with `GOOGLE_API_KEY`, not Codex OAuth.
 - Agent profiles must use native LangChain API providers: `openai_api`, `gemini_api`, or `anthropic_api`.
 - Do not reintroduce Codex OAuth profile support unless a new architecture decision asks for it.
 - Runtime profile parsing belongs to `voice_runtime`; concrete profile files remain app configuration.

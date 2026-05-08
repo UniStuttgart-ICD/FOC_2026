@@ -16,59 +16,59 @@ def test_loads_default_hybrid_profile(tmp_path: Path, monkeypatch: pytest.Monkey
     profiles = tmp_path / "runtime_profiles.toml"
     profiles.write_text(
         """
-[profiles.hybrid_low_latency]
+[profiles.hybrid_openai_stt]
 category = "benchmark_streaming"
 
-[profiles.hybrid_low_latency.wake]
+[profiles.hybrid_openai_stt.wake]
 provider = "openwakeword"
 model_path = "models/mave.onnx"
 pre_buffer_s = 1.5
 threshold = 0.5
 
-[profiles.hybrid_low_latency.emergency_stop]
+[profiles.hybrid_openai_stt.emergency_stop]
 enabled = false
 
-[profiles.hybrid_low_latency.stt]
-provider = "deepgram_flux"
-model = "flux-general-en"
+[profiles.hybrid_openai_stt.stt]
+provider = "openai_realtime"
+model = "gpt-realtime-whisper"
 
-[profiles.hybrid_low_latency.tts]
+[profiles.hybrid_openai_stt.tts]
 provider = "cartesia"
 model = "sonic-3"
 voice = "test-voice"
 
-[profiles.hybrid_low_latency.agent]
-provider = "openai_api"
-model = "gpt-5.5"
-api_key_env = "OPENAI_API_KEY"
+[profiles.hybrid_openai_stt.agent]
+provider = "gemini_api"
+model = "gemini-3.1-flash-lite-preview"
+api_key_env = "GOOGLE_API_KEY"
 
-[profiles.hybrid_low_latency.mcp.robot]
+[profiles.hybrid_openai_stt.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
 
-[profiles.hybrid_low_latency.metrics]
+[profiles.hybrid_openai_stt.metrics]
 enabled = true
 path = "logs/voice_metrics.jsonl"
 include_text = true
 """.strip(),
         encoding="utf-8",
     )
-    monkeypatch.setenv("DEEPGRAM_API_KEY", "dg")
     monkeypatch.setenv("CARTESIA_API_KEY", "ct")
     monkeypatch.setenv("OPENAI_API_KEY", "oa")
+    monkeypatch.setenv("GOOGLE_API_KEY", "google")
 
     config = load_runtime_config(profiles_path=profiles, server_dir=tmp_path)
 
-    assert config.profile_name == "hybrid_low_latency"
+    assert config.profile_name == "hybrid_openai_stt"
     assert config.category == "benchmark_streaming"
     assert config.wake.provider == "openwakeword"
     assert config.wake.model_path == tmp_path / "models" / "mave.onnx"
     assert config.wake.pre_buffer_s == 1.5
-    assert config.stt.provider == "deepgram_flux"
+    assert config.stt.provider == "openai_realtime"
     assert config.tts.provider == "cartesia"
     assert config.agent == AgentConfig(
-        provider="openai_api",
-        model="gpt-5.5",
-        api_key_env="OPENAI_API_KEY",
+        provider="gemini_api",
+        model="gemini-3.1-flash-lite-preview",
+        api_key_env="GOOGLE_API_KEY",
     )
     assert config.mcp_robot_url == "http://127.0.0.1:8765/mcp"
     assert config.metrics.include_text is True
@@ -194,30 +194,32 @@ def test_missing_api_key_fails_for_default_profile(tmp_path: Path, monkeypatch: 
     profiles = tmp_path / "runtime_profiles.toml"
     profiles.write_text(
         """
-[profiles.hybrid_low_latency]
+[profiles.hybrid_openai_stt]
 category = "benchmark_streaming"
-[profiles.hybrid_low_latency.wake]
+[profiles.hybrid_openai_stt.wake]
 provider = "none"
-[profiles.hybrid_low_latency.emergency_stop]
+[profiles.hybrid_openai_stt.emergency_stop]
 enabled = false
-[profiles.hybrid_low_latency.stt]
-provider = "deepgram_flux"
-[profiles.hybrid_low_latency.tts]
+[profiles.hybrid_openai_stt.stt]
+provider = "openai_realtime"
+[profiles.hybrid_openai_stt.tts]
 provider = "cartesia"
-[profiles.hybrid_low_latency.agent]
-provider = "openai_api"
-model = "gpt-5.5"
-[profiles.hybrid_low_latency.mcp.robot]
+[profiles.hybrid_openai_stt.agent]
+provider = "gemini_api"
+model = "gemini-3.1-flash-lite-preview"
+api_key_env = "GOOGLE_API_KEY"
+[profiles.hybrid_openai_stt.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
-[profiles.hybrid_low_latency.metrics]
+[profiles.hybrid_openai_stt.metrics]
 enabled = false
 """.strip(),
         encoding="utf-8",
     )
-    monkeypatch.delenv("DEEPGRAM_API_KEY", raising=False)
     monkeypatch.delenv("CARTESIA_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
 
-    with pytest.raises(ConfigError, match="DEEPGRAM_API_KEY"):
+    with pytest.raises(ConfigError, match="OPENAI_API_KEY"):
         load_runtime_config(profiles_path=profiles, server_dir=tmp_path)
 
 

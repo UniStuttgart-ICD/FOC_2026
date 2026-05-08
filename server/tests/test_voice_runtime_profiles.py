@@ -111,6 +111,9 @@ def test_bundled_default_profile_keeps_short_wake_word_activation_usable() -> No
 def test_bundled_default_profile_uses_gemini_flash_lite_high_reasoning_agent():
     profile = load_runtime_profile()
 
+    assert profile.name == "hybrid_openai_stt"
+    assert profile.stt.provider == "openai_realtime"
+    assert profile.stt.model == "gpt-realtime-whisper"
     assert profile.agent.provider == "gemini_api"
     assert profile.agent.model == "gemini-3.1-flash-lite-preview"
     assert profile.agent.reasoning_effort == "high"
@@ -903,7 +906,8 @@ enabled = false
 def test_default_profile_path_and_name_load_current_app_profile():
     profile = load_runtime_profile()
 
-    assert profile.name == "hybrid_low_latency"
+    assert profile.name == "hybrid_openai_stt"
     assert profile.wake.model_path is not None
     assert profile.wake.model_path.name == "mave.onnx"
+    assert profile.stt.provider == "openai_realtime"
     assert profile.tts.voice == "47c38ca4-5f35-497b-b1a3-415245fb35e1"
