@@ -19,6 +19,7 @@ def test_wake_tuning_page_and_settings_api_load(monkeypatch, tmp_path):
     assert "Audio kept before wake and replayed into STT" in page.text
     assert "OpenWakeWord Silero VAD gate" in page.text
     assert "Would replay on trigger" in page.text
+    assert 'value="hybrid_openai_stt"' in page.text
     assert favicon.status_code == 204
     assert settings.status_code == 200
     assert settings.json()["profile"] == "hybrid_low_latency"

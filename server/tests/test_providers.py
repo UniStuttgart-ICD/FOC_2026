@@ -36,10 +36,24 @@ def test_creates_openai_realtime_stt(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "oa")
     with patch("voice_runtime.providers.OpenAIRealtimeSTTService") as service:
         service.Settings = Mock(return_value="settings")
-        create_stt_service(STTConfig(provider="openai_realtime", model="gpt-4o-mini-transcribe"))
+        create_stt_service(STTConfig(provider="openai_realtime"))
 
-    service.Settings.assert_called_once_with(model="gpt-4o-mini-transcribe")
-    service.assert_called_once_with(api_key="oa", settings="settings", noise_reduction="near_field")
+    service.Settings.assert_called_once_with(
+        model="gpt-realtime-whisper", noise_reduction="near_field"
+    )
+    service.assert_called_once_with(api_key="oa", settings="settings")
+
+
+def test_creates_openai_realtime_stt_with_configured_model(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "oa")
+    with patch("voice_runtime.providers.OpenAIRealtimeSTTService") as service:
+        service.Settings = Mock(return_value="settings")
+        create_stt_service(STTConfig(provider="openai_realtime", model="custom-transcribe"))
+
+    service.Settings.assert_called_once_with(
+        model="custom-transcribe", noise_reduction="near_field"
+    )
+    service.assert_called_once_with(api_key="oa", settings="settings")
 
 
 def test_creates_cartesia_tts(monkeypatch):

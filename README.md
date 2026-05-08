@@ -23,12 +23,15 @@ Run a specific profile:
 
 ```bash
 uv run bot.py --profile local_current
+uv run bot.py --profile hybrid_openai_stt
 uv run bot.py --profile openai_all
 uv run bot.py --profile deepgram_all
 uv run bot.py --profile no_wake_debug
 ```
 
 `--profile` overrides `VOICE_PROFILE`.
+
+`hybrid_openai_stt` uses Mave wake word, OpenAI Realtime Whisper STT, Gemini API agent, and Cartesia Sonic TTS.
 
 ### Wake tuning
 
@@ -69,6 +72,14 @@ For `openai_all`, set:
 
 ```dotenv
 OPENAI_API_KEY=
+```
+
+For `hybrid_openai_stt`, set:
+
+```dotenv
+CARTESIA_API_KEY=
+OPENAI_API_KEY=
+GOOGLE_API_KEY=
 ```
 
 `local_current` and `no_wake_debug` use local STT/TTS with the OpenAI API LangChain agent backend. Keep `OPENAI_API_KEY` and the configured robot MCP URL reachable.

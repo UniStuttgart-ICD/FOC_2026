@@ -36,9 +36,9 @@ def create_stt_service(config: STTProfile) -> FrameProcessor:
         return OpenAIRealtimeSTTService(
             api_key=os.environ["OPENAI_API_KEY"],
             settings=OpenAIRealtimeSTTService.Settings(
-                model=config.model or "gpt-4o-mini-transcribe",
+                model=config.model or "gpt-realtime-whisper",
+                noise_reduction="near_field",
             ),
-            noise_reduction="near_field",
         )
     raise ValueError(f"Unsupported STT provider: {config.provider}")
 

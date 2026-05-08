@@ -131,6 +131,22 @@ def test_bundled_gemini_profile_is_available():
     assert profile.agent.api_key_env in {"GOOGLE_API_KEY", "GEMINI_API_KEY"}
 
 
+def test_hybrid_openai_stt_profile_uses_realtime_whisper():
+    profile = load_runtime_profile(profile_name="hybrid_openai_stt")
+
+    assert profile.category == "benchmark_streaming"
+    assert profile.wake.provider == "openwakeword"
+    assert profile.stt.provider == "openai_realtime"
+    assert profile.stt.model == "gpt-realtime-whisper"
+    assert profile.tts.provider == "cartesia"
+    assert profile.agent.provider == "gemini_api"
+    assert profile.required_env_names() == (
+        "CARTESIA_API_KEY",
+        "OPENAI_API_KEY",
+        "GOOGLE_API_KEY",
+    )
+
+
 def test_bundled_anthropic_profile_is_available():
     server_dir = Path(__file__).resolve().parents[1]
 
