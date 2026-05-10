@@ -11,6 +11,11 @@ from pipecat.services.openai.stt import OpenAIRealtimeSTTService
 from pipecat.services.openai.tts import OpenAITTSService
 from pipecat.services.whisper.stt import WhisperSTTService
 
+from voice_runtime.gemini_live_speech import (
+    DEFAULT_GEMINI_LIVE_MODEL,
+    DEFAULT_GEMINI_LIVE_VOICE,
+    GeminiLiveSpeechRendererService,
+)
 from voice_runtime.profiles import STTProfile, TTSProfile
 
 DEFAULT_CARTESIA_VOICE_ID = "47c38ca4-5f35-497b-b1a3-415245fb35e1"
@@ -73,5 +78,12 @@ def create_tts_service(config: TTSProfile) -> FrameProcessor:
                 model=config.model or "aura-2",
                 voice=config.voice or "aura-2-andromeda-en",
             ),
+        )
+    if config.provider == "gemini_live":
+        return GeminiLiveSpeechRendererService(
+            api_key=os.environ["GOOGLE_API_KEY"],
+            model=config.model or DEFAULT_GEMINI_LIVE_MODEL,
+            voice=config.voice or DEFAULT_GEMINI_LIVE_VOICE,
+            instructions=config.instructions,
         )
     raise ValueError(f"Unsupported TTS provider: {config.provider}")

@@ -97,3 +97,23 @@ def test_creates_deepgram_tts(monkeypatch):
 
     service.Settings.assert_called_once_with(model="aura-2", voice="aura-2-andromeda-en")
     service.assert_called_once_with(api_key="dg", settings="settings")
+
+
+def test_creates_gemini_live_tts(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "gg")
+    with patch("voice_runtime.providers.GeminiLiveSpeechRendererService") as service:
+        create_tts_service(
+            TTSConfig(
+                provider="gemini_live",
+                model="gemini-3.1-flash-live-preview",
+                voice="Kore",
+                instructions="Speak the transcript exactly.",
+            )
+        )
+
+    service.assert_called_once_with(
+        api_key="gg",
+        model="gemini-3.1-flash-live-preview",
+        voice="Kore",
+        instructions="Speak the transcript exactly.",
+    )
