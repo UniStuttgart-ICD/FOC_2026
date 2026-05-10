@@ -3,7 +3,15 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
-from pipecat.processors.frame_processor import FrameProcessor
+from pipecat.frames.frames import (
+    CancelFrame,
+    EndFrame,
+    Frame,
+    LLMFullResponseEndFrame,
+    LLMFullResponseStartFrame,
+    LLMTextFrame,
+)
+from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 DEFAULT_GEMINI_LIVE_MODEL = "gemini-3.1-flash-live-preview"
 DEFAULT_GEMINI_LIVE_VOICE = "Kore"
@@ -57,3 +65,46 @@ class GeminiLiveSpeechRendererService(FrameProcessor):
         self.instructions = instructions
         self._client_factory = client_factory
         self._connect_on_start = connect_on_start
+        self._text_buffer = ""
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+
+        if isinstance(frame, LLMFullResponseStartFrame):
+            self._text_buffer = ""
+            await self.push_frame(frame, direction)
+            return
+
+        if isinstance(frame, LLMTextFrame):
+            self._text_buffer += frame.text
+            segments, self._text_buffer = pop_speakable_segments(self._text_buffer)
+            for segment in segments:
+                await self._speak_segment(segment)
+            return
+
+        if isinstance(frame, LLMFullResponseEndFrame):
+            segments, self._text_buffer = pop_speakable_segments(
+                self._text_buffer,
+                flush=True,
+            )
+            for segment in segments:
+                await self._speak_segment(segment)
+            await self.push_frame(frame, direction)
+            return
+
+        if isinstance(frame, (CancelFrame, EndFrame)):
+            self._text_buffer = ""
+            await self.push_frame(frame, direction)
+            return
+
+        await self.push_frame(frame, direction)
+
+    async def _speak_segment(self, transcript: str) -> None:
+        prompt = build_strict_speech_prompt(
+            transcript=transcript,
+            instructions=self.instructions,
+        )
+        await self._stream_prompt_audio(prompt)
+
+    async def _stream_prompt_audio(self, prompt: str) -> None:
+        raise NotImplementedError("Gemini Live streaming is implemented in the next task")
