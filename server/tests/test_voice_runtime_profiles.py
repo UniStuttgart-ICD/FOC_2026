@@ -150,6 +150,20 @@ def test_hybrid_openai_stt_profile_uses_realtime_whisper():
     )
 
 
+def test_hybrid_gemini_live_tts_profile_is_opt_in_streaming_renderer():
+    profile = load_runtime_profile(profile_name="hybrid_gemini_live_tts")
+
+    assert profile.category == "benchmark_streaming"
+    assert profile.stt.provider == "openai_realtime"
+    assert profile.tts.provider == "gemini_live"
+    assert profile.tts.model == "gemini-3.1-flash-live-preview"
+    assert profile.tts.voice == "Kore"
+    assert profile.tts.instructions is not None
+    assert "Speak the transcript exactly" in profile.tts.instructions
+    assert profile.agent.provider == "gemini_api"
+    assert profile.required_env_names() == ("OPENAI_API_KEY", "GOOGLE_API_KEY")
+
+
 def test_bundled_anthropic_profile_is_available():
     server_dir = Path(__file__).resolve().parents[1]
 
@@ -734,6 +748,45 @@ enabled = false
 
     with pytest.raises(ProfileError, match="benchmark_streaming profiles require streaming TTS"):
         load_runtime_profile(profiles_path=profiles_path, server_dir=tmp_path, profile_name="bad")
+
+
+def test_gemini_live_tts_is_allowed_for_benchmark_streaming_profiles(tmp_path: Path) -> None:
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profile(
+        profiles_path,
+        """
+[profiles.gemini_live_renderer]
+category = "benchmark_streaming"
+[profiles.gemini_live_renderer.wake]
+provider = "none"
+[profiles.gemini_live_renderer.emergency_stop]
+enabled = false
+[profiles.gemini_live_renderer.stt]
+provider = "openai_realtime"
+model = "gpt-realtime-whisper"
+[profiles.gemini_live_renderer.tts]
+provider = "gemini_live"
+model = "gemini-3.1-flash-live-preview"
+voice = "Kore"
+instructions = "Speak the transcript exactly. Do not add or remove words."
+[profiles.gemini_live_renderer.agent]
+provider = "gemini_api"
+model = "gemini-3.1-flash-lite-preview"
+[profiles.gemini_live_renderer.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.gemini_live_renderer.metrics]
+enabled = false
+""",
+    )
+
+    profile = load_runtime_profile(
+        profiles_path=profiles_path,
+        server_dir=tmp_path,
+        profile_name="gemini_live_renderer",
+    )
+
+    assert profile.tts.provider == "gemini_live"
+    assert profile.required_env_names() == ("OPENAI_API_KEY", "GOOGLE_API_KEY")
 
 
 def test_enabled_wake_requires_model_path(tmp_path: Path):

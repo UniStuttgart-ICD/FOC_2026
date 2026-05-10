@@ -19,17 +19,17 @@ DEFAULT_PROFILE = "hybrid_openai_stt"
 
 WakeProvider = Literal["none", "openwakeword"]
 STTProvider = Literal["deepgram_flux", "openai_realtime", "whisper"]
-TTSProvider = Literal["cartesia", "openai", "deepgram", "kokoro"]
+TTSProvider = Literal["cartesia", "openai", "deepgram", "kokoro", "gemini_live"]
 ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
 Category = Literal["benchmark_streaming", "local_debug"]
 
 _WAKE_PROVIDERS = {"none", "openwakeword"}
 _STT_PROVIDERS = {"deepgram_flux", "openai_realtime", "whisper"}
-_TTS_PROVIDERS = {"cartesia", "openai", "deepgram", "kokoro"}
+_TTS_PROVIDERS = {"cartesia", "openai", "deepgram", "kokoro", "gemini_live"}
 _REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
 _CATEGORIES = {"benchmark_streaming", "local_debug"}
 _STREAMING_STT_PROVIDERS = {"deepgram_flux", "openai_realtime"}
-_STREAMING_TTS_PROVIDERS = {"cartesia", "openai", "deepgram"}
+_STREAMING_TTS_PROVIDERS = {"cartesia", "openai", "deepgram", "gemini_live"}
 
 class ProfileError(ValueError):
     """Raised when a runtime profile is invalid."""
@@ -70,6 +70,7 @@ class TTSProfile:
     provider: TTSProvider
     model: str | None = None
     voice: str | None = None
+    instructions: str | None = None
 
 
 @dataclass(frozen=True)
@@ -121,6 +122,8 @@ class RuntimeProfile:
             names.append("CARTESIA_VOICE_ID")
         if self.stt.provider == "openai_realtime" or self.tts.provider == "openai":
             names.append("OPENAI_API_KEY")
+        if self.tts.provider == "gemini_live":
+            names.append("GOOGLE_API_KEY")
         if self.agent.api_key_env is not None:
             names.append(self.agent.api_key_env)
         return tuple(dict.fromkeys(names))
@@ -225,6 +228,7 @@ def _parse_tts(table: dict[str, Any]) -> TTSProfile:
         provider=provider,
         model=_optional_string(table, "model"),
         voice=_optional_string(table, "voice"),
+        instructions=_optional_string(table, "instructions"),
     )
 
 
