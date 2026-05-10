@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
+from google import genai
+from google.genai import types
 from pipecat.frames.frames import (
     CancelFrame,
     EndFrame,
@@ -10,6 +12,9 @@ from pipecat.frames.frames import (
     LLMFullResponseEndFrame,
     LLMFullResponseStartFrame,
     LLMTextFrame,
+    TTSAudioRawFrame,
+    TTSStartedFrame,
+    TTSStoppedFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
@@ -107,4 +112,62 @@ class GeminiLiveSpeechRendererService(FrameProcessor):
         await self._stream_prompt_audio(prompt)
 
     async def _stream_prompt_audio(self, prompt: str) -> None:
-        raise NotImplementedError("Gemini Live streaming is implemented in the next task")
+        client = self._client()
+        audio_started = False
+        async with client.aio.live.connect(
+            model=self.model,
+            config=self._live_config(),
+        ) as session:
+            await session.send_client_content(turns=prompt, turn_complete=True)
+            async for message in session.receive():
+                audio = _extract_audio(message)
+                if audio:
+                    if not audio_started:
+                        audio_started = True
+                        await self.push_frame(TTSStartedFrame())
+                    await self.push_frame(
+                        TTSAudioRawFrame(audio=audio, sample_rate=24000, num_channels=1)
+                    )
+                if _message_is_complete(message):
+                    break
+        if audio_started:
+            await self.push_frame(TTSStoppedFrame())
+
+    def _client(self):
+        factory = self._client_factory or genai.Client
+        return factory(api_key=self.api_key)
+
+    def _live_config(self):
+        return types.LiveConnectConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self.voice)
+                )
+            ),
+        )
+
+
+def _extract_audio(message: object) -> bytes | None:
+    data = getattr(message, "data", None)
+    if data:
+        return data
+    server_content = getattr(message, "server_content", None)
+    model_turn = getattr(server_content, "model_turn", None)
+    parts = getattr(model_turn, "parts", None) or []
+    for part in parts:
+        inline_data = getattr(part, "inline_data", None)
+        mime_type = getattr(inline_data, "mime_type", "")
+        if mime_type.startswith("audio/pcm"):
+            audio = getattr(inline_data, "data", None)
+            if audio:
+                return audio
+    return None
+
+
+def _message_is_complete(message: object) -> bool:
+    server_content = getattr(message, "server_content", None)
+    return bool(
+        getattr(server_content, "turn_complete", False)
+        or getattr(server_content, "generation_complete", False)
+    )

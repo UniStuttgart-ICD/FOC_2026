@@ -91,3 +91,91 @@ async def test_renderer_streams_complete_sentence_before_final_flush():
     assert "Hello there." in renderer.sent_prompts[0]
     assert "This is still forming" in renderer.sent_prompts[1]
     assert any(isinstance(frame, TTSAudioRawFrame) for frame in renderer.pushed)
+
+
+class FakeInlineData:
+    mime_type = "audio/pcm;rate=24000"
+    data = b"audio-2"
+
+
+class FakePart:
+    inline_data = FakeInlineData()
+
+
+class FakeModelTurn:
+    parts = [FakePart()]
+
+
+class FakeServerContent:
+    model_turn = FakeModelTurn()
+    turn_complete = True
+    generation_complete = True
+
+
+class FakeMessage:
+    def __init__(self, data: bytes | None = None) -> None:
+        self.data = data
+        self.server_content = FakeServerContent() if data is None else None
+
+
+class FakeSession:
+    def __init__(self) -> None:
+        self.turns: list[object] = []
+
+    async def send_client_content(self, *, turns, turn_complete: bool):
+        self.turns.append(turns)
+        assert turn_complete is True
+
+    async def receive(self):
+        yield FakeMessage(data=b"audio-1")
+        yield FakeMessage(data=None)
+
+
+class FakeLive:
+    def __init__(self, session: FakeSession) -> None:
+        self._session = session
+
+    def connect(self, *, model, config):
+        return self
+
+    async def __aenter__(self):
+        return self._session
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+class FakeAio:
+    def __init__(self, session: FakeSession) -> None:
+        self.live = FakeLive(session)
+
+
+class FakeClient:
+    def __init__(self, session: FakeSession) -> None:
+        self.aio = FakeAio(session)
+
+
+@pytest.mark.asyncio
+async def test_stream_prompt_audio_pushes_live_audio_frames():
+    session = FakeSession()
+    renderer = GeminiLiveSpeechRendererService(
+        api_key="fake",
+        model="gemini-3.1-flash-live-preview",
+        voice="Kore",
+        instructions="Speak the transcript exactly.",
+        client_factory=lambda **_: FakeClient(session),
+        connect_on_start=False,
+    )
+    pushed: list[Frame] = []
+
+    async def capture(frame: Frame, direction: FrameDirection = FrameDirection.DOWNSTREAM):
+        pushed.append(frame)
+
+    renderer.push_frame = capture
+
+    await renderer._stream_prompt_audio("Speak this")
+
+    audio_frames = [frame for frame in pushed if isinstance(frame, TTSAudioRawFrame)]
+    assert [frame.audio for frame in audio_frames] == [b"audio-1", b"audio-2"]
+    assert all(frame.sample_rate == 24000 for frame in audio_frames)
+    assert session.turns
