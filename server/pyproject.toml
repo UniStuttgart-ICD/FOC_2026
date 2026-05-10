@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Voice-controlled UR robot agent"
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "pipecat-ai[cartesia,deepgram,kokoro,openai,runner,silero,webrtc,whisper]",
+    "pipecat-ai[cartesia,deepgram,google,kokoro,openai,runner,silero,webrtc,whisper]",
     "openai>=2.29.0,<3",
     "mcp>=1.26.0,<2",
     "langgraph>=1.0,<2",
