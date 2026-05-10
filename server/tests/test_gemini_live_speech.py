@@ -123,6 +123,7 @@ class FakeSession:
         self.turns: list[object] = []
 
     async def send_client_content(self, *, turns, turn_complete: bool):
+        assert not isinstance(turns, str)
         self.turns.append(turns)
         assert turn_complete is True
 
@@ -179,3 +180,5 @@ async def test_stream_prompt_audio_pushes_live_audio_frames():
     assert [frame.audio for frame in audio_frames] == [b"audio-1", b"audio-2"]
     assert all(frame.sample_rate == 24000 for frame in audio_frames)
     assert session.turns
+    assert session.turns[0][0].role == "user"
+    assert session.turns[0][0].parts[0].text == "Speak this"

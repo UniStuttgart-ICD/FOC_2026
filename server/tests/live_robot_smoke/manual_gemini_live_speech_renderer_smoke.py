@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from time import perf_counter
 import wave
 from pathlib import Path
 
@@ -29,20 +30,32 @@ async def main() -> None:
         connect_on_start=False,
     )
     chunks: list[bytes] = []
+    first_audio_at: float | None = None
 
     async def capture(frame, direction=None):
+        nonlocal first_audio_at
         audio = getattr(frame, "audio", None)
         if audio:
+            if first_audio_at is None:
+                first_audio_at = perf_counter()
             chunks.append(audio)
 
     renderer.push_frame = capture
+    started_at = perf_counter()
     await renderer._stream_prompt_audio(
         "TRANSCRIPT TO SPEAK EXACTLY:\n[laughs softly] Okay, that is surprisingly nice."
     )
+    finished_at = perf_counter()
     output = Path("evidence/gemini_live_speech_renderer_smoke.wav")
-    _write_wav(output, b"".join(chunks))
+    pcm = b"".join(chunks)
+    _write_wav(output, pcm)
     print(output)
-    print(sum(len(chunk) for chunk in chunks))
+    print(f"bytes={len(pcm)}")
+    print(f"chunks={len(chunks)}")
+    if first_audio_at is not None:
+        print(f"first_audio_ms={round((first_audio_at - started_at) * 1000)}")
+    print(f"total_ms={round((finished_at - started_at) * 1000)}")
+    print(f"audio_duration_ms={round(len(pcm) / 2 / 24000 * 1000)}")
 
 
 if __name__ == "__main__":

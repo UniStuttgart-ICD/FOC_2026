@@ -118,7 +118,15 @@ class GeminiLiveSpeechRendererService(FrameProcessor):
             model=self.model,
             config=self._live_config(),
         ) as session:
-            await session.send_client_content(turns=prompt, turn_complete=True)
+            await session.send_client_content(
+                turns=[
+                    types.Content(
+                        role="user",
+                        parts=[types.Part.from_text(text=prompt)],
+                    )
+                ],
+                turn_complete=True,
+            )
             async for message in session.receive():
                 audio = _extract_audio(message)
                 if audio:
