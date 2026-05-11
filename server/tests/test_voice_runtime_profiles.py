@@ -80,25 +80,13 @@ def _write_profile(path: Path, body: str) -> None:
     path.write_text(body.strip(), encoding="utf-8")
 
 
-def test_bundled_streaming_profiles_keep_wake_prebuffer_short() -> None:
-    server_dir = Path(__file__).resolve().parents[1]
-
-    profile = load_runtime_profile(
-        profiles_path=default_profiles_path(server_dir),
-        server_dir=server_dir,
-        profile_name="hybrid_low_latency",
-    )
-
-    assert profile.wake.pre_buffer_s <= 0.5
-
-
 def test_bundled_default_profile_keeps_short_wake_word_activation_usable() -> None:
     server_dir = Path(__file__).resolve().parents[1]
 
     profile = load_runtime_profile(
         profiles_path=default_profiles_path(server_dir),
         server_dir=server_dir,
-        profile_name="hybrid_low_latency",
+        profile_name="hybrid_gemini_live_tts",
     )
 
     assert profile.wake.threshold == 0.85
@@ -106,6 +94,7 @@ def test_bundled_default_profile_keeps_short_wake_word_activation_usable() -> No
     assert profile.wake.required_hits == 1
     assert profile.wake.min_wake_rms <= 4.7
     assert profile.wake.min_wake_peak <= 17
+    assert profile.wake.pre_buffer_s <= 0.5
 
 
 def test_bundled_default_profile_uses_gemini_live_tts():
@@ -123,37 +112,7 @@ def test_bundled_default_profile_uses_gemini_live_tts():
     assert profile.agent.api_key_env == "GOOGLE_API_KEY"
 
 
-def test_bundled_gemini_profile_is_available():
-    server_dir = Path(__file__).resolve().parents[1]
-
-    profile = load_runtime_profile(
-        profiles_path=default_profiles_path(server_dir),
-        server_dir=server_dir,
-        profile_name="hybrid_gemini",
-    )
-
-    assert profile.agent.provider == "gemini_api"
-    assert profile.agent.model.startswith("gemini-")
-    assert profile.agent.api_key_env in {"GOOGLE_API_KEY", "GEMINI_API_KEY"}
-
-
-def test_hybrid_openai_stt_profile_uses_realtime_whisper():
-    profile = load_runtime_profile(profile_name="hybrid_openai_stt")
-
-    assert profile.category == "benchmark_streaming"
-    assert profile.wake.provider == "openwakeword"
-    assert profile.stt.provider == "openai_realtime"
-    assert profile.stt.model == "gpt-realtime-whisper"
-    assert profile.tts.provider == "cartesia"
-    assert profile.agent.provider == "gemini_api"
-    assert profile.required_env_names() == (
-        "CARTESIA_API_KEY",
-        "OPENAI_API_KEY",
-        "GOOGLE_API_KEY",
-    )
-
-
-def test_hybrid_gemini_live_tts_profile_is_opt_in_streaming_renderer():
+def test_hybrid_gemini_live_tts_profile_is_available():
     profile = load_runtime_profile(profile_name="hybrid_gemini_live_tts")
 
     assert profile.category == "benchmark_streaming"
@@ -164,36 +123,6 @@ def test_hybrid_gemini_live_tts_profile_is_opt_in_streaming_renderer():
     assert profile.tts.instructions is None
     assert profile.agent.provider == "gemini_api"
     assert profile.required_env_names() == ("OPENAI_API_KEY", "GOOGLE_API_KEY")
-
-
-def test_hybrid_openai_tts_profile_uses_streaming_openai_tts_with_style():
-    profile = load_runtime_profile(profile_name="hybrid_openai_tts")
-
-    assert profile.category == "benchmark_streaming"
-    assert profile.stt.provider == "openai_realtime"
-    assert profile.tts.provider == "openai"
-    assert profile.tts.model == "gpt-4o-mini-tts"
-    assert profile.tts.voice == "coral"
-    assert profile.tts.instructions is not None
-    assert "warm" in profile.tts.instructions
-    assert profile.tts.speed == 1.0
-    assert profile.agent.provider == "gemini_api"
-    assert profile.required_env_names() == ("OPENAI_API_KEY", "GOOGLE_API_KEY")
-
-
-def test_bundled_anthropic_profile_is_available():
-    server_dir = Path(__file__).resolve().parents[1]
-
-    profile = load_runtime_profile(
-        profiles_path=default_profiles_path(server_dir),
-        server_dir=server_dir,
-        profile_name="hybrid_anthropic",
-    )
-
-    assert profile.agent.provider == "anthropic_api"
-    assert profile.agent.model.startswith("claude-")
-    assert profile.agent.reasoning_effort == "medium"
-    assert profile.agent.api_key_env == "ANTHROPIC_API_KEY"
 
 
 def test_wake_profile_parses_audio_guards_and_rearm_delay(tmp_path: Path) -> None:

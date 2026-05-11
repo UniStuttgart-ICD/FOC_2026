@@ -10,7 +10,7 @@ def test_wake_tuning_page_and_settings_api_load(monkeypatch, tmp_path):
 
     page = client.get("/")
     favicon = client.get("/favicon.ico")
-    settings = client.get("/api/settings?profile=hybrid_low_latency")
+    settings = client.get("/api/settings?profile=hybrid_gemini_live_tts")
 
     assert page.status_code == 200
     assert "Mave Wake Lab" in page.text
@@ -19,10 +19,10 @@ def test_wake_tuning_page_and_settings_api_load(monkeypatch, tmp_path):
     assert "Audio kept before wake and replayed into STT" in page.text
     assert "OpenWakeWord Silero VAD gate" in page.text
     assert "Would replay on trigger" in page.text
-    assert 'value="hybrid_openai_stt"' in page.text
+    assert 'value="hybrid_gemini_live_tts"' in page.text
     assert favicon.status_code == 204
     assert settings.status_code == 200
-    assert settings.json()["profile"] == "hybrid_low_latency"
+    assert settings.json()["profile"] == "hybrid_gemini_live_tts"
     assert settings.json()["settings"]["threshold"] > 0
 
 
@@ -34,7 +34,7 @@ def test_wake_tuning_save_then_loads_saved_profile_settings(monkeypatch, tmp_pat
     response = client.post(
         "/api/settings",
         json={
-            "profile": "hybrid_low_latency",
+            "profile": "hybrid_gemini_live_tts",
             "settings": {
                 "threshold": 0.41,
                 "vad_threshold": 0.0,
@@ -47,7 +47,7 @@ def test_wake_tuning_save_then_loads_saved_profile_settings(monkeypatch, tmp_pat
             },
         },
     )
-    reloaded = client.get("/api/settings?profile=hybrid_low_latency")
+    reloaded = client.get("/api/settings?profile=hybrid_gemini_live_tts")
 
     assert response.status_code == 200
     assert response.json()["ok"] is True
@@ -84,7 +84,7 @@ def test_wake_tuning_websocket_reports_detection(monkeypatch, tmp_path):
     )
 
     with client.websocket_connect(
-        f"/ws/detect?profile=hybrid_low_latency&settings={settings}"
+        f"/ws/detect?profile=hybrid_gemini_live_tts&settings={settings}"
     ) as websocket:
         ready = websocket.receive_json()
         websocket.send_bytes(audio)
@@ -105,7 +105,7 @@ def test_settings_api_reports_default_local_state_path(monkeypatch):
     monkeypatch.delenv("WAKE_TUNING_SETTINGS_PATH", raising=False)
     client = TestClient(wake_tuning_app.app)
 
-    response = client.get("/api/settings?profile=hybrid_low_latency")
+    response = client.get("/api/settings?profile=hybrid_gemini_live_tts")
 
     assert response.status_code == 200
     assert response.json()["settings_path"].endswith("state/wake_tuning_settings.json")

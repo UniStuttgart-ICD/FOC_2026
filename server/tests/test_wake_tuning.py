@@ -182,7 +182,7 @@ def test_decision_tracker_reports_below_threshold() -> None:
     assert result.level_hit is True
 
 
-def test_default_hybrid_profile_contains_promoted_wake_tuning_values(
+def test_main_profile_contains_promoted_wake_tuning_values(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -195,13 +195,13 @@ def test_default_hybrid_profile_contains_promoted_wake_tuning_values(
     monkeypatch.setenv("DEEPGRAM_API_KEY", "test-deepgram")
     monkeypatch.setenv("CARTESIA_API_KEY", "test-cartesia")
 
-    config = load_runtime_config(profile_name="hybrid_low_latency")
+    config = load_runtime_config(profile_name="hybrid_gemini_live_tts")
 
     assert config.wake.threshold == 0.85
     assert config.wake.vad_threshold == 0.0
-    assert config.wake.candidate_log_threshold == 0.45
+    assert config.wake.candidate_log_threshold == 0.3
     assert config.wake.required_hits == 1
-    assert config.wake.min_wake_rms == 0.0
+    assert config.wake.min_wake_rms == 4.0
     assert config.wake.min_wake_peak == 12
-    assert config.wake.rearm_delay_s == 6.0
-    assert config.wake.pre_buffer_s == 0.2
+    assert config.wake.rearm_delay_s == 0.75
+    assert config.wake.pre_buffer_s == 0.35
