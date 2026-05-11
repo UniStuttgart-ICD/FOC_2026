@@ -108,12 +108,15 @@ def test_bundled_default_profile_keeps_short_wake_word_activation_usable() -> No
     assert profile.wake.min_wake_peak <= 17
 
 
-def test_bundled_default_profile_uses_gemini_flash_lite_high_reasoning_agent():
+def test_bundled_default_profile_uses_gemini_live_tts():
     profile = load_runtime_profile()
 
-    assert profile.name == "hybrid_openai_stt"
+    assert profile.name == "hybrid_gemini_live_tts"
     assert profile.stt.provider == "openai_realtime"
     assert profile.stt.model == "gpt-realtime-whisper"
+    assert profile.tts.provider == "gemini_live"
+    assert profile.tts.model == "gemini-3.1-flash-live-preview"
+    assert profile.tts.voice == "Kore"
     assert profile.agent.provider == "gemini_api"
     assert profile.agent.model == "gemini-3.1-flash-lite-preview"
     assert profile.agent.reasoning_effort == "high"
@@ -158,8 +161,22 @@ def test_hybrid_gemini_live_tts_profile_is_opt_in_streaming_renderer():
     assert profile.tts.provider == "gemini_live"
     assert profile.tts.model == "gemini-3.1-flash-live-preview"
     assert profile.tts.voice == "Kore"
+    assert profile.tts.instructions is None
+    assert profile.agent.provider == "gemini_api"
+    assert profile.required_env_names() == ("OPENAI_API_KEY", "GOOGLE_API_KEY")
+
+
+def test_hybrid_openai_tts_profile_uses_streaming_openai_tts_with_style():
+    profile = load_runtime_profile(profile_name="hybrid_openai_tts")
+
+    assert profile.category == "benchmark_streaming"
+    assert profile.stt.provider == "openai_realtime"
+    assert profile.tts.provider == "openai"
+    assert profile.tts.model == "gpt-4o-mini-tts"
+    assert profile.tts.voice == "coral"
     assert profile.tts.instructions is not None
-    assert "Speak the transcript exactly" in profile.tts.instructions
+    assert "warm" in profile.tts.instructions
+    assert profile.tts.speed == 1.0
     assert profile.agent.provider == "gemini_api"
     assert profile.required_env_names() == ("OPENAI_API_KEY", "GOOGLE_API_KEY")
 
@@ -959,8 +976,9 @@ enabled = false
 def test_default_profile_path_and_name_load_current_app_profile():
     profile = load_runtime_profile()
 
-    assert profile.name == "hybrid_openai_stt"
+    assert profile.name == "hybrid_gemini_live_tts"
     assert profile.wake.model_path is not None
     assert profile.wake.model_path.name == "mave.onnx"
     assert profile.stt.provider == "openai_realtime"
-    assert profile.tts.voice == "47c38ca4-5f35-497b-b1a3-415245fb35e1"
+    assert profile.tts.provider == "gemini_live"
+    assert profile.tts.voice == "Kore"

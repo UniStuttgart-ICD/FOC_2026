@@ -15,7 +15,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
 
-DEFAULT_PROFILE = "hybrid_openai_stt"
+DEFAULT_PROFILE = "hybrid_gemini_live_tts"
 
 WakeProvider = Literal["none", "openwakeword"]
 STTProvider = Literal["deepgram_flux", "openai_realtime", "whisper"]
@@ -71,6 +71,7 @@ class TTSProfile:
     model: str | None = None
     voice: str | None = None
     instructions: str | None = None
+    speed: float | None = None
 
 
 @dataclass(frozen=True)
@@ -229,6 +230,7 @@ def _parse_tts(table: dict[str, Any]) -> TTSProfile:
         model=_optional_string(table, "model"),
         voice=_optional_string(table, "voice"),
         instructions=_optional_string(table, "instructions"),
+        speed=_optional_float(table, "speed"),
     )
 
 
@@ -344,6 +346,15 @@ def _bool(table: dict[str, Any], key: str, default: bool) -> bool:
 
 def _float(table: dict[str, Any], key: str, default: float) -> float:
     value = table.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ProfileError(f"{key} must be a number")
+    return float(value)
+
+
+def _optional_float(table: dict[str, Any], key: str) -> float | None:
+    value = table.get(key)
+    if value is None:
+        return None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ProfileError(f"{key} must be a number")
     return float(value)
