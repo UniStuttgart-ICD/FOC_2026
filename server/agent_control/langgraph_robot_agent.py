@@ -15,6 +15,10 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from loguru import logger
 
+from agent_control.robot_job_submission import (
+    QUEUEABLE_ROBOT_ACTION_TOOLS,
+    RobotJobSubmitter,
+)
 from agent_control.prompts import SYSTEM_PROMPT
 from process_trace import NoopProcessTracer, ProcessTracer
 from robot_control.call_validation import (
@@ -112,12 +116,14 @@ class LangGraphRobotAgent:
         tool_bridge: Any,
         robot_context: RobotContextStore,
         thread_id: str | None = None,
+        job_submitter: RobotJobSubmitter | None = None,
         tracer: ProcessTracerLike | None = None,
     ) -> None:
         self._model = model
         self._tool_bridge = tool_bridge
         self._robot_context = robot_context
         self._thread_id = thread_id or f"robot-agent-{uuid.uuid4()}"
+        self._job_submitter = job_submitter
         self._tracer = tracer or NoopProcessTracer()
         self._latest_state: dict[str, Any] | None = None
         self._graph = self._compile_graph()
@@ -403,6 +409,14 @@ class LangGraphRobotAgent:
             logger.info("Robot tool start name={} call_id={}", name, call_id)
             if name in OBSERVE_TOOL_NAMES:
                 output, observed_this_turn = await self._execute_observation_tool(name, dict(args))
+            elif self._job_submitter is not None and name in QUEUEABLE_ROBOT_ACTION_TOOLS:
+                output = await self._job_submitter.submit_tool(
+                    name,
+                    dict(args),
+                    requested_by_turn_id=self._tracer.current_context().turn_id,
+                )
+                action_tool_ran = action_tool_ran or name in ACTION_TOOL_NAMES
+                observed_this_turn = False
             else:
                 output = await self._execute_tool(name, dict(args))
                 action_tool_ran = action_tool_ran or name in ACTION_TOOL_NAMES

@@ -183,6 +183,7 @@ def make_graph(
     responses: list[AIMessage],
     *,
     bridge: FakeBridge | None = None,
+    job_submitter: Any | None = None,
     tracer: ProcessTracer | None = None,
 ) -> GraphFixture:
     from agent_control.langgraph_robot_agent import LangGraphRobotAgent
@@ -194,6 +195,7 @@ def make_graph(
         tool_bridge=selected_bridge,
         robot_context=RobotContextStore(),
         thread_id="test-session",
+        job_submitter=job_submitter,
         tracer=tracer,
     )
     return GraphFixture(graph=graph, model=model, bridge=selected_bridge)
@@ -589,6 +591,55 @@ async def test_graph_does_not_auto_execute_executable_plan() -> None:
         ("moveit_plan_free_motion", plan_args),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
+
+
+@pytest.mark.asyncio
+async def test_graph_queues_long_running_action_tool_when_submitter_is_present() -> None:
+    from agent_control.robot_job_submission import RobotJobSubmitter
+    from robot_control.job_board import RobotJobBoard
+
+    board = RobotJobBoard()
+    action_args = {
+        "robot_name": "UR10",
+        "target_pose": {
+            "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+        "timeout_s": 10,
+    }
+    fixture = make_graph(
+        [
+            ai_tool_call(
+                "moveit_plan_and_execute_free_motion",
+                action_args,
+                call_id="action-1",
+            ),
+            ai_text("Queued the motion."),
+        ],
+        job_submitter=RobotJobSubmitter(board),
+    )
+
+    text = await fixture.graph.run_turn(turn("move up a bit"))
+
+    assert text == "Queued the motion."
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]
+    job = await board.claim_next()
+    assert job is not None
+    assert job.tool_name == "moveit_plan_and_execute_free_motion"
+    assert job.arguments == action_args
+    output = json.loads(last_tool_content(fixture.model))
+    assert output["structured_content"] == {
+        "ok": True,
+        "status": "queued",
+        "job_id": job.job_id,
+        "tool_name": "moveit_plan_and_execute_free_motion",
+    }
+    assert output["is_error"] is False
+    assert fixture.graph.latest_state()["action_tool_ran"] is True
+    assert fixture.graph.latest_state()["observed_this_turn"] is True
 
 
 @pytest.mark.asyncio
