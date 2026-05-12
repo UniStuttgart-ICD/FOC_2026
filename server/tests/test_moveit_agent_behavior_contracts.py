@@ -5,6 +5,7 @@ import pytest
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 
 from agent_control.langchain_agent_processor import LangChainAgentProcessor
+from robot_control.job_board import RobotJobBoard
 from voice_runtime.agent_turn import AgentTurnInput
 
 
@@ -122,9 +123,20 @@ class BehaviorBridge:
         return json.dumps({"structured_content": {"ok": True}})
 
 
+class NoopRobotJobWorker:
+    async def start(self):
+        pass
+
+    async def stop(self):
+        pass
+
+
 async def run_processor(processor, text):
     turn = AgentTurnInput(user_text=text, messages=[{"role": "user", "content": text}])
-    return [chunk async for chunk in processor.run_turn(turn)]
+    try:
+        return [chunk async for chunk in processor.run_turn(turn)]
+    finally:
+        await processor.disconnect()
 
 
 def ai_text(text: str) -> AIMessage:
@@ -139,7 +151,12 @@ def tool_call(name: str, call_id: str = "call-1", arguments: dict[str, Any] | No
     )
 
 
-def make_processor(responses: list[AIMessage], bridge: BehaviorBridge | None = None):
+def make_processor(
+    responses: list[AIMessage],
+    bridge: BehaviorBridge | None = None,
+    *,
+    robot_job_board: RobotJobBoard | None = None,
+):
     selected_bridge = bridge or BehaviorBridge()
     chat_model = ScriptedChatModel(responses)
     processor = LangChainAgentProcessor(
@@ -147,6 +164,8 @@ def make_processor(responses: list[AIMessage], bridge: BehaviorBridge | None = N
         chat_model=chat_model,
         model_label="gpt-5.5",
         tool_bridge=selected_bridge,
+        robot_job_board=robot_job_board,
+        robot_job_worker=NoopRobotJobWorker(),
     )
     return processor, chat_model, selected_bridge
 
@@ -200,22 +219,32 @@ async def test_relative_movement_behavior_observes_before_answering():
 
 @pytest.mark.asyncio
 async def test_missing_motion_arguments_are_not_repaired_from_user_text():
+    board = RobotJobBoard()
     incomplete_args = {"robot_name": "UR10", "plan_name": "move_up_50mm", "timeout_s": 10}
     processor, _, bridge = make_processor(
         [
             tool_call("moveit_plan_and_execute_free_motion", arguments=incomplete_args),
             ai_text("I need complete motion arguments."),
-        ]
+        ],
+        robot_job_board=board,
     )
 
     chunks = await run_processor(processor, "move up a bit")
 
-    assert bridge.calls[1] == ("moveit_plan_and_execute_free_motion", incomplete_args)
+    assert bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+    ]
+    job = await board.claim_next()
+    assert job is not None
+    assert job.tool_name == "moveit_plan_and_execute_free_motion"
+    assert job.arguments == incomplete_args
     assert chunks == ["I need complete motion arguments."]
 
 
 @pytest.mark.asyncio
 async def test_plan_tool_is_not_auto_executed_once_plan_is_executable():
+    board = RobotJobBoard()
     plan_args = {
         "robot_name": "UR10",
         "target_pose": {
@@ -224,14 +253,18 @@ async def test_plan_tool_is_not_auto_executed_once_plan_is_executable():
         },
     }
     processor, _, bridge = make_processor(
-        [tool_call("moveit_plan_free_motion", arguments=plan_args), ai_text("Moved up 50 mm.")]
+        [tool_call("moveit_plan_free_motion", arguments=plan_args), ai_text("Moved up 50 mm.")],
+        robot_job_board=board,
     )
 
     chunks = await run_processor(processor, "move up a bit")
 
     assert bridge.calls == [
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
-        ("moveit_plan_free_motion", plan_args),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
+    job = await board.claim_next()
+    assert job is not None
+    assert job.tool_name == "moveit_plan_free_motion"
+    assert job.arguments == plan_args
     assert chunks == ["Moved up 50 mm."]

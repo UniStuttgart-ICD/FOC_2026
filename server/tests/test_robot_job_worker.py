@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 
 from robot_control.job_board import RobotJobBoard, RobotJobStatus, SubmitRobotJob
@@ -7,19 +9,19 @@ from robot_control.job_worker import RobotJobWorker
 class RecordingToolBridge:
     def __init__(self, result: str) -> None:
         self.result = result
-        self.calls: list[tuple[str, dict[str, object]]] = []
+        self.calls: list[tuple[str, dict[str, Any]]] = []
 
-    async def call_tool(self, tool_name: str, arguments: dict[str, object]) -> str:
-        self.calls.append((tool_name, arguments))
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        self.calls.append((name, arguments))
         return self.result
 
 
 class FailingToolBridge:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, dict[str, object]]] = []
+        self.calls: list[tuple[str, dict[str, Any]]] = []
 
-    async def call_tool(self, tool_name: str, arguments: dict[str, object]) -> str:
-        self.calls.append((tool_name, arguments))
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        self.calls.append((name, arguments))
         raise RuntimeError("planning failed")
 
 

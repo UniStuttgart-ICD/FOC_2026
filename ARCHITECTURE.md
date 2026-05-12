@@ -69,6 +69,8 @@ It contains these target submodules:
 - **Robot Call Validation**: structural and local tool-call validation for allowed MoveIt tools, UR10 arguments, target bounds, timeouts, and executable plan names.
 - **Robot Tool Adapter**: exposes MoveIt MCP tools to Agent Orchestration and executes tool calls.
 - **Robot Context**: stores advisory recent observations, planning results, gripper state, and execution results.
+- **Robot Job Blackboard**: stores queued/running/completed/failed robot jobs and terminal events for long-running action execution.
+- **Robot Job Worker**: deterministic executor for queued MoveIt jobs; it calls the exact tool and arguments submitted by Agent Control.
 
 The package shape is:
 
@@ -78,9 +80,11 @@ robot_control/
   call_validation.py
   mcp_bridge.py
   context.py
+  job_board.py
+  job_worker.py
 ```
 
-Robot Call Validation, Robot Context, Task Policy, and the Robot Tool Adapter live under `robot_control`.
+Robot Call Validation, Robot Context, Task Policy, Robot Job Blackboard, Robot Job Worker, and the Robot Tool Adapter live under `robot_control`.
 
 **API Boundary:** `robot_control` exposes robot tools and structured tool feedback to `agent_control`. It owns robot-specific vocabulary and must not depend on Pipecat pipeline modules.
 
@@ -157,6 +161,10 @@ Task Policy Layer
 
 Task Policy may block obvious under-observed or incorrectly ordered steps. Robot Call Validation may reject unsupported or malformed tool calls. MoveIt planning/execution and the robot simulation stack are the source of movement safety.
 
+### Long-running robot execution is blackboarded
+
+Agent Control may queue long-running MoveIt action tools as Robot Jobs after Task Policy accepts the step. The Robot Job Worker owns deterministic execution and writes terminal events. The LLM may decide what tool call to submit, but the worker must not improvise, repair, or reinterpret the tool arguments.
+
 ### Robot Call Validation is not Task Policy
 
 Robot Call Validation does not understand user intent, validate arbitrary multi-step tasks, prove object/world state, enforce semantic task safety, handle emergency stop, or decide whether a sequence of moves is logically correct. Those concerns belong to Task Policy or future higher-level robot reasoning Modules.
@@ -167,7 +175,7 @@ Robot Call Validation does not understand user intent, validate arbitrary multi-
 
 ### Robot Control does not belong in Voice Runtime
 
-Task Policy, Robot Call Validation, Robot Tool Adapter, and Robot Context belong to `robot_control`, not `voice_runtime`.
+Task Policy, Robot Call Validation, Robot Tool Adapter, Robot Context, Robot Job Blackboard, and Robot Job Worker belong to `robot_control`, not `voice_runtime`.
 
 ### Runtime profile files are app configuration
 
@@ -215,7 +223,7 @@ Common lesson: the agent owns sequencing and tool choice, while the robot layer 
 
 ### Testing
 
-Test Modules through their Interfaces. Voice Runtime tests should not need LangChain, MCP, or robot simulation. Robot Control tests should exercise Task Policy, Robot Call Validation, Robot Context, and Robot Tool Adapter behavior without Pipecat. Agent Control tests should exercise LangChain/LangGraph behavior through fake models and fake robot adapters.
+Test Modules through their Interfaces. Voice Runtime tests should not need LangChain, MCP, or robot simulation. Robot Control tests should exercise Task Policy, Robot Call Validation, Robot Context, Robot Job Blackboard, Robot Job Worker, and Robot Tool Adapter behavior without Pipecat. Agent Control tests should exercise LangChain/LangGraph behavior through fake models and fake robot adapters.
 
 Import direction invariants should be enforced by structural tests once the target packages exist.
 

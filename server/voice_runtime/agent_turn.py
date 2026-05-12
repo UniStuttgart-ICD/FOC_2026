@@ -112,7 +112,10 @@ class AgentTurnProcessor(FrameProcessor):
         await self._backend.connect()
         notifications = getattr(self._backend, "notifications", None)
         if callable(notifications):
-            self._notification_task = asyncio.create_task(self._pump_notifications(notifications))
+            notification_source = cast(Callable[[], AsyncIterator[str]], notifications)
+            self._notification_task = asyncio.create_task(
+                self._pump_notifications(notification_source)
+            )
 
     async def disconnect(self) -> None:
         if self._notification_task is not None:
@@ -205,6 +208,8 @@ class AgentTurnProcessor(FrameProcessor):
     async def _pump_notifications(self, notifications: Callable[[], AsyncIterator[str]]) -> None:
         try:
             async for text in notifications():
+                if not text:
+                    continue
                 await self.push_frame(LLMFullResponseStartFrame())
                 await self.push_frame(LLMTextFrame(text=text))
                 await self.push_frame(LLMFullResponseEndFrame())

@@ -643,6 +643,52 @@ async def test_graph_queues_long_running_action_tool_when_submitter_is_present()
 
 
 @pytest.mark.asyncio
+async def test_graph_applies_task_policy_before_queued_action_tool() -> None:
+    from agent_control.robot_job_submission import RobotJobSubmitter
+    from robot_control.job_board import RobotJobBoard
+
+    class NoObservationBridge(FakeBridge):
+        def function_tools(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "type": "function",
+                    "name": "moveit_plan_free_motion",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                }
+            ]
+
+    board = RobotJobBoard()
+    plan_args = {
+        "robot_name": "UR10",
+        "target_pose": {
+            "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+    }
+    fixture = make_graph(
+        [ai_tool_call("moveit_plan_free_motion", plan_args), ai_text("I need a fresh pose.")],
+        bridge=NoObservationBridge(),
+        job_submitter=RobotJobSubmitter(board),
+    )
+
+    text = await fixture.graph.run_turn(turn("move up"))
+
+    assert text == "I need a fresh pose."
+    assert fixture.bridge.calls == []
+    assert await board.claim_next() is None
+    assert board.events_since(0) == []
+    output = json.loads(last_tool_content(fixture.model))
+    assert output == {
+        "ok": False,
+        "error": "Fresh robot pose is required before motion.",
+        "correction": "Call moveit_get_current_pose, then retry the motion.",
+        "retryable": True,
+        "suggested_next_tool": "moveit_get_current_pose",
+    }
+
+
+@pytest.mark.asyncio
 async def test_motion_request_retries_when_model_only_promises_action() -> None:
     cartesian_args = {
         "robot_name": "UR10",

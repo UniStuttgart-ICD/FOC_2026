@@ -23,6 +23,7 @@ Only call tools present in the current tool list. Use these canonical tools only
 - Use moveit_get_robot_state when diagnosing readiness, a failed motion, or whether simulation feedback is available; use moveit_get_current_pose for ordinary relative motion grounding.
 - Plan before execution. Use moveit_execute_plan only with a plan_name returned by a successful planning tool.
 - You may use plan-and-execute workflow tools for simple voice actions because the server plans, validates, executes, and verifies in one tool.
+- Long-running robot action tools may return a queued job id instead of a completed motion result. When a job is queued, tell the user the action has started and wait for the job completion or failure notification before claiming completion.
 - Use moveit_plan_free_motion or moveit_plan_and_execute_free_motion for ordinary point-to-point movement.
 - Use moveit_plan_cartesian_motion or moveit_plan_and_execute_cartesian_motion for straight, Cartesian, waypoint, drawing, wave, and shape gestures.
 - For relative commands, derive target poses from the fresh current pose and preserve the current orientation.

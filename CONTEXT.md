@@ -70,6 +70,12 @@ Lightweight local validation for allowed MoveIt tool names, UR10 robot name, arg
 **Robot Tool Adapter**:
 The Agent/Robot Control seam that exposes and executes robot tools while routing movement through MoveIt workflows.
 
+**Robot Job Blackboard**:
+The shared typed job/event surface for long-running robot action execution. Agent Control writes queued robot jobs; Robot Control workers write started, completed, and failed events.
+
+**Robot Job Worker**:
+A deterministic Robot Control worker that validates and executes the exact queued MoveIt tool call. It does not invent new tool calls, repair arguments, or make LLM decisions.
+
 **Executable Plan**:
 A successful MoveIt planning result with `ok=true`, `feedback.can_execute=true`, and a valid returned `raw.plan_name` that can be executed through a MoveIt execution workflow.
 
@@ -145,6 +151,8 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - **Task Policy Layer** runs before **Robot Call Validation**.
 - **Robot Call Validation** may reject malformed tool calls, but it does not validate task-level intent and is not the source of movement safety.
 - **Robot Tool Adapter** routes movement through the **MoveIt Safety Boundary**.
+- **Robot Job Blackboard** decouples slow robot action execution from the spoken **Agent Turn**.
+- **Robot Job Worker** owns deterministic execution of queued robot jobs and writes terminal events back to the **Robot Job Blackboard**.
 - An **Executable Plan** may be auto-executed only through a MoveIt execution workflow.
 - A blocked **Task Policy Decision** is returned to **Agent Orchestration** as structured tool feedback, not as a movement-safety claim.
 - A **Live LLM Robot Smoke Test** belongs to the manual pass/fail testing pipeline and does not exercise wake, STT, TTS, or browser audio.

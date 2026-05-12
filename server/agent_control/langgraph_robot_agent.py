@@ -15,11 +15,11 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from loguru import logger
 
+from agent_control.prompts import SYSTEM_PROMPT
 from agent_control.robot_job_submission import (
     QUEUEABLE_ROBOT_ACTION_TOOLS,
     RobotJobSubmitter,
 )
-from agent_control.prompts import SYSTEM_PROMPT
 from process_trace import NoopProcessTracer, ProcessTracer
 from robot_control.call_validation import (
     RobotCallValidationError,
@@ -28,7 +28,11 @@ from robot_control.call_validation import (
 )
 from robot_control.context import RobotContextStore
 from robot_control.mcp_bridge import RobotMCPError
-from robot_control.task_policy import structured_task_policy_error, validate_task_step
+from robot_control.task_policy import (
+    TaskPolicyDecision,
+    structured_task_policy_error,
+    validate_task_step,
+)
 from voice_runtime.agent_turn import AgentTurnInput
 from voice_runtime.timing import elapsed_ms_since, monotonic_s
 
@@ -410,7 +414,7 @@ class LangGraphRobotAgent:
             if name in OBSERVE_TOOL_NAMES:
                 output, observed_this_turn = await self._execute_observation_tool(name, dict(args))
             elif self._job_submitter is not None and name in QUEUEABLE_ROBOT_ACTION_TOOLS:
-                output = await self._job_submitter.submit_tool(
+                output = await self._submit_policy_checked_robot_job(
                     name,
                     dict(args),
                     requested_by_turn_id=self._tracer.current_context().turn_id,
@@ -480,7 +484,9 @@ class LangGraphRobotAgent:
         )
         return output, observed
 
-    async def _call_policy_checked_tool(self, name: str, arguments: dict[str, Any]) -> str:
+    async def _validate_robot_task_step(
+        self, name: str, arguments: dict[str, Any]
+    ) -> TaskPolicyDecision:
         policy_attributes: dict[str, Any] = {"tool.name": name}
         async with self._tracer.span(
             "robot.task_policy",
@@ -493,6 +499,27 @@ class LangGraphRobotAgent:
                 policy_attributes["error"] = decision.error
             if decision.suggested_next_tool is not None:
                 policy_attributes["suggested_next_tool"] = decision.suggested_next_tool
+        return decision
+
+    async def _submit_policy_checked_robot_job(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        requested_by_turn_id: str | None,
+    ) -> str:
+        decision = await self._validate_robot_task_step(name, arguments)
+        if not decision.ok:
+            return json.dumps(structured_task_policy_error(decision), ensure_ascii=False)
+        assert self._job_submitter is not None
+        return await self._job_submitter.submit_tool(
+            name,
+            arguments,
+            requested_by_turn_id=requested_by_turn_id,
+        )
+
+    async def _call_policy_checked_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        decision = await self._validate_robot_task_step(name, arguments)
         if not decision.ok:
             return json.dumps(structured_task_policy_error(decision), ensure_ascii=False)
         output = await self._tool_bridge.call_tool(name, arguments)
