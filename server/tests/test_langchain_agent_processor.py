@@ -1,4 +1,5 @@
 import json
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -81,7 +82,10 @@ class TurnResult:
 
 async def _run_turn(processor: LangChainAgentProcessor, text: str) -> TurnResult:
     turn = AgentTurnInput(user_text=text, messages=[{"role": "user", "content": text}])
-    chunks = [chunk async for chunk in processor.run_turn(turn)]
+    try:
+        chunks = [chunk async for chunk in processor.run_turn(turn)]
+    finally:
+        await processor.disconnect()
     return TurnResult(chunks=chunks, processor=processor)
 
 
@@ -166,12 +170,14 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
             tool_bridge: Any,
             robot_context: Any,
             thread_id: str,
+            job_submitter: Any | None = None,
             tracer: ProcessTracer,
         ):
             self.model = model
             self.tool_bridge = tool_bridge
             self.robot_context = robot_context
             self.thread_id = thread_id
+            self.job_submitter = job_submitter
             self.tracer = tracer
             created_graphs.append(self)
 
@@ -194,6 +200,7 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
     assert result.chunks == ["fake graph: hello"]
     assert created_bridges[0].tracer is tracer
     assert created_graphs[0].tracer is tracer
+    assert created_graphs[0].job_submitter is processor._robot_job_submitter
     backend_span = records_named(writer, "agent.backend_turn")[-1]
     assert backend_span["record_type"] == "span"
     assert backend_span["module"] == "agent_control"
@@ -216,6 +223,7 @@ async def test_backend_turn_span_is_recorded_before_yielded_chunk_is_closed(
             tool_bridge: Any,
             robot_context: Any,
             thread_id: str,
+            job_submitter: Any | None = None,
             tracer: ProcessTracer,
         ):
             pass
@@ -244,5 +252,60 @@ async def test_backend_turn_span_is_recorded_before_yielded_chunk_is_closed(
     assert "error_type" not in backend_spans[0]["attributes"]
 
     await chunks.aclose()
+    await processor.disconnect()
 
     assert records_named(writer, "agent.backend_turn") == backend_spans
+
+
+@pytest.mark.asyncio
+async def test_langchain_processor_starts_and_stops_robot_job_worker() -> None:
+    class FakeWorker:
+        def __init__(self) -> None:
+            self.started = False
+            self.stopped = False
+
+        async def start(self) -> None:
+            self.started = True
+
+        async def stop(self) -> None:
+            self.stopped = True
+
+    worker = FakeWorker()
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=FakeChatModel([]),
+        model_label="fake",
+        tool_bridge=FakeBridge(),
+        robot_job_worker=worker,
+    )
+
+    await processor.connect()
+    await processor.disconnect()
+
+    assert worker.started is True
+    assert worker.stopped is True
+
+
+@pytest.mark.asyncio
+async def test_langchain_processor_notifications_report_terminal_job_events() -> None:
+    from robot_control.job_board import RobotJobBoard, SubmitRobotJob
+
+    board = RobotJobBoard()
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=FakeChatModel([]),
+        model_label="fake",
+        tool_bridge=FakeBridge(),
+        robot_job_board=board,
+    )
+    stream = processor.notifications()
+    job = await board.submit(
+        SubmitRobotJob("moveit_open_gripper", {"robot_name": "UR10"}, "turn-1")
+    )
+    await board.claim_next()
+    await board.complete(job.job_id, '{"structured_content": {"ok": true}}')
+
+    text = await asyncio.wait_for(stream.__anext__(), timeout=1)
+
+    assert "Robot job" in text
+    assert "completed" in text

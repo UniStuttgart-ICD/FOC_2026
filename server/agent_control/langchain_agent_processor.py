@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 from typing import Any
 
 from loguru import logger
 
 from agent_control.langgraph_robot_agent import LangGraphRobotAgent
+from agent_control.robot_job_submission import RobotJobSubmitter
 from process_trace import NoopProcessTracer, ProcessTracer
 from robot_control.context import RobotContextStore
+from robot_control.job_board import RobotJobBoard, RobotJobEventType
+from robot_control.job_worker import RobotJobWorker
 from robot_control.mcp_bridge import RobotMCPBridge
 from voice_runtime.agent_turn import AgentTurnInput
 
@@ -24,12 +28,17 @@ class LangChainAgentProcessor:
         chat_model: Any,
         model_label: str,
         tool_bridge: Any | None = None,
+        robot_job_board: RobotJobBoard | None = None,
+        robot_job_worker: Any | None = None,
         tracer: ProcessTracerLike | None = None,
     ):
         self._mcp_server_url = mcp_server_url
         self._chat_model = chat_model
         self._model_label = model_label
         self._tool_bridge = tool_bridge
+        self._robot_job_board = robot_job_board or RobotJobBoard()
+        self._robot_job_submitter = RobotJobSubmitter(self._robot_job_board)
+        self._robot_job_worker = robot_job_worker
         self._tracer = tracer or NoopProcessTracer()
         self._owns_tool_bridge = tool_bridge is None
         self._connected = False
@@ -44,14 +53,32 @@ class LangChainAgentProcessor:
         await self._ensure_connected()
 
     async def disconnect(self) -> None:
+        if self._robot_job_worker is not None:
+            stop = getattr(self._robot_job_worker, "stop", None)
+            if stop is not None:
+                await stop()
         if self._tool_bridge is not None and (self._connected or not self._owns_tool_bridge):
             await self._tool_bridge.disconnect()
         self._tool_bridge = None
         self._graph_agent = None
         self._graph_chat_model = None
         self._graph_tool_bridge = None
+        self._robot_job_worker = None
         self._connected = False
         logger.info("LangChain API-key agent disconnected")
+
+    async def notifications(self):
+        sequence = 0
+        while True:
+            events = self._robot_job_board.events_since(sequence)
+            for event in events:
+                sequence = max(sequence, event.sequence)
+                if event.event_type is RobotJobEventType.COMPLETED:
+                    yield f"Robot job {event.job_id} completed."
+                elif event.event_type is RobotJobEventType.FAILED:
+                    error = event.payload.get("error", "unknown error")
+                    yield f"Robot job {event.job_id} failed: {error}"
+            await asyncio.sleep(0.05)
 
     async def run_turn(self, turn: AgentTurnInput):
         async with self._tracer.span(
@@ -91,6 +118,14 @@ class LangChainAgentProcessor:
         if self._tool_bridge is None:
             self._tool_bridge = _robot_mcp_bridge(self._mcp_server_url, tracer=self._tracer)
         await self._tool_bridge.connect()
+        if self._robot_job_worker is None:
+            self._robot_job_worker = RobotJobWorker(
+                board=self._robot_job_board,
+                tool_bridge=self._tool_bridge,
+            )
+        start = getattr(self._robot_job_worker, "start", None)
+        if start is not None:
+            await start()
         self._connected = True
         logger.info("LangChain API-key agent connected")
 
@@ -105,6 +140,7 @@ class LangChainAgentProcessor:
                 tool_bridge=tool_bridge,
                 robot_context=self._robot_context,
                 thread_id=self._thread_id,
+                job_submitter=self._robot_job_submitter,
                 tracer=self._tracer,
             )
             self._graph_chat_model = chat_model
