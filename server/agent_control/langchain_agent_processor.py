@@ -74,7 +74,7 @@ class LangChainAgentProcessor:
             for event in events:
                 sequence = max(sequence, event.sequence)
                 if event.event_type is RobotJobEventType.COMPLETED:
-                    yield "Done. The robot motion completed cleanly."
+                    yield "Job complete."
                 elif event.event_type is RobotJobEventType.FAILED:
                     error = event.payload.get("error", "unknown error")
                     yield f"The robot action hit a snag: {error}"
