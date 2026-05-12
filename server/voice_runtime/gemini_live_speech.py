@@ -82,6 +82,7 @@ class GeminiLiveSpeechRendererService(FrameProcessor):
 
         if isinstance(frame, LLMTextFrame):
             self._text_buffer += frame.text
+            await self.push_frame(frame, direction)
             segments, self._text_buffer = pop_speakable_segments(self._text_buffer)
             for segment in segments:
                 await self._speak_segment(segment)

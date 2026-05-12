@@ -307,5 +307,5 @@ async def test_langchain_processor_notifications_report_terminal_job_events() ->
 
     text = await asyncio.wait_for(stream.__anext__(), timeout=1)
 
-    assert "Robot job" in text
-    assert "completed" in text
+    assert text == "Done. The robot motion completed cleanly."
+    assert job.job_id not in text

@@ -74,10 +74,10 @@ class LangChainAgentProcessor:
             for event in events:
                 sequence = max(sequence, event.sequence)
                 if event.event_type is RobotJobEventType.COMPLETED:
-                    yield f"Robot job {event.job_id} completed."
+                    yield "Done. The robot motion completed cleanly."
                 elif event.event_type is RobotJobEventType.FAILED:
                     error = event.payload.get("error", "unknown error")
-                    yield f"Robot job {event.job_id} failed: {error}"
+                    yield f"The robot action hit a snag: {error}"
             await asyncio.sleep(0.05)
 
     async def run_turn(self, turn: AgentTurnInput):

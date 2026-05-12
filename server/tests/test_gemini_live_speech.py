@@ -1,5 +1,4 @@
 import pytest
-
 from pipecat.frames.frames import (
     Frame,
     LLMFullResponseEndFrame,
@@ -90,6 +89,8 @@ async def test_renderer_streams_complete_sentence_before_final_flush():
     assert len(renderer.sent_prompts) == 2
     assert "Hello there." in renderer.sent_prompts[0]
     assert "This is still forming" in renderer.sent_prompts[1]
+    text_frames = [frame for frame in renderer.pushed if isinstance(frame, LLMTextFrame)]
+    assert [frame.text for frame in text_frames] == ["Hello there. This is", " still forming"]
     assert any(isinstance(frame, TTSAudioRawFrame) for frame in renderer.pushed)
 
 
