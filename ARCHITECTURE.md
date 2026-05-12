@@ -9,7 +9,7 @@ The system turns a spoken user command into a robot action and a spoken response
 Two planes keep the architecture understandable:
 
 1. **Voice Runtime plane**: owns realtime audio transport, wake command handling, STT, user/assistant aggregation, TTS, interruption behavior, pipeline ordering, and voice metrics.
-2. **Agent/Robot Control plane**: owns intent handling, API-key-backed LangChain Agent Orchestration, deterministic robot task policy, robot call validation, MoveIt tool execution, and robot context.
+2. **Agent/Robot Control plane**: owns intent handling, API-key-backed LangChain Agent Orchestration, deterministic robot task policy, robot call validation, MoveIt tool execution, robot context, and user-sensing context.
 
 The high-level flow is:
 
@@ -17,6 +17,7 @@ The high-level flow is:
 Browser audio
   -> Voice Runtime
   -> Agent Turn
+  -> User Sensing Context refresh
   -> Agent Orchestration
   -> Task Policy Layer
   -> Robot Call Validation
@@ -38,7 +39,7 @@ This section names the target Modules and seams. Use symbol search for the menti
 
 It contains these target submodules:
 
-- **Runtime Profile**: parses runtime profiles and provider policy without constructing processors.
+- **Runtime Profile**: parses the main runtime profile and provider policy without constructing processors.
 - **Voice Providers**: constructs STT/TTS adapters for the Voice Runtime in `voice_runtime.providers`.
 - **Voice Command**: owns wake detection, pre-buffer replay, wake phrase stripping, and rearming.
 - **Agent Turn**: exposes the AgentBackend seam and wraps one backend turn in Pipecat LLM frames.
@@ -56,6 +57,7 @@ It contains:
 - **LangChain API Backend**: builds native LangChain chat models and satisfies the Agent Turn backend seam.
 - **Agent Orchestration**: the LangGraph loop that calls the model, executes robot tools through Robot Control, observes Robot Context, and repeats until done or blocked.
 - **Robot Agent Prompt**: the prompt renderer and prompt parts aligned with Robot Call Validation and Robot Tool Adapter feedback.
+- **Agent Turn Factory**: builds the native LangChain backend and wraps it in the Voice Runtime Agent Turn processor for the app composition root.
 
 **API Boundary:** `agent_control` satisfies `voice_runtime.AgentBackend` and depends on `robot_control` for robot execution. It must not own Pipecat transport, audio frames, wake handling, STT/TTS, interruption behavior, or pipeline ordering.
 
@@ -67,7 +69,7 @@ It contains these target submodules:
 
 - **Task Policy Layer**: deterministic pre-tool checks for obvious robot-step preconditions.
 - **Robot Call Validation**: structural and local tool-call validation for allowed MoveIt tools, UR10 arguments, target bounds, timeouts, and executable plan names.
-- **Robot Tool Adapter**: exposes MoveIt MCP tools to Agent Orchestration and executes tool calls.
+- **Robot Tool Adapter**: exposes MoveIt MCP tools to Agent Orchestration, adapts LangChain tool-call messages, and executes tool calls.
 - **Robot Context**: stores advisory recent observations, planning results, gripper state, and execution results.
 - **Robot Job Blackboard**: stores queued/running/completed/failed robot jobs and terminal events for long-running action execution.
 - **Robot Job Worker**: deterministic executor for queued MoveIt jobs; it calls the exact tool and arguments submitted by Agent Control.
@@ -84,7 +86,7 @@ robot_control/
   job_worker.py
 ```
 
-Robot Call Validation, Robot Context, Task Policy, Robot Job Blackboard, Robot Job Worker, and the Robot Tool Adapter live under `robot_control`.
+Robot Call Validation, Robot Context, Task Policy, MCP bridging, LangChain tool-message adaptation, Robot Job Blackboard, Robot Job Worker, and the Robot Tool Adapter live under `robot_control`.
 
 **API Boundary:** `robot_control` exposes robot tools and structured tool feedback to `agent_control`. It owns robot-specific vocabulary and must not depend on Pipecat pipeline modules.
 
@@ -97,6 +99,14 @@ It owns trace IDs, session IDs, turn IDs, span parentage, timestamps, JSON-safe 
 Voice Runtime emits wake, speech capture, STT, Agent Turn, and TTS spans. Agent Control emits backend turn, LangGraph node, graph turn, and model-call spans. Robot Control emits task policy, robot call validation, Robot Context update, and MCP spans.
 
 **API Boundary:** pure `process_trace` core modules must not import Pipecat, LangGraph, LangChain, MCP, Voice Runtime, Agent Control, or Robot Control. Pipecat-specific tracing lives in a thin adapter.
+
+### `model_eval`
+
+`model_eval` is the reusable Testing Module for comparing API-backed LangGraph model candidates against robot-agent scenario packs.
+
+It owns model-candidate parsing, scenario packs, validators, scoring, timing, evidence writing, and the deterministic simulated MoveIt eval adapter. It can also run against live MCP when a developer explicitly opts in.
+
+**API Boundary:** `model_eval` evaluates Agent Control and Robot Control through existing seams: Agent Turn, Robot Tool Adapter, Recording Robot Tool Adapter, and Live Eval Evidence. It must not own the Robot Agent Prompt, Task Policy Layer, Robot Call Validation, MoveIt Safety Boundary, Pipecat transport, wake handling, STT, TTS, or runtime pipeline ordering.
 
 ### Task Policy Layer
 
@@ -125,13 +135,25 @@ The host-side ROS 1 MoveIt MCP lives in `C:\Users\Samuel\Documents\github\Multi-
 
 The Vizor ROS 1 container owns the downstream MoveIt node and robot control code. In the running `vizor-demo` container, the MoveIt server is `/UR10/move_group`, the app-facing control node is `/vizor_robot_control`, and the robot logic is under `/root/catkin_ws/src/vizor_lib/src/vizor_lib/`. Treat container paths as runtime locators; persistent fixes belong in the Docker image source. The local RViz/Vizor image build context is `C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\docker\vizor-rviz`; its `patch-vizor-robot.py` applies the ROS 1 `compute_cartesian_path(..., avoid_collisions=True)` compatibility patch inherited from `cxy201/noetic-vizor`.
 
+RViz is a Planning Scene consumer, not an agent boundary. The RViz config in the Vizor image must subscribe to the namespaced MoveIt scene stream, typically `/UR10/move_group/monitored_planning_scene`, through the MoveIt MotionPlanning display. The geometry path is ROSBridge topic input, `/vizor_robot_control`, MoveIt planning scene, then RViz visualization.
+
 Agent-facing robot tools should stay semantic and narrow: observation tools, planning tools, verified execution tools, gripper tools, and future failure-explanation tools. Do not expose broad ROS control or raw topic mutation tools to Agent Orchestration by default.
+
+### Vizor User Sensing MCP Boundary
+
+Vizor user sensing is a separate advisory context boundary from MoveIt robot execution. The host-side Vizor MCP lives in `C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\vizor_mcp`. It subscribes continuously to Vizor ROSBridge topics such as `/HOLO1_GazePoint`, `/HOLO1_Transform`, and `/Robot/target_manual`, keeps bounded in-memory history for gaze attention, and exposes read-only FastMCP tools such as `vizor_get_sensor_context`.
+
+The attention buffer belongs in the long-running Vizor MCP process, not in Pipecat. Pipecat only calls the MCP tool before model turns and stores the returned summary in `server/user_sensing`. That summary may include current gaze, user pose, manual target, and ranked recent attention. It is advisory grounding for references like "this", "that", "there", and "near me"; it is not a movement-safety boundary and should not be treated as proof of user intent when missing, stale, or low confidence.
+
+The operator dashboard may launch Vizor MCP as its own managed service after the Vizor ROS container is ready and before Pipecat starts. Pipecat receives the MCP URL as app configuration, typically `MCP_VIZOR_URL=http://127.0.0.1:8001/mcp`. Vizor MCP should tolerate ROSBridge or HoloLens being unavailable at startup: it stays up, reports disconnected or stale context, and queues the idempotent `HOLO1_position_on` tracking command until ROSBridge is ready.
 
 ### App composition root
 
 `pipeline_builder.py` is the app composition root. It constructs concrete adapters from runtime profiles across Voice Runtime, Agent Control, and Robot Control, then delegates processor ordering to Voice Runtime Assembly.
 
 `agent_control.factory` (`server/agent_control/factory.py`) is a short-term compatibility seam while profiles still carry `agent.provider`. It constructs the native LangChain backend for supported API providers.
+
+Agent model controls flow from `voice_runtime.profiles.AgentProfile` into `agent_control.model_factory`. `AgentProfile` owns the provider-neutral app settings: provider, model, reasoning effort, temperature, API-key environment variable, and Gemini thinking budget. `agent_control.model_factory` is the provider-specific mapping layer for LangChain kwargs.
 
 `bot.py` is the runner and lifecycle shell. It owns runner startup, transport creation, profile selection, and client lifecycle hooks only.
 
@@ -181,6 +203,8 @@ Task Policy, Robot Call Validation, Robot Tool Adapter, Robot Context, Robot Job
 
 Runtime profile parsing belongs to `voice_runtime`; concrete runtime profile files remain app configuration because they choose adapters across Voice Runtime, Agent Control, and Robot Control.
 
+`server/runtime_profiles.toml` intentionally carries one bundled app profile: `hybrid_gemini_live_tts`. Do not rebuild the old provider matrix without a new architecture decision.
+
 ### STT/TTS provider construction belongs to Voice Runtime
 
 STT/TTS provider construction lives in `voice_runtime.providers`. `pipeline_builder.py` should remain the only caller.
@@ -203,7 +227,9 @@ Agent-facing knowledge must live in repository-local, versioned files. `AGENTS.m
 
 Voice Metrics are compact semantic turn timing records.
 
-Process Trace is the always-on local trace of a robot voice run. It records wake, speech capture, STT, Agent Turn, LangGraph node, model call, task policy, robot call validation, MCP tool call, Robot Context update, and TTS spans/events in `logs/process_trace.jsonl` by default. The trace is observational; it must not change runtime behavior.
+Process Trace is the always-on local trace of a robot voice run. It records wake, speech capture, STT, Agent Turn, LangGraph node, model call, task policy, robot call validation, MCP tool call, Robot Context update, and TTS spans/events. The trace is observational; it must not change runtime behavior.
+
+Runtime profiles configure base JSONL paths for Voice Metrics and Process Trace. `pipeline_builder.py` expands those base paths into session-scoped files such as `logs/process_trace/process_trace-<timestamp>-<session>.jsonl` and `logs/voice_metrics/voice_metrics-<timestamp>-<session>.jsonl`.
 
 Pipecat frame observation belongs with Voice Runtime adapters. JSONL persistence is app configuration. Robot tool feedback should be structured enough for Codex and humans to understand blocked steps and next actions.
 

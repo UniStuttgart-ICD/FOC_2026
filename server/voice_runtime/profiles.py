@@ -79,6 +79,7 @@ class AgentProfile:
     provider: AgentProvider
     model: str
     reasoning_effort: ReasoningEffort | None = None
+    temperature: float | None = None
     api_key_env: str | None = None
     thinking_budget: int | None = None
 
@@ -247,6 +248,7 @@ def _parse_agent(table: dict[str, Any]) -> AgentProfile:
         provider=provider,
         model=_string(table, "model", "gpt-5.4-mini"),
         reasoning_effort=reasoning_effort,
+        temperature=_optional_float(table, "temperature"),
         api_key_env=api_key_env,
         thinking_budget=_optional_non_negative_int(table, "thinking_budget"),
     )

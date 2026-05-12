@@ -38,6 +38,7 @@ def _settings_mapping() -> dict[str, object]:
         "drive": 0.35,
         "bit_depth": 8,
         "pitch_shift_semitones": -2.5,
+        "body_shift": -0.4,
         "ring_mod_hz": 45.0,
         "tremolo_hz": 5.0,
         "tremolo_depth": 0.4,
@@ -48,6 +49,7 @@ def _settings_mapping() -> dict[str, object]:
         "echo_feedback": 0.35,
         "echo_mix": 0.2,
         "noise_mix": 0.015,
+        "breath_mix": 0.03,
         "limiter": True,
     }
 
@@ -118,6 +120,30 @@ def test_settings_from_mapping_validates_ranges() -> None:
     with pytest.raises(VoiceModulationError, match="echo_feedback"):
         settings_from_mapping(bad)
 
+    bad = _settings_mapping() | {"body_shift": 1.5}
+    with pytest.raises(VoiceModulationError, match="body_shift"):
+        settings_from_mapping(bad)
+
+    bad = _settings_mapping() | {"breath_mix": 0.31}
+    with pytest.raises(VoiceModulationError, match="breath_mix"):
+        settings_from_mapping(bad)
+
+
+def test_built_in_presets_are_character_archetypes() -> None:
+    assert list(BUILT_IN_PRESETS) == [
+        "clean",
+        "protocol_droid",
+        "masked_breather",
+        "helmet_comms",
+        "damaged_droid",
+        "ai_core",
+        "titan_mech",
+        "hologram",
+    ]
+    assert BUILT_IN_PRESETS["protocol_droid"].body_shift > 0
+    assert BUILT_IN_PRESETS["masked_breather"].body_shift < 0
+    assert BUILT_IN_PRESETS["masked_breather"].breath_mix > 0
+
 
 def test_settings_from_mapping_rejects_boolean_numbers() -> None:
     bad = _settings_mapping() | {"gain_db": True}
@@ -128,7 +154,7 @@ def test_settings_from_mapping_rejects_boolean_numbers() -> None:
 
 def test_apply_saved_voice_modulation_sets_runtime_profile_field(tmp_path: Path) -> None:
     settings_path = tmp_path / "voice_modulation_settings.json"
-    settings = replace(BUILT_IN_PRESETS["robot"], gain_db=6.0)
+    settings = replace(BUILT_IN_PRESETS["protocol_droid"], gain_db=6.0)
     save_profile_settings("hybrid_low_latency", settings, settings_path=settings_path)
 
     profile = apply_saved_voice_modulation(_profile(tmp_path), settings_path=settings_path)

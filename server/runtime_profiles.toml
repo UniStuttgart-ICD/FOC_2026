@@ -23,12 +23,13 @@ model = "gpt-realtime-whisper"
 [profiles.hybrid_gemini_live_tts.tts]
 provider = "gemini_live"
 model = "gemini-3.1-flash-live-preview"
-voice = "Kore"
+voice = "Sadaltager"
 
 [profiles.hybrid_gemini_live_tts.agent]
 provider = "gemini_api"
 model = "gemini-3.1-flash-lite-preview"
 reasoning_effort = "high"
+temperature = 0.2
 api_key_env = "GOOGLE_API_KEY"
 
 [profiles.hybrid_gemini_live_tts.mcp.robot]

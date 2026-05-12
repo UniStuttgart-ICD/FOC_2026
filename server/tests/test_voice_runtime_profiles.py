@@ -44,6 +44,7 @@ voice = "voice-id"
 provider = "openai_api"
 model = "gpt-5.4-mini"
 reasoning_effort = "medium"
+temperature = 0.2
 [profiles.hybrid_low_latency.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
 [profiles.hybrid_low_latency.metrics]
@@ -105,10 +106,11 @@ def test_bundled_default_profile_uses_gemini_live_tts():
     assert profile.stt.model == "gpt-realtime-whisper"
     assert profile.tts.provider == "gemini_live"
     assert profile.tts.model == "gemini-3.1-flash-live-preview"
-    assert profile.tts.voice == "Kore"
+    assert profile.tts.voice == "Sadaltager"
     assert profile.agent.provider == "gemini_api"
     assert profile.agent.model == "gemini-3.1-flash-lite-preview"
     assert profile.agent.reasoning_effort == "high"
+    assert profile.agent.temperature == 0.2
     assert profile.agent.api_key_env == "GOOGLE_API_KEY"
 
 
@@ -119,9 +121,10 @@ def test_hybrid_gemini_live_tts_profile_is_available():
     assert profile.stt.provider == "openai_realtime"
     assert profile.tts.provider == "gemini_live"
     assert profile.tts.model == "gemini-3.1-flash-live-preview"
-    assert profile.tts.voice == "Kore"
+    assert profile.tts.voice == "Sadaltager"
     assert profile.tts.instructions is None
     assert profile.agent.provider == "gemini_api"
+    assert profile.agent.temperature == 0.2
     assert profile.required_env_names() == ("OPENAI_API_KEY", "GOOGLE_API_KEY")
 
 
@@ -245,6 +248,7 @@ def test_loads_profile_without_constructing_adapters(tmp_path: Path):
     assert profile.tts.provider == "cartesia"
     assert profile.agent.provider == "openai_api"
     assert profile.agent.reasoning_effort == "medium"
+    assert profile.agent.temperature == 0.2
     assert profile.mcp_robot_url == "http://127.0.0.1:8765/mcp"
     assert profile.metrics.path == tmp_path / "logs" / "voice_metrics.jsonl"
     assert profile.process_trace == ProcessTraceProfile(
@@ -601,6 +605,24 @@ def test_agent_reasoning_effort_rejects_invalid_value(tmp_path: Path):
         )
 
 
+def test_agent_temperature_rejects_invalid_value(tmp_path: Path):
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profiles(profiles_path)
+    profiles_path.write_text(
+        profiles_path.read_text(encoding="utf-8").replace(
+            "temperature = 0.2", 'temperature = "warm"'
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ProfileError, match="temperature must be a number"):
+        load_runtime_profile(
+            profiles_path=profiles_path,
+            server_dir=tmp_path,
+            profile_name="hybrid_low_latency",
+        )
+
+
 def test_legacy_claude_agent_provider_is_rejected(tmp_path: Path):
     profiles_path = tmp_path / "runtime_profiles.toml"
     _write_profile(
@@ -910,4 +932,4 @@ def test_default_profile_path_and_name_load_current_app_profile():
     assert profile.wake.model_path.name == "mave.onnx"
     assert profile.stt.provider == "openai_realtime"
     assert profile.tts.provider == "gemini_live"
-    assert profile.tts.voice == "Kore"
+    assert profile.tts.voice == "Sadaltager"

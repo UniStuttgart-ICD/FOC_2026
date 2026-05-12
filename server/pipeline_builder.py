@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import os
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import cast
@@ -20,7 +21,8 @@ from pipecat.processors.frame_processor import FrameProcessor
 from pipecat.transports.base_transport import BaseTransport
 
 from agent_control.factory import create_agent_processor
-from config import RuntimeConfig
+from agent_control.prompts import SPEECH_DELIVERY_STYLE
+from config import RuntimeConfig, TTSConfig
 from metrics import VoiceMetricsObserver, VoiceMetricsRecorder
 from process_trace import (
     JsonlTraceWriter,
@@ -33,6 +35,7 @@ from voice_modulation.processor import VoiceModulationProcessor
 from voice_modulation.settings import VoiceModulationSettings
 from voice_runtime.assembly import VoiceRuntimeParts, ordered_voice_runtime_processors
 from voice_runtime.providers import create_stt_service, create_tts_service
+from voice_runtime.rtvi import GeminiLiveConversationRTVIProcessor
 from voice_runtime.wake_command import build_mave_voice_command_processors
 from wake.openwakeword_detector import OpenWakeWordDetector
 
@@ -50,7 +53,7 @@ class BuiltPipeline:
 
 def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipeline:
     stt = create_stt_service(config.stt)
-    tts = create_tts_service(config.tts)
+    tts = create_tts_service(_tts_with_default_speech_delivery(config.tts))
     voice_modulation = _create_voice_modulation_processor(config.voice_modulation)
     session_id = _new_session_id()
     session_started_at = _utc_now()
@@ -102,9 +105,12 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
             "on_turn_started": voice_command_audio.suppress,
             "on_turn_finished": voice_command_audio.unsuppress,
         }
+    mcp_vizor_url, user_sensing_max_age_s = _user_sensing_options_from_env()
     agent_processor = create_agent_processor(
         config.agent,
         mcp_server_url=config.mcp_robot_url,
+        mcp_vizor_url=mcp_vizor_url,
+        user_sensing_max_age_s=user_sensing_max_age_s,
         tracer=process_tracer,
         **agent_kwargs,
     )
@@ -151,6 +157,7 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
         pipeline,
         params=PipelineParams(enable_metrics=True, enable_usage_metrics=True),
         observers=observers,
+        rtvi_processor=_create_rtvi_processor(config),
     )
     return BuiltPipeline(
         pipeline=pipeline,
@@ -179,8 +186,40 @@ def _create_voice_modulation_processor(
     return VoiceModulationProcessor(settings=settings)
 
 
+def _tts_with_default_speech_delivery(tts: TTSConfig) -> TTSConfig:
+    if tts.provider == "gemini_live" and tts.instructions is None:
+        return replace(tts, instructions=SPEECH_DELIVERY_STYLE)
+    return tts
+
+
+def _create_rtvi_processor(config: RuntimeConfig) -> GeminiLiveConversationRTVIProcessor | None:
+    if config.tts.provider == "gemini_live":
+        return GeminiLiveConversationRTVIProcessor()
+    return None
+
+
 def _new_session_id() -> str:
     return uuid.uuid4().hex
+
+
+def _user_sensing_options_from_env() -> tuple[str | None, float]:
+    enabled = os.getenv("USER_SENSING_ENABLED", "true").strip().casefold()
+    if enabled in {"0", "false", "no", "off"}:
+        return None, _user_sensing_max_age_from_env()
+    url = os.getenv("MCP_VIZOR_URL")
+    return (url.strip() or None) if url is not None else None, _user_sensing_max_age_from_env()
+
+
+def _user_sensing_max_age_from_env() -> float:
+    raw = os.getenv("USER_SENSING_MAX_AGE_S")
+    if raw is None or not raw.strip():
+        return 2.0
+    try:
+        value = float(raw)
+    except ValueError:
+        logger.warning("Invalid USER_SENSING_MAX_AGE_S={!r}; using 2.0", raw)
+        return 2.0
+    return max(value, 0.0)
 
 
 def _utc_now() -> datetime:

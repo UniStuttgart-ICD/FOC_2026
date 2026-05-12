@@ -16,55 +16,54 @@ def test_loads_default_hybrid_profile(tmp_path: Path, monkeypatch: pytest.Monkey
     profiles = tmp_path / "runtime_profiles.toml"
     profiles.write_text(
         """
-[profiles.hybrid_openai_stt]
+[profiles.hybrid_gemini_live_tts]
 category = "benchmark_streaming"
 
-[profiles.hybrid_openai_stt.wake]
+[profiles.hybrid_gemini_live_tts.wake]
 provider = "openwakeword"
 model_path = "models/mave.onnx"
 pre_buffer_s = 1.5
 threshold = 0.5
 
-[profiles.hybrid_openai_stt.emergency_stop]
+[profiles.hybrid_gemini_live_tts.emergency_stop]
 enabled = false
 
-[profiles.hybrid_openai_stt.stt]
+[profiles.hybrid_gemini_live_tts.stt]
 provider = "openai_realtime"
 model = "gpt-realtime-whisper"
 
-[profiles.hybrid_openai_stt.tts]
-provider = "cartesia"
-model = "sonic-3"
-voice = "test-voice"
+[profiles.hybrid_gemini_live_tts.tts]
+provider = "gemini_live"
+model = "gemini-3.1-flash-live-preview"
+voice = "Kore"
 
-[profiles.hybrid_openai_stt.agent]
+[profiles.hybrid_gemini_live_tts.agent]
 provider = "gemini_api"
 model = "gemini-3.1-flash-lite-preview"
 api_key_env = "GOOGLE_API_KEY"
 
-[profiles.hybrid_openai_stt.mcp.robot]
+[profiles.hybrid_gemini_live_tts.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
 
-[profiles.hybrid_openai_stt.metrics]
+[profiles.hybrid_gemini_live_tts.metrics]
 enabled = true
 path = "logs/voice_metrics.jsonl"
 include_text = true
 """.strip(),
         encoding="utf-8",
     )
-    monkeypatch.setenv("CARTESIA_API_KEY", "ct")
     monkeypatch.setenv("OPENAI_API_KEY", "oa")
     monkeypatch.setenv("GOOGLE_API_KEY", "google")
 
     config = load_runtime_config(profiles_path=profiles, server_dir=tmp_path)
 
-    assert config.profile_name == "hybrid_openai_stt"
+    assert config.profile_name == "hybrid_gemini_live_tts"
     assert config.category == "benchmark_streaming"
     assert config.wake.provider == "openwakeword"
     assert config.wake.model_path == tmp_path / "models" / "mave.onnx"
     assert config.wake.pre_buffer_s == 1.5
     assert config.stt.provider == "openai_realtime"
-    assert config.tts.provider == "cartesia"
+    assert config.tts.provider == "gemini_live"
     assert config.agent == AgentConfig(
         provider="gemini_api",
         model="gemini-3.1-flash-lite-preview",
@@ -194,23 +193,23 @@ def test_missing_api_key_fails_for_default_profile(tmp_path: Path, monkeypatch: 
     profiles = tmp_path / "runtime_profiles.toml"
     profiles.write_text(
         """
-[profiles.hybrid_openai_stt]
+[profiles.hybrid_gemini_live_tts]
 category = "benchmark_streaming"
-[profiles.hybrid_openai_stt.wake]
+[profiles.hybrid_gemini_live_tts.wake]
 provider = "none"
-[profiles.hybrid_openai_stt.emergency_stop]
+[profiles.hybrid_gemini_live_tts.emergency_stop]
 enabled = false
-[profiles.hybrid_openai_stt.stt]
+[profiles.hybrid_gemini_live_tts.stt]
 provider = "openai_realtime"
-[profiles.hybrid_openai_stt.tts]
-provider = "cartesia"
-[profiles.hybrid_openai_stt.agent]
+[profiles.hybrid_gemini_live_tts.tts]
+provider = "gemini_live"
+[profiles.hybrid_gemini_live_tts.agent]
 provider = "gemini_api"
 model = "gemini-3.1-flash-lite-preview"
 api_key_env = "GOOGLE_API_KEY"
-[profiles.hybrid_openai_stt.mcp.robot]
+[profiles.hybrid_gemini_live_tts.mcp.robot]
 url = "http://127.0.0.1:8765/mcp"
-[profiles.hybrid_openai_stt.metrics]
+[profiles.hybrid_gemini_live_tts.metrics]
 enabled = false
 """.strip(),
         encoding="utf-8",

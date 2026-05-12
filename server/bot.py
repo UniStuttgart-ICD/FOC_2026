@@ -14,6 +14,7 @@ Run the bot::
 import argparse
 import os
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -32,6 +33,54 @@ from pipeline_builder import build_pipeline
 from voice_runtime.agent_turn import AgentTurnProcessor
 
 load_dotenv(override=True)
+
+
+def _patch_small_webrtc_prebuilt_client_history() -> None:
+    """Keep the stock /client UI from coalescing separate fast turns."""
+    try:
+        import pipecat_ai_small_webrtc_prebuilt
+    except ImportError:
+        return
+
+    package_dir = Path(pipecat_ai_small_webrtc_prebuilt.__file__).resolve().parent
+    assets_dir = package_dir / "client" / "dist" / "assets"
+    js_files = sorted(assets_dir.glob("index-*.js"))
+    if not js_files:
+        logger.warning("Small WebRTC prebuilt client asset not found at {}", assets_dir)
+        return
+
+    replacements = {
+        "const Az=3e4": "const Az=0",
+        "&&o<3e4?": "&&o<0?",
+        "const qz=2500": "const qz=0",
+        "},3e3)},[])))": "},0)},[])))",
+    }
+    patched = False
+    for js_path in js_files:
+        try:
+            text = js_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            logger.warning("Could not read Small WebRTC client asset {}: {}", js_path, exc)
+            continue
+
+        updated = text
+        for old, new in replacements.items():
+            updated = updated.replace(old, new)
+
+        if updated == text:
+            continue
+
+        try:
+            js_path.write_text(updated, encoding="utf-8")
+        except OSError as exc:
+            logger.warning("Could not patch Small WebRTC client asset {}: {}", js_path, exc)
+            continue
+
+        patched = True
+        logger.info("Patched Small WebRTC prebuilt client history behavior in {}", js_path)
+
+    if not patched:
+        logger.debug("Small WebRTC prebuilt client history behavior already patched")
 
 
 async def run_bot(transport: BaseTransport, profile_name: str | None = None):
@@ -99,6 +148,8 @@ async def bot(runner_args: RunnerArguments):
 
 
 if __name__ == "__main__":
+    _patch_small_webrtc_prebuilt_client_history()
+
     from pipecat.runner.run import main
 
     parser = argparse.ArgumentParser(add_help=False)

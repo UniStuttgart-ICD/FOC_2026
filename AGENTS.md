@@ -11,7 +11,7 @@ Pipecat voice robot agent: a Python cascade voice pipeline for controlling a UR 
 - `server/voice_runtime/` - Reusable Pipecat/audio runtime Modules: profiles, voice providers, wake command, Agent Turn seam, assembly, and metrics.
 - `server/robot_control/` - Robot Control Modules: Task Policy, Robot Call Validation, Robot Tool Adapter, and Robot Context.
 - `server/agent_control/` - Agent Control Module: native LangChain API Backend, LangGraph Agent Orchestration, Robot Agent Prompt, and Agent Turn factory.
-- `server/runtime_profiles.toml` - App runtime profile definitions.
+- `server/runtime_profiles.toml` - Single main app runtime profile: `hybrid_gemini_live_tts`.
 - `server/tests/` - Pytest coverage for config, pipeline assembly, Agent Backend, Agent Orchestration, Robot Call Validation, and Agent Control behavior.
 - `.pi/plans/`, `docs/superpowers/specs/`, and `docs/superpowers/plans/` - Approved specs and implementation plans.
 
@@ -72,7 +72,11 @@ Run server commands from `server/`.
 </important>
 
 <important if="you are changing agent backend selection, API-key auth, or runtime profiles">
-- The default live profile `hybrid_openai_stt` must use `gemini_api` with `GOOGLE_API_KEY`, not Codex OAuth.
+- The only bundled runtime profile is `hybrid_gemini_live_tts`.
+- Keep `server/runtime_profiles.toml` single-profile unless a new architecture decision asks for a matrix again.
+- The main profile uses OpenAI Realtime Whisper STT, Gemini Live TTS, and `gemini_api` with `GOOGLE_API_KEY`.
+- Agent model controls live in `voice_runtime.profiles.AgentProfile`: `provider`, `model`, `reasoning_effort`, `temperature`, `api_key_env`, and `thinking_budget`.
+- Map AgentProfile model controls to LangChain provider kwargs only in `agent_control.model_factory`.
 - Agent profiles must use native LangChain API providers: `openai_api`, `gemini_api`, or `anthropic_api`.
 - Do not reintroduce Codex OAuth profile support unless a new architecture decision asks for it.
 - Runtime profile parsing belongs to `voice_runtime`; concrete profile files remain app configuration.

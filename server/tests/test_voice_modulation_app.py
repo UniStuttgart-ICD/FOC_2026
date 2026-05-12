@@ -90,6 +90,41 @@ include_text = false
 [profiles.cartesia_stream.process_trace]
 enabled = false
 path = "logs/trace.jsonl"
+
+[profiles.gemini_live_preview]
+category = "local_debug"
+
+[profiles.gemini_live_preview.wake]
+provider = "none"
+
+[profiles.gemini_live_preview.emergency_stop]
+enabled = false
+
+[profiles.gemini_live_preview.stt]
+provider = "deepgram_flux"
+model = "flux-general-en"
+
+[profiles.gemini_live_preview.tts]
+provider = "gemini_live"
+model = "gemini-3.1-flash-live-preview"
+voice = "Kore"
+
+[profiles.gemini_live_preview.agent]
+provider = "gemini_api"
+model = "gemini-3.1-flash-preview"
+api_key_env = "GOOGLE_API_KEY"
+
+[profiles.gemini_live_preview.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+
+[profiles.gemini_live_preview.metrics]
+enabled = false
+path = "logs/metrics.jsonl"
+include_text = false
+
+[profiles.gemini_live_preview.process_trace]
+enabled = false
+path = "logs/trace.jsonl"
 """.lstrip(),
         encoding="utf-8",
     )
@@ -179,6 +214,59 @@ def test_profiles_route_loads_server_env_file(tmp_path, monkeypatch) -> None:
     assert profiles["cartesia_stream"]["missing_env"] == []
 
 
+def test_cartesia_voices_route_reports_missing_key(tmp_path, monkeypatch) -> None:
+    from voice_modulation.app import create_app
+
+    monkeypatch.delenv("CARTESIA_API_KEY", raising=False)
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.get("/api/cartesia/voices")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["available"] is False
+    assert body["voices"] == []
+    assert "CARTESIA_API_KEY" in body["reason"]
+    assert body["voice_library_url"] == "https://play.cartesia.ai/voices"
+
+
+def test_cartesia_voices_route_uses_injected_fetcher(tmp_path) -> None:
+    from voice_modulation.app import create_app
+
+    def fake_fetcher() -> dict[str, object]:
+        return {
+            "voices": [
+                {
+                    "id": "voice-1",
+                    "name": "Ronald",
+                    "language": "en",
+                    "description": "Stable voice agent voice",
+                }
+            ],
+            "has_more": True,
+        }
+
+    client = TestClient(create_app(server_dir=tmp_path, cartesia_voice_fetcher=fake_fetcher))
+
+    response = client.get("/api/cartesia/voices")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "available": True,
+        "voices": [
+            {
+                "id": "voice-1",
+                "name": "Ronald",
+                "language": "en",
+                "description": "Stable voice agent voice",
+            }
+        ],
+        "has_more": True,
+        "reason": None,
+        "voice_library_url": "https://play.cartesia.ai/voices",
+    }
+
+
 def test_presets_route_lists_built_in_preset_names(tmp_path) -> None:
     from voice_modulation.app import create_app
 
@@ -191,6 +279,44 @@ def test_presets_route_lists_built_in_preset_names(tmp_path) -> None:
     assert names == set(BUILT_IN_PRESETS)
 
 
+def test_presets_route_exposes_focused_preset_set(tmp_path) -> None:
+    from voice_modulation.app import create_app
+
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.get("/api/presets")
+
+    assert response.status_code == 200
+    names = [preset["name"] for preset in response.json()["presets"]]
+    assert names == [
+        "clean",
+        "protocol_droid",
+        "masked_breather",
+        "helmet_comms",
+        "damaged_droid",
+        "ai_core",
+        "titan_mech",
+        "hologram",
+    ]
+
+
+def test_persona_route_loads_prompt_parts(tmp_path: Path) -> None:
+    from voice_modulation.app import create_app
+
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.get("/api/persona")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "Kibbitz speaks like" in body["speaking_persona"]
+    assert "Speak the transcript exactly" in body["speech_delivery"]
+    assert body["sources"] == {
+        "speaking_persona": "reasoning_agent_persona.md",
+        "speech_delivery": "speech_delivery_style.md",
+    }
+
+
 def test_settings_routes_load_defaults_save_and_reload(tmp_path) -> None:
     from voice_modulation.app import create_app
 
@@ -200,7 +326,7 @@ def test_settings_routes_load_defaults_save_and_reload(tmp_path) -> None:
     initial = client.get("/api/settings/local_current")
     saved = client.post(
         "/api/settings/local_current",
-        json=BUILT_IN_PRESETS["robot"].to_dict() | {"gain_db": 5.0},
+            json=BUILT_IN_PRESETS["protocol_droid"].to_dict() | {"gain_db": 5.0},
     )
     reloaded = client.get("/api/settings/local_current")
 
@@ -220,7 +346,7 @@ def test_settings_post_rejects_out_of_range_values(tmp_path) -> None:
 
     response = client.post(
         "/api/settings/local_current",
-        json=BUILT_IN_PRESETS["robot"].to_dict() | {"wet_mix": 1.5},
+            json=BUILT_IN_PRESETS["protocol_droid"].to_dict() | {"wet_mix": 1.5},
     )
 
     assert response.status_code == 400
@@ -240,7 +366,7 @@ def test_effect_preview_rejects_invalid_base64_audio(tmp_path) -> None:
                 "sample_rate": 16000,
                 "channels": 1,
             },
-            "settings": BUILT_IN_PRESETS["robot"].to_dict(),
+                "settings": BUILT_IN_PRESETS["protocol_droid"].to_dict(),
         },
     )
 
@@ -261,7 +387,7 @@ def test_effect_preview_rejects_channel_misaligned_pcm(tmp_path) -> None:
                 "sample_rate": 16000,
                 "channels": 2,
             },
-            "settings": BUILT_IN_PRESETS["robot"].to_dict(),
+                "settings": BUILT_IN_PRESETS["protocol_droid"].to_dict(),
         },
     )
 
@@ -363,6 +489,58 @@ def test_source_preview_route_returns_clean_audio_without_modulation(tmp_path, m
     assert calls == [(TTSProfile(provider="kokoro", voice="af_heart"), "Status report.")]
 
 
+def test_source_preview_route_accepts_cartesia_voice_override(tmp_path, monkeypatch) -> None:
+    from voice_modulation.app import create_app
+    from voice_modulation.preview import AudioBytes
+
+    _write_profiles(tmp_path / "runtime_profiles.toml")
+    calls: list[tuple[TTSProfile, str]] = []
+
+    def fake_synthesizer(tts: TTSProfile, text: str) -> AudioBytes:
+        calls.append((tts, text))
+        return AudioBytes(pcm16=_pcm16(), sample_rate=16000, channels=1)
+
+    dsp = types.ModuleType("voice_modulation.dsp")
+    cast(Any, dsp).process_pcm16 = lambda *args, **kwargs: pytest.fail("source route modulated")
+    monkeypatch.setitem(sys.modules, "voice_modulation.dsp", dsp)
+    client = TestClient(create_app(server_dir=tmp_path, preview_synthesizer=fake_synthesizer))
+
+    response = client.post(
+        "/api/preview/source",
+        json={"profile_name": "cartesia_stream", "text": "Status report.", "voice_id": "voice-override"},
+    )
+
+    assert response.status_code == 200
+    assert calls == [
+        (TTSProfile(provider="cartesia", model="sonic-3", voice="voice-override"), "Status report.")
+    ]
+
+
+def test_source_preview_route_applies_gemini_live_speech_delivery(tmp_path) -> None:
+    from voice_modulation.app import create_app
+    from voice_modulation.preview import AudioBytes
+
+    _write_profiles(tmp_path / "runtime_profiles.toml")
+    calls: list[TTSProfile] = []
+
+    def fake_synthesizer(tts: TTSProfile, text: str) -> AudioBytes:
+        calls.append(tts)
+        return AudioBytes(pcm16=_pcm16(), sample_rate=16000, channels=1)
+
+    client = TestClient(create_app(server_dir=tmp_path, preview_synthesizer=fake_synthesizer))
+
+    response = client.post(
+        "/api/preview/source",
+        json={"profile_name": "gemini_live_preview", "text": "Status report."},
+    )
+
+    assert response.status_code == 200
+    assert calls
+    assert calls[0].provider == "gemini_live"
+    assert calls[0].instructions is not None
+    assert "Speak the transcript exactly" in calls[0].instructions
+
+
 def test_effect_preview_route_uses_dsp_process_pcm16(tmp_path, monkeypatch) -> None:
     from voice_modulation.app import create_app
     from voice_modulation.preview import AudioBytes, encode_preview
@@ -383,14 +561,14 @@ def test_effect_preview_route_uses_dsp_process_pcm16(tmp_path, monkeypatch) -> N
         "/api/preview/effect",
         json={
             "audio": asdict(encode_preview(AudioBytes(pcm16=_pcm16(), sample_rate=16000, channels=1))),
-            "settings": BUILT_IN_PRESETS["radio"].to_dict(),
+                "settings": BUILT_IN_PRESETS["helmet_comms"].to_dict(),
         },
     )
 
     assert response.status_code == 200
     output = base64.b64decode(response.json()["audio"]["pcm16_base64"])
     assert output == b"\x01\x00\x02\x00"
-    assert calls == [(_pcm16(), 16000, 1, "radio")]
+    assert calls == [(_pcm16(), 16000, 1, "helmet_comms")]
 
 
 def test_index_page_serves_voice_mod_lab_workbench(tmp_path) -> None:
@@ -404,9 +582,26 @@ def test_index_page_serves_voice_mod_lab_workbench(tmp_path) -> None:
     assert response.status_code == 200
     assert "Voice Mod Lab" in response.text
     assert "profileSelect" in response.text
+    assert "voiceSelect" in response.text
+    assert "voiceIdInput" in response.text
+    assert "https://play.cartesia.ai/voices" in response.text
     assert "sourceBtn" in response.text
     assert "renderBtn" in response.text
-    assert "low_battery" in response.text
+    assert "protocol_droid" in response.text
+    assert "masked_breather" in response.text
+    assert "Character bay" in response.text
+    assert "Speaking persona" in response.text
+    assert "personaText" in response.text
+    for label in ["Voice size", "Robot edge", "Radio filter", "Glitch", "Space", "Mask breath"]:
+        assert label in response.text
+    for expert_label in [
+        "Ring modulation",
+        "Tremolo depth",
+        "Echo feedback",
+        "Bit depth",
+        "Limiter",
+    ]:
+        assert expert_label not in response.text
 
 
 def test_tts_synthesizer_reports_missing_provider_env(monkeypatch) -> None:

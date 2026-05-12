@@ -26,6 +26,7 @@ class VoiceModulationSettings:
     drive: float = 0.0
     bit_depth: int = 16
     pitch_shift_semitones: float = 0.0
+    body_shift: float = 0.0
     ring_mod_hz: float = 0.0
     tremolo_hz: float = 0.0
     tremolo_depth: float = 0.0
@@ -36,6 +37,7 @@ class VoiceModulationSettings:
     echo_feedback: float = 0.0
     echo_mix: float = 0.0
     noise_mix: float = 0.0
+    breath_mix: float = 0.0
     limiter: bool = True
 
     def to_dict(self) -> dict[str, Any]:
@@ -52,6 +54,7 @@ class VoiceModulationSettings:
         if self.bit_depth < 4 or self.bit_depth > 16:
             raise VoiceModulationError("bit_depth must be between 4 and 16")
         _range(self.pitch_shift_semitones, "pitch_shift_semitones", -12.0, 12.0)
+        _range(self.body_shift, "body_shift", -1.0, 1.0)
         _range(self.ring_mod_hz, "ring_mod_hz", 0.0, 2000.0)
         _range(self.tremolo_hz, "tremolo_hz", 0.0, 20.0)
         _range(self.tremolo_depth, "tremolo_depth", 0.0, 1.0)
@@ -62,66 +65,64 @@ class VoiceModulationSettings:
         _range(self.echo_feedback, "echo_feedback", 0.0, 0.95)
         _range(self.echo_mix, "echo_mix", 0.0, 1.0)
         _range(self.noise_mix, "noise_mix", 0.0, 0.2)
+        _range(self.breath_mix, "breath_mix", 0.0, 0.3)
 
 
 BUILT_IN_PRESETS: dict[str, VoiceModulationSettings] = {
     "clean": VoiceModulationSettings(enabled=False, preset_name="clean"),
-    "robot": VoiceModulationSettings(
+    "protocol_droid": VoiceModulationSettings(
         enabled=True,
-        preset_name="robot",
-        gain_db=2.0,
-        wet_mix=0.9,
-        low_cut_hz=120.0,
-        high_cut_hz=5200.0,
-        drive=0.25,
-        bit_depth=9,
-        pitch_shift_semitones=0.0,
-        ring_mod_hz=38.0,
-        tremolo_hz=0.0,
-        tremolo_depth=0.0,
-        limiter=True,
-    ),
-    "radio": VoiceModulationSettings(
-        enabled=True,
-        preset_name="radio",
-        gain_db=4.0,
+        preset_name="protocol_droid",
         wet_mix=1.0,
-        low_cut_hz=320.0,
-        high_cut_hz=3200.0,
-        drive=0.18,
+        low_cut_hz=180.0,
+        high_cut_hz=5600.0,
+        drive=0.22,
+        pitch_shift_semitones=1.4,
+        body_shift=0.62,
+        ring_mod_hz=38.0,
+        chorus_rate_hz=0.45,
+        chorus_depth_ms=7.0,
+        chorus_mix=0.12,
+        limiter=True,
+    ),
+    "masked_breather": VoiceModulationSettings(
+        enabled=True,
+        preset_name="masked_breather",
+        wet_mix=1.0,
+        low_cut_hz=60.0,
+        high_cut_hz=2600.0,
+        drive=0.26,
+        pitch_shift_semitones=-4.0,
+        body_shift=-0.9,
+        ring_mod_hz=16.0,
+        echo_delay_ms=95.0,
+        echo_feedback=0.12,
+        echo_mix=0.12,
+        noise_mix=0.012,
+        breath_mix=0.065,
+        limiter=True,
+    ),
+    "helmet_comms": VoiceModulationSettings(
+        enabled=True,
+        preset_name="helmet_comms",
+        wet_mix=1.0,
+        low_cut_hz=360.0,
+        high_cut_hz=3300.0,
+        drive=0.14,
         bit_depth=12,
-        pitch_shift_semitones=0.0,
-        ring_mod_hz=0.0,
-        tremolo_hz=0.0,
-        tremolo_depth=0.0,
-        noise_mix=0.02,
+        noise_mix=0.035,
         limiter=True,
     ),
-    "small_speaker": VoiceModulationSettings(
+    "damaged_droid": VoiceModulationSettings(
         enabled=True,
-        preset_name="small_speaker",
-        gain_db=1.5,
-        wet_mix=0.85,
-        low_cut_hz=220.0,
-        high_cut_hz=4200.0,
-        drive=0.1,
-        bit_depth=13,
-        pitch_shift_semitones=0.0,
-        ring_mod_hz=0.0,
-        tremolo_hz=0.0,
-        tremolo_depth=0.0,
-        limiter=True,
-    ),
-    "low_battery": VoiceModulationSettings(
-        enabled=True,
-        preset_name="low_battery",
-        gain_db=-1.0,
+        preset_name="damaged_droid",
         wet_mix=0.95,
         low_cut_hz=80.0,
         high_cut_hz=2600.0,
-        drive=0.32,
+        drive=0.18,
         bit_depth=7,
         pitch_shift_semitones=-1.5,
+        body_shift=0.2,
         ring_mod_hz=22.0,
         tremolo_hz=6.0,
         tremolo_depth=0.35,
@@ -130,69 +131,53 @@ BUILT_IN_PRESETS: dict[str, VoiceModulationSettings] = {
         echo_mix=0.22,
         limiter=True,
     ),
-    "giant": VoiceModulationSettings(
+    "ai_core": VoiceModulationSettings(
         enabled=True,
-        preset_name="giant",
-        gain_db=1.0,
-        wet_mix=0.92,
-        low_cut_hz=60.0,
-        high_cut_hz=6200.0,
-        drive=0.12,
-        bit_depth=16,
-        pitch_shift_semitones=-5.0,
-        chorus_rate_hz=0.35,
-        chorus_depth_ms=8.0,
-        chorus_mix=0.16,
-        limiter=True,
-    ),
-    "wide_chorus": VoiceModulationSettings(
-        enabled=True,
-        preset_name="wide_chorus",
-        gain_db=0.5,
-        wet_mix=0.85,
-        low_cut_hz=90.0,
-        high_cut_hz=9000.0,
-        drive=0.04,
-        bit_depth=16,
-        pitch_shift_semitones=0.5,
-        chorus_rate_hz=0.7,
-        chorus_depth_ms=18.0,
-        chorus_mix=0.36,
-        limiter=True,
-    ),
-    "echo_room": VoiceModulationSettings(
-        enabled=True,
-        preset_name="echo_room",
-        gain_db=0.0,
-        wet_mix=0.9,
-        low_cut_hz=120.0,
-        high_cut_hz=7600.0,
-        drive=0.06,
-        bit_depth=16,
-        echo_delay_ms=140.0,
-        echo_feedback=0.38,
-        echo_mix=0.34,
-        limiter=True,
-    ),
-    "ghost": VoiceModulationSettings(
-        enabled=True,
-        preset_name="ghost",
-        gain_db=-1.0,
-        wet_mix=0.88,
-        low_cut_hz=180.0,
+        preset_name="ai_core",
+        wet_mix=1.0,
         high_cut_hz=8200.0,
-        drive=0.08,
-        bit_depth=14,
-        pitch_shift_semitones=4.0,
-        tremolo_hz=2.4,
-        tremolo_depth=0.18,
-        chorus_rate_hz=0.45,
+        body_shift=0.12,
+        chorus_rate_hz=0.35,
+        chorus_depth_ms=18.0,
+        chorus_mix=0.26,
+        echo_delay_ms=110.0,
+        echo_feedback=0.18,
+        echo_mix=0.16,
+        limiter=True,
+    ),
+    "titan_mech": VoiceModulationSettings(
+        enabled=True,
+        preset_name="titan_mech",
+        wet_mix=1.0,
+        low_cut_hz=45.0,
+        high_cut_hz=3000.0,
+        drive=0.34,
+        pitch_shift_semitones=-6.0,
+        body_shift=-1.0,
+        ring_mod_hz=12.0,
+        chorus_rate_hz=0.28,
+        chorus_depth_ms=12.0,
+        chorus_mix=0.14,
+        echo_delay_ms=140.0,
+        echo_feedback=0.2,
+        echo_mix=0.18,
+        breath_mix=0.025,
+        limiter=True,
+    ),
+    "hologram": VoiceModulationSettings(
+        enabled=True,
+        preset_name="hologram",
+        wet_mix=1.0,
+        high_cut_hz=7600.0,
+        pitch_shift_semitones=0.4,
+        body_shift=0.05,
+        chorus_rate_hz=0.9,
         chorus_depth_ms=22.0,
-        chorus_mix=0.28,
-        echo_delay_ms=190.0,
-        echo_feedback=0.26,
-        echo_mix=0.22,
-        noise_mix=0.025,
+        chorus_mix=0.32,
+        echo_delay_ms=155.0,
+        echo_feedback=0.34,
+        echo_mix=0.24,
+        noise_mix=0.006,
         limiter=True,
     ),
 }
@@ -210,6 +195,7 @@ def settings_from_mapping(data: dict[str, Any]) -> VoiceModulationSettings:
             drive=_float(data, "drive", 0.0),
             bit_depth=_int(data, "bit_depth", 16),
             pitch_shift_semitones=_float(data, "pitch_shift_semitones", 0.0),
+            body_shift=_float(data, "body_shift", 0.0),
             ring_mod_hz=_float(data, "ring_mod_hz", 0.0),
             tremolo_hz=_float(data, "tremolo_hz", 0.0),
             tremolo_depth=_float(data, "tremolo_depth", 0.0),
@@ -220,6 +206,7 @@ def settings_from_mapping(data: dict[str, Any]) -> VoiceModulationSettings:
             echo_feedback=_float(data, "echo_feedback", 0.0),
             echo_mix=_float(data, "echo_mix", 0.0),
             noise_mix=_float(data, "noise_mix", 0.0),
+            breath_mix=_float(data, "breath_mix", 0.0),
             limiter=_bool(data, "limiter", True),
         )
     except KeyError as exc:

@@ -6,10 +6,19 @@ import binascii
 import io
 import os
 import wave
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
+from google import genai
+
+from agent_control.prompts import SPEECH_DELIVERY_STYLE
 from voice_modulation.settings import VoiceModulationSettings
+from voice_runtime.gemini_live_speech import (
+    DEFAULT_GEMINI_LIVE_MODEL,
+    DEFAULT_GEMINI_LIVE_VOICE,
+    build_strict_speech_prompt,
+    stream_gemini_live_audio,
+)
 from voice_runtime.profiles import TTSProfile
 
 PREVIEW_SAMPLE_RATE = 24000
@@ -109,6 +118,7 @@ def render_effect_preview(audio: AudioBytes, settings: VoiceModulationSettings) 
 def synthesize_tts_reference(tts: TTSProfile, text: str) -> AudioBytes:
     if not text.strip():
         raise VoicePreviewError("Preview text must not be empty")
+    tts = _tts_with_preview_defaults(tts)
     _require_provider_env(tts)
     return asyncio.run(_synthesize_tts_reference(tts, text.strip()))
 
@@ -200,6 +210,16 @@ async def _create_tts_service(tts: TTSProfile) -> tuple[Any, Any | None]:
             KokoroTTSService(voice_id=tts.voice or os.getenv("KOKORO_VOICE_ID") or "af_heart"),
             None,
         )
+    if tts.provider == "gemini_live":
+        return (
+            _GeminiLivePreviewService(
+                api_key=os.environ["GOOGLE_API_KEY"],
+                model=tts.model or DEFAULT_GEMINI_LIVE_MODEL,
+                voice=tts.voice or DEFAULT_GEMINI_LIVE_VOICE,
+                instructions=tts.instructions,
+            ),
+            None,
+        )
     raise VoicePreviewError(f"Unsupported TTS provider: {tts.provider}")
 
 
@@ -214,5 +234,38 @@ def _require_provider_env(tts: TTSProfile) -> None:
             missing.append("CARTESIA_VOICE_ID")
     if tts.provider == "deepgram" and not os.getenv("DEEPGRAM_API_KEY"):
         missing.append("DEEPGRAM_API_KEY")
+    if tts.provider == "gemini_live" and not os.getenv("GOOGLE_API_KEY"):
+        missing.append("GOOGLE_API_KEY")
     if missing:
         raise VoicePreviewError(f"Missing environment variables: {', '.join(missing)}")
+
+
+def _tts_with_preview_defaults(tts: TTSProfile) -> TTSProfile:
+    if tts.provider == "gemini_live" and tts.instructions is None:
+        return replace(tts, instructions=SPEECH_DELIVERY_STYLE)
+    return tts
+
+
+class _GeminiLivePreviewService:
+    async def run_tts(self, text: str, _context_id: str):
+        from pipecat.frames.frames import TTSAudioRawFrame
+
+        prompt = build_strict_speech_prompt(
+            transcript=text,
+            instructions=self.instructions,
+        )
+        async for audio in stream_gemini_live_audio(
+            api_key=self.api_key,
+            model=self.model,
+            voice=self.voice,
+            prompt=prompt,
+            client_factory=genai.Client,
+        ):
+            yield TTSAudioRawFrame(audio=audio, sample_rate=PREVIEW_SAMPLE_RATE, num_channels=1)
+
+    def __init__(self, *, api_key: str, model: str, voice: str, instructions: str | None) -> None:
+        self.api_key = api_key
+        self.model = model
+        self.voice = voice
+        self.instructions = instructions
+        self.sample_rate = PREVIEW_SAMPLE_RATE

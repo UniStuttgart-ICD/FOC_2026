@@ -64,12 +64,17 @@ def create_tts_service(config: TTSProfile) -> FrameProcessor:
             ),
         )
     if config.provider == "openai":
+        settings = {
+            "model": config.model or "gpt-4o-mini-tts",
+            "voice": config.voice or "coral",
+        }
+        if config.instructions is not None:
+            settings["instructions"] = config.instructions
+        if config.speed is not None:
+            settings["speed"] = config.speed
         return OpenAITTSService(
             api_key=os.environ["OPENAI_API_KEY"],
-            settings=OpenAITTSService.Settings(
-                model=config.model or "gpt-4o-mini-tts",
-                voice=config.voice or "coral",
-            ),
+            settings=OpenAITTSService.Settings(**settings),
         )
     if config.provider == "deepgram":
         return DeepgramTTSService(

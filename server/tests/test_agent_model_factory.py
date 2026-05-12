@@ -17,6 +17,7 @@ def test_builds_chat_openai_with_reasoning_effort_and_key():
             provider="openai_api",
             model="gpt-5.5",
             reasoning_effort="low",
+            temperature=0.2,
             api_key_env="OPENAI_API_KEY",
         ),
         env={"OPENAI_API_KEY": "sk-test"},
@@ -27,6 +28,7 @@ def test_builds_chat_openai_with_reasoning_effort_and_key():
     assert model.kwargs["model"] == "gpt-5.5"
     assert model.kwargs["api_key"] == "sk-test"
     assert model.kwargs["reasoning_effort"] == "low"
+    assert model.kwargs["temperature"] == 0.2
 
 
 def test_builds_chat_google_with_thinking_budget_and_key():
@@ -35,6 +37,7 @@ def test_builds_chat_google_with_thinking_budget_and_key():
             provider="gemini_api",
             model="gemini-2.5-flash",
             reasoning_effort="medium",
+            temperature=0.2,
             api_key_env="GEMINI_API_KEY",
             thinking_budget=1024,
         ),
@@ -46,6 +49,7 @@ def test_builds_chat_google_with_thinking_budget_and_key():
     assert model.kwargs["model"] == "gemini-2.5-flash"
     assert model.kwargs["google_api_key"] == "gem-test"
     assert model.kwargs["thinking_budget"] == 1024
+    assert model.kwargs["temperature"] == 0.2
 
 
 def test_builds_chat_anthropic_with_effort_and_key():
@@ -54,6 +58,7 @@ def test_builds_chat_anthropic_with_effort_and_key():
             provider="anthropic_api",
             model="claude-sonnet-4-6",
             reasoning_effort="medium",
+            temperature=0.2,
             api_key_env="ANTHROPIC_API_KEY",
         ),
         env={"ANTHROPIC_API_KEY": "anth-test"},
@@ -64,6 +69,7 @@ def test_builds_chat_anthropic_with_effort_and_key():
     assert model.kwargs["model_name"] == "claude-sonnet-4-6"
     assert model.kwargs["api_key"] == "anth-test"
     assert model.kwargs["effort"] == "medium"
+    assert model.kwargs["temperature"] == 0.2
 
 
 def test_missing_provider_key_raises_clear_error():

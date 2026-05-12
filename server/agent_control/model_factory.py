@@ -59,6 +59,8 @@ def _build_openai(
     }
     if config.reasoning_effort is not None:
         kwargs["reasoning_effort"] = config.reasoning_effort
+    if config.temperature is not None:
+        kwargs["temperature"] = config.temperature
     return chat_openai_cls(**kwargs)
 
 
@@ -75,6 +77,8 @@ def _build_gemini(
         "model": config.model,
         "google_api_key": _required_key(config, env),
     }
+    if config.temperature is not None:
+        kwargs["temperature"] = config.temperature
     if config.model.startswith("gemini-3") and config.reasoning_effort is not None:
         if config.reasoning_effort in {"none", "xhigh"}:
             raise ValueError("Gemini 3 thinking_level supports minimal, low, medium, or high")
@@ -102,4 +106,6 @@ def _build_anthropic(
     }
     if config.reasoning_effort in {"low", "medium", "high", "xhigh"}:
         kwargs["effort"] = config.reasoning_effort
+    if config.temperature is not None:
+        kwargs["temperature"] = config.temperature
     return chat_anthropic_cls(**kwargs)

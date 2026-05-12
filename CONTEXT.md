@@ -58,6 +58,9 @@ A fresh robot-state read before movement, retries, relative commands, or safety-
 **Robot Context**:
 Advisory recent robot observations, planning results, gripper state, and execution results.
 
+**Shared Geometry Model**:
+A geometry-operation model, expressed as abstract primitives, transforms, geometric features, and constraints, exchanged between the agent and the ROS/Vizor environment for spatial manipulation and synchronization.
+
 **Task Policy Layer**:
 A deterministic pre-tool layer for obvious robot-step preconditions before Robot Call Validation and MoveIt; v1 covers fresh pose before motion, no blind execute, and basic gripper/attach ordering.
 
@@ -148,6 +151,7 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - **Agent Orchestration** happens behind **Agent Turn** and does not reorder **Voice Runtime Assembly**.
 - **Agent Control Module** satisfies the **Agent Turn** backend seam and may use **Robot Control Module**.
 - **Voice Runtime** must not own **Task Policy Layer**, **Robot Call Validation**, **Robot Tool Adapter**, or **Robot Context**.
+- **Shared Geometry Model** may inform agent spatial reasoning, but the **MoveIt Safety Boundary** remains authoritative for planning and execution safety.
 - **Task Policy Layer** runs before **Robot Call Validation**.
 - **Robot Call Validation** may reject malformed tool calls, but it does not validate task-level intent and is not the source of movement safety.
 - **Robot Tool Adapter** routes movement through the **MoveIt Safety Boundary**.
@@ -180,6 +184,7 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - Robot-side policy, context, validation, and adapter ownership is resolved to the **Robot Control Module**.
 - "Live test" was used for both pass/fail smoke testing and open-ended gesture exploration; resolved: use **Live LLM Robot Smoke Test** for manual pass/fail coverage and **Exploratory Gesture Eval** for wave/star-style behavior review.
 - "Metrics" can mean summary turn timing or detailed process tracing; resolved: use **Voice Metrics** for summary timing and **Process Trace** for correlated spans/events.
+- **Shared Geometry Model** detail is partially resolved: abstract primitives, transforms, geometric features, and constraints are primary; exact render/planning geometry should be derived or referenced unless a later design decision changes this.
 
 ## Current limitation
 

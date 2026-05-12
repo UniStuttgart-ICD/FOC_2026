@@ -144,6 +144,94 @@
       line-height: 1.45;
     }
 
+    .voice-panel {
+      margin-bottom: 14px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.46);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+
+    .voice-panel[hidden] {
+      display: none;
+    }
+
+    .voice-fields {
+      display: grid;
+      grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.4fr) auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .voice-fields label {
+      display: grid;
+      gap: 5px;
+      min-width: 0;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .voice-fields select,
+    .voice-fields input[type="text"] {
+      width: 100%;
+      min-height: 40px;
+      padding: 0 10px;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      outline-color: var(--teal);
+    }
+
+    .persona-panel {
+      margin-bottom: 16px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.46);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+
+    .persona-note,
+    .persona-panel summary,
+    .persona-text {
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .persona-note {
+      margin: 0 0 8px;
+      color: #55514b;
+    }
+
+    .persona-panel strong,
+    .persona-panel summary {
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .persona-panel summary {
+      cursor: pointer;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(36, 39, 38, 0.18);
+    }
+
+    .persona-text {
+      max-height: 118px;
+      overflow: auto;
+      margin: 6px 0 0;
+      white-space: pre-wrap;
+    }
+
+    .voice-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      text-decoration: none;
+    }
+
     .phrase-row,
     .action-row,
     .preset-grid {
@@ -290,7 +378,7 @@
 
     .control {
       display: grid;
-      grid-template-columns: minmax(110px, 1fr) 64px;
+      grid-template-columns: minmax(110px, 1fr) 78px;
       gap: 10px;
       align-items: center;
       padding: 9px 0;
@@ -304,6 +392,14 @@
       font-size: 13px;
       font-weight: 700;
       text-transform: uppercase;
+    }
+
+    .control small {
+      color: #55514b;
+      font-size: 12px;
+      font-weight: 400;
+      line-height: 1.3;
+      text-transform: none;
     }
 
     .control output {
@@ -360,7 +456,8 @@
     @media (max-width: 860px) {
       .toolbar,
       main,
-      .audio-grid {
+      .audio-grid,
+      .voice-fields {
         grid-template-columns: 1fr;
       }
 
@@ -416,11 +513,24 @@
         <div class="panel-title">
           <h1>Preview phrase</h1>
         </div>
+        <div id="voicePanel" class="voice-panel" hidden>
+          <div class="voice-fields">
+            <label for="voiceSelect">
+              Voice
+              <select id="voiceSelect"></select>
+            </label>
+            <label for="voiceIdInput">
+              Voice ID
+              <input id="voiceIdInput" type="text" spellcheck="false" placeholder="Cartesia voice ID">
+            </label>
+            <a id="voiceLibraryLink" class="button voice-link" href="https://play.cartesia.ai/voices" target="_blank" rel="noreferrer">Voice library</a>
+          </div>
+        </div>
         <textarea id="phrase" spellcheck="true">Mave status report. Motion systems nominal, path planner ready.</textarea>
         <div class="phrase-row">
           <button class="ghost phrase-btn" data-text="Mave status report. Motion systems nominal, path planner ready.">Status</button>
           <button class="ghost phrase-btn" data-text="Mave, move up a bit, then pause for confirmation.">Motion</button>
-          <button class="ghost phrase-btn" data-text="Mave, run the longer diagnostics phrase so we can hear compression, tremolo, bandwidth cuts, and limiter behavior over a full sentence.">Longer phrase</button>
+          <button class="ghost phrase-btn" data-text="Mave, run the longer diagnostics phrase so we can hear voice size, robot edge, radio filtering, glitch, and room space over a full sentence.">Longer phrase</button>
         </div>
         <div class="action-row">
           <button id="sourceBtn" class="generate">Generate source</button>
@@ -442,7 +552,20 @@
 
       <aside class="rack">
         <div class="panel-title">
-          <h2>Preset bay</h2>
+          <h2>Speaking persona</h2>
+        </div>
+        <section id="personaPanel" class="persona-panel">
+          <p class="persona-note">Agent persona shapes what the agent says. Speech delivery shapes how Gemini Live speaks the exact words.</p>
+          <strong>Agent prompt</strong>
+          <p id="personaText" class="persona-text">Loading persona...</p>
+          <details>
+            <summary>Gemini speech delivery</summary>
+            <p id="speechDeliveryText" class="persona-text">Loading delivery prompt...</p>
+          </details>
+        </section>
+
+        <div class="panel-title">
+          <h2>Character bay</h2>
         </div>
         <div id="presetGrid" class="preset-grid"></div>
 
@@ -450,10 +573,6 @@
           <h2>Controls</h2>
         </div>
         <div id="controls" class="controls"></div>
-        <label class="limiter-row">
-          <input id="limiter" type="checkbox">
-          Limiter
-        </label>
         <div class="save-row">
           <button id="saveBtn">Save</button>
         </div>
@@ -463,53 +582,87 @@
 
   <script>
     const presetCopy = {
-      clean: "Dry reference",
-      robot: "Ringed and reduced",
-      radio: "Band-limited grit",
-      small_speaker: "Compact driver",
-      low_battery: "Faltering power",
-      giant: "Lowered body",
-      wide_chorus: "Doubled and wide",
-      echo_room: "Short reflection",
-      ghost: "Lifted spectral haze"
+      clean: "No extra effect",
+      protocol_droid: "Bright etiquette bot",
+      masked_breather: "Deep respirator",
+      helmet_comms: "Tactical radio",
+      damaged_droid: "Wobble and glitch",
+      ai_core: "Smooth ship computer",
+      titan_mech: "Huge metal body",
+      hologram: "Projected shimmer"
     };
-    const controlGroups = [
+    const macroControls = [
       {
-        name: "Tone",
-        controls: [
-          ["gain_db", "Gain", -24, 24, 0.5, " dB"],
-          ["wet_mix", "Wet mix", 0, 1, 0.01, ""],
-          ["low_cut_hz", "Low cut", 0, 4000, 10, " Hz"],
-          ["high_cut_hz", "High cut", 0, 24000, 50, " Hz"],
-          ["drive", "Drive", 0, 1, 0.01, ""],
-          ["bit_depth", "Bit depth", 4, 16, 1, " bit"],
-          ["pitch_shift_semitones", "Pitch shift", -12, 12, 0.1, " st"]
-        ]
+        key: "voice_size",
+        label: "Voice size",
+        hint: "Pitch and body: tiny to huge.",
+        min: -1,
+        max: 1,
+        step: 0.01
       },
       {
-        name: "Motion",
-        controls: [
-          ["ring_mod_hz", "Ring modulation", 0, 2000, 1, " Hz"],
-          ["tremolo_hz", "Tremolo rate", 0, 20, 0.1, " Hz"],
-          ["tremolo_depth", "Tremolo depth", 0, 1, 0.01, ""],
-          ["chorus_rate_hz", "Chorus rate", 0, 8, 0.05, " Hz"],
-          ["chorus_depth_ms", "Chorus depth", 0, 35, 0.5, " ms"],
-          ["chorus_mix", "Chorus mix", 0, 1, 0.01, ""]
-        ]
+        key: "robot_edge",
+        label: "Robot edge",
+        hint: "Adds metallic synth character.",
+        min: 0,
+        max: 1,
+        step: 0.01
       },
       {
-        name: "Space + texture",
-        controls: [
-          ["echo_delay_ms", "Echo delay", 0, 600, 5, " ms"],
-          ["echo_feedback", "Echo feedback", 0, 0.95, 0.01, ""],
-          ["echo_mix", "Echo mix", 0, 1, 0.01, ""],
-          ["noise_mix", "Noise texture", 0, 0.2, 0.001, ""]
-        ]
+        key: "radio_filter",
+        label: "Radio filter",
+        hint: "Narrows the voice into a speaker band.",
+        min: 0,
+        max: 1,
+        step: 0.01
+      },
+      {
+        key: "glitch",
+        label: "Glitch",
+        hint: "Adds wobble and broken-power texture.",
+        min: 0,
+        max: 1,
+        step: 0.01
+      },
+      {
+        key: "space",
+        label: "Space",
+        hint: "Adds room echo and subtle doubling.",
+        min: 0,
+        max: 1,
+        step: 0.01
+      },
+      {
+        key: "breath",
+        label: "Mask breath",
+        hint: "Adds respirator air and low mask noise.",
+        min: 0,
+        max: 1,
+        step: 0.01
       }
     ];
-    const sliders = controlGroups.flatMap((group) => group.controls);
-    const state = { profiles: [], presets: {}, settings: null, clean: null, sourceKey: "" };
+    const state = {
+      profiles: [],
+      presets: {},
+      settings: null,
+      clean: null,
+      sourceKey: "",
+      cartesiaVoices: [],
+      cartesiaVoiceStatus: null,
+      selectedVoiceId: "",
+      persona: null
+    };
     const $ = (id) => document.getElementById(id);
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
 
     function setStatus(text, tone = "") {
       $("status").textContent = text;
@@ -537,8 +690,17 @@
       player.load();
     }
 
+    function selectedProfile() {
+      return state.profiles.find((item) => item.name === $("profileSelect").value) || null;
+    }
+
+    function currentVoiceId() {
+      if ($("voicePanel").hidden) return null;
+      return $("voiceIdInput").value.trim() || null;
+    }
+
     function currentSourceKey() {
-      return `${$("profileSelect").value}\n${$("phrase").value}`;
+      return `${$("profileSelect").value}\n${$("phrase").value}\n${currentVoiceId() || ""}`;
     }
 
     function setRenderEnabled() {
@@ -560,57 +722,188 @@
       }
     }
 
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function rounded(value, decimals = 3) {
+      return Number(value.toFixed(decimals));
+    }
+
+    function macroValue(key, settings) {
+      switch (key) {
+        case "voice_size":
+          return clamp(
+            ((-(settings.pitch_shift_semitones || 0) / 6) + (-(settings.body_shift || 0))) / 2,
+            -1,
+            1
+          );
+        case "robot_edge": {
+          const carrierAmount = settings.ring_mod_hz > 0
+            ? clamp(((settings.ring_mod_hz || 20) - 20) / 35, 0, 1)
+            : 0;
+          return clamp(Math.max((settings.drive || 0) / 0.32, carrierAmount), 0, 1);
+        }
+        case "radio_filter": {
+          const highCut = settings.high_cut_hz || 0;
+          const lowCut = settings.low_cut_hz || 0;
+          const highAmount = highCut > 0 ? clamp((9000 - highCut) / 6200, 0, 1) : 0;
+          const lowAmount = lowCut > 0 ? clamp((lowCut - 120) / 240, 0, 1) : 0;
+          return clamp(Math.max(highAmount, lowAmount, (settings.noise_mix || 0) / 0.025), 0, 1);
+        }
+        case "glitch":
+          return clamp(
+            Math.max(
+              (settings.tremolo_depth || 0) / 0.45,
+              (16 - (settings.bit_depth || 16)) / 9
+            ),
+            0,
+            1
+          );
+        case "space":
+          return clamp(Math.max((settings.chorus_mix || 0) / 0.3, (settings.echo_mix || 0) / 0.28), 0, 1);
+        case "breath":
+          return clamp((settings.breath_mix || 0) / 0.08, 0, 1);
+        default:
+          return 0;
+      }
+    }
+
+    function macroTone(key, value) {
+      if (key === "voice_size") {
+        if (value < -0.33) return "Tiny";
+        if (value > 0.33) return "Large";
+        return "Natural";
+      }
+      if (key === "radio_filter") {
+        if (value > 0.66) return "Narrow";
+        if (value > 0.2) return "Speaker";
+        return "Full";
+      }
+      if (key === "glitch") {
+        if (value > 0.66) return "Broken";
+        if (value > 0.2) return "Wobbly";
+        return "Stable";
+      }
+      if (key === "space") {
+        if (value > 0.66) return "Roomy";
+        if (value > 0.2) return "Wide";
+        return "Dry";
+      }
+      if (key === "breath") {
+        if (value > 0.66) return "Respirator";
+        if (value > 0.2) return "Air";
+        return "None";
+      }
+      if (value > 0.66) return "Hard";
+      if (value > 0.2) return "Light";
+      return "Clean";
+    }
+
+    function hasAudibleEffect(settings) {
+      return Math.abs(settings.gain_db || 0) > 0.001
+        || Math.abs(settings.pitch_shift_semitones || 0) > 0.001
+        || Math.abs(settings.body_shift || 0) > 0.001
+        || (settings.low_cut_hz || 0) > 0
+        || (settings.high_cut_hz || 0) > 0
+        || (settings.drive || 0) > 0
+        || (settings.bit_depth || 16) < 16
+        || (settings.ring_mod_hz || 0) > 0
+        || ((settings.tremolo_hz || 0) > 0 && (settings.tremolo_depth || 0) > 0)
+        || (settings.chorus_mix || 0) > 0
+        || (settings.echo_mix || 0) > 0
+        || (settings.noise_mix || 0) > 0
+        || (settings.breath_mix || 0) > 0;
+    }
+
+    function normalizeMacroSettings(settings) {
+      return {
+        ...settings,
+        gain_db: 0,
+        wet_mix: 1,
+        limiter: true
+      };
+    }
+
+    function applyMacro(settings, key, rawValue) {
+      const value = clamp(Number(rawValue), -1, 1);
+      const next = normalizeMacroSettings(settings);
+      if (key === "voice_size") {
+        next.pitch_shift_semitones = rounded(-value * 5, 1);
+        next.body_shift = rounded(-value, 2);
+      } else if (key === "robot_edge") {
+        const amount = clamp(value, 0, 1);
+        next.ring_mod_hz = amount === 0 ? 0 : rounded(20 + (amount * 35), 1);
+        next.drive = rounded(amount * 0.32, 2);
+      } else if (key === "radio_filter") {
+        const amount = clamp(value, 0, 1);
+        next.low_cut_hz = amount === 0 ? 0 : rounded(120 + (amount * 240), 0);
+        next.high_cut_hz = amount === 0 ? 0 : rounded(9000 - (amount * 6200), 0);
+        next.noise_mix = rounded(amount * 0.025, 3);
+      } else if (key === "glitch") {
+        const amount = clamp(value, 0, 1);
+        next.tremolo_hz = amount === 0 ? 0 : rounded(2 + (amount * 6), 1);
+        next.tremolo_depth = rounded(amount * 0.45, 2);
+        next.bit_depth = Math.round(16 - (amount * 9));
+      } else if (key === "space") {
+        const amount = clamp(value, 0, 1);
+        next.chorus_rate_hz = amount === 0 ? 0 : rounded(0.35 + (amount * 0.45), 2);
+        next.chorus_depth_ms = amount === 0 ? 0 : rounded(6 + (amount * 18), 1);
+        next.chorus_mix = rounded(amount * 0.3, 2);
+        next.echo_delay_ms = amount === 0 ? 0 : rounded(70 + (amount * 130), 0);
+        next.echo_feedback = rounded(amount * 0.32, 2);
+        next.echo_mix = rounded(amount * 0.28, 2);
+      } else if (key === "breath") {
+        const amount = clamp(value, 0, 1);
+        next.breath_mix = rounded(amount * 0.08, 3);
+      }
+      next.enabled = hasAudibleEffect(next);
+      return next;
+    }
+
+    function syncMacroControls(settings) {
+      for (const control of macroControls) {
+        const value = macroValue(control.key, settings);
+        const input = $(`ctl_${control.key}`);
+        const output = $(`out_${control.key}`);
+        input.value = value.toFixed(2);
+        output.textContent = macroTone(control.key, value);
+      }
+    }
+
     function readSettings() {
       const settings = { ...state.settings };
-      for (const [key] of sliders) {
-        const input = $(`ctl_${key}`);
-        settings[key] = key === "bit_depth" ? Number.parseInt(input.value, 10) : Number(input.value);
-      }
-      settings.limiter = $("limiter").checked;
+      settings.enabled = hasAudibleEffect(settings);
       return settings;
     }
 
     function writeSettings(settings) {
       state.settings = { ...settings };
-      for (const [key, , , , , suffix] of sliders) {
-        const input = $(`ctl_${key}`);
-        const output = $(`out_${key}`);
-        input.value = settings[key];
-        output.textContent = `${settings[key]}${suffix}`;
-      }
-      $("limiter").checked = settings.limiter;
+      syncMacroControls(state.settings);
       document.querySelectorAll(".preset-tile").forEach((tile) => {
         tile.classList.toggle("active", tile.dataset.preset === settings.preset_name);
       });
     }
 
     function renderControls() {
-      $("controls").innerHTML = controlGroups.map((group) => `
-        <section class="control-group">
-          <h3>${group.name}</h3>
-          ${group.controls.map(([key, label, min, max, step]) => `
-            <div class="control">
-              <label for="ctl_${key}">
-                ${label}
-                <input id="ctl_${key}" type="range" min="${min}" max="${max}" step="${step}">
-              </label>
-              <output id="out_${key}"></output>
-            </div>
-          `).join("")}
-        </section>
+      $("controls").innerHTML = macroControls.map((control) => `
+        <div class="control">
+          <label for="ctl_${control.key}">
+            ${control.label}
+            <small>${control.hint}</small>
+            <input id="ctl_${control.key}" type="range" min="${control.min}" max="${control.max}" step="${control.step}">
+          </label>
+          <output id="out_${control.key}"></output>
+        </div>
       `).join("");
-      for (const [key, , , , , suffix] of sliders) {
-        $(`ctl_${key}`).addEventListener("input", () => {
-          state.settings = readSettings();
+      for (const control of macroControls) {
+        $(`ctl_${control.key}`).addEventListener("input", (event) => {
+          state.settings = applyMacro(readSettings(), control.key, event.target.value);
           state.settings.preset_name = "custom";
-          $(`out_${key}`).textContent = `${state.settings[key]}${suffix}`;
+          syncMacroControls(state.settings);
           markEffectsDirty();
         });
       }
-      $("limiter").addEventListener("change", () => {
-        state.settings = readSettings();
-        markEffectsDirty();
-      });
     }
 
     async function api(path, options) {
@@ -622,6 +915,69 @@
       return response.json();
     }
 
+    async function loadCartesiaVoices() {
+      const data = await api("/api/cartesia/voices");
+      state.cartesiaVoiceStatus = data;
+      state.cartesiaVoices = Array.isArray(data.voices) ? data.voices : [];
+      $("voiceLibraryLink").href = data.voice_library_url || "https://play.cartesia.ai/voices";
+    }
+
+    async function loadPersona() {
+      const data = await api("/api/persona");
+      state.persona = data;
+      $("personaText").textContent = data.speaking_persona || "No persona prompt found.";
+      $("speechDeliveryText").textContent = data.speech_delivery || "No speech delivery prompt found.";
+    }
+
+    function voiceOptionLabel(voice) {
+      const language = voice.language ? ` (${voice.language})` : "";
+      return `${voice.name || voice.id}${language}`;
+    }
+
+    function cartesiaVoiceOptions(profile) {
+      const seen = new Set();
+      const options = [];
+      if (profile.tts.voice) {
+        seen.add(profile.tts.voice);
+        options.push({ value: profile.tts.voice, label: `Profile voice (${profile.tts.voice})` });
+      }
+      for (const voice of state.cartesiaVoices) {
+        if (!voice.id || seen.has(voice.id)) continue;
+        seen.add(voice.id);
+        options.push({ value: voice.id, label: voiceOptionLabel(voice) });
+      }
+      options.push({ value: "__custom__", label: "Custom ID" });
+      return options;
+    }
+
+    function syncVoiceControls() {
+      const profile = selectedProfile();
+      const panel = $("voicePanel");
+      if (!profile || profile.tts.provider !== "cartesia") {
+        panel.hidden = true;
+        state.selectedVoiceId = "";
+        $("voiceIdInput").value = "";
+        return;
+      }
+
+      panel.hidden = false;
+      const options = cartesiaVoiceOptions(profile);
+      const current = state.selectedVoiceId || profile.tts.voice || "";
+      $("voiceSelect").innerHTML = options.map((option) =>
+        `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`
+      ).join("");
+      $("voiceIdInput").value = current;
+      $("voiceSelect").value = options.some((option) => option.value === current)
+        ? current
+        : "__custom__";
+    }
+
+    function noteVoiceChanged() {
+      state.selectedVoiceId = currentVoiceId() || "";
+      clearSource();
+      setStatus("Voice changed. Generate a fresh source voice when ready.", "");
+    }
+
     async function loadProfiles() {
       const data = await api("/api/profiles");
       state.profiles = data.profiles;
@@ -629,6 +985,7 @@
         `<option value="${profile.name}">${profile.name}</option>`
       ).join("");
       $("profileSelect").addEventListener("change", () => {
+        state.selectedVoiceId = "";
         clearSource();
         loadSettings();
       });
@@ -665,10 +1022,11 @@
 
     async function loadSettings() {
       const profileName = $("profileSelect").value;
-      const profile = state.profiles.find((item) => item.name === profileName);
+      const profile = selectedProfile();
       $("providerSummary").textContent = profile
         ? `${profile.tts.provider} / ${profile.tts.model || "default"} / ${profile.tts.voice || "default"}`
         : "Provider: unavailable";
+      syncVoiceControls();
       if (profile && profile.missing_env.length) {
         setStatus(`Missing env: ${profile.missing_env.join(", ")}`, "hot");
       } else {
@@ -689,10 +1047,13 @@
       $("renderBtn").disabled = true;
       setStatus("Generating source voice...", "");
       try {
+        const payload = { profile_name: profileName, text: $("phrase").value };
+        const voiceId = currentVoiceId();
+        if (voiceId) payload.voice_id = voiceId;
         const source = await api("/api/preview/source", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ profile_name: profileName, text: $("phrase").value })
+          body: JSON.stringify(payload)
         });
         state.clean = source.audio;
         state.sourceKey = currentSourceKey();
@@ -769,12 +1130,29 @@
         setStatus("Phrase changed. Generate a fresh source before rendering.", "");
       }
     });
+    $("voiceSelect").addEventListener("change", () => {
+      const selected = $("voiceSelect").value;
+      if (selected !== "__custom__") {
+        $("voiceIdInput").value = selected;
+      } else {
+        $("voiceIdInput").focus();
+      }
+      noteVoiceChanged();
+    });
+    $("voiceIdInput").addEventListener("input", () => {
+      const voiceId = currentVoiceId();
+      const values = Array.from($("voiceSelect").options).map((option) => option.value);
+      $("voiceSelect").value = voiceId && values.includes(voiceId) ? voiceId : "__custom__";
+      noteVoiceChanged();
+    });
     $("sourceBtn").addEventListener("click", generateSource);
     $("renderBtn").addEventListener("click", renderModulation);
     $("saveBtn").addEventListener("click", save);
 
     renderControls();
-    Promise.all([loadPresets(), loadProfiles()]).catch((error) => setStatus(error.message, "hot"));
+    Promise.all([loadPresets(), loadCartesiaVoices(), loadPersona(), loadProfiles()])
+      .then(syncVoiceControls)
+      .catch((error) => setStatus(error.message, "hot"));
   </script>
 </body>
 </html>

@@ -142,6 +142,34 @@ def test_chorus_echo_and_noise_change_bytes_and_preserve_length() -> None:
     assert len(processed) == len(audio)
 
 
+def test_body_shift_changes_voice_body_and_preserves_length() -> None:
+    audio = sine_pcm16(seconds=0.25)
+
+    processed = process_pcm16(
+        audio,
+        sample_rate=24000,
+        num_channels=1,
+        settings=VoiceModulationSettings(enabled=True, body_shift=-0.8),
+    )
+
+    assert processed != audio
+    assert len(processed) == len(audio)
+
+
+def test_breath_mix_adds_mask_air_and_preserves_length() -> None:
+    audio = sine_pcm16(seconds=0.25)
+
+    processed = process_pcm16(
+        audio,
+        sample_rate=24000,
+        num_channels=1,
+        settings=VoiceModulationSettings(enabled=True, breath_mix=0.06),
+    )
+
+    assert processed != audio
+    assert len(processed) == len(audio)
+
+
 def test_filters_change_bytes_and_preserve_length() -> None:
     audio = sine_pcm16()
 

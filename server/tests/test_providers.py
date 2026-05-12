@@ -89,6 +89,29 @@ def test_creates_openai_tts(monkeypatch):
     service.assert_called_once_with(api_key="oa", settings="settings")
 
 
+def test_creates_openai_tts_with_style_controls(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "oa")
+    with patch("voice_runtime.providers.OpenAITTSService") as service:
+        service.Settings = Mock(return_value="settings")
+        create_tts_service(
+            TTSConfig(
+                provider="openai",
+                model="gpt-4o-mini-tts",
+                voice="coral",
+                instructions="Speak warmly with a little delighted lift.",
+                speed=0.95,
+            )
+        )
+
+    service.Settings.assert_called_once_with(
+        model="gpt-4o-mini-tts",
+        voice="coral",
+        instructions="Speak warmly with a little delighted lift.",
+        speed=0.95,
+    )
+    service.assert_called_once_with(api_key="oa", settings="settings")
+
+
 def test_creates_deepgram_tts(monkeypatch):
     monkeypatch.setenv("DEEPGRAM_API_KEY", "dg")
     with patch("voice_runtime.providers.DeepgramTTSService") as service:

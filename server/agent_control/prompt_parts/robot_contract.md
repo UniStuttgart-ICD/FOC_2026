@@ -14,7 +14,8 @@ Only call tools present in the current tool list. Use these canonical tools only
 # Robot constraints
 - This version is simulation-only.
 - The only allowed robot_name is "UR10".
-- There is no HoloLens, gaze target, world model, or user-position data.
+- User sensing may include HoloLens gaze, user position, and manual target data.
+- Treat user sensing as advisory and time-sensitive; stale or missing fields are not safe grounding.
 - If the user says "that", "this", "there", "bring it here", or another ambiguous reference without enough context, ask a clarifying question instead of guessing.
 
 # Tool-use rules

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from typing import Any
 
 from google import genai
 from google.genai import types
@@ -50,6 +51,37 @@ def pop_speakable_segments(buffer: str, *, flush: bool = False) -> tuple[list[st
         segments.append(tail.strip())
         tail = ""
     return segments, tail
+
+
+async def stream_gemini_live_audio(
+    *,
+    api_key: str,
+    model: str,
+    voice: str,
+    prompt: str,
+    client_factory: Callable[..., Any] | None = None,
+) -> AsyncIterator[bytes]:
+    factory = client_factory or genai.Client
+    client = factory(api_key=api_key)
+    async with client.aio.live.connect(
+        model=model,
+        config=_live_audio_config(voice),
+    ) as session:
+        await session.send_client_content(
+            turns=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text=prompt)],
+                )
+            ],
+            turn_complete=True,
+        )
+        async for message in session.receive():
+            audio = _extract_audio(message)
+            if audio:
+                yield audio
+            if _message_is_complete(message):
+                break
 
 
 class GeminiLiveSpeechRendererService(FrameProcessor):
@@ -113,32 +145,18 @@ class GeminiLiveSpeechRendererService(FrameProcessor):
         await self._stream_prompt_audio(prompt)
 
     async def _stream_prompt_audio(self, prompt: str) -> None:
-        client = self._client()
         audio_started = False
-        async with client.aio.live.connect(
+        async for audio in stream_gemini_live_audio(
+            api_key=self.api_key,
             model=self.model,
-            config=self._live_config(),
-        ) as session:
-            await session.send_client_content(
-                turns=[
-                    types.Content(
-                        role="user",
-                        parts=[types.Part.from_text(text=prompt)],
-                    )
-                ],
-                turn_complete=True,
-            )
-            async for message in session.receive():
-                audio = _extract_audio(message)
-                if audio:
-                    if not audio_started:
-                        audio_started = True
-                        await self.push_frame(TTSStartedFrame())
-                    await self.push_frame(
-                        TTSAudioRawFrame(audio=audio, sample_rate=24000, num_channels=1)
-                    )
-                if _message_is_complete(message):
-                    break
+            voice=self.voice,
+            prompt=prompt,
+            client_factory=self._client_factory,
+        ):
+            if not audio_started:
+                audio_started = True
+                await self.push_frame(TTSStartedFrame())
+            await self.push_frame(TTSAudioRawFrame(audio=audio, sample_rate=24000, num_channels=1))
         if audio_started:
             await self.push_frame(TTSStoppedFrame())
 
@@ -147,14 +165,18 @@ class GeminiLiveSpeechRendererService(FrameProcessor):
         return factory(api_key=self.api_key)
 
     def _live_config(self):
-        return types.LiveConnectConfig(
-            response_modalities=["AUDIO"],
-            speech_config=types.SpeechConfig(
-                voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self.voice)
-                )
-            ),
-        )
+        return _live_audio_config(self.voice)
+
+
+def _live_audio_config(voice: str):
+    return types.LiveConnectConfig(
+        response_modalities=[types.Modality.AUDIO],
+        speech_config=types.SpeechConfig(
+            voice_config=types.VoiceConfig(
+                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice)
+            )
+        ),
+    )
 
 
 def _extract_audio(message: object) -> bytes | None:

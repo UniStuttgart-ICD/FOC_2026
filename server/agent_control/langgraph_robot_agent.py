@@ -33,6 +33,7 @@ from robot_control.task_policy import (
     structured_task_policy_error,
     validate_task_step,
 )
+from user_sensing.context import UserSensingContextStore
 from voice_runtime.agent_turn import AgentTurnInput
 from voice_runtime.timing import elapsed_ms_since, monotonic_s
 
@@ -119,6 +120,9 @@ class LangGraphRobotAgent:
         model: Any,
         tool_bridge: Any,
         robot_context: RobotContextStore,
+        user_sensing_bridge: Any | None = None,
+        user_sensing_context: UserSensingContextStore | None = None,
+        user_sensing_max_age_s: float = 2.0,
         thread_id: str | None = None,
         job_submitter: RobotJobSubmitter | None = None,
         tracer: ProcessTracerLike | None = None,
@@ -126,6 +130,9 @@ class LangGraphRobotAgent:
         self._model = model
         self._tool_bridge = tool_bridge
         self._robot_context = robot_context
+        self._user_sensing_bridge = user_sensing_bridge
+        self._user_sensing_context = user_sensing_context or UserSensingContextStore()
+        self._user_sensing_max_age_s = user_sensing_max_age_s
         self._thread_id = thread_id or f"robot-agent-{uuid.uuid4()}"
         self._job_submitter = job_submitter
         self._tracer = tracer or NoopProcessTracer()
@@ -197,7 +204,7 @@ class LangGraphRobotAgent:
         builder.add_edge("observe_current_pose", "call_model")
         builder.add_conditional_edges("call_model", self._route_after_model)
         builder.add_edge("execute_robot_tool", "observe_current_pose")
-        builder.add_edge("repair_missing_action", "call_model")
+        builder.add_edge("repair_missing_action", "observe_current_pose")
         builder.add_edge("execute_supported_action", END)
         builder.add_edge("stop_after_tool_limit", END)
         builder.add_edge("final_response", END)
@@ -223,6 +230,7 @@ class LangGraphRobotAgent:
 
     async def _observe_current_pose(self, state: RobotAgentState) -> dict[str, Any]:
         tools = self._tool_bridge.function_tools()
+        await self._refresh_user_sensing_context()
         if state.get("observed_this_turn"):
             return {"tools": tools}
         observe_tool_name = _first_available_tool(tools, OBSERVE_TOOL_NAMES)
@@ -473,7 +481,48 @@ class LangGraphRobotAgent:
         return {"final_text": text or NO_TEXT_RESPONSE}
 
     def _instructions(self) -> str:
-        return f"{SYSTEM_PROMPT}\n\n{self._robot_context.render_instruction_block()}"
+        parts = [SYSTEM_PROMPT, self._robot_context.render_instruction_block()]
+        if self._user_sensing_bridge is not None:
+            parts.append(self._user_sensing_context.render_instruction_block())
+        return "\n\n".join(parts)
+
+    async def _refresh_user_sensing_context(self) -> None:
+        if self._user_sensing_bridge is None:
+            return
+        attributes = {"tool.name": "vizor_get_sensor_context"}
+        async with self._tracer.span(
+            "user_sensing.mcp.call_tool",
+            "user_sensing",
+            attributes=attributes,
+        ):
+            try:
+                output = await self._user_sensing_bridge.read_context(
+                    max_age_s=self._user_sensing_max_age_s
+                )
+            except Exception as exc:
+                attributes["error"] = str(exc)
+                logger.warning("User sensing context refresh failed: {}", exc)
+                return
+        self._user_sensing_context.update_from_tool_result(output)
+        summary_attributes = self._user_sensing_context.summary_attributes()
+        logger.info("User sensing context updated: {}", self._user_sensing_context.summary_text())
+        if self._tracer.options.include_tool_payloads:
+            self._tracer.event(
+                "user_sensing.mcp.tool_result",
+                "user_sensing",
+                attributes={
+                    "tool.name": "vizor_get_sensor_context",
+                    "tool.result": output,
+                },
+            )
+        self._tracer.event(
+            "user_sensing.context_update",
+            "user_sensing",
+            attributes={
+                "tool.name": "vizor_get_sensor_context",
+                **summary_attributes,
+            },
+        )
 
     async def _execute_observation_tool(
         self, name: str, arguments: dict[str, Any]

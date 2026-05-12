@@ -24,6 +24,9 @@ class VoiceModulationState:
     echo_index: int = 0
     chorus_buffer: NDArray[np.float32] | None = None
     chorus_index: int = 0
+    body_low_last: NDArray[np.float32] | None = None
+    breath_phase: float = 0.0
+    breath_last: NDArray[np.float32] | None = None
     noise_rng: np.random.Generator = field(default_factory=np.random.default_rng)
 
     def reset(self) -> None:
@@ -37,6 +40,9 @@ class VoiceModulationState:
         self.echo_index = 0
         self.chorus_buffer = None
         self.chorus_index = 0
+        self.body_low_last = None
+        self.breath_phase = 0.0
+        self.breath_last = None
         self.noise_rng = np.random.default_rng()
 
 
@@ -71,6 +77,8 @@ def process_pcm16(
         samples = _bit_crush(samples, settings.bit_depth)
     if settings.pitch_shift_semitones != 0.0:
         samples = _granular_pitch_shift(samples, sample_rate, settings.pitch_shift_semitones)
+    if settings.body_shift != 0.0:
+        samples = _body_shift(samples, sample_rate, settings.body_shift, dsp_state)
     if settings.ring_mod_hz > 0.0:
         samples = _ring_mod(samples, sample_rate, settings.ring_mod_hz, dsp_state)
     if settings.tremolo_hz > 0.0 and settings.tremolo_depth > 0.0:
@@ -101,6 +109,8 @@ def process_pcm16(
         )
     if settings.noise_mix > 0.0:
         samples = _noise(samples, settings.noise_mix, dsp_state)
+    if settings.breath_mix > 0.0:
+        samples = _breath_noise(samples, sample_rate, settings.breath_mix, dsp_state)
 
     wet_mix = np.float32(settings.wet_mix)
     samples = (dry * (np.float32(1.0) - wet_mix)) + (samples * wet_mix)
@@ -192,6 +202,53 @@ def _low_pass(
 
     state.high_cut_last = prev_output.copy()
     return output
+
+
+def _body_shift(
+    samples: NDArray[np.float32],
+    sample_rate: int,
+    amount: float,
+    state: VoiceModulationState,
+) -> NDArray[np.float32]:
+    depth = np.float32(abs(amount))
+    cutoff = 780.0 if amount < 0.0 else 1350.0
+    low, state.body_low_last = _low_pass_rows(
+        samples,
+        sample_rate,
+        cutoff,
+        state.body_low_last,
+    )
+    if amount < 0.0:
+        output = (samples * (np.float32(1.0) - (depth * np.float32(0.25)))) + (
+            low * depth * np.float32(0.75)
+        )
+    else:
+        high = samples - low
+        output = (samples * (np.float32(1.0) - (depth * np.float32(0.35)))) + (
+            high * depth * np.float32(0.9)
+        )
+    return np.asarray(np.clip(output, -1.0, 1.0), dtype=np.float32)
+
+
+def _low_pass_rows(
+    samples: NDArray[np.float32],
+    sample_rate: int,
+    cutoff_hz: float,
+    previous: NDArray[np.float32] | None,
+) -> tuple[NDArray[np.float32], NDArray[np.float32]]:
+    cutoff = min(cutoff_hz, sample_rate * 0.45)
+    rc = 1.0 / (2.0 * np.pi * cutoff)
+    dt = 1.0 / sample_rate
+    alpha = np.float32(dt / (rc + dt))
+    output = np.empty_like(samples)
+    prev_output = _ensure_channel_state(previous, samples.shape[1])
+
+    for index, row in enumerate(samples):
+        current = prev_output + (alpha * (row - prev_output))
+        output[index] = current
+        prev_output = current
+
+    return output, prev_output.copy()
 
 
 def _bit_crush(samples: NDArray[np.float32], bit_depth: int) -> NDArray[np.float32]:
@@ -341,6 +398,30 @@ def _noise(
 ) -> NDArray[np.float32]:
     noise = state.noise_rng.uniform(-1.0, 1.0, size=samples.shape).astype(np.float32)
     return np.asarray(samples + (noise * np.float32(mix)), dtype=np.float32)
+
+
+def _breath_noise(
+    samples: NDArray[np.float32],
+    sample_rate: int,
+    mix: float,
+    state: VoiceModulationState,
+) -> NDArray[np.float32]:
+    noise = state.noise_rng.uniform(-1.0, 1.0, size=samples.shape).astype(np.float32)
+    filtered, state.breath_last = _low_pass_rows(
+        noise,
+        sample_rate,
+        950.0,
+        state.breath_last,
+    )
+    phases = _phases(samples.shape[0], sample_rate, 0.55, state.breath_phase)
+    state.breath_phase = (
+        _next_phase(phases[-1], sample_rate, 0.55) if phases.size else state.breath_phase
+    )
+    envelope = (
+        np.float32(0.25)
+        + (np.float32(0.75) * ((np.sin(phases, dtype=np.float32) + np.float32(1.0)) * 0.5))
+    ).reshape(-1, 1)
+    return np.asarray(samples + (filtered * envelope * np.float32(mix)), dtype=np.float32)
 
 
 def _phases(

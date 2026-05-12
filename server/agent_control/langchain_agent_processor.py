@@ -13,6 +13,8 @@ from robot_control.context import RobotContextStore
 from robot_control.job_board import RobotJobBoard, RobotJobEventType
 from robot_control.job_worker import RobotJobWorker
 from robot_control.mcp_bridge import RobotMCPBridge
+from user_sensing.context import UserSensingContextStore
+from user_sensing.mcp_bridge import UserSensingMCPBridge
 from voice_runtime.agent_turn import AgentTurnInput
 
 ProcessTracerLike = ProcessTracer | NoopProcessTracer
@@ -30,17 +32,25 @@ class LangChainAgentProcessor:
         tool_bridge: Any | None = None,
         robot_job_board: RobotJobBoard | None = None,
         robot_job_worker: Any | None = None,
+        mcp_vizor_url: str | None = None,
+        user_sensing_bridge: Any | None = None,
+        user_sensing_max_age_s: float = 2.0,
         tracer: ProcessTracerLike | None = None,
     ):
         self._mcp_server_url = mcp_server_url
+        self._mcp_vizor_url = mcp_vizor_url
         self._chat_model = chat_model
         self._model_label = model_label
         self._tool_bridge = tool_bridge
         self._robot_job_board = robot_job_board or RobotJobBoard()
         self._robot_job_submitter = RobotJobSubmitter(self._robot_job_board)
         self._robot_job_worker = robot_job_worker
+        self._user_sensing_bridge = user_sensing_bridge
+        self._user_sensing_context = UserSensingContextStore()
+        self._user_sensing_max_age_s = user_sensing_max_age_s
         self._tracer = tracer or NoopProcessTracer()
         self._owns_tool_bridge = tool_bridge is None
+        self._owns_user_sensing_bridge = user_sensing_bridge is None
         self._connected = False
         self._model_logged = False
         self._robot_context = RobotContextStore()
@@ -48,6 +58,7 @@ class LangChainAgentProcessor:
         self._graph_agent: LangGraphRobotAgent | None = None
         self._graph_chat_model: Any | None = None
         self._graph_tool_bridge: Any | None = None
+        self._graph_user_sensing_bridge: Any | None = None
 
     async def connect(self) -> None:
         await self._ensure_connected()
@@ -59,11 +70,19 @@ class LangChainAgentProcessor:
                 await stop()
         if self._tool_bridge is not None and (self._connected or not self._owns_tool_bridge):
             await self._tool_bridge.disconnect()
+        if self._user_sensing_bridge is not None and (
+            self._connected or not self._owns_user_sensing_bridge
+        ):
+            disconnect = getattr(self._user_sensing_bridge, "disconnect", None)
+            if disconnect is not None:
+                await disconnect()
         self._tool_bridge = None
+        self._user_sensing_bridge = None
         self._graph_agent = None
         self._graph_chat_model = None
         self._graph_tool_bridge = None
         self._robot_job_worker = None
+        self._graph_user_sensing_bridge = None
         self._connected = False
         logger.info("LangChain API-key agent disconnected")
 
@@ -126,6 +145,25 @@ class LangChainAgentProcessor:
         start = getattr(self._robot_job_worker, "start", None)
         if start is not None:
             await start()
+        if self._user_sensing_bridge is None and self._mcp_vizor_url:
+            self._user_sensing_bridge = _user_sensing_mcp_bridge(
+                self._mcp_vizor_url,
+                tracer=self._tracer,
+            )
+        if self._user_sensing_bridge is not None:
+            connect = getattr(self._user_sensing_bridge, "connect", None)
+            if connect is not None:
+                try:
+                    await connect()
+                    logger.info(
+                        "Vizor user sensing MCP connected url={} max_age_s={}",
+                        self._mcp_vizor_url or "injected",
+                        self._user_sensing_max_age_s,
+                    )
+                except Exception as exc:
+                    logger.warning("Vizor user sensing MCP connection failed: {}", exc)
+                    if self._owns_user_sensing_bridge:
+                        self._user_sensing_bridge = None
         self._connected = True
         logger.info("LangChain API-key agent connected")
 
@@ -134,17 +172,28 @@ class LangChainAgentProcessor:
             self._graph_agent is None
             or self._graph_chat_model is not chat_model
             or self._graph_tool_bridge is not tool_bridge
+            or self._graph_user_sensing_bridge is not self._user_sensing_bridge
         ):
-            self._graph_agent = LangGraphRobotAgent(
-                model=chat_model,
-                tool_bridge=tool_bridge,
-                robot_context=self._robot_context,
-                thread_id=self._thread_id,
-                job_submitter=self._robot_job_submitter,
-                tracer=self._tracer,
-            )
+            kwargs: dict[str, Any] = {
+                "model": chat_model,
+                "tool_bridge": tool_bridge,
+                "robot_context": self._robot_context,
+                "thread_id": self._thread_id,
+                "job_submitter": self._robot_job_submitter,
+                "tracer": self._tracer,
+            }
+            if self._user_sensing_bridge is not None:
+                kwargs.update(
+                    {
+                        "user_sensing_bridge": self._user_sensing_bridge,
+                        "user_sensing_context": self._user_sensing_context,
+                        "user_sensing_max_age_s": self._user_sensing_max_age_s,
+                    }
+                )
+            self._graph_agent = LangGraphRobotAgent(**kwargs)
             self._graph_chat_model = chat_model
             self._graph_tool_bridge = tool_bridge
+            self._graph_user_sensing_bridge = self._user_sensing_bridge
         return self._graph_agent
 
 
@@ -152,6 +201,12 @@ def _robot_mcp_bridge(mcp_server_url: str, *, tracer: ProcessTracerLike) -> Any:
     if _accepts_tracer_keyword(RobotMCPBridge):
         return RobotMCPBridge(mcp_server_url, tracer=tracer)
     return RobotMCPBridge(mcp_server_url)
+
+
+def _user_sensing_mcp_bridge(mcp_server_url: str, *, tracer: ProcessTracerLike) -> Any:
+    if _accepts_tracer_keyword(UserSensingMCPBridge):
+        return UserSensingMCPBridge(mcp_server_url, tracer=tracer)
+    return UserSensingMCPBridge(mcp_server_url)
 
 
 def _accepts_tracer_keyword(callable_obj: Any) -> bool:

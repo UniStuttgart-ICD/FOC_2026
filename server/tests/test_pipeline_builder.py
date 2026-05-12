@@ -20,6 +20,7 @@ from metrics import VoiceMetricsObserver
 from pipeline_builder import _create_voice_modulation_processor, build_pipeline
 from voice_modulation.processor import VoiceModulationProcessor
 from voice_modulation.settings import VoiceModulationSettings
+from voice_runtime.profiles import TTSProfile
 from voice_runtime.wake_command import MaveVoiceCommandAudioGate, MaveVoiceCommandTranscriptAdapter
 
 
@@ -37,10 +38,11 @@ class FakePipeline:
 
 
 class FakePipelineTask:
-    def __init__(self, pipeline, *, params, observers):
+    def __init__(self, pipeline, *, params, observers, rtvi_processor=None):
         self.pipeline = pipeline
         self.params = params
         self.observers = observers
+        self.rtvi_processor = rtvi_processor
 
 
 class FakeJsonlTraceWriter:
@@ -96,6 +98,7 @@ def _config(
     process_trace_enabled: bool = False,
     wake_enabled: bool = False,
     voice_modulation: object | None = None,
+    tts: TTSConfig | None = None,
 ) -> RuntimeConfig:
     return RuntimeConfig(
         profile_name="no_wake_debug",
@@ -114,7 +117,7 @@ def _config(
         ),
         emergency_stop=EmergencyStopConfig(enabled=False),
         stt=STTConfig(provider="whisper", model="base", device="cpu"),
-        tts=TTSConfig(provider="kokoro", voice="af_heart"),
+        tts=tts or TTSConfig(provider="kokoro", voice="af_heart"),
         agent=AgentConfig(provider="openai_api", model="gpt-5.4-mini"),
         mcp_robot_url="http://127.0.0.1:8765/mcp",
         metrics=MetricsConfig(
@@ -252,6 +255,118 @@ def test_process_trace_disabled_uses_noop_tracer_and_no_observer(monkeypatch, tm
     ]
     assert seen_agent_kwargs["tracer"] is built.process_tracer
     assert task.observers == []
+
+
+def test_pipeline_passes_vizor_mcp_env_options_to_agent_processor(monkeypatch, tmp_path: Path):
+    seen_agent_kwargs: dict[str, Any] = {}
+    _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
+    monkeypatch.setenv("MCP_VIZOR_URL", "http://127.0.0.1:8001/mcp")
+    monkeypatch.setenv("USER_SENSING_MAX_AGE_S", "3.5")
+
+    build_pipeline(
+        _config(tmp_path, metrics_enabled=False),
+        cast(BaseTransport, FakeTransport()),
+    )
+
+    assert seen_agent_kwargs["mcp_vizor_url"] == "http://127.0.0.1:8001/mcp"
+    assert seen_agent_kwargs["user_sensing_max_age_s"] == 3.5
+
+
+def test_pipeline_applies_modular_speech_delivery_to_gemini_live_tts(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from agent_control.prompts import SPEECH_DELIVERY_STYLE
+
+    seen_tts_configs: list[TTSProfile] = []
+    _patch_pipeline_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        "pipeline_builder.create_tts_service",
+        lambda config: seen_tts_configs.append(config) or FrameProcessor(),
+    )
+
+    build_pipeline(
+        _config(
+            tmp_path,
+            metrics_enabled=False,
+            tts=TTSConfig(provider="gemini_live", model="gemini-3.1-flash-live-preview", voice="Kore"),
+        ),
+        cast(BaseTransport, FakeTransport()),
+    )
+
+    assert seen_tts_configs[0].instructions == SPEECH_DELIVERY_STYLE
+
+
+def test_pipeline_uses_gemini_live_rtvi_processor_for_gemini_live_tts(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from voice_runtime.rtvi import GeminiLiveConversationRTVIProcessor
+
+    _patch_pipeline_dependencies(monkeypatch)
+
+    built = build_pipeline(
+        _config(
+            tmp_path,
+            metrics_enabled=False,
+            tts=TTSConfig(provider="gemini_live", model="gemini-3.1-flash-live-preview", voice="Kore"),
+        ),
+        cast(BaseTransport, FakeTransport()),
+    )
+    task = cast(Any, built.task)
+
+    assert isinstance(task.rtvi_processor, GeminiLiveConversationRTVIProcessor)
+
+
+def test_pipeline_keeps_default_rtvi_processor_for_other_tts(monkeypatch, tmp_path: Path) -> None:
+    _patch_pipeline_dependencies(monkeypatch)
+
+    built = build_pipeline(
+        _config(tmp_path, metrics_enabled=False, tts=TTSConfig(provider="kokoro", voice="af_heart")),
+        cast(BaseTransport, FakeTransport()),
+    )
+    task = cast(Any, built.task)
+
+    assert task.rtvi_processor is None
+
+
+def test_pipeline_preserves_explicit_tts_instructions(monkeypatch, tmp_path: Path) -> None:
+    seen_tts_configs: list[TTSProfile] = []
+    _patch_pipeline_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        "pipeline_builder.create_tts_service",
+        lambda config: seen_tts_configs.append(config) or FrameProcessor(),
+    )
+
+    build_pipeline(
+        _config(
+            tmp_path,
+            metrics_enabled=False,
+            tts=TTSConfig(
+                provider="gemini_live",
+                model="gemini-3.1-flash-live-preview",
+                voice="Kore",
+                instructions="Use custom lab delivery.",
+            ),
+        ),
+        cast(BaseTransport, FakeTransport()),
+    )
+
+    assert seen_tts_configs[0].instructions == "Use custom lab delivery."
+
+
+def test_pipeline_disables_vizor_mcp_when_user_sensing_disabled(monkeypatch, tmp_path: Path):
+    seen_agent_kwargs: dict[str, Any] = {}
+    _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
+    monkeypatch.setenv("MCP_VIZOR_URL", "http://127.0.0.1:8001/mcp")
+    monkeypatch.setenv("USER_SENSING_ENABLED", "false")
+
+    build_pipeline(
+        _config(tmp_path, metrics_enabled=False),
+        cast(BaseTransport, FakeTransport()),
+    )
+
+    assert seen_agent_kwargs["mcp_vizor_url"] is None
 
 
 def test_logs_use_session_scoped_paths(monkeypatch, tmp_path: Path):

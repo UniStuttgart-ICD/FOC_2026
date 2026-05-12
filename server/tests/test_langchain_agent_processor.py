@@ -74,6 +74,37 @@ class FakeBridge:
         )
 
 
+class FakeUserSensingBridge:
+    def __init__(self):
+        self.connected = False
+        self.disconnected = False
+        self.calls: list[float] = []
+
+    async def connect(self):
+        self.connected = True
+
+    async def disconnect(self):
+        self.disconnected = True
+
+    async def read_context(self, *, max_age_s: float) -> str:
+        self.calls.append(max_age_s)
+        return json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "gaze": {
+                        "available": True,
+                        "target": "beam_001",
+                        "age_s": 0.1,
+                        "stale": False,
+                    },
+                    "user": {"available": False, "position": None, "stale": True},
+                    "manual_target": {"available": False, "position": None, "stale": True},
+                }
+            }
+        )
+
+
 @dataclass(frozen=True)
 class TurnResult:
     chunks: list[str]
@@ -149,6 +180,29 @@ async def test_generic_processor_executes_model_tool_call():
 
 
 @pytest.mark.asyncio
+async def test_processor_connects_and_disconnects_user_sensing_bridge() -> None:
+    model = FakeChatModel([ai_text("ready")])
+    robot_bridge = FakeBridge()
+    user_sensing_bridge = FakeUserSensingBridge()
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=model,
+        model_label="gpt-5.4-mini",
+        tool_bridge=robot_bridge,
+        user_sensing_bridge=user_sensing_bridge,
+        user_sensing_max_age_s=3.5,
+    )
+
+    result = await _run_turn(processor, "hello")
+    await processor.disconnect()
+
+    assert result.chunks == ["ready"]
+    assert user_sensing_bridge.connected is True
+    assert user_sensing_bridge.calls == [3.5]
+    assert user_sensing_bridge.disconnected is True
+
+
+@pytest.mark.asyncio
 async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_and_graph(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -169,6 +223,9 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
             model: Any,
             tool_bridge: Any,
             robot_context: Any,
+            user_sensing_bridge: Any | None = None,
+            user_sensing_context: Any | None = None,
+            user_sensing_max_age_s: float = 2.0,
             thread_id: str,
             job_submitter: Any | None = None,
             tracer: ProcessTracer,
@@ -176,6 +233,9 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
             self.model = model
             self.tool_bridge = tool_bridge
             self.robot_context = robot_context
+            self.user_sensing_bridge = user_sensing_bridge
+            self.user_sensing_context = user_sensing_context
+            self.user_sensing_max_age_s = user_sensing_max_age_s
             self.thread_id = thread_id
             self.job_submitter = job_submitter
             self.tracer = tracer
@@ -201,6 +261,7 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
     assert created_bridges[0].tracer is tracer
     assert created_graphs[0].tracer is tracer
     assert created_graphs[0].job_submitter is processor._robot_job_submitter
+    assert created_graphs[0].user_sensing_bridge is None
     backend_span = records_named(writer, "agent.backend_turn")[-1]
     assert backend_span["record_type"] == "span"
     assert backend_span["module"] == "agent_control"

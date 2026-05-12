@@ -172,11 +172,59 @@ class FakeBridge:
         return json.dumps({"structured_content": {"ok": True}})
 
 
+class FakeUserSensingBridge:
+    def __init__(self) -> None:
+        self.calls: list[float] = []
+
+    async def read_context(self, *, max_age_s: float) -> str:
+        self.calls.append(max_age_s)
+        return json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "gaze": {
+                        "available": True,
+                        "target": "beam_001",
+                        "age_s": 0.1,
+                        "stale": False,
+                    },
+                    "attention": {
+                        "available": True,
+                        "fresh": True,
+                        "dominant_target": "beam_001",
+                        "last_stable_target": "beam_001",
+                        "ranked_targets": [
+                            {
+                                "target": "beam_001",
+                                "confidence": "high",
+                                "dwell_s": 3.4,
+                                "last_seen_age_s": 0.1,
+                            }
+                        ],
+                    },
+                    "user": {
+                        "available": True,
+                        "position": {"x": 0.34, "y": -0.72, "z": 1.25},
+                        "age_s": 0.2,
+                        "stale": False,
+                    },
+                    "manual_target": {
+                        "available": False,
+                        "position": None,
+                        "age_s": None,
+                        "stale": True,
+                    },
+                }
+            }
+        )
+
+
 @dataclass(frozen=True)
 class GraphFixture:
     graph: Any
     model: FakeChatModel
     bridge: FakeBridge
+    user_sensing_bridge: FakeUserSensingBridge | None = None
 
 
 def make_graph(
@@ -184,9 +232,11 @@ def make_graph(
     *,
     bridge: FakeBridge | None = None,
     job_submitter: Any | None = None,
+    user_sensing_bridge: FakeUserSensingBridge | None = None,
     tracer: ProcessTracer | None = None,
 ) -> GraphFixture:
     from agent_control.langgraph_robot_agent import LangGraphRobotAgent
+    from user_sensing.context import UserSensingContextStore
 
     model = FakeChatModel(responses)
     selected_bridge = bridge or FakeBridge()
@@ -194,11 +244,18 @@ def make_graph(
         model=model,
         tool_bridge=selected_bridge,
         robot_context=RobotContextStore(),
+        user_sensing_bridge=user_sensing_bridge,
+        user_sensing_context=UserSensingContextStore(),
         thread_id="test-session",
         job_submitter=job_submitter,
         tracer=tracer,
     )
-    return GraphFixture(graph=graph, model=model, bridge=selected_bridge)
+    return GraphFixture(
+        graph=graph,
+        model=model,
+        bridge=selected_bridge,
+        user_sensing_bridge=user_sensing_bridge,
+    )
 
 
 def turn(text: str) -> AgentTurnInput:
@@ -270,6 +327,82 @@ async def test_graph_observes_current_pose_before_simple_model_response() -> Non
             "parameters": {"type": "object"},
         },
     }
+
+
+@pytest.mark.asyncio
+async def test_graph_loads_user_sensing_context_before_model_response() -> None:
+    user_sensing = FakeUserSensingBridge()
+    fixture = make_graph([ai_text("ready")], user_sensing_bridge=user_sensing)
+
+    text = await fixture.graph.run_turn(turn("what am I looking at?"))
+
+    assert text == "ready"
+    assert user_sensing.calls == [2.0]
+    first_request = fixture.model.requests[0]
+    assert isinstance(first_request[0], SystemMessage)
+    system_text = str(first_request[0].content)
+    assert "User sensing context" in system_text
+    assert "gaze target: beam_001" in system_text
+    assert "user position: x=0.340, y=-0.720, z=1.250" in system_text
+    tool_names = {tool["function"]["name"] for tool in fixture.model.bound_tools}
+    assert "vizor_get_sensor_context" not in tool_names
+
+
+@pytest.mark.asyncio
+async def test_graph_traces_user_sensing_summary_and_payload() -> None:
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
+    user_sensing = FakeUserSensingBridge()
+    fixture = make_graph(
+        [ai_text("ready")],
+        user_sensing_bridge=user_sensing,
+        tracer=tracer,
+    )
+
+    await fixture.graph.run_turn(turn("what am I looking at?"))
+
+    context_update = records_named(writer, "user_sensing.context_update")[-1]
+    assert context_update["attributes"]["attention.dominant_target"] == "beam_001"
+    assert context_update["attributes"]["attention.fresh"] is True
+    assert context_update["attributes"]["gaze.stale"] is False
+    assert context_update["attributes"]["user.available"] is True
+    tool_result = records_named(writer, "user_sensing.mcp.tool_result")[-1]
+    assert "beam_001" in tool_result["attributes"]["tool.result"]
+
+
+@pytest.mark.asyncio
+async def test_graph_refreshes_user_sensing_before_each_model_call() -> None:
+    user_sensing = FakeUserSensingBridge()
+    action_args = {
+        "robot_name": "UR10",
+        "target_pose": {
+            "position": {"x": 0.1, "y": 0.2, "z": 0.35},
+            "orientation": {"x": 0.0, "y": -0.7071, "z": -0.7071, "w": 0.0},
+        },
+    }
+    fixture = make_graph(
+        [ai_tool_call("moveit_plan_and_execute_free_motion", action_args), ai_text("moved")],
+        user_sensing_bridge=user_sensing,
+    )
+
+    text = await fixture.graph.run_turn(turn("move there"))
+
+    assert text == "moved"
+    assert user_sensing.calls == [2.0, 2.0]
+
+
+@pytest.mark.asyncio
+async def test_repair_path_refreshes_user_sensing_before_retry_model_call() -> None:
+    user_sensing = FakeUserSensingBridge()
+    fixture = make_graph(
+        [ai_text("I will move there now."), ai_text("")],
+        user_sensing_bridge=user_sensing,
+    )
+
+    text = await fixture.graph.run_turn(turn("move there"))
+
+    assert text == "Where would you like me to move?"
+    assert user_sensing.calls == [2.0, 2.0]
 
 
 @pytest.mark.asyncio

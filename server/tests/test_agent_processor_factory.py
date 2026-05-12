@@ -12,12 +12,23 @@ class FakeChatModel:
 
 
 class FakeLangChainAgentProcessor(FrameProcessor):
-    def __init__(self, mcp_server_url, *, chat_model, model_label, tracer):
+    def __init__(
+        self,
+        mcp_server_url,
+        *,
+        chat_model,
+        model_label,
+        tracer,
+        mcp_vizor_url=None,
+        user_sensing_max_age_s=2.0,
+    ):
         super().__init__()
         self.mcp_server_url = mcp_server_url
         self.chat_model = chat_model
         self.model_label = model_label
         self.tracer = tracer
+        self.mcp_vizor_url = mcp_vizor_url
+        self.user_sensing_max_age_s = user_sensing_max_age_s
 
 
 class FakeAgentTurnProcessor(FrameProcessor):
@@ -115,6 +126,27 @@ def test_passes_tracer_to_backend_and_agent_turn_processor(monkeypatch):
     assert processor.tracer is tracer
     assert isinstance(processor._backend, FakeLangChainAgentProcessor)
     assert processor._backend.tracer is tracer
+
+
+def test_passes_vizor_mcp_options_to_langchain_backend(monkeypatch):
+    _patch_factory_dependencies(monkeypatch)
+
+    processor = create_agent_processor(
+        AgentConfig(
+            provider="openai_api",
+            model="gpt-5.4-mini",
+            reasoning_effort="low",
+            api_key_env="OPENAI_API_KEY",
+        ),
+        mcp_server_url="http://127.0.0.1:8765/mcp",
+        mcp_vizor_url="http://127.0.0.1:8001/mcp",
+        user_sensing_max_age_s=3.5,
+    )
+
+    assert isinstance(processor, FakeAgentTurnProcessor)
+    assert isinstance(processor._backend, FakeLangChainAgentProcessor)
+    assert processor._backend.mcp_vizor_url == "http://127.0.0.1:8001/mcp"
+    assert processor._backend.user_sensing_max_age_s == 3.5
 
 
 def test_factory_real_processors_accept_tracer(monkeypatch):

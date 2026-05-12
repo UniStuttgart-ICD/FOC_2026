@@ -18,6 +18,8 @@ def create_agent_processor(
     config: AgentProfile,
     *,
     mcp_server_url: str,
+    mcp_vizor_url: str | None = None,
+    user_sensing_max_age_s: float = 2.0,
     tracer: ProcessTracerLike | None = None,
     on_turn_started: Callable[[], None] | None = None,
     on_turn_finished: Callable[[], None] | None = None,
@@ -27,6 +29,8 @@ def create_agent_processor(
             mcp_server_url,
             chat_model=build_agent_chat_model(config),
             model_label=config.model,
+            mcp_vizor_url=mcp_vizor_url,
+            user_sensing_max_age_s=user_sensing_max_age_s,
             tracer=tracer,
         )
     else:
