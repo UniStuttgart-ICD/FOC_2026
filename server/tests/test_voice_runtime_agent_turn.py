@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Mapping
 from typing import Any, cast
 
@@ -48,6 +49,18 @@ class EchoBackend:
             raise RuntimeError("boom")
         for chunk in self.chunks:
             yield chunk
+
+
+class NotifyingBackend(EchoBackend):
+    def __init__(self) -> None:
+        super().__init__()
+        self.notifications_started = asyncio.Event()
+        self.notification_queue: asyncio.Queue[str] = asyncio.Queue()
+
+    async def notifications(self) -> AsyncIterator[str]:
+        self.notifications_started.set()
+        while True:
+            yield await self.notification_queue.get()
 
 
 class CapturingProcessor(AgentTurnProcessor):
@@ -170,6 +183,27 @@ async def test_agent_turn_wraps_backend_output_in_llm_frames() -> None:
     assert processor.pushed[1].text == "echo: move up"
     assert [turn.user_text for turn in backend.turns] == ["move up"]
     assert backend.turns[0].messages == [{"role": "user", "content": "move up"}]
+
+
+@pytest.mark.asyncio
+async def test_agent_turn_pumps_backend_notifications_after_connect() -> None:
+    backend = NotifyingBackend()
+    processor = CapturingProcessor(backend)
+
+    await processor.connect()
+    await asyncio.wait_for(backend.notifications_started.wait(), timeout=1)
+    await backend.notification_queue.put("position reached")
+    await asyncio.wait_for(_wait_for_pushed_frames(processor, 3), timeout=1)
+
+    assert [type(frame) for frame in processor.pushed] == [
+        LLMFullResponseStartFrame,
+        LLMTextFrame,
+        LLMFullResponseEndFrame,
+    ]
+    assert isinstance(processor.pushed[1], LLMTextFrame)
+    assert processor.pushed[1].text == "position reached"
+
+    await processor.disconnect()
 
 
 @pytest.mark.asyncio
@@ -379,3 +413,8 @@ async def test_agent_turn_disconnects_backend_on_end() -> None:
     assert backend.connected is True
     assert backend.disconnected is True
     assert isinstance(processor.pushed[0], EndFrame)
+
+
+async def _wait_for_pushed_frames(processor: CapturingProcessor, count: int) -> None:
+    while len(processor.pushed) < count:
+        await asyncio.sleep(0)

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from collections.abc import AsyncIterator, Callable, Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
@@ -104,11 +106,20 @@ class AgentTurnProcessor(FrameProcessor):
         self._on_turn_started = on_turn_started
         self._on_turn_finished = on_turn_finished
         self._last_agent_turn_id: str | None = None
+        self._notification_task: asyncio.Task[None] | None = None
 
     async def connect(self) -> None:
         await self._backend.connect()
+        notifications = getattr(self._backend, "notifications", None)
+        if callable(notifications):
+            self._notification_task = asyncio.create_task(self._pump_notifications(notifications))
 
     async def disconnect(self) -> None:
+        if self._notification_task is not None:
+            self._notification_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._notification_task
+            self._notification_task = None
         await self._backend.disconnect()
 
     async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
@@ -190,6 +201,17 @@ class AgentTurnProcessor(FrameProcessor):
             return NO_TEXT_RESPONSE
 
         return "".join(response_parts)
+
+    async def _pump_notifications(self, notifications: Callable[[], AsyncIterator[str]]) -> None:
+        try:
+            async for text in notifications():
+                await self.push_frame(LLMFullResponseStartFrame())
+                await self.push_frame(LLMTextFrame(text=text))
+                await self.push_frame(LLMFullResponseEndFrame())
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Agent backend notification pump failed")
 
 
 def _message_text(msg: Mapping[str, Any]) -> str | None:
