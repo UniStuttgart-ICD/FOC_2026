@@ -1,0 +1,1081 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Robot Task Ledger Blackboard</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23101311'/%3E%3Crect x='10' y='10' width='18' height='18' fill='%23e4d5bc'/%3E%3Crect x='36' y='10' width='18' height='18' fill='%237bb8d8'/%3E%3Crect x='10' y='36' width='18' height='18' fill='%23f3b34f'/%3E%3Crect x='36' y='36' width='18' height='18' fill='%2375c797'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101311;
+      --ink: #f3eee1;
+      --muted: #b9b2a2;
+      --quiet: #807a70;
+      --panel: #191d1a;
+      --panel-2: #20251f;
+      --line: rgba(243, 238, 225, 0.16);
+      --line-strong: rgba(243, 238, 225, 0.34);
+      --blue: #7bb8d8;
+      --blue-soft: rgba(123, 184, 216, 0.14);
+      --amber: #f3b34f;
+      --amber-soft: rgba(243, 179, 79, 0.15);
+      --green: #75c797;
+      --green-soft: rgba(117, 199, 151, 0.13);
+      --red: #e36c58;
+      --red-soft: rgba(227, 108, 88, 0.14);
+      --paper: #e4d5bc;
+      --shadow: rgba(0, 0, 0, 0.34);
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(123, 184, 216, 0.08), transparent 28%, rgba(243, 179, 79, 0.08) 70%, transparent),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 72px),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 72px),
+        var(--bg);
+      font-family: "Bahnschrift", "Aptos", "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      line-height: 1.45;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 64px;
+      padding: 12px clamp(16px, 4vw, 52px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(16, 19, 17, 0.9);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      font-weight: 700;
+    }
+
+    .brand-mark {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px;
+      padding: 4px;
+      border: 1px solid var(--line-strong);
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .brand-mark span {
+      display: block;
+      background: var(--paper);
+    }
+
+    .brand-mark span:nth-child(2) {
+      background: var(--blue);
+    }
+
+    .brand-mark span:nth-child(3) {
+      background: var(--amber);
+    }
+
+    .brand-mark span:nth-child(4) {
+      background: var(--green);
+    }
+
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .nav a {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 7px 9px;
+      border: 1px solid transparent;
+    }
+
+    .nav a:hover {
+      color: var(--ink);
+      border-color: var(--line);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(300px, 0.95fr) minmax(520px, 1.25fr);
+      gap: clamp(24px, 4vw, 56px);
+      min-height: calc(100vh - 64px);
+      padding: clamp(34px, 6vw, 80px) clamp(16px, 4vw, 52px) 38px;
+      align-items: center;
+    }
+
+    .eyebrow {
+      width: fit-content;
+      max-width: 100%;
+      color: var(--paper);
+      background: var(--amber-soft);
+      border-left: 4px solid var(--amber);
+      padding: 5px 8px;
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.86rem;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      font-family: "Cambria", "Georgia", serif;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 760px;
+      margin-top: 18px;
+      font-size: clamp(3rem, 8vw, 7.6rem);
+      line-height: 0.88;
+    }
+
+    .lead {
+      max-width: 720px;
+      margin: 20px 0 0;
+      color: var(--muted);
+      font-size: clamp(1.05rem, 1.7vw, 1.3rem);
+    }
+
+    .thesis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      margin-top: 30px;
+      max-width: 760px;
+      border: 1px solid var(--line);
+      background: var(--line);
+    }
+
+    .thesis-item {
+      min-height: 126px;
+      padding: 16px;
+      background: rgba(25, 29, 26, 0.9);
+    }
+
+    .thesis-item strong {
+      display: block;
+      color: var(--paper);
+      margin-bottom: 8px;
+    }
+
+    .thesis-item span {
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    .diagram-card {
+      position: relative;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+        var(--panel);
+      box-shadow: 0 22px 80px var(--shadow);
+      overflow: hidden;
+    }
+
+    .diagram-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      min-height: 56px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.18);
+    }
+
+    .diagram-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+    }
+
+    .pulse {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 7px rgba(117, 199, 151, 0.11), 0 0 22px rgba(117, 199, 151, 0.44);
+    }
+
+    .mode-tag {
+      color: var(--muted);
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.82rem;
+    }
+
+    .layer-map {
+      display: grid;
+      gap: 14px;
+      padding: 18px;
+    }
+
+    .layer {
+      position: relative;
+      display: grid;
+      grid-template-columns: 124px minmax(0, 1fr);
+      min-height: 104px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .layer-label {
+      display: grid;
+      align-content: center;
+      gap: 6px;
+      padding: 14px;
+      border-right: 1px solid var(--line);
+      color: var(--paper);
+      background: rgba(0, 0, 0, 0.18);
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.82rem;
+    }
+
+    .layer-label span {
+      color: var(--quiet);
+      font-family: "Bahnschrift", "Aptos", "Segoe UI", sans-serif;
+      font-size: 0.86rem;
+    }
+
+    .layer-body {
+      display: grid;
+      gap: 10px;
+      align-content: center;
+      padding: 14px;
+    }
+
+    .turns {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .ticket,
+    .job,
+    .event-cell,
+    .coordinator-node {
+      position: relative;
+      min-width: 0;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      padding: 12px;
+      overflow: hidden;
+    }
+
+    .ticket::before,
+    .job::before,
+    .event-cell::before,
+    .coordinator-node::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 5px;
+      background: var(--accent);
+    }
+
+    .ticket b,
+    .job b,
+    .event-cell b,
+    .coordinator-node b {
+      display: block;
+      color: var(--paper);
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.88rem;
+      overflow-wrap: anywhere;
+    }
+
+    .ticket span,
+    .job span,
+    .event-cell span,
+    .coordinator-node span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .task-lanes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .lane {
+      position: relative;
+      display: grid;
+      gap: 10px;
+      min-height: 176px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.18);
+    }
+
+    .lane-name {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--paper);
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.86rem;
+    }
+
+    .status {
+      width: fit-content;
+      max-width: 100%;
+      padding: 3px 7px;
+      color: #101311;
+      background: var(--status-bg);
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.74rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .job-grid,
+    .event-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .flow-lines {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.44;
+      background:
+        linear-gradient(90deg, transparent 0 12%, var(--line-strong) 12% calc(12% + 1px), transparent calc(12% + 1px)),
+        linear-gradient(90deg, transparent 0 50%, var(--line-strong) 50% calc(50% + 1px), transparent calc(50% + 1px)),
+        linear-gradient(90deg, transparent 0 88%, var(--line-strong) 88% calc(88% + 1px), transparent calc(88% + 1px));
+    }
+
+    .band {
+      padding: clamp(36px, 5vw, 74px) clamp(16px, 4vw, 52px);
+      border-top: 1px solid var(--line);
+    }
+
+    .band-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 22px;
+      margin-bottom: 22px;
+    }
+
+    h2 {
+      font-size: clamp(2rem, 4vw, 4.2rem);
+      line-height: 0.95;
+    }
+
+    .band-head p {
+      max-width: 600px;
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .scenario-shell {
+      display: grid;
+      grid-template-columns: 310px minmax(0, 1fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .scenario-tabs {
+      display: grid;
+      gap: 10px;
+    }
+
+    .scenario-tabs button {
+      min-height: 92px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: rgba(25, 29, 26, 0.8);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .scenario-tabs button[aria-pressed="true"] {
+      color: var(--ink);
+      border-color: var(--paper);
+      background: linear-gradient(90deg, rgba(228, 213, 188, 0.12), rgba(255, 255, 255, 0.02));
+    }
+
+    .scenario-tabs strong {
+      display: block;
+      color: var(--paper);
+      margin-bottom: 5px;
+    }
+
+    .scenario-stage {
+      min-height: 430px;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(135deg, rgba(123, 184, 216, 0.09), transparent 44%),
+        rgba(25, 29, 26, 0.92);
+      overflow: hidden;
+    }
+
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 220px minmax(0, 1fr);
+      gap: 1px;
+      min-height: 430px;
+      background: var(--line);
+    }
+
+    .scenario-panel {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+      padding: 18px;
+      background: var(--panel);
+    }
+
+    .scenario-panel h3 {
+      font-size: 1.55rem;
+      line-height: 1.05;
+    }
+
+    .scenario-panel p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .switch-yard {
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      gap: 14px;
+      padding: 16px;
+      background:
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 12px),
+        #141814;
+    }
+
+    .decision {
+      width: 150px;
+      aspect-ratio: 1;
+      display: grid;
+      place-items: center;
+      rotate: 45deg;
+      border: 1px solid var(--paper);
+      background: rgba(228, 213, 188, 0.12);
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
+    }
+
+    .decision span {
+      rotate: -45deg;
+      display: block;
+      max-width: 110px;
+      color: var(--paper);
+      text-align: center;
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.83rem;
+      font-weight: 700;
+    }
+
+    .rule-stack {
+      display: grid;
+      gap: 9px;
+      width: 100%;
+    }
+
+    .rule {
+      border: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.2);
+      padding: 9px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .artifact-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      border: 1px solid var(--line);
+      background: var(--line);
+    }
+
+    .artifact {
+      min-height: 250px;
+      padding: 18px;
+      background: var(--panel);
+    }
+
+    .artifact h3 {
+      font-size: 1.6rem;
+      line-height: 1.05;
+      margin-bottom: 12px;
+    }
+
+    .artifact p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .mini-code {
+      display: grid;
+      gap: 6px;
+      margin-top: 16px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.22);
+      color: var(--paper);
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.84rem;
+      overflow-x: auto;
+    }
+
+    .event-strip {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 1px;
+      border: 1px solid var(--line);
+      background: var(--line);
+    }
+
+    .strip-cell {
+      min-height: 150px;
+      padding: 14px;
+      background: var(--panel);
+    }
+
+    .strip-cell b {
+      display: block;
+      color: var(--paper);
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.8rem;
+      margin-bottom: 10px;
+    }
+
+    .strip-cell span {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .footer {
+      padding: 24px clamp(16px, 4vw, 52px) 34px;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+    }
+
+    .accent-blue {
+      --accent: var(--blue);
+    }
+
+    .accent-amber {
+      --accent: var(--amber);
+    }
+
+    .accent-green {
+      --accent: var(--green);
+    }
+
+    .accent-red {
+      --accent: var(--red);
+    }
+
+    .queued {
+      --status-bg: var(--amber);
+    }
+
+    .running {
+      --status-bg: var(--blue);
+    }
+
+    .failed {
+      --status-bg: var(--red);
+    }
+
+    .done {
+      --status-bg: var(--green);
+    }
+
+    .blocked {
+      --status-bg: var(--paper);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .pulse {
+        animation: breathe 1.8s ease-in-out infinite alternate;
+      }
+
+      .ticket,
+      .job,
+      .event-cell,
+      .coordinator-node,
+      .artifact,
+      .strip-cell {
+        transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+      }
+
+      .ticket:hover,
+      .job:hover,
+      .event-cell:hover,
+      .coordinator-node:hover,
+      .artifact:hover,
+      .strip-cell:hover {
+        transform: translateY(-2px);
+        border-color: var(--line-strong);
+        background: #242922;
+      }
+
+      @keyframes breathe {
+        from {
+          transform: scale(0.86);
+        }
+        to {
+          transform: scale(1.08);
+        }
+      }
+    }
+
+    @media (max-width: 1080px) {
+      .hero,
+      .scenario-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .diagram-card {
+        min-width: 0;
+      }
+
+      .artifact-grid,
+      .event-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .topbar,
+      .band-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .hero {
+        min-height: auto;
+      }
+
+      .thesis,
+      .turns,
+      .task-lanes,
+      .job-grid,
+      .event-grid,
+      .scenario-grid,
+      .artifact-grid,
+      .event-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .layer {
+        grid-template-columns: 1fr;
+      }
+
+      .layer-label {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .decision {
+        width: 124px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+      <span>Robot Task Ledger Blackboard</span>
+    </div>
+    <nav class="nav" aria-label="Sections">
+      <a href="#model">Model</a>
+      <a href="#scenarios">Scenarios</a>
+      <a href="#implementation">Implementation</a>
+      <a href="#events">Events</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" id="model">
+      <div>
+        <div class="eyebrow">turn_id -> task_id -> job_id</div>
+        <h1>Make the blackboard remember intent, not just execution.</h1>
+        <p class="lead">
+          The current job board can track many queued MoveIt calls. The missing layer is a task ledger above it, so background recovery, new user commands, retries, and cancellations all attach to the right user intent.
+        </p>
+        <div class="thesis" aria-label="Main design claims">
+          <div class="thesis-item">
+            <strong>Jobs are tool executions.</strong>
+            <span>One MoveIt call, one result, one terminal event.</span>
+          </div>
+          <div class="thesis-item">
+            <strong>Tasks are user intent.</strong>
+            <span>One command may produce several jobs and recovery turns.</span>
+          </div>
+          <div class="thesis-item">
+            <strong>The coordinator owns concurrency.</strong>
+            <span>The LLM acts only inside a selected task context.</span>
+          </div>
+        </div>
+      </div>
+
+      <section class="diagram-card" aria-label="Task ledger architecture diagram">
+        <div class="diagram-head">
+          <div class="diagram-title"><span class="pulse" aria-hidden="true"></span><span>Concurrent command map</span></div>
+          <span class="mode-tag">blackboard + task ledger</span>
+        </div>
+        <div class="layer-map">
+          <div class="layer">
+            <div class="layer-label">VOICE<span>incoming turns</span></div>
+            <div class="layer-body">
+              <div class="turns">
+                <div class="ticket accent-red"><b>turn-42</b><span>"touch z equals zero"</span></div>
+                <div class="ticket accent-blue"><b>turn-43</b><span>"what is your pose?"</span></div>
+                <div class="ticket accent-amber"><b>turn-44</b><span>"try 5 cm higher"</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="layer">
+            <div class="layer-label">COORD<span>routing rules</span></div>
+            <div class="layer-body">
+              <div class="turns">
+                <div class="coordinator-node accent-red"><b>failure event</b><span>Do not speak over newer user intent.</span></div>
+                <div class="coordinator-node accent-blue"><b>independent</b><span>Run immediately. It does not touch the robot queue.</span></div>
+                <div class="coordinator-node accent-amber"><b>continuation</b><span>Attach as child task or retry plan.</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="layer">
+            <div class="layer-label">TASKS<span>intent ledger</span></div>
+            <div class="layer-body">
+              <div class="task-lanes">
+                <div class="lane">
+                  <div class="lane-name"><span>task-a</span><span class="status failed">recovering</span></div>
+                  <div class="ticket accent-red"><b>parent</b><span>Ground touch failed in MoveIt.</span></div>
+                  <div class="ticket accent-red"><b>latest_error</b><span>0 trajectory points.</span></div>
+                </div>
+                <div class="lane">
+                  <div class="lane-name"><span>task-b</span><span class="status done">completed</span></div>
+                  <div class="ticket accent-blue"><b>query</b><span>Pose/status request, no actuator conflict.</span></div>
+                  <div class="ticket accent-blue"><b>answer</b><span>Return observation while task-a waits.</span></div>
+                </div>
+                <div class="lane">
+                  <div class="lane-name"><span>task-c</span><span class="status queued">child</span></div>
+                  <div class="ticket accent-amber"><b>parent_task</b><span>task-a</span></div>
+                  <div class="ticket accent-amber"><b>supersedes</b><span>task-a recovery proposal.</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="layer">
+            <div class="layer-label">JOBS<span>tool queue</span></div>
+            <div class="layer-body">
+              <div class="job-grid">
+                <div class="job accent-red"><b>job-91</b><span>MoveIt z=0: failed.</span></div>
+                <div class="job accent-blue"><b>no job</b><span>Read-only answer path.</span></div>
+                <div class="job accent-amber"><b>job-92</b><span>MoveIt z=0.05: queued.</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="layer">
+            <div class="layer-label">EVENTS<span>append-only</span></div>
+            <div class="layer-body">
+              <div class="event-grid">
+                <div class="event-cell accent-red"><b>job_failed</b><span>Attached to task-a.</span></div>
+                <div class="event-cell accent-blue"><b>task_completed</b><span>Attached to task-b.</span></div>
+                <div class="event-cell accent-amber"><b>job_queued</b><span>Attached to task-c.</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section class="band" id="scenarios">
+      <div class="band-head">
+        <h2>Coordinator Decisions</h2>
+        <p>The same failed background job is handled differently depending on what the user says next. That routing should be deterministic before the LLM is called.</p>
+      </div>
+      <div class="scenario-shell">
+        <div class="scenario-tabs" role="group" aria-label="Scenario selector">
+          <button type="button" data-scenario="independent" aria-pressed="true">
+            <strong>Independent command</strong>
+            Pose/status/query can run while recovery waits.
+          </button>
+          <button type="button" data-scenario="continuation" aria-pressed="false">
+            <strong>Continuation</strong>
+            "Try higher" becomes a child of the failed task.
+          </button>
+          <button type="button" data-scenario="conflict" aria-pressed="false">
+            <strong>Conflicting action</strong>
+            Competing robot motion is queued, cancelled, or supersedes.
+          </button>
+          <button type="button" data-scenario="cancel" aria-pressed="false">
+            <strong>Cancellation</strong>
+            "Stop" closes the task and suppresses recovery speech.
+          </button>
+        </div>
+        <div class="scenario-stage" aria-live="polite">
+          <div class="scenario-grid">
+            <div class="scenario-panel">
+              <h3 id="scenarioTitle">Independent command</h3>
+              <p id="scenarioInput">Task A fails in the background. User asks, "what is your pose?"</p>
+              <div class="mini-code" id="scenarioLeft">
+                <span>task-a.status = recovering</span>
+                <span>task-b.kind = observation</span>
+                <span>actuator_conflict = false</span>
+              </div>
+            </div>
+            <div class="switch-yard">
+              <div class="decision"><span id="scenarioDecision">route without blocking</span></div>
+              <div class="rule-stack" id="scenarioRules">
+                <div class="rule">Keep failed task context intact.</div>
+                <div class="rule">Run the independent turn now.</div>
+                <div class="rule">Resume recovery later if still relevant.</div>
+              </div>
+            </div>
+            <div class="scenario-panel">
+              <h3>Result</h3>
+              <p id="scenarioResult">The user gets the pose answer. The old failure stays attached to task-a and does not hijack the visible conversation.</p>
+              <div class="mini-code" id="scenarioRight">
+                <span>task-b.status = completed</span>
+                <span>task-a.recovery_deferred = true</span>
+                <span>speak(task-b.answer)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="implementation">
+      <div class="band-head">
+        <h2>Code Shape</h2>
+        <p>Keep the current job board deterministic. Add task ownership above it and route failed jobs through a coordinator instead of directly into a recovery graph turn.</p>
+      </div>
+      <div class="artifact-grid">
+        <article class="artifact">
+          <h3>RobotTaskBoard</h3>
+          <p>Stores user-level intent, task status, parent/supersedes links, and which jobs belong to each task.</p>
+          <div class="mini-code">
+            <span>task_id</span>
+            <span>requested_by_turn_id</span>
+            <span>jobs: list[str]</span>
+            <span>status: recovering | blocked | done</span>
+          </div>
+        </article>
+        <article class="artifact">
+          <h3>RobotJobBoard</h3>
+          <p>Still owns exact MoveIt calls. The worker must not repair, reinterpret, or merge commands.</p>
+          <div class="mini-code">
+            <span>job_id</span>
+            <span>task_id</span>
+            <span>tool_name</span>
+            <span>arguments</span>
+          </div>
+        </article>
+        <article class="artifact">
+          <h3>TaskCoordinator</h3>
+          <p>Classifies new turns against active tasks before deciding whether to run, attach, queue, cancel, or recover.</p>
+          <div class="mini-code">
+            <span>classify_turn(...)</span>
+            <span>route_event(...)</span>
+            <span>select_task_context(...)</span>
+          </div>
+        </article>
+        <article class="artifact">
+          <h3>Recovery Turn</h3>
+          <p>Runs only when selected by the coordinator and includes explicit task context, not just a plain user-looking prompt.</p>
+          <div class="mini-code">
+            <span>source = "task_recovery"</span>
+            <span>task_id = "task-a"</span>
+            <span>job_id = "job-91"</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="band" id="events">
+      <div class="band-head">
+        <h2>Event Grammar</h2>
+        <p>This is the minimum event vocabulary I would want before letting multiple commands and background recovery run at the same time.</p>
+      </div>
+      <div class="event-strip">
+        <div class="strip-cell"><b>task_created</b><span>A user turn becomes a tracked intent.</span></div>
+        <div class="strip-cell"><b>job_queued</b><span>A MoveIt tool call is attached to one task.</span></div>
+        <div class="strip-cell"><b>job_failed</b><span>The failure payload stays on the job and task.</span></div>
+        <div class="strip-cell"><b>recovery_requested</b><span>The coordinator, not the worker, asks for recovery.</span></div>
+        <div class="strip-cell"><b>task_superseded</b><span>A newer command replaces older recovery.</span></div>
+        <div class="strip-cell"><b>task_cancelled</b><span>Stop/forget commands suppress stale follow-up.</span></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    Static visualization for the Pipecat robot agent. Design target: keep MoveIt jobs deterministic, make user intent first-class, and let a coordinator arbitrate concurrent turns before any recovery LLM call.
+  </footer>
+
+  <script>
+    const scenarios = {
+      independent: {
+        title: "Independent command",
+        input: 'Task A fails in the background. User asks, "what is your pose?"',
+        decision: "route without blocking",
+        rules: [
+          "Keep failed task context intact.",
+          "Run the independent turn now.",
+          "Resume recovery later if still relevant."
+        ],
+        left: [
+          "task-a.status = recovering",
+          "task-b.kind = observation",
+          "actuator_conflict = false"
+        ],
+        result: "The user gets the pose answer. The old failure stays attached to task-a and does not hijack the visible conversation.",
+        right: [
+          "task-b.status = completed",
+          "task-a.recovery_deferred = true",
+          "speak(task-b.answer)"
+        ]
+      },
+      continuation: {
+        title: "Continuation",
+        input: 'Task A fails at z=0. User says, "try 5 cm higher."',
+        decision: "attach as child",
+        rules: [
+          "Treat the new turn as guidance for the failed task.",
+          "Suppress stale auto-recovery for the parent.",
+          "Queue a new job under the child task."
+        ],
+        left: [
+          "task-a.status = failed",
+          "task-c.parent_task_id = task-a",
+          "task-c.intent = safer retry"
+        ],
+        result: "The retry is tracked as its own task but remains explainable as a child of the original failed command.",
+        right: [
+          "task-a.status = superseded",
+          "task-c.status = queued",
+          "job-92.task_id = task-c"
+        ]
+      },
+      conflict: {
+        title: "Conflicting action",
+        input: 'Task A is still moving or recovering. User says, "move left now."',
+        decision: "serialize or supersede",
+        rules: [
+          "Only one physical actuator plan may own the worker lane.",
+          "Use phrasing and policy to choose queue vs supersede.",
+          "Never let two recovery turns submit competing MoveIt jobs."
+        ],
+        left: [
+          "active_motion_task = task-a",
+          "new_motion_task = task-d",
+          "actuator_conflict = true"
+        ],
+        result: "The coordinator makes the conflict visible: either task-d waits behind task-a, or task-a is cancelled/superseded first.",
+        right: [
+          "if override: cancel(task-a)",
+          "else: queue_after(task-d, task-a)",
+          "speak(conflict_status)"
+        ]
+      },
+      cancel: {
+        title: "Cancellation",
+        input: 'Task A fails and recovery is pending. User says, "stop" or "forget that."',
+        decision: "close task",
+        rules: [
+          "Mark the original task cancelled.",
+          "Do not run background recovery.",
+          "Acknowledge cancellation only if the user needs feedback."
+        ],
+        left: [
+          "task-a.status = recovering",
+          "new_turn.intent = cancel",
+          "recovery_pending = true"
+        ],
+        result: "The stale recovery answer is suppressed, so the agent does not offer to retry a command the user just cancelled.",
+        right: [
+          "task-a.status = cancelled",
+          "drop(task-a.recovery)",
+          "speak(cancel_ack)"
+        ]
+      }
+    };
+
+    const buttons = document.querySelectorAll("[data-scenario]");
+    const title = document.getElementById("scenarioTitle");
+    const input = document.getElementById("scenarioInput");
+    const decision = document.getElementById("scenarioDecision");
+    const rules = document.getElementById("scenarioRules");
+    const left = document.getElementById("scenarioLeft");
+    const result = document.getElementById("scenarioResult");
+    const right = document.getElementById("scenarioRight");
+
+    function lines(items) {
+      return items.map((item) => `<span>${item}</span>`).join("");
+    }
+
+    function ruleLines(items) {
+      return items.map((item) => `<div class="rule">${item}</div>`).join("");
+    }
+
+    function selectScenario(name) {
+      const scenario = scenarios[name];
+      title.textContent = scenario.title;
+      input.textContent = scenario.input;
+      decision.textContent = scenario.decision;
+      rules.innerHTML = ruleLines(scenario.rules);
+      left.innerHTML = lines(scenario.left);
+      result.textContent = scenario.result;
+      right.innerHTML = lines(scenario.right);
+      buttons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.scenario === name));
+      });
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => selectScenario(button.dataset.scenario));
+    });
+  </script>
+</body>
+</html>

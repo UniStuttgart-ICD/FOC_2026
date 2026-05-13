@@ -1,0 +1,1528 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Pipecat Agent Architecture Explorer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f6f0e3;
+      --paper-deep: #e8dcc3;
+      --ink: #1c2424;
+      --muted: #65706b;
+      --line: rgba(28, 36, 36, 0.18);
+      --rail: #202c2e;
+      --voice: #0f6f7a;
+      --agent: #93462d;
+      --robot: #286244;
+      --trace: #67518b;
+      --eval: #876018;
+      --sense: #5e6f2a;
+      --accent: #d8aa2e;
+      --alert: #c2482f;
+      --white: #fffaf0;
+      --shadow: 0 24px 60px rgba(42, 34, 18, 0.14);
+      --radius: 6px;
+      --pad: clamp(18px, 3vw, 34px);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: Aptos, Candara, "Segoe UI", sans-serif;
+      background:
+        linear-gradient(90deg, rgba(32, 44, 46, 0.055) 1px, transparent 1px) 0 0 / 34px 34px,
+        linear-gradient(180deg, rgba(32, 44, 46, 0.05) 1px, transparent 1px) 0 0 / 34px 34px,
+        radial-gradient(circle at 88% 8%, rgba(216, 170, 46, 0.18), transparent 28%),
+        var(--paper);
+      letter-spacing: 0;
+    }
+
+    a {
+      color: inherit;
+      text-decoration-color: rgba(28, 36, 36, 0.35);
+      text-underline-offset: 3px;
+    }
+
+    .shell {
+      width: min(1440px, 100%);
+      margin: 0 auto;
+    }
+
+    .masthead {
+      min-height: 92vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1.03fr) minmax(340px, 0.72fr);
+      align-items: stretch;
+      gap: clamp(20px, 3vw, 44px);
+      padding: clamp(24px, 4vw, 56px) var(--pad) 28px;
+    }
+
+    .masthead-copy {
+      align-self: center;
+      padding-top: 28px;
+    }
+
+    .eyebrow {
+      width: fit-content;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 18px;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--rail);
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 42px;
+      height: 2px;
+      background: var(--accent);
+      box-shadow: 18px 0 0 var(--robot);
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      font-family: Cambria, Georgia, serif;
+      font-weight: 700;
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 850px;
+      font-size: clamp(3.2rem, 8vw, 8.5rem);
+    }
+
+    h2 {
+      font-size: clamp(2rem, 4vw, 4.6rem);
+    }
+
+    h3 {
+      font-size: clamp(1.18rem, 1.8vw, 1.6rem);
+    }
+
+    p {
+      margin: 0;
+      line-height: 1.55;
+    }
+
+    .lede {
+      max-width: 760px;
+      margin-top: 22px;
+      color: #37413e;
+      font-size: clamp(1.05rem, 1.4vw, 1.35rem);
+    }
+
+    .source-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 28px;
+    }
+
+    .source-link,
+    .jump-link {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 13px;
+      border: 1px solid var(--ink);
+      border-radius: var(--radius);
+      background: var(--white);
+      font-weight: 800;
+      box-shadow: 5px 5px 0 var(--ink);
+    }
+
+    .source-link:hover,
+    .jump-link:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 7px 7px 0 var(--ink);
+    }
+
+    .atlas-board {
+      align-self: stretch;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: 620px;
+      border: 2px solid var(--ink);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(135deg, rgba(255, 250, 240, 0.94), rgba(232, 220, 195, 0.88)),
+        repeating-linear-gradient(0deg, transparent 0 23px, rgba(28, 36, 36, 0.07) 23px 24px);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .board-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px;
+      border-bottom: 2px solid var(--ink);
+      background: rgba(255, 250, 240, 0.82);
+      font-size: 0.8rem;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .board-grid {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      padding: 18px;
+    }
+
+    .plane {
+      position: relative;
+      min-height: 230px;
+      padding: 18px;
+      border: 1px solid var(--ink);
+      border-radius: var(--radius);
+      background: rgba(255, 250, 240, 0.78);
+      overflow: hidden;
+    }
+
+    .plane::after {
+      content: "";
+      position: absolute;
+      inset: auto 14px 14px 14px;
+      height: 8px;
+      background: repeating-linear-gradient(90deg, currentColor 0 24px, transparent 24px 36px);
+      opacity: 0.28;
+    }
+
+    .plane.voice {
+      color: var(--voice);
+    }
+
+    .plane.control {
+      color: var(--robot);
+    }
+
+    .plane small {
+      display: block;
+      margin-bottom: 12px;
+      color: inherit;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .plane strong {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--ink);
+      font-family: Cambria, Georgia, serif;
+      font-size: clamp(1.5rem, 2.8vw, 2.4rem);
+      line-height: 1;
+    }
+
+    .plane p {
+      color: #39433f;
+      font-weight: 600;
+    }
+
+    .mini-map {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      align-items: end;
+      gap: 7px;
+      padding: 0 18px 18px;
+    }
+
+    .mini-map span {
+      min-height: 74px;
+      display: flex;
+      align-items: end;
+      justify-content: center;
+      padding: 8px;
+      border: 1px solid var(--ink);
+      border-radius: var(--radius);
+      background: var(--paper);
+      color: var(--ink);
+      font-size: 0.74rem;
+      font-weight: 900;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .mini-map span:nth-child(1) {
+      min-height: 132px;
+      background: rgba(15, 111, 122, 0.18);
+    }
+
+    .mini-map span:nth-child(2) {
+      min-height: 108px;
+      background: rgba(147, 70, 45, 0.18);
+    }
+
+    .mini-map span:nth-child(3) {
+      min-height: 122px;
+      background: rgba(40, 98, 68, 0.18);
+    }
+
+    .mini-map span:nth-child(4) {
+      min-height: 90px;
+      background: rgba(103, 81, 139, 0.18);
+    }
+
+    .mini-map span:nth-child(5) {
+      min-height: 80px;
+      background: rgba(135, 96, 24, 0.18);
+    }
+
+    .peek {
+      margin: 0 var(--pad);
+      padding: 0 0 22px;
+      color: var(--muted);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 0.78rem;
+    }
+
+    .sticky-tabs {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-top: 2px solid var(--ink);
+      border-bottom: 2px solid var(--ink);
+      background: rgba(246, 240, 227, 0.96);
+      backdrop-filter: blur(14px);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 1px;
+      overflow-x: auto;
+      max-width: 100%;
+      padding: 0 var(--pad);
+      scrollbar-width: thin;
+    }
+
+    .tab-button {
+      appearance: none;
+      min-height: 56px;
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 0 17px;
+      border: 0;
+      border-left: 1px solid var(--line);
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .tab-button::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      background: transparent;
+    }
+
+    .tab-button[aria-selected="true"] {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .tab-button[aria-selected="true"]::before {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .content {
+      padding: clamp(28px, 5vw, 70px) var(--pad) 80px;
+    }
+
+    .tab-panel {
+      display: none;
+      animation: showPanel 280ms ease both;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    @keyframes showPanel {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .module-header {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(280px, 0.52fr);
+      gap: clamp(22px, 4vw, 58px);
+      align-items: end;
+      margin-bottom: 28px;
+    }
+
+    .module-kicker {
+      margin-bottom: 12px;
+      color: var(--module-color, var(--rail));
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .module-summary {
+      margin-top: 18px;
+      max-width: 760px;
+      color: #3b4541;
+      font-size: clamp(1.02rem, 1.15vw, 1.22rem);
+      font-weight: 600;
+    }
+
+    .path-chip {
+      justify-self: end;
+      width: min(100%, 440px);
+      padding: 16px;
+      border: 1px solid var(--ink);
+      border-radius: var(--radius);
+      background: var(--white);
+      box-shadow: 8px 8px 0 var(--module-color, var(--rail));
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 0.9rem;
+      overflow-wrap: anywhere;
+    }
+
+    .overview-layout,
+    .module-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 0.32fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .overview-layout > *,
+    .module-layout > * {
+      min-width: 0;
+    }
+
+    .wide-flow,
+    .module-section,
+    .side-section,
+    .matrix {
+      border: 1px solid var(--ink);
+      border-radius: var(--radius);
+      background: rgba(255, 250, 240, 0.82);
+      box-shadow: 8px 8px 0 rgba(28, 36, 36, 0.08);
+    }
+
+    .wide-flow {
+      padding: clamp(18px, 3vw, 28px);
+    }
+
+    .rail-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .signal-flow,
+    .module-flow {
+      display: grid;
+      grid-template-columns: repeat(11, minmax(92px, 1fr));
+      gap: 10px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      padding-bottom: 8px;
+    }
+
+    .flow-node {
+      position: relative;
+      min-height: 126px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 12px;
+      border: 1px solid var(--ink);
+      border-radius: var(--radius);
+      background: var(--white);
+    }
+
+    .flow-node[data-tip] {
+      cursor: help;
+    }
+
+    .flow-node[data-tip]::before {
+      content: "?";
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 18px;
+      height: 18px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--ink);
+      border-radius: 50%;
+      background: var(--paper);
+      color: var(--module-color, var(--rail));
+      font-size: 0.72rem;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .flow-node[data-tip]:hover,
+    .flow-node[data-tip]:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--module-color, var(--rail)) 46%, transparent);
+      outline-offset: 2px;
+    }
+
+    .tooltip-popover {
+      position: fixed;
+      z-index: 50;
+      width: min(340px, calc(100vw - 28px));
+      padding: 13px 14px 14px;
+      border: 1px solid var(--ink);
+      border-radius: var(--radius);
+      background: var(--white);
+      box-shadow: 8px 8px 0 var(--ink);
+      color: var(--ink);
+      font-size: 0.92rem;
+      line-height: 1.42;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 120ms ease, transform 120ms ease;
+    }
+
+    .tooltip-popover.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .tooltip-popover strong {
+      display: block;
+      margin-bottom: 5px;
+      font-family: Cambria, Georgia, serif;
+      font-size: 1.05rem;
+      line-height: 1.1;
+    }
+
+    .flow-node::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -11px;
+      width: 10px;
+      height: 2px;
+      background: var(--ink);
+    }
+
+    .flow-node:last-child::after {
+      display: none;
+    }
+
+    .flow-node b {
+      font-size: 0.94rem;
+      line-height: 1.15;
+    }
+
+    .flow-node[data-tip] b {
+      padding-right: 22px;
+    }
+
+    .flow-node span {
+      color: var(--muted);
+      font-size: 0.74rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .node-voice {
+      border-top: 8px solid var(--voice);
+    }
+
+    .node-agent {
+      border-top: 8px solid var(--agent);
+    }
+
+    .node-robot {
+      border-top: 8px solid var(--robot);
+    }
+
+    .node-trace {
+      border-top: 8px solid var(--trace);
+    }
+
+    .node-eval {
+      border-top: 8px solid var(--eval);
+    }
+
+    .node-boundary {
+      border-top: 8px solid var(--sense);
+    }
+
+    .side-stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .side-section,
+    .module-section {
+      padding: 18px;
+    }
+
+    .side-section h3,
+    .module-section h3,
+    .matrix h3 {
+      margin-bottom: 12px;
+      font-size: 1.16rem;
+    }
+
+    .bullet-list,
+    .file-list {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .bullet-list li,
+    .file-list li {
+      position: relative;
+      padding-left: 18px;
+      color: #35403c;
+      line-height: 1.42;
+    }
+
+    .bullet-list li::before,
+    .file-list li::before {
+      content: "";
+      position: absolute;
+      top: 0.63em;
+      left: 0;
+      width: 8px;
+      height: 2px;
+      background: var(--module-color, var(--rail));
+    }
+
+    code {
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 0.92em;
+      background: rgba(28, 36, 36, 0.08);
+      padding: 0.08em 0.3em;
+      border-radius: 4px;
+    }
+
+    .module-flow {
+      grid-template-columns: repeat(var(--flow-count, 4), minmax(118px, 1fr));
+      margin-top: 14px;
+    }
+
+    .module-flow .flow-node {
+      min-height: 112px;
+      border-top: 8px solid var(--module-color, var(--rail));
+    }
+
+    .two-column {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .fact {
+      min-height: 100%;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-left: 8px solid var(--module-color, var(--rail));
+      border-radius: var(--radius);
+      background: rgba(255, 250, 240, 0.64);
+    }
+
+    .fact strong {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 900;
+    }
+
+    .fact p {
+      color: #3e4845;
+      font-size: 0.95rem;
+    }
+
+    .file-list li {
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 0.88rem;
+      overflow-wrap: anywhere;
+    }
+
+    .matrix {
+      margin-top: 22px;
+      padding: 18px;
+    }
+
+    .import-matrix {
+      display: grid;
+      grid-template-columns: minmax(110px, 0.9fr) repeat(4, minmax(90px, 1fr));
+      border: 1px solid var(--ink);
+      overflow-x: auto;
+    }
+
+    .import-matrix div {
+      min-height: 54px;
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      font-size: 0.88rem;
+      font-weight: 800;
+    }
+
+    .import-matrix div:nth-child(5n) {
+      border-right: 0;
+    }
+
+    .import-matrix .head {
+      background: var(--rail);
+      color: var(--paper);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 0.72rem;
+    }
+
+    .yes {
+      color: var(--robot);
+    }
+
+    .no {
+      color: var(--alert);
+    }
+
+    .limited {
+      color: var(--eval);
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.86rem;
+      font-weight: 700;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .legend i {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .boundary-map {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .boundary-tile {
+      min-height: 190px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px;
+      border: 1px solid var(--ink);
+      border-radius: var(--radius);
+      background: var(--white);
+    }
+
+    .boundary-tile b {
+      font-family: Cambria, Georgia, serif;
+      font-size: 1.35rem;
+      line-height: 1.05;
+    }
+
+    .boundary-tile p {
+      margin-top: 12px;
+      color: #39433f;
+    }
+
+    .tagline {
+      display: inline-flex;
+      width: fit-content;
+      margin-top: 14px;
+      padding: 5px 8px;
+      border: 1px solid var(--ink);
+      border-radius: var(--radius);
+      background: rgba(216, 170, 46, 0.24);
+      font-size: 0.72rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .footer-note {
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    @media (max-width: 1080px) {
+      .masthead,
+      .module-header,
+      .overview-layout,
+      .module-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .masthead {
+        min-height: auto;
+      }
+
+      .atlas-board {
+        min-height: 540px;
+      }
+
+      .path-chip {
+        justify-self: stretch;
+      }
+
+      .boundary-map {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 740px) {
+      :root {
+        --pad: 16px;
+      }
+
+      .masthead {
+        padding-top: 22px;
+      }
+
+      h1 {
+        font-size: clamp(3rem, 16vw, 5rem);
+      }
+
+      .board-grid,
+      .two-column {
+        grid-template-columns: 1fr;
+      }
+
+      .tabs {
+        padding: 0;
+      }
+
+      .tab-button {
+        min-height: 50px;
+        padding: 0 13px;
+      }
+
+      .signal-flow,
+      .module-flow {
+        grid-template-columns: repeat(var(--flow-count, 4), minmax(128px, 1fr));
+      }
+
+      .import-matrix {
+        grid-template-columns: minmax(116px, 1fr) repeat(4, minmax(104px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="masthead" id="top">
+      <section class="masthead-copy" aria-labelledby="page-title">
+        <p class="eyebrow">Architecture landing page</p>
+        <h1 id="page-title">Pipecat Voice Robot Agent</h1>
+        <p class="lede">A visual reading layer for <code>ARCHITECTURE.md</code>: how browser audio becomes a wake-gated Agent Turn, how LangGraph chooses robot tools, and where MoveIt remains the movement-safety boundary.</p>
+        <div class="source-row" aria-label="Source links">
+          <a class="source-link" href="../ARCHITECTURE.md">ARCHITECTURE.md</a>
+          <a class="source-link" href="../CONTEXT.md">CONTEXT.md</a>
+          <a class="jump-link" href="#module-tabs">Open module tabs</a>
+        </div>
+      </section>
+
+      <aside class="atlas-board" aria-label="Module atlas overview">
+        <div class="board-top">
+          <span>Module atlas</span>
+          <span>Target seams</span>
+        </div>
+        <div class="board-grid">
+          <div class="plane voice">
+            <small>Plane 01</small>
+            <strong>Voice Runtime</strong>
+            <p>Realtime audio transport, wake handling, STT, TTS, interruption, processor ordering, and voice metrics.</p>
+          </div>
+          <div class="plane control">
+            <small>Plane 02</small>
+            <strong>Agent and Robot Control</strong>
+            <p>Intent handling, LangGraph tool loops, task policy, validation, MoveIt tool execution, and robot context.</p>
+          </div>
+        </div>
+        <div class="mini-map" aria-label="Main module height map">
+          <span>Voice Runtime</span>
+          <span>Agent Control</span>
+          <span>Robot Control</span>
+          <span>Trace</span>
+          <span>Eval</span>
+        </div>
+      </aside>
+    </header>
+    <p class="peek">Scroll for the interactive module tabs</p>
+  </div>
+
+  <nav class="sticky-tabs" id="module-tabs" aria-label="Architecture tabs">
+    <div class="shell tabs" role="tablist">
+      <button class="tab-button" id="tab-overview" role="tab" type="button" aria-controls="panel-overview" aria-selected="true" data-tab="overview">Architecture</button>
+      <button class="tab-button" id="tab-voice" role="tab" type="button" aria-controls="panel-voice" aria-selected="false" data-tab="voice">Voice Runtime</button>
+      <button class="tab-button" id="tab-agent" role="tab" type="button" aria-controls="panel-agent" aria-selected="false" data-tab="agent">Agent Control</button>
+      <button class="tab-button" id="tab-robot" role="tab" type="button" aria-controls="panel-robot" aria-selected="false" data-tab="robot">Robot Control</button>
+      <button class="tab-button" id="tab-trace" role="tab" type="button" aria-controls="panel-trace" aria-selected="false" data-tab="trace">Process Trace</button>
+      <button class="tab-button" id="tab-eval" role="tab" type="button" aria-controls="panel-eval" aria-selected="false" data-tab="eval">Model Eval</button>
+      <button class="tab-button" id="tab-boundaries" role="tab" type="button" aria-controls="panel-boundaries" aria-selected="false" data-tab="boundaries">Boundaries</button>
+      <button class="tab-button" id="tab-wiring" role="tab" type="button" aria-controls="panel-wiring" aria-selected="false" data-tab="wiring">App Wiring</button>
+    </div>
+  </nav>
+
+  <main class="shell content">
+    <section class="tab-panel active" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" data-panel="overview">
+      <div class="module-header" style="--module-color: var(--rail);">
+        <div>
+          <p class="module-kicker">ARCHITECTURE.md as a map</p>
+          <h2>Spoken command to robot action</h2>
+          <p class="module-summary">The system has two readable planes. Voice Runtime owns realtime audio and the Agent Turn seam. Agent and Robot Control own model reasoning, robot policy, validation, and MoveIt execution.</p>
+        </div>
+        <div class="path-chip">Browser audio -&gt; Voice Runtime -&gt; Agent/Robot Control -&gt; MoveIt MCP -&gt; UR10 simulation -&gt; spoken response</div>
+      </div>
+
+      <div class="overview-layout">
+        <section class="wide-flow">
+          <div class="rail-title">
+            <span>Main signal rail</span>
+            <span>left to right</span>
+          </div>
+          <div class="signal-flow" style="--flow-count: 11;">
+            <div class="flow-node node-voice" tabindex="0" data-tip="The raw microphone stream coming from the browser session. Example: you say, 'Mave, move up a bit,' and the browser sends audio frames into Pipecat."><b>Browser audio</b><span>input</span></div>
+            <div class="flow-node node-voice" tabindex="0" data-tip="The audio runtime that handles wake detection, speech-to-text, text-to-speech, interruption, and processor order. Example: it strips 'Mave' before the agent sees the command."><b>Voice Runtime</b><span>wake, STT, TTS</span></div>
+            <div class="flow-node node-voice" tabindex="0" data-tip="The handoff point from the voice pipeline to the agent backend. Example: it packages the latest user text as one turn and waits for assistant text chunks back."><b>Agent Turn</b><span>runtime seam</span></div>
+            <div class="flow-node node-boundary" tabindex="0" data-tip="Optional read-only context about what the user may be looking at or pointing toward. Example: if the user says 'move there,' this may provide a recent gaze target, but it is not proof of intent."><b>User Sensing</b><span>advisory context</span></div>
+            <div class="flow-node node-agent" tabindex="0" data-tip="The LangGraph loop that asks the model what to do next, runs tools, then decides whether to continue. Example: observe current pose, plan a MoveIt path, execute the returned plan, then answer briefly."><b>Agent Orchestration</b><span>LangGraph loop</span></div>
+            <div class="flow-node node-robot" tabindex="0" data-tip="Simple deterministic checks before a robot tool runs. Example: block 'execute plan' if there is no recent successful plan name."><b>Task Policy</b><span>pre-tool checks</span></div>
+            <div class="flow-node node-robot" tabindex="0" data-tip="Local checks that a tool call is shaped correctly. Example: reject an unknown tool name, wrong robot_name, out-of-bounds target, or invalid timeout."><b>Call Validation</b><span>shape and bounds</span></div>
+            <div class="flow-node node-robot" tabindex="0" data-tip="The MCP boundary that exposes MoveIt workflows to the agent. Example: the adapter calls a planning tool and receives a plan_name that can later be executed."><b>MoveIt MCP</b><span>execution seam</span></div>
+            <div class="flow-node node-robot" tabindex="0" data-tip="The safe simulation target downstream of MoveIt. Example: a UR10 arm moves in the ROS/Vizor stack after MoveIt planning and execution accept the command."><b>UR10 simulation</b><span>safety boundary</span></div>
+            <div class="flow-node node-agent" tabindex="0" data-tip="The text result from the agent after any tool loop finishes or gets blocked. Example: 'I moved up a bit' or 'I need a fresh pose before moving.'"><b>Agent response</b><span>text result</span></div>
+            <div class="flow-node node-voice" tabindex="0" data-tip="The response text converted back into audio for the browser. Example: the TTS provider speaks the final answer after the agent turn completes."><b>Speech output</b><span>TTS to browser</span></div>
+          </div>
+        </section>
+
+        <aside class="side-stack">
+          <section class="side-section" style="--module-color: var(--accent);">
+            <h3>Read This First</h3>
+            <ul class="bullet-list">
+              <li>Voice Runtime does not know LangGraph, MCP, MoveIt, or robot policy internals.</li>
+              <li>Agent Control satisfies the Agent Turn backend seam and uses Robot Control.</li>
+              <li>Robot Control exposes structured robot tool feedback to Agent Control.</li>
+              <li>MoveIt planning and execution is the movement-safety boundary.</li>
+            </ul>
+          </section>
+          <section class="side-section" style="--module-color: var(--trace);">
+            <h3>Trace Overlay</h3>
+            <p>Process Trace observes all major spans across the voice, agent, and robot planes. It records what happened without owning runtime behavior.</p>
+          </section>
+        </aside>
+      </div>
+
+      <section class="matrix">
+        <h3>Import Direction Invariants</h3>
+        <div class="import-matrix" role="table" aria-label="Import rules">
+          <div class="head">From / To</div>
+          <div class="head">Voice Runtime</div>
+          <div class="head">Agent Control</div>
+          <div class="head">Robot Control</div>
+          <div class="head">Process Trace Core</div>
+          <div>pipeline_builder.py</div>
+          <div class="yes">may import</div>
+          <div class="yes">may import</div>
+          <div class="yes">may import</div>
+          <div class="yes">may import</div>
+          <div>voice_runtime</div>
+          <div class="yes">internal only</div>
+          <div class="no">must not import</div>
+          <div class="no">must not import</div>
+          <div class="limited">thin adapter only</div>
+          <div>agent_control</div>
+          <div class="limited">limited seams</div>
+          <div class="yes">internal only</div>
+          <div class="yes">may import</div>
+          <div class="limited">trace interface</div>
+          <div>robot_control</div>
+          <div class="no">must not import</div>
+          <div class="no">must not import</div>
+          <div class="yes">internal only</div>
+          <div class="limited">trace interface</div>
+          <div>process_trace core</div>
+          <div class="no">must not import</div>
+          <div class="no">must not import</div>
+          <div class="no">must not import</div>
+          <div class="yes">internal only</div>
+        </div>
+        <div class="legend">
+          <span class="yes"><i></i>Allowed</span>
+          <span class="limited"><i></i>Constrained seam</span>
+          <span class="no"><i></i>Forbidden</span>
+        </div>
+      </section>
+    </section>
+
+    <section class="tab-panel" id="panel-voice" role="tabpanel" aria-labelledby="tab-voice" data-panel="voice" style="--module-color: var(--voice);">
+      <div class="module-header">
+        <div>
+          <p class="module-kicker">Reusable audio runtime</p>
+          <h2>Voice Runtime</h2>
+          <p class="module-summary">Owns the realtime Pipecat-facing path: transport, wake command, STT, user aggregation, Agent Turn processor, TTS, interruption behavior, processor ordering, and voice timing.</p>
+        </div>
+        <div class="path-chip">server/voice_runtime/</div>
+      </div>
+      <div class="module-layout">
+        <section class="module-section">
+          <h3>Runtime Flow</h3>
+          <div class="module-flow" style="--flow-count: 8;">
+            <div class="flow-node" tabindex="0" data-tip="The first Pipecat processor that receives browser audio frames. Example: microphone audio arrives before wake detection or STT sees anything."><b>Transport input</b><span>browser audio</span></div>
+            <div class="flow-node" tabindex="0" data-tip="The gate that waits for the wake phrase before letting a command through. Example: 'Mave, move up a bit' opens the gate and strips the wake phrase."><b>Wake gate</b><span>Mave command</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Speech-to-text. Example: the audio after 'Mave' becomes the transcript 'move up a bit'."><b>STT</b><span>speech to text</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Builds the conversation context frame from the latest user text. Example: it turns the transcript into the user message the Agent Turn will read."><b>User aggregation</b><span>LLM context</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Runs exactly one backend turn and emits assistant text frames. Example: the voice pipeline does not see LangGraph internals, only the final text stream."><b>Agent Turn</b><span>backend seam</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Text-to-speech. Example: 'I moved up a bit' becomes audio bytes for the browser output."><b>TTS</b><span>speech render</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Sends rendered assistant audio back to the browser session. Example: the user hears the response through the WebRTC output."><b>Transport output</b><span>browser audio</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Records compact timing marks for the voice turn. Example: wake latency, STT latency, agent latency, and time to first TTS audio."><b>Voice Metrics</b><span>turn timing</span></div>
+          </div>
+          <div class="two-column">
+            <div class="fact">
+              <strong>Owns</strong>
+              <p>Realtime audio semantics, provider construction for STT/TTS, wake phrase stripping, pre-buffer replay, response coordination, and voice metrics.</p>
+            </div>
+            <div class="fact">
+              <strong>Does Not Own</strong>
+              <p>LangGraph loops, robot task policy, MoveIt calls, MCP tool execution, or robot-context mutation.</p>
+            </div>
+          </div>
+        </section>
+        <aside class="side-stack">
+          <section class="side-section">
+            <h3>Key Files</h3>
+            <ul class="file-list">
+              <li>voice_runtime/profiles.py</li>
+              <li>voice_runtime/providers.py</li>
+              <li>voice_runtime/wake_command.py</li>
+              <li>voice_runtime/agent_turn.py</li>
+              <li>voice_runtime/assembly.py</li>
+              <li>voice_runtime/voice_metrics.py</li>
+              <li>voice_runtime/response_coordination.py</li>
+            </ul>
+          </section>
+          <section class="side-section">
+            <h3>Boundary</h3>
+            <p><code>AgentBackend</code> connects Voice Runtime to Agent Control. Voice Runtime asks for one Agent Turn; it does not inspect the tool loop behind it.</p>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="panel-agent" role="tabpanel" aria-labelledby="tab-agent" data-panel="agent" style="--module-color: var(--agent);">
+      <div class="module-header">
+        <div>
+          <p class="module-kicker">API-key LangChain backend</p>
+          <h2>Agent Control</h2>
+          <p class="module-summary">Builds the native chat model, renders the robot agent prompt, runs the LangGraph orchestration loop, and returns assistant text through the Voice Runtime Agent Turn seam.</p>
+        </div>
+        <div class="path-chip">server/agent_control/</div>
+      </div>
+      <div class="module-layout">
+        <section class="module-section">
+          <h3>Tool Loop</h3>
+          <div class="module-flow" style="--flow-count: 6;">
+            <div class="flow-node" tabindex="0" data-tip="The typed input from Voice Runtime into Agent Control. Example: latest_user_text='move up a bit' plus any available turn metadata."><b>AgentTurnInput</b><span>from voice</span></div>
+            <div class="flow-node" tabindex="0" data-tip="This assembles the instructions the model sees before it answers. Example: for 'move up a bit,' it combines the robot contract, response style, current user-sensing summary, and tool rules so the model knows to observe pose, plan, execute only the returned plan, then answer briefly."><b>Prompt render</b><span>robot contract</span></div>
+            <div class="flow-node" tabindex="0" data-tip="The provider-backed LLM selected by the runtime profile. Example: Gemini receives the rendered prompt and may choose a MoveIt tool call instead of plain text."><b>Chat model</b><span>provider API</span></div>
+            <div class="flow-node" tabindex="0" data-tip="The state machine around the model and tools. Example: if validation says 'need current pose,' LangGraph feeds that correction back to the model and lets it try the right observation tool."><b>LangGraph</b><span>decide/retry</span></div>
+            <div class="flow-node" tabindex="0" data-tip="The seam that turns model tool calls into Robot Control execution. Example: a model call to plan a cartesian move becomes a validated MoveIt MCP request."><b>Robot adapter</b><span>tool calls</span></div>
+            <div class="flow-node" tabindex="0" data-tip="The final text Agent Control returns to Voice Runtime. Example: after a successful tool result, it may return 'Done, I moved up a bit.'"><b>Assistant text</b><span>back to TTS</span></div>
+          </div>
+          <div class="two-column">
+            <div class="fact">
+              <strong>Owns</strong>
+              <p>Provider-specific LangChain model construction, robot prompt composition, LangGraph orchestration, supported action fallbacks, and optional robot job submission.</p>
+            </div>
+            <div class="fact">
+              <strong>Depends On</strong>
+              <p>Robot Control for tool execution and structured feedback; Voice Runtime only through the Agent Turn, profiles, provider, and timing seams.</p>
+            </div>
+          </div>
+        </section>
+        <aside class="side-stack">
+          <section class="side-section">
+            <h3>Key Files</h3>
+            <ul class="file-list">
+              <li>agent_control/factory.py</li>
+              <li>agent_control/model_factory.py</li>
+              <li>agent_control/langchain_agent_processor.py</li>
+              <li>agent_control/langgraph_robot_agent.py</li>
+              <li>agent_control/prompts.py</li>
+              <li>agent_control/robot_job_submission.py</li>
+              <li>agent_control/prompt_parts/*.md</li>
+            </ul>
+          </section>
+          <section class="side-section">
+            <h3>Boundary</h3>
+            <p>Agent Control may choose robot tools, but it must route robot execution through Robot Control. It does not own Pipecat audio frames or pipeline ordering.</p>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="panel-robot" role="tabpanel" aria-labelledby="tab-robot" data-panel="robot" style="--module-color: var(--robot);">
+      <div class="module-header">
+        <div>
+          <p class="module-kicker">Robot-side control concerns</p>
+          <h2>Robot Control</h2>
+          <p class="module-summary">Owns the deterministic robot-side vocabulary: task policy, tool-call validation, context, MCP bridging, LangChain tool-message adaptation, job blackboard, and job worker.</p>
+        </div>
+        <div class="path-chip">server/robot_control/</div>
+      </div>
+      <div class="module-layout">
+        <section class="module-section">
+          <h3>Policy To Execution</h3>
+          <div class="module-flow" style="--flow-count: 7;">
+            <div class="flow-node" tabindex="0" data-tip="A tool request produced by the model. Example: call moveit_get_current_pose or request a cartesian plan with a pose target."><b>LangChain tool call</b><span>from agent</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Checks obvious ordering before tool validation. Example: block a motion plan when Robot Context has no fresh current pose."><b>Task Policy</b><span>preconditions</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Checks the concrete tool name and arguments. Example: make sure robot_name is UR10 and a pose contains finite x, y, z values."><b>Call Validation</b><span>tool shape</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Calls the host-side MoveIt MCP server. Example: send a validated plan request over MCP and serialize the returned tool result."><b>MCP Bridge</b><span>MoveIt tools</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Advisory memory of recent robot facts. Example: last current pose, last successful plan_name, gripper state, and last execution result."><b>Robot Context</b><span>advisory state</span></div>
+            <div class="flow-node" tabindex="0" data-tip="A typed board for long-running robot work. Example: Agent Control queues a robot job, and later events mark it started, completed, or failed."><b>Job Board</b><span>long actions</span></div>
+            <div class="flow-node" tabindex="0" data-tip="A deterministic executor for queued robot jobs. Example: it runs the exact submitted MoveIt tool call; it does not invent repairs or new tool calls."><b>Job Worker</b><span>deterministic run</span></div>
+          </div>
+          <div class="two-column">
+            <div class="fact">
+              <strong>Owns</strong>
+              <p>Allowed MoveIt tool names, UR10 argument checks, target bounds, executable plan names, task-policy feedback, and robot job lifecycle events.</p>
+            </div>
+            <div class="fact">
+              <strong>Does Not Claim</strong>
+              <p>Local validation is not movement safety. MoveIt planning/execution and the simulation stack are the movement-safety boundary.</p>
+            </div>
+          </div>
+        </section>
+        <aside class="side-stack">
+          <section class="side-section">
+            <h3>Key Files</h3>
+            <ul class="file-list">
+              <li>robot_control/task_policy.py</li>
+              <li>robot_control/call_validation.py</li>
+              <li>robot_control/mcp_bridge.py</li>
+              <li>robot_control/langchain_tools.py</li>
+              <li>robot_control/context.py</li>
+              <li>robot_control/job_board.py</li>
+              <li>robot_control/job_worker.py</li>
+            </ul>
+          </section>
+          <section class="side-section">
+            <h3>Task Policy V1</h3>
+            <ul class="bullet-list">
+              <li>Fresh pose before movement, planning, retries, or relative commands.</li>
+              <li>No blind <code>moveit_execute_plan</code>; use a recent executable plan.</li>
+              <li>Basic gripper and attach ordering before attaching objects.</li>
+            </ul>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="panel-trace" role="tabpanel" aria-labelledby="tab-trace" data-panel="trace" style="--module-color: var(--trace);">
+      <div class="module-header">
+        <div>
+          <p class="module-kicker">Cross-cutting observability</p>
+          <h2>Process Trace</h2>
+          <p class="module-summary">Records correlated spans and events across Voice Runtime, Agent Control, Robot Control, and MCP tool calls, then writes append-only JSONL without changing runtime behavior.</p>
+        </div>
+        <div class="path-chip">server/process_trace/</div>
+      </div>
+      <div class="module-layout">
+        <section class="module-section">
+          <h3>Trace Shape</h3>
+          <div class="module-flow" style="--flow-count: 6;">
+            <div class="flow-node" tabindex="0" data-tip="One running bot session. Example: all wake, model, robot, and TTS events from a single launch share a session id."><b>Trace Session</b><span>bot run</span></div>
+            <div class="flow-node" tabindex="0" data-tip="One spoken user command inside a session. Example: 'Mave, move up a bit' gets a turn id that links voice, agent, and robot spans."><b>Trace Turn</b><span>spoken command</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Timing for the audio path. Example: wake detected, speech captured, STT done, first TTS audio, TTS complete."><b>Voice spans</b><span>wake/STT/TTS</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Timing for model and graph work. Example: model-call span plus LangGraph node spans for each tool-loop step."><b>Agent spans</b><span>graph/model</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Timing for robot checks and execution boundaries. Example: task policy decision, call validation result, MCP tool call, and Robot Context update."><b>Robot spans</b><span>policy/MCP</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Append-only local trace output. Example: each span or event becomes one JSONL record under the session trace log."><b>JSONL writer</b><span>local evidence</span></div>
+          </div>
+          <div class="two-column">
+            <div class="fact">
+              <strong>Owns</strong>
+              <p>Trace IDs, turn IDs, parentage, timestamps, JSON-safe attributes, redaction, no-op tracing, and writer failure handling.</p>
+            </div>
+            <div class="fact">
+              <strong>Does Not Own</strong>
+              <p>Pipeline ordering, model calls, policy decisions, validation, MCP execution, or robot context mutation.</p>
+            </div>
+          </div>
+        </section>
+        <aside class="side-stack">
+          <section class="side-section">
+            <h3>Key Files</h3>
+            <ul class="file-list">
+              <li>process_trace/trace.py</li>
+              <li>process_trace/records.py</li>
+              <li>process_trace/context.py</li>
+              <li>process_trace/jsonl.py</li>
+              <li>process_trace/pipecat_observer.py</li>
+            </ul>
+          </section>
+          <section class="side-section">
+            <h3>Adapter Rule</h3>
+            <p>Pure trace core stays dependency-free. Pipecat-specific observation lives in the thin <code>pipecat_observer.py</code> adapter.</p>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="panel-eval" role="tabpanel" aria-labelledby="tab-eval" data-panel="eval" style="--module-color: var(--eval);">
+      <div class="module-header">
+        <div>
+          <p class="module-kicker">Robot-agent model comparison</p>
+          <h2>Model Eval</h2>
+          <p class="module-summary">Compares API-backed LangGraph model candidates against scenario packs through the existing Agent Turn and Robot Tool Adapter seams. The default adapter is deterministic simulated MoveIt.</p>
+        </div>
+        <div class="path-chip">server/model_eval/</div>
+      </div>
+      <div class="module-layout">
+        <section class="module-section">
+          <h3>Evaluation Loop</h3>
+          <div class="module-flow" style="--flow-count: 7;">
+            <div class="flow-node" tabindex="0" data-tip="A TOML list of model configurations to test. Example: compare two providers or reasoning settings on the same robot prompts."><b>Matrix</b><span>model candidates</span></div>
+            <div class="flow-node" tabindex="0" data-tip="A named group of robot-agent scenarios. Example: 'move up a bit,' 'move down a bit,' and 'move there' with expected behavior."><b>Scenario pack</b><span>prompts</span></div>
+            <div class="flow-node" tabindex="0" data-tip="The same seam used by the voice app, but fed by text eval prompts. Example: no microphone or TTS, just AgentTurnInput into Agent Control."><b>Agent Turn</b><span>existing seam</span></div>
+            <div class="flow-node" tabindex="0" data-tip="The robot tool surface used during evaluation. Example: default simulated MoveIt for deterministic checks, or live MCP when explicitly requested."><b>Eval adapter</b><span>sim or live</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Pass/fail checks over the recorded run. Example: verify that 'move up a bit' observed pose and produced bounded positive Z movement."><b>Validators</b><span>pass/fail</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Summarizes correctness, latency, and tool-loop efficiency. Example: correctness gates first; passing candidates are ranked by realtime fit."><b>Scoring</b><span>rank candidates</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Minimal run artifacts saved for review. Example: prompts, assistant replies, tool calls, tool outputs, validator results, and pass/fail reasons."><b>Evidence</b><span>JSON output</span></div>
+          </div>
+          <div class="two-column">
+            <div class="fact">
+              <strong>Owns</strong>
+              <p>Candidate parsing, scenario packs, validators, scoring, timing, evidence writing, and simulated MoveIt behavior.</p>
+            </div>
+            <div class="fact">
+              <strong>Does Not Own</strong>
+              <p>The robot prompt, Task Policy Layer, Robot Call Validation, MoveIt safety boundary, or realtime Pipecat pipeline.</p>
+            </div>
+          </div>
+        </section>
+        <aside class="side-stack">
+          <section class="side-section">
+            <h3>Key Files</h3>
+            <ul class="file-list">
+              <li>model_eval/__main__.py</li>
+              <li>model_eval/config.py</li>
+              <li>model_eval/candidates.py</li>
+              <li>model_eval/scenarios.py</li>
+              <li>model_eval/runner.py</li>
+              <li>model_eval/simulated_moveit.py</li>
+              <li>model_eval/validators.py</li>
+              <li>model_eval/scoring.py</li>
+            </ul>
+          </section>
+          <section class="side-section">
+            <h3>Command</h3>
+            <p><code>uv run python -m model_eval run --matrix evals/model_matrix.example.toml --pack core_robot_commands</code></p>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="panel-boundaries" role="tabpanel" aria-labelledby="tab-boundaries" data-panel="boundaries" style="--module-color: var(--sense);">
+      <div class="module-header">
+        <div>
+          <p class="module-kicker">External seams and advisory context</p>
+          <h2>Boundaries</h2>
+          <p class="module-summary">The agent has explicit seams into MoveIt robot execution and Vizor user sensing. Both provide context to the agent, but only MoveIt planning/execution is the movement-safety boundary.</p>
+        </div>
+        <div class="path-chip">MoveIt MCP, Vizor User Sensing MCP, UR10 simulation</div>
+      </div>
+      <section class="module-section">
+        <h3>Boundary Map</h3>
+        <div class="boundary-map">
+          <div class="boundary-tile">
+            <div>
+              <b>MoveIt MCP Boundary</b>
+              <p>Execution seam into ROS 1 MoveIt through semantic, narrow robot tools.</p>
+            </div>
+            <span class="tagline">movement safety lives here</span>
+          </div>
+          <div class="boundary-tile">
+            <div>
+              <b>Vizor User Sensing MCP</b>
+              <p>Read-only advisory context for gaze, user pose, manual target, and attention history.</p>
+            </div>
+            <span class="tagline">advisory grounding</span>
+          </div>
+          <div class="boundary-tile">
+            <div>
+              <b>RViz and Vizor</b>
+              <p>Planning Scene consumers and downstream robot visualization/control runtime.</p>
+            </div>
+            <span class="tagline">not an agent boundary</span>
+          </div>
+        </div>
+      </section>
+      <section class="matrix">
+        <h3>What The Agent Should Remember</h3>
+        <ul class="bullet-list">
+          <li>Movement is routed through MoveIt workflows; broad ROS control stays out of Agent Orchestration by default.</li>
+          <li>User sensing helps resolve references like "this", "that", "there", and "near me".</li>
+          <li>Missing, stale, or low-confidence user sensing is not proof of user intent.</li>
+          <li>RViz visualizes the planning scene; it is not where agent decisions are made.</li>
+        </ul>
+      </section>
+    </section>
+
+    <section class="tab-panel" id="panel-wiring" role="tabpanel" aria-labelledby="tab-wiring" data-panel="wiring" style="--module-color: var(--rail);">
+      <div class="module-header">
+        <div>
+          <p class="module-kicker">Composition root and runner shell</p>
+          <h2>App Wiring</h2>
+          <p class="module-summary"><code>pipeline_builder.py</code> constructs concrete adapters from the runtime profile, and <code>bot.py</code> stays the thin lifecycle shell. Wiring belongs here so the Modules stay clean.</p>
+        </div>
+        <div class="path-chip">server/pipeline_builder.py + server/bot.py + server/runtime_profiles.toml</div>
+      </div>
+      <div class="module-layout">
+        <section class="module-section">
+          <h3>Construction Flow</h3>
+          <div class="module-flow" style="--flow-count: 7;">
+            <div class="flow-node" tabindex="0" data-tip="The app-level TOML choice of wake, STT, TTS, agent provider, robot endpoints, and logs. Example: hybrid_gemini_live_tts chooses OpenAI STT, Gemini Live TTS, and gemini_api."><b>Runtime profile</b><span>app config</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Concrete STT and TTS services built from the profile. Example: create OpenAI Realtime Whisper STT and Gemini Live speech rendering."><b>Providers</b><span>STT/TTS</span></div>
+            <div class="flow-node" tabindex="0" data-tip="The concrete AgentBackend implementation for the selected provider. Example: build a LangChain Gemini backend that satisfies the Voice Runtime AgentBackend seam."><b>Agent backend</b><span>factory</span></div>
+            <div class="flow-node" tabindex="0" data-tip="The concrete bridge to robot tools. Example: read MCP_MOVEIT_URL from configuration and create the RobotMCPBridge."><b>Robot bridge</b><span>MCP URL</span></div>
+            <div class="flow-node" tabindex="0" data-tip="Session-scoped log destinations. Example: turn base process_trace.jsonl into logs/process_trace/process_trace-20260513-session.jsonl."><b>Trace paths</b><span>session logs</span></div>
+            <div class="flow-node" tabindex="0" data-tip="The ordered Pipecat processor list. Example: transport input, wake gate, STT, aggregation, Agent Turn, TTS, transport output."><b>Assembly</b><span>processor order</span></div>
+            <div class="flow-node" tabindex="0" data-tip="The thin bot lifecycle shell. Example: starts the runner, creates transport, selects profile, and reacts to client connect/disconnect."><b>Runner</b><span>client hooks</span></div>
+          </div>
+          <div class="two-column">
+            <div class="fact">
+              <strong><code>pipeline_builder.py</code></strong>
+              <p>May import all target packages. It expands runtime profile choices into concrete adapters and delegates processor ordering to Voice Runtime Assembly.</p>
+            </div>
+            <div class="fact">
+              <strong><code>bot.py</code></strong>
+              <p>Owns runner startup, transport creation, profile selection, and client lifecycle hooks only.</p>
+            </div>
+          </div>
+        </section>
+        <aside class="side-stack">
+          <section class="side-section">
+            <h3>Config Files</h3>
+            <ul class="file-list">
+              <li>server/runtime_profiles.toml</li>
+              <li>server/config.py</li>
+              <li>server/pyproject.toml</li>
+              <li>server/evals/model_matrix.example.toml</li>
+            </ul>
+          </section>
+          <section class="side-section">
+            <h3>Main Profile</h3>
+            <p>The target bundled profile is <code>hybrid_gemini_live_tts</code>: OpenAI Realtime Whisper STT, Gemini Live TTS, and <code>gemini_api</code> using <code>GOOGLE_API_KEY</code>.</p>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <p class="footer-note">This page is a visual companion to the repository docs. Update it when module ownership or architecture invariants change.</p>
+  </main>
+
+  <script>
+    const buttons = Array.from(document.querySelectorAll("[role='tab']"));
+    const panels = Array.from(document.querySelectorAll("[role='tabpanel']"));
+    const tooltip = document.createElement("div");
+    tooltip.className = "tooltip-popover";
+    tooltip.setAttribute("role", "tooltip");
+    document.body.appendChild(tooltip);
+    let tooltipTarget = null;
+
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    function positionTooltip(target) {
+      const rect = target.getBoundingClientRect();
+      const width = tooltip.offsetWidth;
+      const height = tooltip.offsetHeight;
+      const left = clamp(rect.left + rect.width / 2 - width / 2, 12, window.innerWidth - width - 12);
+      let top = rect.bottom + 12;
+
+      if (top + height > window.innerHeight - 12) {
+        top = rect.top - height - 12;
+      }
+      if (top < 12) {
+        top = 12;
+      }
+
+      tooltip.style.left = `${left}px`;
+      tooltip.style.top = `${top}px`;
+    }
+
+    function showTooltip(target) {
+      const title = target.querySelector("b")?.textContent?.trim() || "Field note";
+      const text = target.dataset.tip;
+
+      if (!text) {
+        return;
+      }
+
+      tooltipTarget = target;
+      tooltip.replaceChildren();
+
+      const heading = document.createElement("strong");
+      heading.textContent = title;
+      const body = document.createElement("span");
+      body.textContent = text;
+
+      tooltip.append(heading, body);
+      tooltip.classList.add("visible");
+      positionTooltip(target);
+    }
+
+    function hideTooltip() {
+      tooltipTarget = null;
+      tooltip.classList.remove("visible");
+    }
+
+    document.querySelectorAll("[data-tip]").forEach((node) => {
+      node.addEventListener("mouseenter", () => showTooltip(node));
+      node.addEventListener("mousemove", () => {
+        if (tooltipTarget === node) {
+          positionTooltip(node);
+        }
+      });
+      node.addEventListener("mouseleave", hideTooltip);
+      node.addEventListener("focus", () => showTooltip(node));
+      node.addEventListener("blur", hideTooltip);
+      node.addEventListener("click", () => showTooltip(node));
+    });
+
+    window.addEventListener("scroll", () => {
+      if (tooltipTarget) {
+        positionTooltip(tooltipTarget);
+      }
+    }, { passive: true });
+    window.addEventListener("resize", hideTooltip);
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        hideTooltip();
+      }
+    });
+
+    function activateTab(name, updateHash = true) {
+      const targetButton = buttons.find((button) => button.dataset.tab === name) || buttons[0];
+      const targetName = targetButton.dataset.tab;
+      hideTooltip();
+
+      buttons.forEach((button) => {
+        const selected = button.dataset.tab === targetName;
+        button.setAttribute("aria-selected", String(selected));
+        button.tabIndex = selected ? 0 : -1;
+      });
+
+      panels.forEach((panel) => {
+        panel.classList.toggle("active", panel.dataset.panel === targetName);
+      });
+
+      if (updateHash) {
+        history.replaceState(null, "", `#${targetName}`);
+      }
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => activateTab(button.dataset.tab));
+      button.addEventListener("keydown", (event) => {
+        if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) {
+          return;
+        }
+
+        event.preventDefault();
+        const currentIndex = buttons.indexOf(button);
+        const lastIndex = buttons.length - 1;
+        let nextIndex = currentIndex;
+
+        if (event.key === "ArrowRight") {
+          nextIndex = currentIndex === lastIndex ? 0 : currentIndex + 1;
+        }
+        if (event.key === "ArrowLeft") {
+          nextIndex = currentIndex === 0 ? lastIndex : currentIndex - 1;
+        }
+        if (event.key === "Home") {
+          nextIndex = 0;
+        }
+        if (event.key === "End") {
+          nextIndex = lastIndex;
+        }
+
+        buttons[nextIndex].focus();
+        activateTab(buttons[nextIndex].dataset.tab);
+      });
+    });
+
+    const initialTab = window.location.hash.replace("#", "");
+    if (initialTab) {
+      activateTab(initialTab, false);
+    }
+  </script>
+</body>
+</html>

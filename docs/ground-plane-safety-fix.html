@@ -1,0 +1,973 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Planner Failure Recovery Fix</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230d0f0e'/%3E%3Cpath d='M8 44h48v6H8z' fill='%23e76347'/%3E%3Ccircle cx='32' cy='24' r='10' fill='%23f5b642'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f4efe4;
+      --muted: #b9b0a0;
+      --line: rgba(244, 239, 228, 0.18);
+      --panel: #151615;
+      --panel-2: #1f221f;
+      --steel: #87949a;
+      --steel-dark: #465057;
+      --amber: #f5b642;
+      --danger: #e76347;
+      --green: #69c59b;
+      --blue: #7fb7d7;
+      --paper: #e8dcc6;
+      --bg: #0d0f0e;
+      --shadow: rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 18% 10%, rgba(245, 182, 66, 0.12), transparent 30%),
+        linear-gradient(135deg, rgba(127, 183, 215, 0.07), transparent 38%),
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.02), rgba(255,255,255,0.02) 1px, transparent 1px, transparent 12px),
+        var(--bg);
+      font-family: "Bahnschrift", "Aptos", "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px clamp(16px, 4vw, 48px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(13, 15, 14, 0.86);
+      backdrop-filter: blur(16px);
+    }
+
+    .mark {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .mark-light {
+      width: 12px;
+      height: 12px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 5px rgba(105, 197, 155, 0.12), 0 0 18px rgba(105, 197, 155, 0.45);
+    }
+
+    .nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav a {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 8px 10px;
+      border: 1px solid transparent;
+    }
+
+    .nav a:hover {
+      color: var(--ink);
+      border-color: var(--line);
+      background: rgba(255,255,255,0.04);
+    }
+
+    .hero {
+      min-height: 72vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(340px, 0.95fr);
+      align-items: stretch;
+      gap: clamp(24px, 4vw, 54px);
+      padding: clamp(32px, 6vw, 76px) clamp(16px, 4vw, 48px) 38px;
+    }
+
+    .hero-copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      max-width: 820px;
+    }
+
+    .eyebrow {
+      width: fit-content;
+      padding: 5px 8px;
+      border-left: 4px solid var(--amber);
+      color: var(--paper);
+      background: rgba(245, 182, 66, 0.1);
+      font-family: "Consolas", "Cascadia Mono", monospace;
+      font-size: 0.86rem;
+    }
+
+    h1 {
+      margin: 18px 0 16px;
+      font-family: "Cambria", "Georgia", serif;
+      font-size: clamp(2.6rem, 8vw, 7.2rem);
+      line-height: 0.92;
+      font-weight: 700;
+      letter-spacing: 0;
+      max-width: 940px;
+    }
+
+    .lead {
+      max-width: 720px;
+      color: var(--muted);
+      font-size: clamp(1.05rem, 2vw, 1.35rem);
+    }
+
+    .hero-meta {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 28px;
+      max-width: 720px;
+    }
+
+    .metric {
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+      min-width: 0;
+    }
+
+    .metric strong {
+      display: block;
+      font-family: "Consolas", "Cascadia Mono", monospace;
+      color: var(--paper);
+      font-size: clamp(1rem, 2vw, 1.3rem);
+      overflow-wrap: anywhere;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .sim-shell {
+      min-height: 470px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02));
+      box-shadow: 0 20px 70px var(--shadow);
+      overflow: hidden;
+    }
+
+    .sim-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.18);
+    }
+
+    .segmented {
+      display: inline-grid;
+      grid-template-columns: 1fr 1fr;
+      border: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.18);
+    }
+
+    .segmented button {
+      min-width: 92px;
+      border: 0;
+      color: var(--muted);
+      background: transparent;
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+
+    .segmented button[aria-pressed="true"] {
+      color: #10110f;
+      background: var(--amber);
+      font-weight: 700;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 320px;
+      margin: 0 16px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background:
+        linear-gradient(90deg, transparent 0 48%, rgba(255,255,255,0.07) 48% 52%, transparent 52%),
+        linear-gradient(180deg, rgba(127,183,215,0.08), transparent 46%),
+        #0b0d0d;
+      overflow: hidden;
+    }
+
+    .ground {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 52px;
+      height: 2px;
+      background: var(--danger);
+      box-shadow: 0 0 22px rgba(231, 99, 71, 0.45);
+    }
+
+    .ground-label {
+      position: absolute;
+      right: 12px;
+      bottom: 58px;
+      color: var(--danger);
+      font-family: "Consolas", "Cascadia Mono", monospace;
+      font-size: 0.84rem;
+    }
+
+    .zsafe {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 78px;
+      height: 1px;
+      background: rgba(105, 197, 155, 0.8);
+      display: none;
+    }
+
+    .safe-label {
+      position: absolute;
+      right: 12px;
+      bottom: 84px;
+      display: none;
+      color: var(--green);
+      font-family: "Consolas", "Cascadia Mono", monospace;
+      font-size: 0.84rem;
+    }
+
+    .robot {
+      position: absolute;
+      left: 50%;
+      bottom: 52px;
+      width: 220px;
+      height: 230px;
+      transform: translateX(-50%);
+      transition: transform 700ms ease, opacity 250ms ease;
+    }
+
+    .base {
+      position: absolute;
+      left: 72px;
+      bottom: 0;
+      width: 76px;
+      height: 32px;
+      background: linear-gradient(180deg, var(--steel), var(--steel-dark));
+      border: 1px solid rgba(255,255,255,0.22);
+    }
+
+    .joint {
+      position: absolute;
+      border-radius: 50%;
+      background: radial-gradient(circle at 32% 28%, #d5e0e3, var(--steel) 40%, var(--steel-dark));
+      border: 1px solid rgba(255,255,255,0.24);
+      z-index: 2;
+    }
+
+    .j1 { left: 94px; bottom: 28px; width: 34px; height: 34px; }
+    .j2 { left: 88px; bottom: 102px; width: 30px; height: 30px; }
+    .j3 { left: 148px; bottom: 154px; width: 26px; height: 26px; }
+    .j4 { left: 176px; bottom: 92px; width: 24px; height: 24px; }
+
+    .arm {
+      position: absolute;
+      height: 24px;
+      background: linear-gradient(180deg, #b8c7cc, #617077);
+      border: 1px solid rgba(255,255,255,0.22);
+      transform-origin: left center;
+      z-index: 1;
+    }
+
+    .a1 {
+      left: 109px;
+      bottom: 56px;
+      width: 86px;
+      transform: rotate(-78deg);
+    }
+
+    .a2 {
+      left: 111px;
+      bottom: 122px;
+      width: 86px;
+      transform: rotate(40deg);
+    }
+
+    .a3 {
+      left: 164px;
+      bottom: 151px;
+      width: 74px;
+      transform: rotate(-68deg);
+    }
+
+    .tcp {
+      position: absolute;
+      left: 188px;
+      bottom: 74px;
+      width: 14px;
+      height: 36px;
+      background: var(--amber);
+      border: 1px solid rgba(0,0,0,0.45);
+      z-index: 3;
+    }
+
+    .ghost {
+      opacity: 0.26;
+      filter: hue-rotate(165deg) saturate(1.2);
+      mix-blend-mode: screen;
+    }
+
+    .before .ghost {
+      transform: translateX(-50%) translateY(26px);
+      animation: shadowDrop 1.7s ease-in-out infinite alternate;
+    }
+
+    .before .solid {
+      transform: translateX(-50%);
+    }
+
+    .after .ghost {
+      opacity: 0.12;
+      transform: translateX(-50%);
+      animation: none;
+    }
+
+    .after .solid {
+      transform: translateX(-50%) translateY(-26px);
+    }
+
+    .after .zsafe,
+    .after .safe-label {
+      display: block;
+    }
+
+    @keyframes shadowDrop {
+      from { transform: translateX(-50%) translateY(-4px); }
+      to { transform: translateX(-50%) translateY(58px); }
+    }
+
+    .callout {
+      margin: 0 16px 16px;
+      padding: 14px;
+      border-left: 4px solid var(--danger);
+      background: rgba(231, 99, 71, 0.11);
+    }
+
+    .after .callout {
+      border-left-color: var(--green);
+      background: rgba(105, 197, 155, 0.1);
+    }
+
+    .callout strong {
+      display: block;
+      color: var(--paper);
+      margin-bottom: 4px;
+    }
+
+    .band {
+      padding: clamp(34px, 5vw, 72px) clamp(16px, 4vw, 48px);
+      border-top: 1px solid var(--line);
+    }
+
+    .band-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+
+    h2 {
+      margin: 0;
+      font-family: "Cambria", "Georgia", serif;
+      font-size: clamp(2rem, 4vw, 4rem);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .band-header p {
+      max-width: 520px;
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+    }
+
+    .event {
+      min-height: 190px;
+      padding: 18px;
+      background: var(--panel);
+    }
+
+    .event time {
+      display: block;
+      color: var(--amber);
+      font-family: "Consolas", "Cascadia Mono", monospace;
+      margin-bottom: 18px;
+    }
+
+    .event strong {
+      display: block;
+      color: var(--paper);
+      margin-bottom: 8px;
+    }
+
+    .event p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .recovery-flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      counter-reset: recovery;
+    }
+
+    .recovery-step {
+      position: relative;
+      min-height: 330px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(127,183,215,0.10), rgba(255,255,255,0.02)),
+        var(--panel);
+      padding: 18px;
+      overflow: hidden;
+    }
+
+    .recovery-step::before {
+      counter-increment: recovery;
+      content: counter(recovery, decimal-leading-zero);
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      color: #10110f;
+      background: var(--paper);
+      font-family: "Consolas", "Cascadia Mono", monospace;
+      font-weight: 700;
+    }
+
+    .recovery-step h3 {
+      margin: 0;
+      font-family: "Cambria", "Georgia", serif;
+      font-size: clamp(1.35rem, 2vw, 2rem);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .recovery-step p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .file-pill {
+      width: fit-content;
+      max-width: 100%;
+      color: var(--blue);
+      font-family: "Consolas", "Cascadia Mono", monospace;
+      font-size: 0.82rem;
+      overflow-wrap: anywhere;
+    }
+
+    .truth-note {
+      margin-top: 16px;
+      border-left: 4px solid var(--amber);
+      padding: 14px 16px;
+      color: var(--muted);
+      background: rgba(245, 182, 66, 0.1);
+    }
+
+    .changes {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .change {
+      position: relative;
+      min-height: 260px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02));
+      padding: 20px;
+      overflow: hidden;
+    }
+
+    .change::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 6px;
+      background: var(--accent);
+    }
+
+    .change h3 {
+      margin: 0 0 14px 0;
+      font-family: "Cambria", "Georgia", serif;
+      font-size: clamp(1.6rem, 3vw, 2.6rem);
+      letter-spacing: 0;
+    }
+
+    .change p {
+      color: var(--muted);
+      margin: 0 0 18px;
+    }
+
+    code,
+    .code {
+      font-family: "Consolas", "Cascadia Mono", monospace;
+      color: var(--paper);
+    }
+
+    .mini-code {
+      display: grid;
+      gap: 7px;
+      padding: 12px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(0,0,0,0.22);
+      font-size: 0.88rem;
+      overflow-x: auto;
+    }
+
+    .tests {
+      display: grid;
+      grid-template-columns: 0.7fr 1.3fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .scoreboard {
+      display: grid;
+      place-items: center;
+      min-height: 260px;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(90deg, rgba(105,197,155,0.14), transparent),
+        var(--panel-2);
+      text-align: center;
+    }
+
+    .scoreboard strong {
+      display: block;
+      font-family: "Cambria", "Georgia", serif;
+      font-size: clamp(3.2rem, 9vw, 7rem);
+      line-height: 0.9;
+      color: var(--green);
+    }
+
+    .test-list {
+      display: grid;
+      gap: 1px;
+      border: 1px solid var(--line);
+      background: var(--line);
+    }
+
+    .test-row {
+      display: grid;
+      grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.2fr);
+      gap: 14px;
+      padding: 16px;
+      background: var(--panel);
+    }
+
+    .test-row strong {
+      color: var(--paper);
+    }
+
+    .test-row span {
+      color: var(--muted);
+    }
+
+    .footer {
+      padding: 22px clamp(16px, 4vw, 48px) 34px;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 920px) {
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .sim-shell {
+        min-height: 430px;
+      }
+
+      .timeline,
+      .recovery-flow,
+      .changes,
+      .tests {
+        grid-template-columns: 1fr;
+      }
+
+      .band-header {
+        align-items: start;
+        flex-direction: column;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .topbar {
+        position: static;
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .hero-meta {
+        grid-template-columns: 1fr;
+      }
+
+      .sim-header {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .segmented button {
+        min-width: 0;
+      }
+
+      .stage {
+        min-height: 280px;
+      }
+
+      .robot {
+        width: 190px;
+        transform: translateX(-50%) scale(0.84);
+        transform-origin: bottom center;
+      }
+
+      .before .ghost {
+        animation-name: shadowDropSmall;
+      }
+
+      @keyframes shadowDropSmall {
+        from { transform: translateX(-50%) scale(0.84) translateY(-4px); }
+        to { transform: translateX(-50%) scale(0.84) translateY(52px); }
+      }
+
+      .before .solid,
+      .after .ghost {
+        transform: translateX(-50%) scale(0.84);
+      }
+
+      .after .solid {
+        transform: translateX(-50%) scale(0.84) translateY(-24px);
+      }
+
+      .test-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="mark"><span class="mark-light" aria-hidden="true"></span><span>Planner Failure Recovery Fix</span></div>
+    <nav class="nav" aria-label="Page sections">
+      <a href="#trace">Trace</a>
+      <a href="#recovery">Recovery</a>
+      <a href="#changes">Changes</a>
+      <a href="#checks">Checks</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">2026-05-13 11:10 + 11:50 local runs</div>
+        <h1>Do not call a blocked motion done.</h1>
+        <p class="lead">
+          The agent requested a target at <span class="code">z=0</span>. MoveIt planned no trajectory and execution was not attempted. The fix keeps MoveIt as the feasibility authority, gives the LLM the planner failure data, and now requires any spoken retry claim to queue a real MoveIt action.
+        </p>
+        <div class="hero-meta" aria-label="Key facts">
+          <div class="metric"><strong>z=0.000</strong><span>requested target</span></div>
+          <div class="metric"><strong>0 points</strong><span>MoveIt trajectory</span></div>
+          <div class="metric"><strong>2nd job</strong><span>required for retry</span></div>
+        </div>
+      </div>
+
+      <section class="sim-shell" aria-label="Before and after simulation">
+        <div class="sim-header">
+          <strong>Motion outcome viewer</strong>
+          <div class="segmented" role="group" aria-label="View mode">
+            <button id="beforeBtn" type="button" aria-pressed="true">Before</button>
+            <button id="afterBtn" type="button" aria-pressed="false">After</button>
+          </div>
+        </div>
+        <div id="sim" class="stage before" aria-live="polite">
+          <div class="zsafe"></div>
+          <div class="safe-label">retry must queue action</div>
+          <div class="ground"></div>
+          <div class="ground-label">z=0 ground</div>
+          <div class="robot ghost" aria-hidden="true">
+            <div class="base"></div><div class="arm a1"></div><div class="arm a2"></div><div class="arm a3"></div>
+            <div class="joint j1"></div><div class="joint j2"></div><div class="joint j3"></div><div class="joint j4"></div><div class="tcp"></div>
+          </div>
+          <div class="robot solid" aria-hidden="true">
+            <div class="base"></div><div class="arm a1"></div><div class="arm a2"></div><div class="arm a3"></div>
+            <div class="joint j1"></div><div class="joint j2"></div><div class="joint j3"></div><div class="joint j4"></div><div class="tcp"></div>
+          </div>
+        </div>
+        <div id="simText" class="callout">
+          <strong>Before fix</strong>
+          The transparent preview could descend, but the real execution failed later. The voice reply had already said the descent was initiated.
+        </div>
+      </section>
+    </section>
+
+    <section id="trace" class="band">
+      <div class="band-header">
+        <h2>Trace Evidence</h2>
+        <p>What the 11:10 and 11:50 logs showed, in the order it happened.</p>
+      </div>
+      <div class="timeline">
+        <article class="event">
+          <time>11:10:30</time>
+          <strong>User grounds the target</strong>
+          <p>"It's at z equals zero."</p>
+        </article>
+        <article class="event">
+          <time>11:10:34</time>
+          <strong>Tool call queued</strong>
+          <p><span class="code">moveit_plan_and_execute_free_motion</span> target had <span class="code">z: 0</span>.</p>
+        </article>
+        <article class="event">
+          <time>11:10:35</time>
+          <strong>Reply came too early</strong>
+          <p>The agent said it initiated the descent before the MoveIt result returned.</p>
+        </article>
+        <article class="event">
+          <time>11:10:44</time>
+          <strong>MoveIt rejected it</strong>
+          <p>Result was <span class="code">ok: false</span>, "Planning failed; execution was not attempted."</p>
+        </article>
+        <article class="event">
+          <time>11:51:08</time>
+          <strong>One retry candidate</strong>
+          <p>The model selected <span class="code">moveit_plan_and_execute_free_motion</span> for a higher target.</p>
+        </article>
+        <article class="event">
+          <time>11:51:13</time>
+          <strong>MoveIt tried z=0.05</strong>
+          <p>The action call used <span class="code">z: 0.05</span> and waited for the planner result.</p>
+        </article>
+        <article class="event">
+          <time>11:51:23</time>
+          <strong>Retry candidate failed</strong>
+          <p>MoveIt again returned <span class="code">0 trajectory points</span>; execution was not attempted.</p>
+        </article>
+        <article class="event">
+          <time>11:51:23+</time>
+          <strong>No real second retry</strong>
+          <p>The trace had notification speech, but no later <span class="code">agent.graph_turn</span> or MoveIt action call.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="recovery" class="band">
+      <div class="band-header">
+        <h2>Recovery Flow</h2>
+        <p>The actual code path that turns a failed MoveIt plan into an agent retry opportunity.</p>
+      </div>
+      <div class="recovery-flow" aria-label="Implemented recovery path">
+        <article class="recovery-step">
+          <h3>Detect failed planner result</h3>
+          <span class="file-pill">robot_control/job_worker.py</span>
+          <p>
+            The worker parses the returned tool JSON. A structured <span class="code">ok: false</span>, failed verification, or failed execution marks the queued job <span class="code">FAILED</span> instead of completed.
+          </p>
+          <div class="mini-code">
+            <span>error = _tool_result_error(result)</span>
+            <span>fail(job, error, result=result)</span>
+          </div>
+        </article>
+        <article class="recovery-step">
+          <h3>Keep the evidence</h3>
+          <span class="file-pill">robot_control/job_board.py</span>
+          <p>
+            Failed jobs now keep the raw planner payload. Queued jobs also carry the original user text so the recovery prompt knows the intent, not just the tool name.
+          </p>
+          <div class="mini-code">
+            <span>RobotJob.user_text</span>
+            <span>RobotJob.result</span>
+            <span>FAILED event {"error", "result"}</span>
+          </div>
+        </article>
+        <article class="recovery-step">
+          <h3>Ask the agent again</h3>
+          <span class="file-pill">agent_control/langchain_agent_processor.py</span>
+          <p>
+            The failed job notification builds a recovery turn for the graph agent. It includes the user request, tool arguments, error summary, and full planner result.
+          </p>
+          <div class="mini-code">
+            <span>_failed_job_recovery_prompt(...)</span>
+            <span>graph.run_turn(recovery_turn)</span>
+          </div>
+        </article>
+        <article class="recovery-step">
+          <h3>Repair retry-only speech</h3>
+          <span class="file-pill">agent_control/langgraph_robot_agent.py</span>
+          <p>
+            If the recovery answer says <span class="code">I can try</span> or <span class="code">will retry</span> without a tool call, the graph treats it as an unfinished action and asks for exactly one MoveIt action tool.
+          </p>
+          <div class="mini-code">
+            <span>FUTURE_PROMISE_TERMS += "i can try"</span>
+            <span>repair_missing_action</span>
+          </div>
+        </article>
+        <article class="recovery-step">
+          <h3>Queue the real retry</h3>
+          <span class="file-pill">agent_control/robot_job_submission.py</span>
+          <p>
+            The retry only counts when a MoveIt action tool is submitted as a new robot job. The worker then runs that job and reports completion or failure from MoveIt.
+          </p>
+          <div class="mini-code">
+            <span>submit_tool(..., user_text=...)</span>
+            <span>Queued robot job ...</span>
+          </div>
+        </article>
+      </div>
+      <div class="truth-note">
+        What did not change: there is no hard-coded <span class="code">z=0</span> preflight block. MoveIt still decides feasibility; the agent now gets enough data to respond and retry honestly.
+      </div>
+    </section>
+
+    <section id="changes" class="band">
+      <div class="band-header">
+        <h2>Code Changes</h2>
+        <p>Planner failure is no longer flattened into a generic notification.</p>
+      </div>
+      <div class="changes">
+        <article class="change" style="--accent: var(--amber)">
+          <h3>Planner failure packet</h3>
+          <p>
+            <span class="code">RobotJobWorker</span> still lets MoveIt try the requested motion. If MoveIt returns <span class="code">ok: false</span>, the job is failed and the raw planner result is kept on the job event.
+          </p>
+          <div class="mini-code">
+            <span>error = tool_result_error(result)</span>
+            <span>if error:</span>
+            <span>&nbsp;&nbsp;fail(job, error, result=result)</span>
+          </div>
+        </article>
+        <article class="change" style="--accent: var(--green)">
+          <h3>Agent recovery turn</h3>
+          <p>
+            <span class="code">LangChainAgentProcessor</span> now turns a failed queued job into a recovery prompt containing the original user request, tool arguments, error summary, and planner result.
+          </p>
+          <div class="mini-code">
+            <span>Original user request: touch z equals zero</span>
+            <span>Tool arguments: {"z": 0.0, ...}</span>
+            <span>Planner result: {"ok": false, ...}</span>
+          </div>
+        </article>
+        <article class="change" style="--accent: var(--blue)">
+          <h3>Retry claim repair</h3>
+          <p>
+            <span class="code">LangGraphRobotAgent</span> treats recovery text such as "I can try..." as a future action claim. It must repair that into an actual MoveIt action tool call before speaking the retry.
+          </p>
+          <div class="mini-code">
+            <span>if text says "I can try" and no tool call:</span>
+            <span>&nbsp;&nbsp;require one MoveIt action tool</span>
+            <span>&nbsp;&nbsp;queue retry before the spoken response</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="checks" class="band">
+      <div class="band-header">
+        <h2>Verification</h2>
+        <p>The artifact summarizes the checked behavior, not just the intended behavior.</p>
+      </div>
+      <div class="tests">
+        <div class="scoreboard">
+          <div>
+            <strong>500</strong>
+            <span>tests passed</span>
+          </div>
+        </div>
+        <div class="test-list">
+          <div class="test-row">
+            <strong>Regression: planner payload</strong>
+            <span>A structured <span class="code">ok: false</span> result becomes a failed robot job while keeping the full MoveIt payload.</span>
+          </div>
+          <div class="test-row">
+            <strong>Regression: recovery prompt</strong>
+            <span>A failed queued job sends the original request, tool call, and planner result back through the graph agent.</span>
+          </div>
+          <div class="test-row">
+            <strong>Regression: retry claim</strong>
+            <span>If recovery says it can retry, the graph now forces a real MoveIt action call before speaking the retry.</span>
+          </div>
+          <div class="test-row">
+            <strong>Lint</strong>
+            <span>Ruff passed for the touched code and test files.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    Static report generated for the Pipecat robot agent workspace. It documents the local changes in <span class="code">robot_control/job_worker.py</span>, <span class="code">robot_control/job_board.py</span>, <span class="code">agent_control/langchain_agent_processor.py</span>, and <span class="code">agent_control/langgraph_robot_agent.py</span>.
+  </footer>
+
+  <script>
+    const sim = document.getElementById("sim");
+    const simText = document.getElementById("simText");
+    const beforeBtn = document.getElementById("beforeBtn");
+    const afterBtn = document.getElementById("afterBtn");
+
+    function setMode(mode) {
+      const after = mode === "after";
+      sim.classList.toggle("before", !after);
+      sim.classList.toggle("after", after);
+      beforeBtn.setAttribute("aria-pressed", String(!after));
+      afterBtn.setAttribute("aria-pressed", String(after));
+      simText.innerHTML = after
+        ? "<strong>After fix</strong>MoveIt is allowed to reject the z=0 plan. The failure payload returns to the graph agent; if the agent says it can retry, it must queue another MoveIt action before speaking that retry."
+        : "<strong>Before fix</strong>The transparent preview could descend, but the real execution failed later. The voice reply had already said the descent was initiated.";
+    }
+
+    beforeBtn.addEventListener("click", () => setMode("before"));
+    afterBtn.addEventListener("click", () => setMode("after"));
+  </script>
+</body>
+</html>

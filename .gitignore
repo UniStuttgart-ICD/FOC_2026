@@ -224,6 +224,13 @@ __marimo__/
 # Local git worktrees
 .worktrees/
 
+# Local browser evidence
+.playwright-cli/
+
+# Local Pi scratch/evidence
+.pi/tmp/
+.pi/recordings/
+
 # Runtime voice metrics
 server/logs/
 
