@@ -1,0 +1,1402 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Robot Tooling Foundations</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23191d1a'/%3E%3Cpath d='M14 46h36v6H14z' fill='%23d99741'/%3E%3Cpath d='M22 43l8-24 10 3-8 24z' fill='%236a9f82'/%3E%3Cpath d='M34 19l10 7-5 7-10-7z' fill='%232f6f86'/%3E%3Ccircle cx='28' cy='20' r='5' fill='%23f2e7d1'/%3E%3Ccircle cx='43' cy='28' r='4' fill='%23f2e7d1'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f7f1e6;
+      --paper-2: #ebe0cc;
+      --ink: #182321;
+      --muted: #5d6862;
+      --quiet: #7b8179;
+      --line: rgba(24, 35, 33, 0.18);
+      --line-strong: rgba(24, 35, 33, 0.36);
+      --rail: #202928;
+      --green: #2f6f58;
+      --green-2: #6a9f82;
+      --blue: #2f6f86;
+      --amber: #d99741;
+      --red: #b95745;
+      --white: #fffaf0;
+      --shadow: 0 24px 64px rgba(45, 39, 28, 0.14);
+      --radius: 8px;
+      --pad: clamp(18px, 4vw, 56px);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(32, 41, 40, 0.055) 1px, transparent 1px) 0 0 / 36px 36px,
+        linear-gradient(180deg, rgba(32, 41, 40, 0.045) 1px, transparent 1px) 0 0 / 36px 36px,
+        linear-gradient(135deg, rgba(217, 151, 65, 0.12), transparent 34%, rgba(47, 111, 134, 0.12)),
+        var(--paper);
+      font-family: Aptos, Candara, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      line-height: 1.48;
+    }
+
+    a {
+      color: inherit;
+      text-decoration-color: rgba(24, 35, 33, 0.35);
+      text-underline-offset: 3px;
+    }
+
+    .shell {
+      width: min(1420px, 100%);
+      margin: 0 auto;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 64px;
+      padding: 12px var(--pad);
+      border-bottom: 1px solid var(--line);
+      background: rgba(247, 241, 230, 0.92);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      font-weight: 800;
+    }
+
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      position: relative;
+      flex: 0 0 auto;
+      border: 1px solid var(--line-strong);
+      background: var(--rail);
+    }
+
+    .brand-mark::before,
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      background: var(--white);
+      box-shadow: 0 0 0 4px rgba(255, 250, 240, 0.1);
+    }
+
+    .brand-mark::before {
+      width: 8px;
+      height: 8px;
+      left: 7px;
+      top: 17px;
+    }
+
+    .brand-mark::after {
+      width: 7px;
+      height: 7px;
+      right: 6px;
+      top: 8px;
+    }
+
+    .brand-mark span {
+      position: absolute;
+      left: 11px;
+      top: 16px;
+      width: 18px;
+      height: 4px;
+      transform: rotate(-34deg);
+      transform-origin: left center;
+      background: var(--amber);
+    }
+
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .nav a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 700;
+      background: rgba(255, 250, 240, 0.5);
+    }
+
+    .hero {
+      min-height: 78vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1.02fr) minmax(320px, 0.82fr);
+      gap: clamp(24px, 4vw, 58px);
+      align-items: center;
+      padding: clamp(34px, 6vw, 78px) var(--pad) 38px;
+    }
+
+    .eyebrow {
+      width: fit-content;
+      margin: 0 0 18px;
+      padding: 4px 8px;
+      border-left: 5px solid var(--amber);
+      background: rgba(255, 250, 240, 0.72);
+      color: var(--rail);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      font-family: Cambria, Georgia, serif;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 860px;
+      font-size: clamp(3rem, 7vw, 7.4rem);
+    }
+
+    h2 {
+      max-width: 900px;
+      font-size: clamp(2rem, 4vw, 4.2rem);
+    }
+
+    h3 {
+      font-size: clamp(1.15rem, 1.7vw, 1.5rem);
+    }
+
+    p {
+      margin: 0;
+    }
+
+    .lede {
+      max-width: 760px;
+      margin-top: 22px;
+      color: var(--muted);
+      font-size: clamp(1.08rem, 1.8vw, 1.42rem);
+    }
+
+    .hero-grid {
+      align-self: stretch;
+      display: grid;
+      align-content: center;
+      gap: 14px;
+      padding: 22px;
+      border: 1px solid var(--line-strong);
+      background: rgba(255, 250, 240, 0.58);
+      box-shadow: var(--shadow);
+    }
+
+    .robot-plate {
+      min-height: 360px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(90deg, rgba(24, 35, 33, 0.06) 1px, transparent 1px) 0 0 / 28px 28px,
+        linear-gradient(180deg, rgba(24, 35, 33, 0.06) 1px, transparent 1px) 0 0 / 28px 28px,
+        var(--white);
+    }
+
+    .base-ring,
+    .joint,
+    .arm,
+    .tcp,
+    .arc,
+    .axis {
+      position: absolute;
+    }
+
+    .base-ring {
+      left: 11%;
+      bottom: 13%;
+      width: 116px;
+      height: 40px;
+      border: 2px solid var(--rail);
+      border-radius: 50%;
+      background: rgba(217, 151, 65, 0.22);
+    }
+
+    .joint {
+      width: 34px;
+      height: 34px;
+      border: 2px solid var(--rail);
+      border-radius: 999px;
+      background: var(--white);
+      box-shadow: 0 8px 0 rgba(24, 35, 33, 0.08);
+    }
+
+    .j1 {
+      left: calc(11% + 42px);
+      bottom: calc(13% + 20px);
+    }
+
+    .j2 {
+      left: 42%;
+      top: 32%;
+    }
+
+    .j3 {
+      right: 18%;
+      top: 48%;
+    }
+
+    .arm {
+      height: 18px;
+      border: 2px solid var(--rail);
+      background: var(--green-2);
+      transform-origin: left center;
+    }
+
+    .a1 {
+      left: calc(11% + 68px);
+      bottom: calc(13% + 54px);
+      width: 190px;
+      transform: rotate(-42deg);
+    }
+
+    .a2 {
+      left: 46%;
+      top: 39%;
+      width: 168px;
+      transform: rotate(24deg);
+      background: var(--blue);
+    }
+
+    .tcp {
+      right: 10%;
+      top: 52%;
+      width: 66px;
+      height: 24px;
+      border: 2px solid var(--rail);
+      background: var(--amber);
+      transform: rotate(18deg);
+    }
+
+    .arc {
+      left: 12%;
+      bottom: 18%;
+      width: 310px;
+      height: 150px;
+      border-top: 3px dashed var(--red);
+      border-radius: 50% 50% 0 0;
+      transform: rotate(-8deg);
+    }
+
+    .arc::after {
+      content: "";
+      position: absolute;
+      right: 4px;
+      top: 19px;
+      width: 0;
+      height: 0;
+      border-left: 10px solid var(--red);
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      transform: rotate(28deg);
+    }
+
+    .axis {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 46px;
+      min-height: 30px;
+      padding: 4px 8px;
+      border: 1px solid var(--line-strong);
+      background: var(--rail);
+      color: var(--white);
+      font-weight: 900;
+      font-size: 0.78rem;
+    }
+
+    .axis-base {
+      left: 8%;
+      bottom: 31%;
+    }
+
+    .axis-tcp {
+      right: 8%;
+      top: 41%;
+      background: var(--green);
+    }
+
+    .caption-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .caption {
+      min-height: 96px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255, 250, 240, 0.7);
+    }
+
+    .caption strong {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .caption span {
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    section {
+      padding: clamp(38px, 6vw, 82px) var(--pad);
+      scroll-margin-top: 80px;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.86fr) minmax(260px, 0.46fr);
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 28px;
+    }
+
+    .section-note {
+      color: var(--muted);
+      font-size: 1.02rem;
+    }
+
+    .tool-grid,
+    .gap-grid,
+    .reference-grid,
+    .pickup-grid,
+    .agent-tool-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .tool-card,
+    .gap-card,
+    .reference-card,
+    .pickup-card,
+    .agent-tool-card,
+    .compare-panel,
+    .principle {
+      border: 1px solid var(--line);
+      background: rgba(255, 250, 240, 0.74);
+      box-shadow: 0 12px 30px rgba(45, 39, 28, 0.08);
+    }
+
+    .tool-card,
+    .gap-card,
+    .reference-card,
+    .pickup-card,
+    .agent-tool-card {
+      min-height: 190px;
+      padding: 18px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      margin-bottom: 14px;
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      color: var(--rail);
+      background: rgba(235, 224, 204, 0.76);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .tool-card p,
+    .gap-card p,
+    .reference-card p,
+    .pickup-card p,
+    .agent-tool-card p,
+    .compare-panel p,
+    .principle p {
+      margin-top: 10px;
+      color: var(--muted);
+    }
+
+    code {
+      color: #0e3f4f;
+      font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 0.94em;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .priority-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .priority-panel {
+      min-height: 100%;
+      padding: 24px;
+      border: 1px solid var(--line-strong);
+      background: var(--rail);
+      color: var(--white);
+      box-shadow: var(--shadow);
+    }
+
+    .priority-panel p {
+      margin-top: 14px;
+      color: rgba(255, 250, 240, 0.76);
+    }
+
+    .priority-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .priority-list div {
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr);
+      gap: 12px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 250, 240, 0.2);
+    }
+
+    .priority-list b {
+      color: #f4c772;
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .pickup-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .react-loop {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .react-step {
+      position: relative;
+      min-height: 220px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 250, 240, 0.74);
+      box-shadow: 0 12px 30px rgba(45, 39, 28, 0.08);
+    }
+
+    .react-step::after {
+      content: "";
+      position: absolute;
+      top: 28px;
+      right: 10px;
+      z-index: 2;
+      width: 0;
+      height: 0;
+      border-left: 12px solid var(--amber);
+      border-top: 8px solid transparent;
+      border-bottom: 8px solid transparent;
+    }
+
+    .react-step:last-child::after {
+      display: none;
+    }
+
+    .react-step strong {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--rail);
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .react-step p {
+      margin-top: 10px;
+      color: var(--muted);
+    }
+
+    .react-step code {
+      display: inline;
+    }
+
+    .decision-band {
+      display: grid;
+      grid-template-columns: 0.72fr 1fr;
+      gap: 22px;
+      align-items: stretch;
+      border-block: 1px solid var(--line-strong);
+      background: rgba(24, 35, 33, 0.92);
+      color: var(--white);
+    }
+
+    .decision-band h2,
+    .decision-band .section-note {
+      color: var(--white);
+    }
+
+    .decision-band .section-note {
+      opacity: 0.76;
+    }
+
+    .flow {
+      display: grid;
+      align-content: center;
+      gap: 10px;
+    }
+
+    .flow-step {
+      display: grid;
+      grid-template-columns: 116px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+      padding: 14px;
+      border: 1px solid rgba(255, 250, 240, 0.22);
+      background: rgba(255, 250, 240, 0.06);
+    }
+
+    .flow-step b {
+      color: #f4c772;
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .flow-step span {
+      color: rgba(255, 250, 240, 0.78);
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .compare-panel {
+      min-height: 320px;
+      padding: 22px;
+    }
+
+    .compare-panel.good {
+      border-top: 8px solid var(--green);
+    }
+
+    .compare-panel.better {
+      border-top: 8px solid var(--blue);
+    }
+
+    .fact-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .fact {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      padding: 10px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .fact::before {
+      content: "";
+      width: 12px;
+      height: 12px;
+      margin-top: 6px;
+      background: var(--amber);
+      box-shadow: 8px 8px 0 var(--green);
+    }
+
+    .principle-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .principle {
+      min-height: 160px;
+      padding: 18px;
+      background: var(--rail);
+      color: var(--white);
+    }
+
+    .principle p {
+      color: rgba(255, 250, 240, 0.72);
+    }
+
+    .proposed {
+      display: grid;
+      grid-template-columns: minmax(0, 0.95fr) minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .tool-stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .stack-row {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 16px;
+      border: 1px solid var(--line);
+      background: rgba(255, 250, 240, 0.74);
+    }
+
+    .stack-row .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--line-strong);
+      background: var(--rail);
+      color: var(--white);
+      font-weight: 900;
+    }
+
+    .stack-row > div {
+      min-width: 0;
+    }
+
+    .stack-row p {
+      margin-top: 5px;
+      color: var(--muted);
+    }
+
+    .callout {
+      padding: 22px;
+      border: 1px solid var(--line-strong);
+      background: var(--white);
+      box-shadow: var(--shadow);
+    }
+
+    .callout h3 {
+      color: var(--red);
+    }
+
+    .footer {
+      padding: 28px var(--pad) 46px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .section-head,
+      .decision-band,
+      .proposed,
+      .compare,
+      .priority-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .react-loop {
+        grid-template-columns: 1fr;
+      }
+
+      .react-step::after {
+        top: auto;
+        right: auto;
+        left: 24px;
+        bottom: 10px;
+        border-left: 8px solid transparent;
+        border-right: 8px solid transparent;
+        border-top: 12px solid var(--amber);
+        border-bottom: 0;
+      }
+
+      .tool-grid,
+      .gap-grid,
+      .reference-grid,
+      .pickup-grid,
+      .agent-tool-grid,
+      .principle-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .hero {
+        min-height: auto;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .nav {
+        justify-content: flex-start;
+      }
+
+      .tool-grid,
+      .gap-grid,
+      .reference-grid,
+      .pickup-grid,
+      .agent-tool-grid,
+      .principle-strip,
+      .caption-row {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-step {
+        grid-template-columns: 1fr;
+      }
+
+      .priority-list div {
+        grid-template-columns: 1fr;
+      }
+
+      .robot-plate {
+        min-height: 300px;
+      }
+
+      .a1 {
+        width: 140px;
+      }
+
+      .a2 {
+        width: 116px;
+      }
+
+      .arc {
+        width: 220px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark"><span></span></span>Robot Tooling Foundations</div>
+      <nav class="nav" aria-label="Page sections">
+        <a href="#current">Current Tools</a>
+        <a href="#pick">Pick Status</a>
+        <a href="#react">ReAct Loop</a>
+        <a href="#gap">Gap</a>
+        <a href="#state">State vs Failure</a>
+        <a href="#execution-memo">Execution Gate</a>
+        <a href="#agent-tools">Agent Tools</a>
+        <a href="#proposal">Remaining Work</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" id="top">
+        <div>
+          <p class="eyebrow">Pipecat agent control</p>
+          <h1>Give the agent fewer guesses and better robot verbs.</h1>
+          <p class="lede">
+            The current MoveIt tools cover end-effector motion, planning-scene observation,
+            pick and place planning, gripper actions, and gated plan execution. The remaining
+            gaps are complete pick/place execution semantics, body-level intent such as
+            turning around the base, and richer failure diagnosis.
+          </p>
+        </div>
+
+        <div class="hero-grid" aria-label="Robot motion diagram">
+          <div class="robot-plate">
+            <div class="arc"></div>
+            <div class="base-ring"></div>
+            <div class="joint j1"></div>
+            <div class="arm a1"></div>
+            <div class="joint j2"></div>
+            <div class="arm a2"></div>
+            <div class="joint j3"></div>
+            <div class="tcp"></div>
+            <div class="axis axis-base">base</div>
+            <div class="axis axis-tcp">TCP</div>
+          </div>
+          <div class="caption-row">
+            <p class="caption"><strong>TCP tools</strong><span>Move the hand through poses and waypoints.</span></p>
+            <p class="caption"><strong>Future joint tools</strong><span>Still needed for body-level requests.</span></p>
+          </div>
+        </div>
+      </section>
+
+      <section id="current">
+        <div class="section-head">
+          <h2>Current Tool Set</h2>
+          <p class="section-note">
+            The current vocabulary is semantic and narrow, which matches the architecture.
+            It keeps the agent away from raw ROS topics and routes motion through MoveIt.
+          </p>
+        </div>
+
+        <div class="tool-grid">
+          <article class="tool-card">
+            <span class="tag">observe</span>
+            <h3><code>moveit_get_current_pose</code></h3>
+            <p>Reads the current TCP pose in the planning frame. Best for grounding relative motion.</p>
+          </article>
+          <article class="tool-card">
+            <span class="tag">observe</span>
+            <h3><code>moveit_get_robot_state</code></h3>
+            <p>Reads pose, planning frame, physical-mode flag, and fake-controller joint state.</p>
+          </article>
+          <article class="tool-card">
+            <span class="tag">scene</span>
+            <h3><code>moveit_list_scene_objects</code></h3>
+            <p>Reads planning-scene object names, frames, poses, bounds, shape summaries, colors, and attached/free state.</p>
+          </article>
+          <article class="tool-card">
+            <span class="tag">context</span>
+            <h3><code>moveit_get_object_context</code></h3>
+            <p>Reads one returned object’s pose, bounds, shapes, grasp-relevant faces, clearance, frame, and state.</p>
+          </article>
+          <article class="tool-card">
+            <span class="tag">plan</span>
+            <h3><code>moveit_plan_free_motion</code></h3>
+            <p>Plans one non-linear point-to-point motion to a target TCP pose.</p>
+          </article>
+          <article class="tool-card">
+            <span class="tag">plan</span>
+            <h3><code>moveit_plan_cartesian_motion</code></h3>
+            <p>Plans an ordered TCP waypoint path for lines, gestures, and shape tracing.</p>
+          </article>
+          <article class="tool-card">
+            <span class="tag">plan</span>
+            <h3><code>moveit_plan_pick</code></h3>
+            <p>Plans an object-grounded pick path. In auto mode it may first return a free-motion staging plan and retry guidance.</p>
+          </article>
+          <article class="tool-card">
+            <span class="tag">plan</span>
+            <h3><code>moveit_plan_place</code></h3>
+            <p>Plans object-level placement for an attached object and derives the release TCP pose from object context.</p>
+          </article>
+          <article class="tool-card">
+            <span class="tag">contract</span>
+            <h3>Plan and execute are separate</h3>
+            <p>Planning tools return plan names. Only <code>moveit_execute_plan</code> executes a recent confirmed plan.</p>
+          </article>
+          <article class="tool-card">
+            <span class="tag">execute</span>
+            <h3><code>moveit_execute_plan</code></h3>
+            <p>Executes only a valid plan returned by a previous successful planning tool.</p>
+          </article>
+          <article class="tool-card">
+            <span class="tag">gripper</span>
+            <h3><code>moveit_open_gripper</code> / <code>moveit_close_gripper</code></h3>
+            <p>Controls the Robotiq gripper and verifies gripper joint feedback.</p>
+          </article>
+          <article class="tool-card">
+            <span class="tag">scene</span>
+            <h3><code>moveit_attach_object</code></h3>
+            <p>Attaches a planning-scene object after the gripper is known closed. Task Policy blocks blind attach.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="pick">
+        <div class="section-head">
+          <h2>Pick Needs A Staged Start</h2>
+          <p class="section-note">
+            The pick planner should not begin with a likely-to-fail long Cartesian approach
+            from home. It should first get near the object with free motion, then use
+            Cartesian motion only for the local grasp interaction.
+          </p>
+        </div>
+
+        <div class="priority-layout">
+          <article class="priority-panel">
+            <p class="eyebrow">Updated direction</p>
+            <h3>Approach from a beam-aware staging pose.</h3>
+            <p>
+              Object context should decide the first useful pose. Horizontal beams stage
+              above the object so the gripper can descend locally. Vertical beams stage to
+              the side so the gripper can approach the long face without sweeping in from
+              home. This makes the first motion a normal MoveIt free-motion plan, not a
+              brittle Cartesian path across the workspace.
+            </p>
+            <div class="priority-list">
+              <div><b>Rule</b><span>Long travel to the object uses free motion from the start.</span></div>
+              <div><b>Rule</b><span>Only the local approach, grasp, and lift segment is Cartesian.</span></div>
+              <div><b>Rule</b><span>The tool returns structured guidance instead of hiding a required preposition step.</span></div>
+            </div>
+          </article>
+
+          <div class="pickup-grid">
+            <article class="pickup-card">
+              <span class="tag">implemented</span>
+              <h3><code>moveit_list_scene_objects</code></h3>
+              <p>Returns object names, frames, poses, shape summaries, colors when available, bounds, and attached/free state.</p>
+            </article>
+            <article class="pickup-card">
+              <span class="tag">implemented</span>
+              <h3><code>moveit_get_object_context</code></h3>
+              <p>Returns one object’s pose, bounds, shape summaries, grasp-relevant faces, clearance, planning frame, and state.</p>
+            </article>
+            <article class="pickup-card">
+              <span class="tag">implemented</span>
+              <h3><code>moveit_plan_pick</code></h3>
+              <p>Plans object-grounded pick intent. The updated auto behavior should derive and return a required staging plan before local Cartesian grasp planning.</p>
+            </article>
+            <article class="pickup-card">
+              <span class="tag">implemented</span>
+              <h3><code>moveit_plan_place</code></h3>
+              <p>Plans placement for an attached object from object-level target intent and returns a pending executable plan.</p>
+            </article>
+          </div>
+        </div>
+
+        <div class="compare" style="margin-top: 18px;">
+          <article class="compare-panel good">
+            <h3>Stage 1: near-term fix</h3>
+            <p>
+              <code>moveit_plan_pick(auto)</code> should stage first. Instead of trying a
+              long Cartesian pick from home and learning the obvious failure, it derives
+              a beam-aware staging pose from object context, plans that pose with free
+              motion, and returns the staging plan as the next executable action.
+            </p>
+            <div class="fact-list">
+              <div class="fact">Compute a staging TCP pose from the object, not from a generic home-to-grasp line.</div>
+              <div class="fact">For horizontal beams, stage above the beam with the gripper pointing down.</div>
+              <div class="fact">For vertical beams, stage beside a long side face instead of using the top face.</div>
+              <div class="fact">Use free-motion planning to that staging pose, so MoveIt can solve the whole-arm travel.</div>
+              <div class="fact">Return the preposition plan name as executable, with retry guidance for the local Cartesian pick.</div>
+              <div class="fact">Ask the agent to execute the staging plan, re-read pose/object context, then retry <code>moveit_plan_pick</code> for the local approach.</div>
+            </div>
+          </article>
+
+          <article class="compare-panel better">
+            <h3>Stage 2: proper workflow fix</h3>
+            <p>
+              The proper fix is a workflow executor below the agent. It still keeps planning
+              and execution gated, but the robot layer owns the pick sequence after explicit
+              execute intent, instead of asking the model to manually chain gripper, attach,
+              verification, and lift steps.
+            </p>
+            <div class="fact-list">
+              <div class="fact">Execute the verified sequence as preposition -> local approach -> close gripper -> attach -> verify -> lift.</div>
+              <div class="fact">Preposition with free motion to the beam-appropriate staging pose.</div>
+              <div class="fact">Run the local Cartesian approach only once the arm is staged near the object.</div>
+              <div class="fact">Close the gripper, apply the attached collision object, then verify through <code>/UR10/get_planning_scene</code>.</div>
+              <div class="fact">Treat attach as complete only when the object is attached to the gripper link in the service-read scene.</div>
+              <div class="fact">Return verified completion or a structured blocker with the failed step and next recovery tool.</div>
+            </div>
+          </article>
+        </div>
+
+        <aside class="callout" style="margin-top: 18px;">
+          <h3>Beam orientation decides the staging side</h3>
+          <p>
+            Horizontal beams stage above the object. Vertical beams stage to the side.
+            The planner should choose that pose before asking for Cartesian approach
+            waypoints, because local Cartesian interaction is useful only after the robot
+            is already near the object.
+          </p>
+          <p>
+            Current live checks show the horizontal top-stage preposition succeeds.
+            Vertical side staging is now correctly selected, but still needs tuning:
+            the present side pose can fail with no IK solution.
+          </p>
+        </aside>
+      </section>
+
+      <section id="react">
+        <div class="section-head">
+          <h2>ReAct Execution Loop</h2>
+          <p class="section-note">
+            The current tools are shaped for an agent that observes, chooses a grounded
+            action, receives verification feedback, and then either continues or stops
+            with a concrete blocker.
+          </p>
+        </div>
+
+        <div class="react-loop" aria-label="ReAct workflow for robot tools">
+          <article class="react-step">
+            <strong>Observe</strong>
+            <h3>Read task context</h3>
+            <p><code>moveit_get_robot_state</code>, <code>moveit_list_scene_objects</code>, and <code>moveit_get_object_context</code> give the agent current robot and object facts.</p>
+          </article>
+          <article class="react-step">
+            <strong>Reason</strong>
+            <h3>Choose the next tool</h3>
+            <p>The model decides whether it has enough information to pick, replan, ask, or diagnose.</p>
+          </article>
+          <article class="react-step">
+            <strong>Plan</strong>
+            <h3>Ask MoveIt for feasibility</h3>
+            <p><code>moveit_plan_pick</code>, <code>moveit_plan_place</code>, Cartesian planning, and free-motion planning return executable plans, staging guidance, or structured blockers.</p>
+          </article>
+          <article class="react-step">
+            <strong>Act</strong>
+            <h3>Execute verified workflows</h3>
+            <p>Execution goes through <code>moveit_execute_plan</code> with a recent pending plan and explicit execute intent.</p>
+          </article>
+          <article class="react-step">
+            <strong>Verify</strong>
+            <h3>Continue or stop clearly</h3>
+            <p>Results must include <code>ok</code>, verification checks, correction text, retryability, and a suggested next tool when useful.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="decision-band" id="gap">
+        <div>
+          <p class="eyebrow">The 16:49 failure</p>
+          <h2>Cartesian composition cannot express every robot-body request.</h2>
+          <p class="section-note">
+            The agent tried to turn around the base by improvising a wide TCP arc.
+            MoveIt returned an incomplete Cartesian path and execution was not attempted.
+          </p>
+        </div>
+        <div class="flow">
+          <div class="flow-step"><b>User intent</b><span>Turn the robot around its base.</span></div>
+          <div class="flow-step"><b>Available verb</b><span>Plan Cartesian TCP waypoints.</span></div>
+          <div class="flow-step"><b>Planner result</b><span>Incomplete path with one trajectory point.</span></div>
+          <div class="flow-step"><b>Outcome</b><span>No verified motion, because there is no typed joint or base-turn tool yet.</span></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>What The Current Tools Can Compound</h2>
+          <p class="section-note">
+            Compound behaviors are still useful. The issue is where the composition happens.
+            Agent sequencing is good. Robot-side primitives need to match the intent class.
+          </p>
+        </div>
+
+        <div class="gap-grid">
+          <article class="gap-card">
+            <span class="tag">works well</span>
+            <h3>End-effector gestures</h3>
+            <p>Wave, trace a line, lift slightly, draw a small shape, move to a target pose.</p>
+          </article>
+          <article class="gap-card">
+            <span class="tag">fragile</span>
+            <h3>Body-like motion via TCP arcs</h3>
+            <p>Base turns, posture shifts, elbow movement, or “turn around” can be approximated but not guaranteed.</p>
+          </article>
+          <article class="gap-card">
+            <span class="tag">still missing</span>
+            <h3>Joint-space intent</h3>
+            <p>The agent needs a typed way to ask MoveIt for planned joint changes, not raw ROS mutation.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="state">
+        <div class="section-head">
+          <h2><code>moveit_get_robot_state</code> Is Necessary, Not Sufficient</h2>
+          <p class="section-note">
+            Robot state answers “what is true now?” A failure-explanation tool answers
+            “why did this specific attempt fail, and what should the agent try next?”
+          </p>
+        </div>
+
+        <div class="compare">
+          <article class="compare-panel good">
+            <h3><code>moveit_get_robot_state</code></h3>
+            <p>
+              This is implemented as readiness and verification context, not as the pick capability itself.
+            </p>
+            <div class="fact-list">
+              <div class="fact">Current pose and planning frame.</div>
+              <div class="fact">Physical-mode flag.</div>
+              <div class="fact">Latest fake-controller joint state.</div>
+              <div class="fact">Useful before pick planning and after a pick attempt to compare expected and observed state.</div>
+            </div>
+          </article>
+
+          <article class="compare-panel better">
+            <h3>Now exposed: <code>moveit_explain_motion_failure</code></h3>
+            <p>Use it after a failed plan, failed execution, or failed verification when the agent needs a grounded next move.</p>
+            <div class="fact-list">
+              <div class="fact">Consumes the failed tool result and original arguments.</div>
+              <div class="fact">Classifies failures such as incomplete path, unreachable waypoint, stale state, or verification mismatch.</div>
+              <div class="fact">Returns concise correction text and a suggested next tool.</div>
+              <div class="fact">Turns planner evidence into agent-ready recovery guidance.</div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="execution-memo">
+        <div class="section-head">
+          <h2>Execution Gate</h2>
+          <p class="section-note">
+            This page must be read together with
+            <a href="moveit-real-robot-execution-check.html">MoveIt to Real Robot Execution Check</a>.
+            The current runtime is simulation-only, but the tool contract still plans first
+            and executes only through one gated executor.
+          </p>
+        </div>
+
+        <div class="gap-grid">
+          <article class="gap-card">
+            <span class="tag">planner</span>
+            <h3><code>moveit_plan_pick</code></h3>
+            <p>Creates a pick plan or returns a required staging plan. Robot Context remembers successful returned plan names as pending executable plans.</p>
+          </article>
+          <article class="gap-card">
+            <span class="tag">confirmation</span>
+            <h3>Explicit execute intent</h3>
+            <p>Execution requires a current user command such as “execute it” or “go ahead.”</p>
+          </article>
+          <article class="gap-card">
+            <span class="tag">executor</span>
+            <h3><code>moveit_execute_plan</code></h3>
+            <p>The executor consumes the exact pending plan name, checks readiness, moves, and reports verified completion or failure.</p>
+          </article>
+        </div>
+
+        <aside class="callout" style="margin-top: 18px;">
+          <h3><code>moveit_plan_and_execute_*</code> must not be a tool</h3>
+          <p>
+            The robot tool contract keeps planning and execution as separate verbs.
+            Do not expose combined plan-and-execute tools for pick, place, free motion,
+            or Cartesian motion. A planner returns a plan name; <code>moveit_execute_plan</code>
+            consumes that exact recent plan only after explicit execute intent.
+          </p>
+        </aside>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>Architecture Rule</h2>
+          <p class="section-note">
+            The references in <code>ARCHITECTURE.md</code> point in the same direction:
+            introspect first, expose typed capabilities, and verify execution.
+          </p>
+        </div>
+
+        <div class="principle-strip">
+          <article class="principle">
+            <h3>Narrow tools</h3>
+            <p>Do not expose broad ROS control or raw topic mutation to the agent.</p>
+          </article>
+          <article class="principle">
+            <h3>Robot owns checks</h3>
+            <p>Readiness, planning, execution verification, and hard limits stay below the agent.</p>
+          </article>
+          <article class="principle">
+            <h3>Agent owns sequence</h3>
+            <p>The agent chooses the next semantic tool, based on tool feedback and user intent.</p>
+          </article>
+          <article class="principle">
+            <h3>Failure is data</h3>
+            <p>Failed plans should become structured recovery signals, not vague apologies.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="agent-tools">
+        <div class="section-head">
+          <h2>Anthropic Tool-Writing Guidance</h2>
+          <p class="section-note">
+            Anthropic’s agent-tool guidance says tools are contracts between deterministic
+            systems and non-deterministic agents. For this project, that means robot tools
+            should be designed around task affordances, not raw APIs.
+          </p>
+        </div>
+
+        <div class="agent-tool-grid">
+          <article class="agent-tool-card">
+            <span class="tag">choose</span>
+            <h3>Few high-impact tools</h3>
+            <p>Keep pick/place workflows ahead of broad low-level scene, topic, or service wrappers.</p>
+          </article>
+          <article class="agent-tool-card">
+            <span class="tag">namespace</span>
+            <h3>Clear boundaries</h3>
+            <p>Group tools by resource and intent: state, scene object, planning, pick, execution, diagnosis.</p>
+          </article>
+          <article class="agent-tool-card">
+            <span class="tag">context</span>
+            <h3>Return what guides action</h3>
+            <p>Use names, poses, frames, grasp candidates, correction text, and suggested next tools over raw IDs alone.</p>
+          </article>
+          <article class="agent-tool-card">
+            <span class="tag">budget</span>
+            <h3>Keep responses concise</h3>
+            <p>Default to compact summaries, with optional detailed output for debugging and replay.</p>
+          </article>
+          <article class="agent-tool-card">
+            <span class="tag">spec</span>
+            <h3>Write for a new teammate</h3>
+            <p>Tool descriptions should name when to use the tool, required inputs, outputs, and recovery behavior.</p>
+          </article>
+          <article class="agent-tool-card">
+            <span class="tag">eval</span>
+            <h3>Test with real tasks</h3>
+            <p>Evaluate prompts like “pick up the red beam” and inspect calls, errors, latency, and verification evidence.</p>
+          </article>
+        </div>
+
+        <p class="section-note" style="margin-top: 18px;">
+          Source:
+          <a href="https://www.anthropic.com/engineering/writing-tools-for-agents">Anthropic Engineering, “Writing effective tools for agents — with agents.”</a>
+        </p>
+      </section>
+
+      <section id="proposal">
+        <div class="section-head">
+          <h2>Implemented Foundations vs Candidate Gaps</h2>
+          <p class="section-note">
+            The left side is the current Pipecat-agent contract. The right side names gaps
+            and possible tools to add later. Combined plan-and-execute tools are not candidates.
+          </p>
+        </div>
+
+        <div class="proposed">
+          <div class="tool-stack" aria-label="Implemented foundations">
+            <div class="stack-row">
+              <span class="num">F1</span>
+              <div>
+                <h3><code>moveit_plan_pick</code></h3>
+                <p>Foundation. Accepts a returned object name, derives beam-aware staging, and returns either a staging plan or local pick workflow metadata without moving the robot.</p>
+              </div>
+            </div>
+            <div class="stack-row">
+              <span class="num">F2</span>
+              <div>
+                <h3><code>moveit_list_scene_objects</code></h3>
+                <p>Foundation. Lists planning-scene objects so the agent can ground object-relative and pick tasks.</p>
+              </div>
+            </div>
+            <div class="stack-row">
+              <span class="num">F3</span>
+              <div>
+                <h3><code>moveit_get_object_context</code></h3>
+                <p>Foundation. Reads one returned object’s bounds, faces, clearance, planning frame, and attached/free state.</p>
+              </div>
+            </div>
+            <div class="stack-row">
+              <span class="num">F4</span>
+              <div>
+                <h3><code>moveit_plan_place</code></h3>
+                <p>Foundation. Plans object-level placement for attached objects and returns a pending executable plan.</p>
+              </div>
+            </div>
+            <div class="stack-row">
+              <span class="num">F5</span>
+              <div>
+                <h3><code>moveit_execute_plan</code></h3>
+                <p>Foundation. Executes only a recent pending plan name after explicit confirmation.</p>
+              </div>
+            </div>
+            <div class="stack-row">
+              <span class="num">F6</span>
+              <div>
+                <h3><code>moveit_verify_attached_object</code></h3>
+                <p>Foundation. Verifies one planning-scene object is attached and moved with the gripper after pick/place execution.</p>
+              </div>
+            </div>
+            <div class="stack-row">
+              <span class="num">F7</span>
+              <div>
+                <h3><code>moveit_explain_motion_failure</code></h3>
+                <p>Foundation. Turns failed planner, executor, or verification evidence into retry guidance.</p>
+              </div>
+            </div>
+          </div>
+
+          <aside class="callout">
+            <h3>Remaining gaps: possible tools</h3>
+            <p>
+              These are not current Pipecat-agent tools. Add them only if the behavior
+              belongs below the agent and can return concrete planning or verification evidence.
+            </p>
+            <div class="fact-list">
+              <div class="fact">
+                <span><strong>Joint-space body movement.</strong> Candidate: <code>moveit_plan_joint_motion</code> for typed joint targets or bounded deltas.</span>
+              </div>
+              <div class="fact">
+                <span><strong>Base-turn voice intent.</strong> Candidate: <code>moveit_rotate_base</code> as a narrow semantic wrapper over base-joint planning.</span>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>Reference Takeaways</h2>
+          <p class="section-note">
+            These are not dependencies. They are design pressure toward agent-friendly robotics boundaries.
+          </p>
+        </div>
+
+        <div class="reference-grid">
+          <article class="reference-card">
+            <span class="tag">ROSA</span>
+            <h3>Introspect first</h3>
+            <p>Give the agent state and diagnosis tools before it improvises.</p>
+          </article>
+          <article class="reference-card">
+            <span class="tag">RobotMCP</span>
+            <h3>Typed ROS boundary</h3>
+            <p>Expose topic, service, and action behavior through MCP-level capability tools.</p>
+          </article>
+          <article class="reference-card">
+            <span class="tag">RAI</span>
+            <h3>Readiness gate</h3>
+            <p>Status and readiness should shape what motion tools are available or advisable.</p>
+          </article>
+          <article class="reference-card">
+            <span class="tag">ROS-LLM</span>
+            <h3>Structured execution</h3>
+            <p>Keep behaviors as explicit steps over ROS actions and services.</p>
+          </article>
+          <article class="reference-card">
+            <span class="tag">APYROBO</span>
+            <h3>Capability plus replay</h3>
+            <p>Semantic capabilities, safety policy, observability, and replay belong together.</p>
+          </article>
+          <article class="reference-card">
+            <span class="tag">Realtime MCP</span>
+            <h3>Tool narrowing</h3>
+            <p>Give the model the smallest useful tool set for the current context.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      Built from the current MoveIt tool contract and the reference guidance in ARCHITECTURE.md.
+      Core rule: the agent owns sequencing; the robot layer owns typed boundaries, planning, readiness, and verification.
+    </footer>
+  </div>
+</body>
+</html>
