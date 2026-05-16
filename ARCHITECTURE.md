@@ -136,7 +136,7 @@ The live MoveIt MCP runs as the `moveit-mcp` service in the ROS/Vizor Docker Com
 
 The source package lives in `C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\moveit_mcp`. It exposes FastMCP tools. The main entrypoint is `moveit_mcp.server`, the agent-facing tool wrappers live in `moveit_mcp.tools`, and the ROS 1 topic/service adapter lives in `moveit_mcp.vizor_client`.
 
-The Vizor ROS 1 container owns the downstream MoveIt node and robot control code. In the running `vizor-demo` container, the MoveIt server is `/UR10/move_group`, the app-facing control node is `/vizor_robot_control`, and the robot logic is under `/root/catkin_ws/src/vizor_lib/src/vizor_lib/`. Treat container paths as runtime locators; persistent fixes belong in the Docker image source. The local RViz/Vizor image build context is `C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\docker\vizor-rviz`; its `patch-vizor-robot.py` applies the ROS 1 `compute_cartesian_path(..., avoid_collisions=True)` compatibility patch inherited from `cxy201/noetic-vizor`.
+The Vizor ROS 1 container owns the downstream MoveIt node and robot control code. In the running `vizor-demo` container, the MoveIt server is `/UR10/move_group`, the app-facing control node is `/vizor_robot_control`, and the robot logic is under `/root/catkin_ws/src/vizor_lib/src/vizor_lib/`. Treat container paths as runtime locators; persistent fixes belong in the Docker image source. The local RViz/Vizor image build context is `C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\docker\vizor-rviz`; its `patch-vizor-robot.py` applies the ROS 1 `compute_cartesian_path(..., avoid_collisions=True)` compatibility patch inherited from `cxy201/noetic-vizor`. For the original-vs-current Docker stack comparison, see [docs/docker-vizor-rviz-comparison.html](docs/docker-vizor-rviz-comparison.html).
 
 RViz is a Planning Scene consumer, not an agent boundary. The RViz config in the Vizor image must subscribe to the namespaced MoveIt scene stream, typically `/UR10/move_group/monitored_planning_scene`, through the MoveIt MotionPlanning display. For MTC visualization, the same RViz config must also load `moveit_task_constructor/Motion Planning Tasks` against the conventional `robot_description` parameter and subscribe to `/solution`; the Vizor desktop startup aliases `/UR10/robot_description*` params to the global MoveIt names before launching RViz. The MTC display only animates when an MTC backend publishes `moveit_task_constructor_msgs/Solution` on `/solution`; otherwise it is expected to remain present but idle. The geometry path is ROSBridge topic input, `/vizor_robot_control`, MoveIt planning scene, then RViz visualization.
 
@@ -149,6 +149,8 @@ The current agent-facing robot contract includes:
 - Execution: `moveit_execute_plan` with a recent returned `raw.plan_name`, `moveit_execute_task_plan` with a recent pick `raw.task_solution_id` for Verified Real Robot Execution, and `moveit_execute_task_solution` with a returned `raw.task_solution_id` for sim/emulated task-solution execution.
 - Diagnostic: `moveit_explain_motion_failure` and `moveit_verify_attached_object`.
 - Admin/state mutation: `moveit_open_gripper`, `moveit_close_gripper`, and `moveit_attach_object`. In verified task-plan execution, physical gripper close is routed through Verified Real Robot Execution; `moveit_attach_object` only synchronizes MoveIt planning-scene attachment state after that verified close.
+
+Agent Orchestration filters task-solution execution tools before model binding. With a Verified Real Robot Execution client, the model sees `moveit_execute_task_plan` and not `moveit_execute_task_solution`; without that client, it sees `moveit_execute_task_solution` and not `moveit_execute_task_plan`. The MCP adapter may still know both tools.
 
 Do not expose broad ROS control, raw topic mutation tools, or combined `moveit_plan_and_execute_*` tools to Agent Orchestration by default. Planning and execution are separate agent-visible verbs.
 
@@ -227,6 +229,8 @@ Verified real robot motion uses URScript over the robot script socket. Verified 
 ### Long-running robot execution is blackboarded
 
 Agent Control may queue long-running MoveIt action tools as Robot Jobs after Task Policy accepts the step. The Robot Job Worker owns deterministic execution and writes terminal events. The LLM may decide what tool call to submit, but the worker must not improvise, repair, or reinterpret the tool arguments.
+
+Robot Control owns the Robot Job Blackboard state and exposes a concise rendered job summary to Agent Control. Raw plan names, job arguments, structured tool results, and trace attributes remain available for execution and debugging; user-facing speech should use short status phrases such as `Plan ready.`, `Execution queued.`, and `Execution complete.` rather than reading raw plan identifiers aloud.
 
 Diagnostic and proof tools, such as `moveit_explain_motion_failure` and `moveit_verify_attached_object`, are immediate feedback tools rather than queued action execution.
 

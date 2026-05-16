@@ -905,6 +905,16 @@
       stroke-width: 2;
     }
 
+    .llm-flow-diagram .node-trace {
+      stroke: var(--trace);
+      stroke-width: 2;
+    }
+
+    .llm-flow-diagram .node-speech {
+      stroke: var(--voice);
+      stroke-width: 2;
+    }
+
     .llm-flow-diagram .flow-solid {
       fill: none;
       stroke: #817d70;
@@ -996,6 +1006,10 @@
     .diagram-legend .dashed i {
       border-color: #c66b49;
       border-top-style: dashed;
+    }
+
+    .context-pipeline-heading {
+      margin-top: 22px;
     }
 
     .detail-note-grid {
@@ -1296,27 +1310,28 @@
         <div>
           <p class="module-kicker">API-key LangChain backend</p>
           <h2>Agent Control</h2>
-          <p class="module-summary">Builds the native chat model, renders the robot agent prompt, runs the LangGraph orchestration loop, and returns assistant text through the Voice Runtime Agent Turn seam.</p>
+          <p class="module-summary">Builds the native chat model, renders the robot agent prompt, collects Robot Context, User Sensing, and Robot Job Blackboard summaries, runs the LangGraph loop, and returns assistant text through the Voice Runtime Agent Turn seam.</p>
         </div>
         <div class="path-chip">server/agent_control/</div>
       </div>
       <div class="module-layout">
         <section class="module-section">
           <h3>Tool Loop</h3>
-          <div class="module-flow" style="--flow-count: 6;">
+          <div class="module-flow" style="--flow-count: 7;">
             <div class="flow-node" tabindex="0" data-tip="The typed input from Voice Runtime into Agent Control. Example: latest_user_text='move up a bit' plus any available turn metadata."><b>AgentTurnInput</b><span>from voice</span></div>
             <div class="flow-node" tabindex="0" role="button" aria-controls="agent-llm-input" data-scroll-target="agent-llm-input" data-tip="This assembles the instructions the model sees before it answers. Example: for 'move up a bit,' it combines the robot contract, response style, current user-sensing summary, and tool rules so the model knows to observe pose, plan, execute only the returned plan, then answer briefly."><b>Prompt render</b><span>LLM input stack</span></div>
+            <div class="flow-node" tabindex="0" role="button" aria-controls="agent-llm-input" data-scroll-target="agent-llm-input" data-tip="A compact model-facing bundle rendered before each model turn. Example: Robot Context plus Robot Job Blackboard shows that an execution job completed without forcing the model to infer job state from raw tool payloads."><b>Context bundle</b><span>robot + jobs</span></div>
             <div class="flow-node" tabindex="0" data-tip="The provider-backed LLM selected by the runtime profile. Example: Gemini receives the rendered prompt and may choose a MoveIt tool call instead of plain text."><b>Chat model</b><span>provider API</span></div>
             <div class="flow-node" tabindex="0" data-tip="The state machine around the model and tools. Example: if validation says 'need current pose,' LangGraph feeds that correction back to the model and lets it try the right observation tool."><b>LangGraph</b><span>decide/retry</span></div>
             <div class="flow-node" tabindex="0" data-tip="The seam that turns model tool calls into Robot Control execution. Example: a model call to plan a cartesian move becomes a validated MoveIt MCP request."><b>Robot adapter</b><span>tool calls</span></div>
-            <div class="flow-node" tabindex="0" data-tip="The final text Agent Control returns to Voice Runtime. Example: after a successful tool result, it may return 'Done, I moved up a bit.'"><b>Assistant text</b><span>back to TTS</span></div>
+            <div class="flow-node" tabindex="0" data-tip="The final text Agent Control returns to Voice Runtime. Robot execution status is intentionally short: Plan ready., Execution queued., Execution complete., or Action complete."><b>Assistant text</b><span>back to TTS</span></div>
           </div>
           <article class="llm-input-detail" id="agent-llm-input" aria-labelledby="agent-llm-input-title" tabindex="-1">
             <div class="llm-detail-heading">
               <p>Agent Control drilldown</p>
               <h4 id="agent-llm-input-title">LLM Input Stack</h4>
             </div>
-            <p class="detail-summary">One model call is not just the transcript. Agent Control builds a typed turn, refreshes advisory context, binds MoveIt tools, then sends a system message, user message, current context blocks, and tool schemas into the provider-backed chat model.</p>
+            <p class="detail-summary">One model call is not just the transcript. Agent Control builds a typed turn, refreshes advisory context, records completed worker results into Robot Context, renders the Robot Job Blackboard summary, filters task-solution execution tools for the active mode, then sends a system message, user message, current context blocks, and tool schemas into the provider-backed chat model.</p>
             <div class="llm-flow-panel">
               <svg class="llm-flow-diagram" viewBox="0 0 1160 520" role="img" aria-labelledby="llm-flow-title llm-flow-desc">
                 <title id="llm-flow-title">Agent Control LLM data flow</title>
@@ -1353,7 +1368,7 @@
 
                   <rect class="node-box node-soft" x="390" y="302" width="210" height="58" rx="8"></rect>
                   <text class="node-title" x="495" y="329" text-anchor="middle">Bound tools</text>
-                  <text class="node-subtitle" x="495" y="348" text-anchor="middle">MoveIt schemas</text>
+                  <text class="node-subtitle" x="495" y="348" text-anchor="middle">mode-filtered schemas</text>
 
                   <rect class="node-box node-agent" x="720" y="170" width="240" height="82" rx="8"></rect>
                   <text class="node-title" x="840" y="199" text-anchor="middle">Provider chat model</text>
@@ -1408,6 +1423,93 @@
                 <span class="dashed"><i></i> Dashed path = robot result, correction, or retry loop.</span>
               </div>
             </div>
+            <div class="llm-detail-heading context-pipeline-heading">
+              <p>Context collection</p>
+              <h4>Robot Context And Job Blackboard Pipeline</h4>
+            </div>
+            <p class="detail-summary">Before each model turn, Agent Control makes recent robot state explicit. Terminal job events are first applied to Robot Context, while the Blackboard renders current queued, running, completed, failed, and cancelled jobs as a compact <code>Robot Job Blackboard:</code> block. The model sees concise state; spoken status stays human-sized.</p>
+            <div class="llm-flow-panel">
+              <svg class="llm-flow-diagram" viewBox="0 0 1160 430" role="img" aria-labelledby="context-flow-title context-flow-desc">
+                <title id="context-flow-title">Context collection pipeline</title>
+                <desc id="context-flow-desc">A diagram showing completed job events, Robot Context, Robot Job Blackboard, user sensing, prompt assembly, provider model input, short speech output, and Process Trace observation.</desc>
+                <defs>
+                  <marker id="arrow-solid-context" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#817d70"></path>
+                  </marker>
+                  <marker id="arrow-dashed-context" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c66b49"></path>
+                  </marker>
+                  <marker id="arrow-muted-context" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(28, 36, 36, 0.38)"></path>
+                  </marker>
+                </defs>
+
+                <g aria-hidden="true">
+                  <rect class="node-box node-robot" x="48" y="50" width="190" height="66" rx="8"></rect>
+                  <text class="node-title" x="143" y="79" text-anchor="middle">Terminal job event</text>
+                  <text class="node-subtitle" x="143" y="100" text-anchor="middle">completed / failed</text>
+
+                  <rect class="node-box node-robot" x="48" y="178" width="190" height="66" rx="8"></rect>
+                  <text class="node-title" x="143" y="207" text-anchor="middle">Robot Context</text>
+                  <text class="node-subtitle" x="143" y="228" text-anchor="middle">pose / plan / result</text>
+
+                  <rect class="node-box node-robot" x="48" y="306" width="190" height="66" rx="8"></rect>
+                  <text class="node-title" x="143" y="335" text-anchor="middle">Job Blackboard</text>
+                  <text class="node-subtitle" x="143" y="356" text-anchor="middle">recent job summary</text>
+
+                  <rect class="node-box node-sense" x="320" y="178" width="190" height="66" rx="8"></rect>
+                  <text class="node-title" x="415" y="207" text-anchor="middle">User Sensing</text>
+                  <text class="node-subtitle" x="415" y="228" text-anchor="middle">gaze / target / pose</text>
+
+                  <rect class="node-box node-agent" x="592" y="118" width="220" height="110" rx="8"></rect>
+                  <text class="node-title" x="702" y="151" text-anchor="middle">Prompt composer</text>
+                  <text class="node-subtitle" x="702" y="174" text-anchor="middle">Robot Context block</text>
+                  <text class="node-subtitle" x="702" y="194" text-anchor="middle">+ Robot Job Blackboard</text>
+                  <text class="node-subtitle" x="702" y="214" text-anchor="middle">+ User Sensing block</text>
+
+                  <rect class="node-box node-agent" x="908" y="122" width="205" height="84" rx="8"></rect>
+                  <text class="node-title" x="1010" y="154" text-anchor="middle">Provider model</text>
+                  <text class="node-subtitle" x="1010" y="176" text-anchor="middle">state is explicit</text>
+                  <text class="node-subtitle" x="1010" y="194" text-anchor="middle">tool schemas bound</text>
+
+                  <rect class="node-box node-speech" x="908" y="286" width="205" height="66" rx="8"></rect>
+                  <text class="node-title" x="1010" y="315" text-anchor="middle">Speech output</text>
+                  <text class="node-subtitle" x="1010" y="336" text-anchor="middle">Plan ready / complete</text>
+
+                  <rect class="node-box node-trace" x="592" y="306" width="220" height="66" rx="8"></rect>
+                  <text class="node-title" x="702" y="335" text-anchor="middle">Process Trace</text>
+                  <text class="node-subtitle" x="702" y="356" text-anchor="middle">job lifecycle events</text>
+
+                  <path class="flow-dashed" marker-end="url(#arrow-dashed-context)" d="M143 116 V178"></path>
+                  <text class="flow-label-hot" x="157" y="150">record result first</text>
+
+                  <path class="flow-solid" marker-end="url(#arrow-solid-context)" d="M238 211 H592"></path>
+                  <text class="flow-label" x="250" y="164">Robot Context block</text>
+
+                  <path class="flow-solid" marker-end="url(#arrow-solid-context)" d="M238 339 H552 V205 H592"></path>
+                  <text class="flow-label" x="286" y="292">Robot Job Blackboard:</text>
+
+                  <path class="flow-muted" marker-end="url(#arrow-muted-context)" d="M510 211 H592"></path>
+                  <text class="flow-label" x="520" y="264">advisory block</text>
+
+                  <path class="flow-solid" marker-end="url(#arrow-solid-context)" d="M812 164 H908"></path>
+                  <text class="flow-label" x="826" y="112">SystemMessage</text>
+
+                  <path class="flow-solid" marker-end="url(#arrow-solid-context)" d="M1010 206 V286"></path>
+                  <text class="flow-label" x="1024" y="249">short final text</text>
+
+                  <path class="flow-muted" marker-end="url(#arrow-muted-context)" d="M238 339 H592"></path>
+                  <text class="flow-label" x="260" y="391">robot.job.*</text>
+
+                  <path class="flow-muted" marker-end="url(#arrow-muted-context)" d="M702 306 V228"></path>
+                  <text class="flow-label" x="720" y="269">observes only</text>
+                </g>
+              </svg>
+              <div class="diagram-legend">
+                <span><i></i> Solid path = context rendered into the next model request.</span>
+                <span class="dashed"><i></i> Dashed path = terminal job event applied before the turn.</span>
+              </div>
+            </div>
             <div class="detail-note-grid">
               <div class="detail-note">
                 <strong>Freshness rule</strong>
@@ -1419,14 +1521,18 @@
               </div>
               <div class="detail-note">
                 <strong>Key code path</strong>
-                <p><code>LangGraphRobotAgent._call_model()</code> binds tools, builds messages, and invokes the selected provider model.</p>
+                <p><code>LangChainAgentProcessor._record_terminal_job_events()</code> and <code>LangGraphRobotAgent._instructions()</code> build the current context blocks before the model call.</p>
+              </div>
+              <div class="detail-note">
+                <strong>Task execution mode</strong>
+                <p>Verified mode binds <code>moveit_execute_task_plan</code>; sim/eval mode binds <code>moveit_execute_task_solution</code>. The model does not see both.</p>
               </div>
             </div>
           </article>
           <div class="two-column">
             <div class="fact">
               <strong>Owns</strong>
-              <p>Provider-specific LangChain model construction, robot prompt composition, LangGraph orchestration, supported action fallbacks, and optional robot job submission.</p>
+              <p>Provider-specific LangChain model construction, robot prompt composition, LangGraph orchestration, Robot Job Blackboard summary injection, clean robot-status speech, and optional robot job submission.</p>
             </div>
             <div class="fact">
               <strong>Depends On</strong>
@@ -1449,7 +1555,7 @@
           </section>
           <section class="side-section">
             <h3>Boundary</h3>
-            <p>Agent Control may choose robot tools, but it must route robot execution through Robot Control. It does not own Pipecat audio frames or pipeline ordering.</p>
+            <p>Agent Control may choose robot tools, but it must route robot execution through Robot Control. It hides the inactive task-solution execution tool before model binding.</p>
           </section>
         </aside>
       </div>
@@ -1473,13 +1579,13 @@
             <div class="flow-node" tabindex="0" data-tip="Checks the concrete tool name and arguments. Example: make sure robot_name is UR10 and a pose contains finite x, y, z values."><b>Call Validation</b><span>tool shape</span></div>
             <div class="flow-node" tabindex="0" data-tip="Calls the host-side MoveIt MCP server. Example: send a validated plan request over MCP and serialize the returned tool result."><b>MCP Bridge</b><span>MoveIt tools</span></div>
             <div class="flow-node" tabindex="0" data-tip="Advisory memory of recent robot facts. Example: last current pose, last successful plan_name, gripper state, and last execution result."><b>Robot Context</b><span>advisory state</span></div>
-            <div class="flow-node" tabindex="0" data-tip="A typed board for long-running robot work. Example: Agent Control queues a robot job, and later events mark it started, completed, or failed."><b>Job Board</b><span>long actions</span></div>
+            <div class="flow-node" tabindex="0" data-tip="A typed board for long-running robot work. Example: Agent Control queues a robot job, later events mark it started/completed/failed, and a concise summary is rendered back into the next model turn."><b>Job Board</b><span>long actions</span></div>
             <div class="flow-node" tabindex="0" data-tip="A deterministic executor for queued robot jobs. Example: it runs the exact submitted MoveIt tool call; it does not invent repairs or new tool calls."><b>Job Worker</b><span>deterministic run</span></div>
           </div>
           <div class="two-column">
             <div class="fact">
               <strong>Owns</strong>
-              <p>Allowed MoveIt tool names, UR10 argument checks, target bounds, executable plan names, task-policy feedback, and robot job lifecycle events.</p>
+              <p>Allowed MoveIt tool names, UR10 argument checks, target bounds, executable plan names, task-policy feedback, robot job lifecycle events, and the rendered Blackboard summary consumed by Agent Control.</p>
             </div>
             <div class="fact">
               <strong>Does Not Claim</strong>
@@ -1549,6 +1655,8 @@
             <h3>Channel Rules</h3>
             <ul class="bullet-list">
               <li>Plan through MoveIt MCP before physical execution.</li>
+              <li>Use <code>moveit_execute_task_plan</code> for verified pick task solutions.</li>
+              <li>Keep <code>moveit_execute_task_solution</code> for sim/emulated task execution only.</li>
               <li>Execute only a recent plan name or explicit operator command.</li>
               <li>Send arm motion/home as URScript over <code>30002</code>.</li>
               <li>Send gripper open/close over Robotiq <code>63352</code>.</li>
