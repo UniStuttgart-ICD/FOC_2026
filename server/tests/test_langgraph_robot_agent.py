@@ -165,6 +165,25 @@ class FakeBridge:
         return json.dumps({"structured_content": {"ok": True}})
 
 
+class TaskExecutionBridge(FakeBridge):
+    def function_tools(self) -> list[dict[str, Any]]:
+        return [
+            *super().function_tools(),
+            {
+                "type": "function",
+                "name": "moveit_execute_task_plan",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+            {
+                "type": "function",
+                "name": "moveit_execute_task_solution",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+        ]
+
+
 class FakeUserSensingBridge:
     def __init__(self) -> None:
         self.calls: list[float] = []
@@ -215,6 +234,7 @@ class FakeUserSensingBridge:
 class FakeVerifiedExecutionClient:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, float]] = []
+        self.gripper_calls: list[tuple[str, str, float]] = []
 
     async def execute_plan(
         self,
@@ -233,6 +253,27 @@ class FakeVerifiedExecutionClient:
                     "phase": "executed",
                     "status": "executed",
                     "feedback": {"plan_name": plan_name, "trajectory_points": 2},
+                    "verification": {"result": "pass"},
+                },
+                "is_error": False,
+            }
+        )
+
+    async def close_gripper(
+        self,
+        *,
+        robot_name: str,
+        timeout_s: float,
+    ) -> str:
+        self.gripper_calls.append((robot_name, "close", timeout_s))
+        return json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "robot": robot_name,
+                    "tool": "moveit_close_gripper",
+                    "phase": "gripper",
+                    "status": "gripper_closed",
                     "verification": {"result": "pass"},
                 },
                 "is_error": False,
@@ -487,6 +528,44 @@ async def test_graph_loads_user_sensing_context_before_model_response() -> None:
     assert "user position: x=0.340, y=-0.720, z=1.250" in system_text
     tool_names = {tool["function"]["name"] for tool in fixture.model.bound_tools}
     assert "vizor_get_sensor_context" not in tool_names
+
+
+@pytest.mark.asyncio
+async def test_graph_hides_sim_task_solution_tool_in_verified_execution_mode() -> None:
+    fixture = make_graph(
+        [ai_text("ready")],
+        bridge=TaskExecutionBridge(),
+        verified_execution_client=FakeVerifiedExecutionClient(),
+    )
+
+    await fixture.graph.run_turn(turn("pick up dynamic_5"))
+
+    tool_names = {tool["function"]["name"] for tool in fixture.model.bound_tools}
+    assert "moveit_execute_task_plan" in tool_names
+    assert "moveit_execute_task_solution" not in tool_names
+    first_request = fixture.model.requests[0]
+    assert isinstance(first_request[0], SystemMessage)
+    assert (
+        "Use moveit_execute_task_plan for returned pick task_solution_id values; "
+        "moveit_execute_task_solution is not available in real-robot mode."
+    ) in str(first_request[0].content)
+
+
+@pytest.mark.asyncio
+async def test_graph_hides_verified_task_plan_tool_in_simulation_mode() -> None:
+    fixture = make_graph([ai_text("ready")], bridge=TaskExecutionBridge())
+
+    await fixture.graph.run_turn(turn("pick up dynamic_5"))
+
+    tool_names = {tool["function"]["name"] for tool in fixture.model.bound_tools}
+    assert "moveit_execute_task_solution" in tool_names
+    assert "moveit_execute_task_plan" not in tool_names
+    first_request = fixture.model.requests[0]
+    assert isinstance(first_request[0], SystemMessage)
+    assert (
+        "Use moveit_execute_task_solution for task_solution_id values; "
+        "moveit_execute_task_plan is not available without Verified Real Robot Execution."
+    ) in str(first_request[0].content)
 
 
 @pytest.mark.asyncio
@@ -1597,13 +1676,10 @@ async def test_graph_blocks_emulated_task_solution_in_verified_execution_mode() 
     output = json.loads(last_tool_content(fixture.model))
     assert output == {
         "ok": False,
-        "error": "Task solution execution is not wired to Verified Real Robot Execution",
-        "correction": (
-            "Do not claim physical task execution. The current task solution has "
-            "emulated arm-motion stages; use a verified cached trajectory plan or "
-            "add verified task-solution execution before retrying this task."
-        ),
-        "retryable": False,
+        "error": "Wrong task execution tool for real-robot mode",
+        "correction": "Use moveit_execute_task_plan with the same task_solution_id.",
+        "retryable": True,
+        "suggested_next_tool": "moveit_execute_task_plan",
     }
 
 
@@ -1683,6 +1759,7 @@ async def test_graph_executes_approved_pick_task_plan_through_verified_execution
     verified_plan_names = [call[1] for call in verified_client.calls]
     assert [call[0] for call in verified_client.calls] == ["UR10", "UR10", "UR10"]
     assert [call[2] for call in verified_client.calls] == [9.0, 9.0, 9.0]
+    assert verified_client.gripper_calls == [("UR10", "close", 9.0)]
     assert verified_plan_names[0].startswith("pick_task_dynamic_5_001_approach_")
     assert verified_plan_names[0].endswith("_try1")
     assert verified_plan_names[1].startswith("pick_task_dynamic_5_001_pre_grasp_")
@@ -1719,8 +1796,14 @@ async def test_graph_executes_approved_pick_task_plan_through_verified_execution
                 "timeout_s": 9.0,
             },
         ),
-        ("moveit_close_gripper", {"robot_name": "UR10", "timeout_s": 9.0}),
-        ("moveit_attach_object", {"robot_name": "UR10", "object_name": "dynamic_5"}),
+        (
+            "moveit_attach_object",
+            {
+                "robot_name": "UR10",
+                "object_name": "dynamic_5",
+                "verified_gripper_closed": True,
+            },
+        ),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
         (
             "moveit_plan_cartesian_motion",

@@ -148,7 +148,7 @@ The current agent-facing robot contract includes:
 - Planning: `moveit_plan_free_motion`, `moveit_plan_cartesian_motion`, `moveit_plan_pick`, `moveit_plan_place`, `moveit_plan_pick_task`, and `moveit_plan_place_task`.
 - Execution: `moveit_execute_plan` with a recent returned `raw.plan_name`, `moveit_execute_task_plan` with a recent pick `raw.task_solution_id` for Verified Real Robot Execution, and `moveit_execute_task_solution` with a returned `raw.task_solution_id` for sim/emulated task-solution execution.
 - Diagnostic: `moveit_explain_motion_failure` and `moveit_verify_attached_object`.
-- Admin/state mutation: `moveit_open_gripper`, `moveit_close_gripper`, and `moveit_attach_object`.
+- Admin/state mutation: `moveit_open_gripper`, `moveit_close_gripper`, and `moveit_attach_object`. In verified task-plan execution, physical gripper close is routed through Verified Real Robot Execution; `moveit_attach_object` only synchronizes MoveIt planning-scene attachment state after that verified close.
 
 Do not expose broad ROS control, raw topic mutation tools, or combined `moveit_plan_and_execute_*` tools to Agent Orchestration by default. Planning and execution are separate agent-visible verbs.
 
@@ -158,7 +158,7 @@ The MTC Backend is not the default MoveIt MCP backend. MTC packages are installe
 
 Verified Real Robot Execution is the host-side actuation boundary from MoveIt plans to the physical UR10 and Robotiq gripper. It is intentionally not an MCP server. The agent still plans through MoveIt MCP; execution requires an explicit returned plan name or an explicit operator command.
 
-For verified pick-task execution, `moveit_execute_task_plan` is the agent-facing Robot Control bridge. It requires the exact recent pick `task_solution_id` and matching approval payload, converts each workflow motion stage into a concrete MoveIt plan, executes each returned `plan_name` through Verified Real Robot Execution, interleaves gripper and attachment tools, and verifies attachment before reporting success. Place task-plan execution is not part of this bridge yet.
+For verified pick-task execution, `moveit_execute_task_plan` is the agent-facing Robot Control bridge. It requires the exact recent pick `task_solution_id` and matching approval payload, converts each workflow motion stage into a concrete MoveIt plan, executes each returned `plan_name` through Verified Real Robot Execution, closes the physical gripper through Verified Real Robot Execution, synchronizes MoveIt attachment state with `moveit_attach_object`, and verifies attachment before reporting success. Place task-plan execution is not part of this bridge yet.
 
 The verified execution server caches MoveIt planned trajectories from ROSBridge and exposes narrow HTTP commands for execute, home, and gripper control. The operator dashboard may start this server and call those commands. Agent Control may call the execute tool only when the user explicitly requests execution and a planned action is waiting.
 

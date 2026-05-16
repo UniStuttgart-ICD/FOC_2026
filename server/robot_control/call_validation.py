@@ -141,7 +141,10 @@ _AGENT_TOOL_DESCRIPTIONS = {
     ),
     "moveit_open_gripper": "Open the UR10 gripper through Vizor and verify /Robot/gripper plus /Robot/status feedback.",
     "moveit_close_gripper": "Close the UR10 gripper through Vizor and verify /Robot/gripper plus /Robot/status feedback.",
-    "moveit_attach_object": "Attach an object to the simulated gripper after the gripper has been closed.",
+    "moveit_attach_object": (
+        "Attach an object in the MoveIt planning scene after the gripper has been closed; "
+        "moveit_execute_task_plan uses this only after Verified Real Robot Execution closes the physical gripper."
+    ),
 }
 
 _ALLOWED_ARGUMENTS: dict[str, set[str]] = {
@@ -204,7 +207,7 @@ _ALLOWED_ARGUMENTS: dict[str, set[str]] = {
     "moveit_execute_plan": {"robot_name", "plan_name", "timeout_s"},
     "moveit_open_gripper": {"robot_name", "timeout_s"},
     "moveit_close_gripper": {"robot_name", "timeout_s"},
-    "moveit_attach_object": {"robot_name", "object_name"},
+    "moveit_attach_object": {"robot_name", "object_name", "verified_gripper_closed"},
 }
 
 

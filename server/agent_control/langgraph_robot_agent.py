@@ -59,6 +59,14 @@ TASK_PLAN_STAGE_MAX_ATTEMPTS = 2
 TASK_PLAN_OBSERVATION_MAX_ATTEMPTS = 3
 TASK_PLAN_OBSERVATION_RETRY_DELAY_S = 0.2
 VIZOR_ROBOT_NAME = "UR10"
+REAL_ROBOT_TASK_EXECUTION_INSTRUCTION = (
+    "Use moveit_execute_task_plan for returned pick task_solution_id values; "
+    "moveit_execute_task_solution is not available in real-robot mode."
+)
+SIM_TASK_EXECUTION_INSTRUCTION = (
+    "Use moveit_execute_task_solution for task_solution_id values; "
+    "moveit_execute_task_plan is not available without Verified Real Robot Execution."
+)
 PLAN_TOOL_NAMES = {
     "moveit_plan_free_motion",
     "moveit_plan_cartesian_motion",
@@ -241,11 +249,12 @@ class LangGraphRobotAgent:
         return wrapped
 
     async def _observe_current_pose(self, state: RobotAgentState) -> dict[str, Any]:
-        tools = self._tool_bridge.function_tools()
+        available_tools = self._tool_bridge.function_tools()
+        tools = self._model_visible_tools(available_tools)
         await self._refresh_user_sensing_context()
         if state.get("observed_this_turn"):
             return {"tools": tools}
-        observe_tool_name = _first_available_tool(tools, OBSERVE_TOOL_NAMES)
+        observe_tool_name = _first_available_tool(available_tools, OBSERVE_TOOL_NAMES)
         if observe_tool_name is None:
             return {"tools": tools}
         logger.info("Refreshing robot observation before Codex request with {}", observe_tool_name)
@@ -304,7 +313,7 @@ class LangGraphRobotAgent:
         }
 
     async def _call_model(self, state: RobotAgentState) -> dict[str, Any]:
-        tools = state["tools"] or self._tool_bridge.function_tools()
+        tools = state["tools"] or self._model_visible_tools(self._tool_bridge.function_tools())
         model = self._model.bind_tools(
             _tools_for_model_binding(tools),
             tool_choice=_tool_choice_for_state(state),
@@ -532,7 +541,11 @@ class LangGraphRobotAgent:
         return {"final_text": text or NO_TEXT_RESPONSE}
 
     def _instructions(self) -> str:
-        parts = [SYSTEM_PROMPT, self._robot_context.render_instruction_block()]
+        parts = [
+            SYSTEM_PROMPT,
+            self._task_execution_mode_instruction(),
+            self._robot_context.render_instruction_block(),
+        ]
         if self._robot_job_blackboard_summary is not None:
             job_blackboard_summary = self._robot_job_blackboard_summary()
             if job_blackboard_summary:
@@ -540,6 +553,19 @@ class LangGraphRobotAgent:
         if self._user_sensing_bridge is not None:
             parts.append(self._user_sensing_context.render_instruction_block())
         return "\n\n".join(parts)
+
+    def _model_visible_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        hidden_tool = (
+            "moveit_execute_task_solution"
+            if self._verified_execution_client is not None
+            else "moveit_execute_task_plan"
+        )
+        return [tool for tool in tools if tool.get("name") != hidden_tool]
+
+    def _task_execution_mode_instruction(self) -> str:
+        if self._verified_execution_client is not None:
+            return REAL_ROBOT_TASK_EXECUTION_INSTRUCTION
+        return SIM_TASK_EXECUTION_INSTRUCTION
 
     async def _refresh_user_sensing_context(self) -> None:
         if self._user_sensing_bridge is None:
@@ -664,6 +690,9 @@ class LangGraphRobotAgent:
         if not decision.ok:
             return json.dumps(structured_task_policy_error(decision), ensure_ascii=False)
         if name == "moveit_execute_task_solution":
+            verified_error = self._verified_real_robot_task_solution_error(arguments)
+            if verified_error is not None:
+                return json.dumps(verified_error, ensure_ascii=False)
             self._record_task_solution_approval_if_explicit(
                 arguments,
                 user_text=user_text,
@@ -673,9 +702,6 @@ class LangGraphRobotAgent:
                 ensure_task_solution_execution_allowed(self._robot_context, arguments)
             except RobotCallValidationError as exc:
                 return json.dumps(structured_robot_call_error(exc), ensure_ascii=False)
-            verified_error = self._verified_real_robot_task_solution_error(arguments)
-            if verified_error is not None:
-                return json.dumps(verified_error, ensure_ascii=False)
         output = await self._tool_bridge.call_tool(name, arguments)
         self._robot_context.update_from_tool_result(name, output)
         self._tracer.event(
@@ -713,31 +739,18 @@ class LangGraphRobotAgent:
         )
 
     def _verified_real_robot_task_solution_error(
-        self, arguments: dict[str, Any]
+        self, _arguments: dict[str, Any]
     ) -> dict[str, Any] | None:
         if self._verified_execution_client is None:
             return None
-        task_solution_id = arguments.get("task_solution_id")
-        recent = self._robot_context.recent_task_solution
-        if (
-            not isinstance(task_solution_id, str)
-            or recent is None
-            or recent.task_solution_id != task_solution_id
-            or recent.backend != "emulated"
-        ):
-            return None
         exc = RobotCallValidationError(
-            "Task solution execution is not wired to Verified Real Robot Execution",
-            correction=(
-                "Do not claim physical task execution. The current task solution has "
-                "emulated arm-motion stages; use a verified cached trajectory plan or "
-                "add verified task-solution execution before retrying this task."
-            ),
+            "Wrong task execution tool for real-robot mode",
+            correction="Use moveit_execute_task_plan with the same task_solution_id.",
         )
         return structured_robot_call_error(
             exc,
-            retryable=False,
-            suggested_next_tool=None,
+            retryable=True,
+            suggested_next_tool="moveit_execute_task_plan",
         )
 
     async def _execute_tool(
@@ -918,19 +931,27 @@ class LangGraphRobotAgent:
                     return last_error
                 continue
             if step_name in {"close", "close_gripper"} or step.get("tool") == "moveit_close_gripper":
-                close_output = await self._execute_tool(
-                    "moveit_close_gripper",
-                    {"robot_name": robot_name, "timeout_s": timeout_s},
-                    user_text=user_text,
-                    allow_execution=allow_execution,
+                close_output = verified_execution_output_to_json(
+                    await self._verified_execution_client.close_gripper(
+                        robot_name=robot_name,
+                        timeout_s=timeout_s,
+                    )
                 )
                 if not _tool_ok(close_output):
                     return _task_plan_stage_error("close_gripper", step_name, close_output)
+                self._robot_context.update_from_tool_result(
+                    "moveit_close_gripper",
+                    close_output,
+                )
                 continue
             if step_name in {"attach", "attach_object"} or step.get("tool") == "moveit_attach_object":
                 attach_output = await self._execute_tool(
                     "moveit_attach_object",
-                    {"robot_name": robot_name, "object_name": recent.object_name},
+                    {
+                        "robot_name": robot_name,
+                        "object_name": recent.object_name,
+                        "verified_gripper_closed": True,
+                    },
                     user_text=user_text,
                     allow_execution=allow_execution,
                 )

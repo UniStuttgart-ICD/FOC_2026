@@ -19,8 +19,10 @@ class FakeChatModel:
     def __init__(self, responses: list[AIMessage]):
         self.responses = list(responses)
         self.requests: list[list[BaseMessage]] = []
+        self.bound_tool_batches: list[list[dict[str, Any]]] = []
 
     def bind_tools(self, tools: list[dict[str, Any]], **kwargs: Any) -> "FakeBoundChatModel":
+        self.bound_tool_batches.append(list(tools))
         return FakeBoundChatModel(self.responses, self.requests)
 
 
@@ -106,6 +108,7 @@ class PickTaskE2EBridge:
 class FakeVerifiedExecutionClient:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, float]] = []
+        self.gripper_calls: list[tuple[str, str, float]] = []
 
     async def execute_plan(
         self,
@@ -121,6 +124,27 @@ class FakeVerifiedExecutionClient:
                     "ok": True,
                     "robot": robot_name,
                     "feedback": {"plan_name": plan_name, "trajectory_points": 2},
+                    "verification": {"result": "pass"},
+                },
+                "is_error": False,
+            }
+        )
+
+    async def close_gripper(
+        self,
+        *,
+        robot_name: str,
+        timeout_s: float,
+    ) -> str:
+        self.gripper_calls.append((robot_name, "close", timeout_s))
+        return json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "robot": robot_name,
+                    "tool": "moveit_close_gripper",
+                    "phase": "gripper",
+                    "status": "gripper_closed",
                     "verification": {"result": "pass"},
                 },
                 "is_error": False,
@@ -317,9 +341,19 @@ async def test_dynamic_5_pick_task_plans_then_executes_verified_task_plan() -> N
     assert "moveit_execute_task_plan" not in tool_names
     assert "moveit_execute_task_solution" not in tool_names
     assert "moveit_execute_plan" not in tool_names
-    assert [name for name in tool_names if name == "moveit_close_gripper"] == [
-        "moveit_close_gripper"
+    bound_tool_name_batches = [
+        {tool["function"]["name"] for tool in batch}
+        for batch in fixture.model.bound_tool_batches
     ]
+    assert bound_tool_name_batches
+    assert any(
+        "moveit_execute_task_plan" in names
+        for names in bound_tool_name_batches
+    )
+    assert all(
+        "moveit_execute_task_solution" not in names
+        for names in bound_tool_name_batches
+    )
     assert [name for name in tool_names if name == "moveit_attach_object"] == [
         "moveit_attach_object"
     ]
@@ -337,6 +371,17 @@ async def test_dynamic_5_pick_task_plans_then_executes_verified_task_plan() -> N
         9.0,
         9.0,
         9.0,
+    ]
+    assert fixture.verified_execution_client.gripper_calls == [("UR10", "close", 9.0)]
+    attach_calls = [
+        args for name, args in fixture.bridge.calls if name == "moveit_attach_object"
+    ]
+    assert attach_calls == [
+        {
+            "robot_name": "UR10",
+            "object_name": "dynamic_5",
+            "verified_gripper_closed": True,
+        }
     ]
     assert verified_plan_names[0].startswith("pick_task_dynamic_5_001_approach_")
     assert verified_plan_names[1].startswith("pick_task_dynamic_5_001_pre_grasp_")
@@ -382,6 +427,8 @@ async def test_live_llm_dynamic_5_pick_task_uses_dummy_verified_execution() -> N
     assert pick_calls[-1]["object_name"] == "dynamic_5"
     assert "moveit_execute_task_solution" not in tool_names
     assert "moveit_execute_plan" not in tool_names
+    assert "moveit_close_gripper" not in tool_names
+    assert verified_client.gripper_calls
 
     verified_plan_names = [plan_name for _, plan_name, _ in verified_client.calls]
     assert len(verified_plan_names) == 3

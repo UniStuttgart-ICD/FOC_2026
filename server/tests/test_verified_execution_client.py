@@ -176,3 +176,41 @@ async def test_execute_plan_surfaces_execution_sync_metadata_in_feedback() -> No
         "state_sync_published": True,
     }
     assert structured_content["execution"]["state_sync_published"] is True
+
+
+@pytest.mark.asyncio
+async def test_close_gripper_posts_to_verified_execution_server() -> None:
+    client = RecordingVerifiedExecutionClient(
+        {
+            "ok": True,
+            "robot_name": "UR10",
+            "command": "gripper_close",
+            "status": "gripper_closed",
+        }
+    )
+
+    result = await client.close_gripper(robot_name="UR10", timeout_s=8.0)
+
+    assert client.posts == [
+        (
+            "/gripper/close",
+            {"robot_name": "UR10", "timeout_s": 8.0},
+            10.0,
+        )
+    ]
+    structured_content = json.loads(result)["structured_content"]
+    assert structured_content == {
+        "ok": True,
+        "robot": "UR10",
+        "tool": "moveit_close_gripper",
+        "phase": "gripper",
+        "status": "gripper_closed",
+        "feedback": {
+            "phase": "gripper",
+            "status": "gripper_closed",
+            "message": "Verified gripper close completed.",
+            "can_execute": False,
+        },
+        "verification": {"result": "pass"},
+        "raw": {"command": "gripper_close"},
+    }

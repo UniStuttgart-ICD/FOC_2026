@@ -19,6 +19,13 @@ class VerifiedExecutionClient(Protocol):
         timeout_s: float,
     ) -> VerifiedExecutionOutput: ...
 
+    async def close_gripper(
+        self,
+        *,
+        robot_name: str,
+        timeout_s: float,
+    ) -> VerifiedExecutionOutput: ...
+
 
 class HttpVerifiedExecutionClient:
     def __init__(
@@ -97,6 +104,46 @@ class HttpVerifiedExecutionClient:
             f"{self._base_url}{path}",
             payload,
             timeout_s if timeout_s is not None else self._request_timeout_s,
+        )
+
+    async def close_gripper(
+        self,
+        *,
+        robot_name: str,
+        timeout_s: float,
+    ) -> str:
+        request_timeout_s = max(self._request_timeout_s, timeout_s + self._timeout_margin_s)
+        try:
+            response = await self._post_json(
+                "/gripper/close",
+                {
+                    "robot_name": robot_name,
+                    "timeout_s": timeout_s,
+                },
+                timeout_s=request_timeout_s,
+            )
+        except OSError:
+            return _gripper_tool_output(
+                ok=False,
+                robot_name=robot_name,
+                action="close",
+                status="server_unavailable",
+                error="Verified execution server unavailable.",
+                correction="Start the verified execution server, then retry gripper close.",
+            )
+        ok = bool(response.get("ok"))
+        return _gripper_tool_output(
+            ok=ok,
+            robot_name=str(response.get("robot_name") or robot_name),
+            action="close",
+            status=str(response.get("status") or ("gripper_closed" if ok else "failed")),
+            error=response.get("error") if isinstance(response.get("error"), str) else None,
+            correction=(
+                response.get("correction")
+                if isinstance(response.get("correction"), str)
+                else None
+            ),
+            command=response.get("command") if isinstance(response.get("command"), str) else None,
         )
 
 
@@ -190,6 +237,50 @@ def _content_text(*, ok: bool, status: str, error: str | None) -> str:
     if ok:
         return "Verified execution completed."
     return error or f"Verified execution failed: {status}"
+
+
+def _gripper_tool_output(
+    *,
+    ok: bool,
+    robot_name: str,
+    action: str,
+    status: str,
+    error: str | None = None,
+    correction: str | None = None,
+    command: str | None = None,
+) -> str:
+    message = (
+        f"Verified gripper {action} completed."
+        if ok
+        else error or f"Verified gripper {action} failed: {status}"
+    )
+    structured: dict[str, Any] = {
+        "ok": ok,
+        "robot": robot_name,
+        "tool": f"moveit_{action}_gripper",
+        "phase": "gripper",
+        "status": status,
+        "feedback": {
+            "phase": "gripper",
+            "status": status,
+            "message": message,
+            "can_execute": False,
+        },
+        "verification": {"result": "pass" if ok else "fail"},
+        "raw": {"command": command or f"gripper_{action}"},
+    }
+    if error is not None:
+        structured["error"] = error
+    if correction is not None:
+        structured["correction"] = correction
+    return json.dumps(
+        {
+            "content": [message],
+            "structured_content": structured,
+            "is_error": not ok,
+        },
+        ensure_ascii=False,
+    )
 
 
 def _float_list(value: Any) -> list[float] | None:

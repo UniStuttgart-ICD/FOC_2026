@@ -418,6 +418,17 @@ def test_accepts_gripper_timeout_arguments() -> None:
     validate_robot_tool_call("moveit_close_gripper", {"robot_name": "UR10", "timeout_s": 5.0})
 
 
+def test_accepts_attach_after_verified_gripper_close_argument() -> None:
+    validate_robot_tool_call(
+        "moveit_attach_object",
+        {
+            "robot_name": "UR10",
+            "object_name": "dynamic_5",
+            "verified_gripper_closed": True,
+        },
+    )
+
+
 def test_rejects_unknown_tool():
     with pytest.raises(RobotCallValidationError, match="Tool is not allowed"):
         validate_robot_tool_call("move_to_position", {"robot_name": "UR10"})
