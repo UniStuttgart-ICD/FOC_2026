@@ -1,5 +1,7 @@
 # Codex-Only Agent Cleanup Design
 
+> Superseded note: this design captured an intermediate Codex-only cleanup. The current Agent Backend target is native LangChain provider APIs; do not reintroduce Codex OAuth unless a new architecture decision changes that target.
+
 ## Goal
 
 Remove Claude agent support and make OpenAI Codex OAuth the only supported agent backend before the LangGraph migration.

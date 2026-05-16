@@ -21,13 +21,13 @@ Browser audio
   -> Agent Orchestration
   -> Task Policy Layer
   -> Robot Call Validation
-  -> MoveIt MCP
-  -> UR10 simulation
+  -> MoveIt MCP and Robot Control execution bridge
+  -> UR10 simulation or Verified Real Robot Execution
   -> Agent response
   -> Voice Runtime speech output
 ```
 
-Movement safety is delegated to MoveIt planning/execution and the robot simulation stack. The voice agent must route movement through MoveIt workflows. Local validation may exist for ergonomics and clearer errors, but it is not the source of movement safety.
+Movement safety is delegated to MoveIt planning/execution and the robot simulation stack. Physical robot actuation happens only after an executable MoveIt plan or explicit operator command. The voice agent must route movement through MoveIt workflows. Local validation may exist for ergonomics and clearer errors, but it is not the source of movement safety.
 
 ## Code Map
 
@@ -69,7 +69,7 @@ It contains these target submodules:
 
 - **Task Policy Layer**: deterministic pre-tool checks for obvious robot-step preconditions.
 - **Robot Call Validation**: structural and local tool-call validation for allowed MoveIt tools, UR10 arguments, target bounds, timeouts, and executable plan names.
-- **Robot Tool Adapter**: exposes MoveIt MCP tools to Agent Orchestration, adapts LangChain tool-call messages, and executes tool calls.
+- **Robot Tool Adapter**: exposes MoveIt MCP tools and Robot Control bridge tools to Agent Orchestration, adapts LangChain tool-call messages, and executes tool calls.
 - **Robot Context**: stores advisory recent observations, planning results, gripper state, and execution results.
 - **Robot Job Blackboard**: stores queued/running/completed/failed robot jobs and terminal events for long-running action execution.
 - **Robot Job Worker**: deterministic executor for queued MoveIt jobs; it calls the exact tool and arguments submitted by Agent Control.
@@ -124,6 +124,7 @@ V1 policies:
 - Fresh pose before motion/planning/execution.
 - No blind `moveit_execute_plan`; the plan name must come from a recent successful planning result.
 - Basic gripper/attach ordering before `moveit_attach_object`.
+- Pick/place planning is motion planning: it still needs fresh robot state and returns a plan for later execution.
 
 A blocked Task Policy Decision is returned to Agent Orchestration as structured tool feedback with correction text and a suggested next tool. It is not a movement-safety claim.
 
@@ -131,21 +132,51 @@ A blocked Task Policy Decision is returned to Agent Orchestration as structured 
 
 MoveIt MCP is the execution seam into the ROS 1 robot simulation stack. The voice agent routes movement through MoveIt planning/execution workflows. MoveIt and the robot simulation stack are the movement-safety boundary.
 
-The host-side ROS 1 MoveIt MCP lives in `C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\moveit_mcp`. It exposes FastMCP tools and talks to ROS 1 through rosbridge. The main entrypoint is `moveit_mcp.server`, the agent-facing tool wrappers live in `moveit_mcp.tools`, and the ROS 1 topic/service adapter lives in `moveit_mcp.vizor_client`.
+The live MoveIt MCP runs as the `moveit-mcp` service in the ROS/Vizor Docker Compose stack, beside `ros-core`, `vizor-demo`, and `vizor-mcp`. It is built from the shared `local/multi-actor-mcp:latest` image, runs `python -m moveit_mcp`, and talks to ROS 1 through rosbridge at `vizor-demo:9090`. Host clients use `http://127.0.0.1:8765/mcp`; stack-internal clients use `http://moveit-mcp:8765/mcp`.
+
+The source package lives in `C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\moveit_mcp`. It exposes FastMCP tools. The main entrypoint is `moveit_mcp.server`, the agent-facing tool wrappers live in `moveit_mcp.tools`, and the ROS 1 topic/service adapter lives in `moveit_mcp.vizor_client`.
 
 The Vizor ROS 1 container owns the downstream MoveIt node and robot control code. In the running `vizor-demo` container, the MoveIt server is `/UR10/move_group`, the app-facing control node is `/vizor_robot_control`, and the robot logic is under `/root/catkin_ws/src/vizor_lib/src/vizor_lib/`. Treat container paths as runtime locators; persistent fixes belong in the Docker image source. The local RViz/Vizor image build context is `C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\docker\vizor-rviz`; its `patch-vizor-robot.py` applies the ROS 1 `compute_cartesian_path(..., avoid_collisions=True)` compatibility patch inherited from `cxy201/noetic-vizor`.
 
-RViz is a Planning Scene consumer, not an agent boundary. The RViz config in the Vizor image must subscribe to the namespaced MoveIt scene stream, typically `/UR10/move_group/monitored_planning_scene`, through the MoveIt MotionPlanning display. The geometry path is ROSBridge topic input, `/vizor_robot_control`, MoveIt planning scene, then RViz visualization.
+RViz is a Planning Scene consumer, not an agent boundary. The RViz config in the Vizor image must subscribe to the namespaced MoveIt scene stream, typically `/UR10/move_group/monitored_planning_scene`, through the MoveIt MotionPlanning display. For MTC visualization, the same RViz config must also load `moveit_task_constructor/Motion Planning Tasks` against the conventional `robot_description` parameter and subscribe to `/solution`; the Vizor desktop startup aliases `/UR10/robot_description*` params to the global MoveIt names before launching RViz. The MTC display only animates when an MTC backend publishes `moveit_task_constructor_msgs/Solution` on `/solution`; otherwise it is expected to remain present but idle. The geometry path is ROSBridge topic input, `/vizor_robot_control`, MoveIt planning scene, then RViz visualization.
 
-Agent-facing robot tools should stay semantic and narrow: observation tools, planning tools, verified execution tools, gripper tools, and future failure-explanation tools. Do not expose broad ROS control or raw topic mutation tools to Agent Orchestration by default.
+Agent-facing robot tools should stay semantic and narrow. Tool tiers are observation, planning, execution, diagnostic, and admin. Task-level pick/place planning tools belong to MoveIt MCP; Pipecat Robot Control consumes them through Robot Call Validation, Robot Context, and Robot Agent Prompt seams. Robot Control may also advertise synthetic bridge tools that decompose a returned task solution into backing MoveIt MCP and Verified Real Robot Execution calls.
+
+The current agent-facing robot contract includes:
+
+- Observation: `moveit_get_current_pose`, `moveit_get_robot_state`, `moveit_list_scene_objects`, and `moveit_get_object_context`.
+- Planning: `moveit_plan_free_motion`, `moveit_plan_cartesian_motion`, `moveit_plan_pick`, `moveit_plan_place`, `moveit_plan_pick_task`, and `moveit_plan_place_task`.
+- Execution: `moveit_execute_plan` with a recent returned `raw.plan_name`, `moveit_execute_task_plan` with a recent pick `raw.task_solution_id` for Verified Real Robot Execution, and `moveit_execute_task_solution` with a returned `raw.task_solution_id` for sim/emulated task-solution execution.
+- Diagnostic: `moveit_explain_motion_failure` and `moveit_verify_attached_object`.
+- Admin/state mutation: `moveit_open_gripper`, `moveit_close_gripper`, and `moveit_attach_object`.
+
+Do not expose broad ROS control, raw topic mutation tools, or combined `moveit_plan_and_execute_*` tools to Agent Orchestration by default. Planning and execution are separate agent-visible verbs.
+
+The MTC Backend is not the default MoveIt MCP backend. MTC packages are installed in the experimental `local/vizor-rviz:mtc-proof` image path, and the proof path is started only with `VIZOR_ENABLE_MTC_PROOF=1`. The real MTC backend remains deferred pending UR10+Robotiq end-effector and gripper semantics.
+
+### Verified Real Robot Execution Boundary
+
+Verified Real Robot Execution is the host-side actuation boundary from MoveIt plans to the physical UR10 and Robotiq gripper. It is intentionally not an MCP server. The agent still plans through MoveIt MCP; execution requires an explicit returned plan name or an explicit operator command.
+
+For verified pick-task execution, `moveit_execute_task_plan` is the agent-facing Robot Control bridge. It requires the exact recent pick `task_solution_id` and matching approval payload, converts each workflow motion stage into a concrete MoveIt plan, executes each returned `plan_name` through Verified Real Robot Execution, interleaves gripper and attachment tools, and verifies attachment before reporting success. Place task-plan execution is not part of this bridge yet.
+
+The verified execution server caches MoveIt planned trajectories from ROSBridge and exposes narrow HTTP commands for execute, home, and gripper control. The operator dashboard may start this server and call those commands. Agent Control may call the execute tool only when the user explicitly requests execution and a planned action is waiting.
+
+`runtime_profiles.toml` controls the execution mode with `robot_execution.simulation_only`. When it is `true`, Pipecat does not create a Verified Real Robot Execution client and execution stays in MoveIt MCP/RViz. Real robot execution requires `simulation_only = false` and a `verified_execution_url` or `VERIFIED_EXECUTION_URL`.
+
+Physical UR motion and home commands use the UR script socket, normally port `30002`, sending one generated URScript program with `movej` or `servoj` commands. This path must not instantiate `RTDEControlInterface` for production execution, because RTDE Control can contend with robot controller input registers and other adapters.
+
+Robot readiness may use RTDE Receive for observation. Gripper commands use the direct Robotiq URCap socket, normally port `63352`. Gripper control must not be routed through RTDE Control.
 
 ### Vizor User Sensing MCP Boundary
 
-Vizor user sensing is a separate advisory context boundary from MoveIt robot execution. The host-side Vizor MCP lives in `C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\vizor_mcp`. It subscribes continuously to Vizor ROSBridge topics such as `/HOLO1_GazePoint`, `/HOLO1_Transform`, and `/Robot/target_manual`, keeps bounded in-memory history for gaze attention, and exposes read-only FastMCP tools such as `vizor_get_sensor_context`.
+Vizor user sensing is a separate advisory context boundary from MoveIt robot execution. The live Vizor MCP runs as the `vizor-mcp` service in the same ROS/Vizor Docker Compose stack as `moveit-mcp`, built from the shared `local/multi-actor-mcp:latest` image. It runs `python -m vizor_mcp`, talks to rosbridge at `vizor-demo:9090`, exposes `http://127.0.0.1:8001/mcp` to host clients, and exposes `http://vizor-mcp:8001/mcp` to stack-internal clients.
+
+The source package lives in `C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\vizor_mcp`. It subscribes continuously to Vizor ROSBridge topics such as `/HOLO1_GazePoint`, `/HOLO1_Transform`, and `/Robot/target_manual`, keeps bounded in-memory history for gaze attention, and exposes read-only FastMCP tools such as `vizor_get_sensor_context`.
 
 The attention buffer belongs in the long-running Vizor MCP process, not in Pipecat. Pipecat only calls the MCP tool before model turns and stores the returned summary in `server/user_sensing`. That summary may include current gaze, user pose, manual target, and ranked recent attention. It is advisory grounding for references like "this", "that", "there", and "near me"; it is not a movement-safety boundary and should not be treated as proof of user intent when missing, stale, or low confidence.
 
-The operator dashboard may launch Vizor MCP as its own managed service after the Vizor ROS container is ready and before Pipecat starts. Pipecat receives the MCP URL as app configuration, typically `MCP_VIZOR_URL=http://127.0.0.1:8001/mcp`. Vizor MCP should tolerate ROSBridge or HoloLens being unavailable at startup: it stays up, reports disconnected or stale context, and queues the idempotent `HOLO1_position_on` tracking command until ROSBridge is ready.
+The operator dashboard treats Vizor MCP and MoveIt MCP as part of the ROS/Vizor Docker stack. It may start and stop the Compose stack and wait for rosbridge, noVNC, Vizor MCP, and MoveIt MCP readiness, but it must not launch separate MCP server processes. Pipecat receives the Vizor MCP URL as app configuration, typically `MCP_VIZOR_URL=http://127.0.0.1:8001/mcp`. Vizor MCP should tolerate ROSBridge or HoloLens being unavailable at startup: it stays up, reports disconnected or stale context, and queues the idempotent `HOLO1_position_on` tracking command until ROSBridge is ready.
 
 ### App composition root
 
@@ -183,9 +214,21 @@ Task Policy Layer
 
 Task Policy may block obvious under-observed or incorrectly ordered steps. Robot Call Validation may reject unsupported or malformed tool calls. MoveIt planning/execution and the robot simulation stack are the source of movement safety.
 
+Planning tools return a candidate plan or Task Solution and execution gate fields. `moveit_execute_plan` executes ordinary plans. `moveit_execute_task_plan` is the verified real-robot bridge for pick task solutions. `moveit_execute_task_solution` remains the sim/emulated task-solution execution path. Pick/place proof is separate from planning: after executing a pick/place workflow, the agent must verify attachment or release evidence before claiming the object moved, was picked, or was placed.
+
+### Physical actuation avoids RTDE Control
+
+Verified real robot motion uses URScript over the robot script socket. Verified gripper control uses the Robotiq socket. RTDE Control is not part of the production actuation path.
+
+### ROS/Vizor stack owns live MCP processes
+
+`vizor-mcp` and `moveit-mcp` run inside the ROS/Vizor Docker Compose stack as siblings of `vizor-demo`. The operator dashboard may manage the Compose stack and readiness checks, but must not start duplicate dashboard-managed MCP servers.
+
 ### Long-running robot execution is blackboarded
 
 Agent Control may queue long-running MoveIt action tools as Robot Jobs after Task Policy accepts the step. The Robot Job Worker owns deterministic execution and writes terminal events. The LLM may decide what tool call to submit, but the worker must not improvise, repair, or reinterpret the tool arguments.
+
+Diagnostic and proof tools, such as `moveit_explain_motion_failure` and `moveit_verify_attached_object`, are immediate feedback tools rather than queued action execution.
 
 ### Robot Call Validation is not Task Policy
 
@@ -204,6 +247,8 @@ Task Policy, Robot Call Validation, Robot Tool Adapter, Robot Context, Robot Job
 Runtime profile parsing belongs to `voice_runtime`; concrete runtime profile files remain app configuration because they choose adapters across Voice Runtime, Agent Control, and Robot Control.
 
 `server/runtime_profiles.toml` intentionally carries one bundled app profile: `hybrid_gemini_live_tts`. Do not rebuild the old provider matrix without a new architecture decision.
+
+Robot execution mode is app configuration, not prompt behavior: `robot_execution.simulation_only = true` is the default RViz/noVNC test mode; `false` enables the Verified Real Robot Execution bridge when a verified execution URL is configured.
 
 ### STT/TTS provider construction belongs to Voice Runtime
 

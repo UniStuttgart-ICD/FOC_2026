@@ -40,6 +40,7 @@ _WORD_PATTERN = re.compile(r"[a-z]+", re.IGNORECASE)
 class AgentTurnInput:
     user_text: str
     messages: list[Mapping[str, Any]]
+    allow_pending_plan_execution: bool = True
 
 
 class AgentBackend(Protocol):
@@ -48,6 +49,14 @@ class AgentBackend(Protocol):
     async def disconnect(self) -> None: ...
 
     def run_turn(self, turn: AgentTurnInput) -> AsyncIterator[str]: ...
+
+
+class ResponseCoordinator(Protocol):
+    async def begin_response(self) -> None: ...
+
+    def finish_response(self) -> None: ...
+
+    def reset_response(self) -> None: ...
 
 
 def latest_user_text(frame: LLMContextFrame) -> str | None:
@@ -98,6 +107,7 @@ class AgentTurnProcessor(FrameProcessor):
         tracer: ProcessTracer | NoopProcessTracer | None = None,
         on_turn_started: Callable[[], None] | None = None,
         on_turn_finished: Callable[[], None] | None = None,
+        response_coordinator: ResponseCoordinator | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -105,6 +115,7 @@ class AgentTurnProcessor(FrameProcessor):
         self._tracer = tracer or NoopProcessTracer()
         self._on_turn_started = on_turn_started
         self._on_turn_finished = on_turn_finished
+        self._response_coordinator = response_coordinator
         self._last_agent_turn_id: str | None = None
         self._notification_task: asyncio.Task[None] | None = None
 
@@ -142,9 +153,14 @@ class AgentTurnProcessor(FrameProcessor):
             await self.push_frame(frame, direction)
             return
 
-        if self._on_turn_started is not None:
-            self._on_turn_started()
+        response_started = False
+        if self._response_coordinator is not None:
+            await self._response_coordinator.begin_response()
+            response_started = True
+
         try:
+            if self._on_turn_started is not None:
+                self._on_turn_started()
             await self.push_frame(LLMFullResponseStartFrame())
             turn_context = self._trace_turn_context(turn)
             with use_trace_context(turn_context):
@@ -169,6 +185,14 @@ class AgentTurnProcessor(FrameProcessor):
                         context=turn_context,
                     )
             await self.push_frame(LLMFullResponseEndFrame())
+        except asyncio.CancelledError:
+            if response_started and self._response_coordinator is not None:
+                self._response_coordinator.reset_response()
+            raise
+        except Exception:
+            if response_started and self._response_coordinator is not None:
+                self._response_coordinator.reset_response()
+            raise
         finally:
             if self._on_turn_finished is not None:
                 self._on_turn_finished()
@@ -210,9 +234,22 @@ class AgentTurnProcessor(FrameProcessor):
             async for text in notifications():
                 if not text:
                     continue
-                await self.push_frame(LLMFullResponseStartFrame())
-                await self.push_frame(LLMTextFrame(text=text))
-                await self.push_frame(LLMFullResponseEndFrame())
+                response_started = False
+                if self._response_coordinator is not None:
+                    await self._response_coordinator.begin_response()
+                    response_started = True
+                try:
+                    await self.push_frame(LLMFullResponseStartFrame())
+                    await self.push_frame(LLMTextFrame(text=text))
+                    await self.push_frame(LLMFullResponseEndFrame())
+                except asyncio.CancelledError:
+                    if response_started and self._response_coordinator is not None:
+                        self._response_coordinator.reset_response()
+                    raise
+                except Exception:
+                    if response_started and self._response_coordinator is not None:
+                        self._response_coordinator.reset_response()
+                    raise
         except asyncio.CancelledError:
             raise
         except Exception:

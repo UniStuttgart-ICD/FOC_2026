@@ -8,6 +8,7 @@ from typing import Any
 from loguru import logger
 from pipecat.frames.frames import (
     BotStoppedSpeakingFrame,
+    LLMContextFrame,
     LLMFullResponseEndFrame,
     LLMTextFrame,
     TranscriptionFrame,
@@ -19,6 +20,7 @@ from pipecat.frames.frames import (
 from pipecat.observers.base_observer import BaseObserver, FramePushed
 from pipecat.processors.frame_processor import FrameDirection
 
+from voice_runtime.agent_turn import latest_user_text
 from voice_runtime.voice_metrics import VoiceTurnTimeline
 from voice_runtime.wake_command import WakeDetectedFrame
 
@@ -159,6 +161,9 @@ class VoiceMetricsObserver(BaseObserver):
         self._wake_marked = False
         self._stt_marked = False
         self._tts_first_audio_marked = False
+        self._recorded_transcription_frame_ids: set[int] = set()
+        self._recorded_llm_text_frame_ids: set[int] = set()
+        self._recorded_response_end_frame_ids: set[int] = set()
 
     async def on_push_frame(self, data: FramePushed):
         if data.direction != FrameDirection.DOWNSTREAM:
@@ -173,10 +178,12 @@ class VoiceMetricsObserver(BaseObserver):
             self._mark("speech_captured")
         elif isinstance(frame, TranscriptionFrame) and frame.finalized:
             self._record_transcription(frame)
+        elif isinstance(frame, LLMContextFrame):
+            self._record_context_text(frame)
         elif isinstance(frame, LLMTextFrame):
-            self._append_response(frame.text)
+            self._record_llm_text(frame)
         elif isinstance(frame, LLMFullResponseEndFrame):
-            self._mark("agent_done")
+            self._record_response_end(frame)
         elif isinstance(frame, TTSAudioRawFrame):
             self._mark_tts_first_audio()
         elif isinstance(frame, TTSStoppedFrame | BotStoppedSpeakingFrame):
@@ -193,6 +200,9 @@ class VoiceMetricsObserver(BaseObserver):
         self._wake_marked = False
         self._stt_marked = False
         self._tts_first_audio_marked = False
+        self._recorded_transcription_frame_ids.clear()
+        self._recorded_llm_text_frame_ids.clear()
+        self._recorded_response_end_frame_ids.clear()
         return self._recorder.start_turn(self._current_turn_id)
 
     def _current_turn(self) -> TurnMetrics | None:
@@ -215,17 +225,48 @@ class VoiceMetricsObserver(BaseObserver):
         self._wake_marked = True
 
     def _record_transcription(self, frame: TranscriptionFrame) -> None:
+        frame_id = id(frame)
+        if frame_id in self._recorded_transcription_frame_ids:
+            return
+        self._recorded_transcription_frame_ids.add(frame_id)
         turn = self._ensure_turn()
         turn.transcript = frame.text
         if not self._stt_marked:
             self._mark("stt_done")
             self._stt_marked = True
 
+    def _record_context_text(self, frame: LLMContextFrame) -> None:
+        if self._stt_marked:
+            return
+        text = latest_user_text(frame)
+        if not text:
+            return
+        turn = self._ensure_turn()
+        turn.transcript = text
+        self._mark("stt_done")
+        self._stt_marked = True
+
+    def _record_llm_text(self, frame: LLMTextFrame) -> None:
+        if self._current_turn() is None:
+            return
+        frame_id = id(frame)
+        if frame_id in self._recorded_llm_text_frame_ids:
+            return
+        self._recorded_llm_text_frame_ids.add(frame_id)
+        self._append_response(frame.text)
+
     def _append_response(self, text: str) -> None:
         turn = self._current_turn()
         if turn is None:
             return
         turn.append_response(text)
+
+    def _record_response_end(self, frame: LLMFullResponseEndFrame) -> None:
+        frame_id = id(frame)
+        if frame_id in self._recorded_response_end_frame_ids:
+            return
+        self._recorded_response_end_frame_ids.add(frame_id)
+        self._mark("agent_done")
 
     def _mark_tts_first_audio(self) -> None:
         if self._tts_first_audio_marked:
@@ -248,3 +289,6 @@ class VoiceMetricsObserver(BaseObserver):
         self._wake_marked = False
         self._stt_marked = False
         self._tts_first_audio_marked = False
+        self._recorded_transcription_frame_ids.clear()
+        self._recorded_llm_text_frame_ids.clear()
+        self._recorded_response_end_frame_ids.clear()

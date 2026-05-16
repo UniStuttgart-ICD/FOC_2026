@@ -9,8 +9,8 @@ QUEUEABLE_ROBOT_ACTION_TOOLS = frozenset(
     {
         "moveit_plan_free_motion",
         "moveit_plan_cartesian_motion",
-        "moveit_plan_and_execute_free_motion",
-        "moveit_plan_and_execute_cartesian_motion",
+        "moveit_plan_pick",
+        "moveit_plan_place",
         "moveit_execute_plan",
         "moveit_open_gripper",
         "moveit_close_gripper",
@@ -29,12 +29,20 @@ class RobotJobSubmitter:
         arguments: dict[str, Any],
         *,
         requested_by_turn_id: str | None = None,
+        user_text: str | None = None,
+        after_success_tool: str | None = None,
+        after_success_arguments: dict[str, Any] | None = None,
+        execute_via_mcp: bool = False,
     ) -> str:
         job = await self._job_board.submit(
             SubmitRobotJob(
                 tool_name=tool_name,
                 arguments=arguments,
                 requested_by_turn_id=requested_by_turn_id,
+                user_text=user_text,
+                after_success_tool=after_success_tool,
+                after_success_arguments=after_success_arguments,
+                execute_via_mcp=execute_via_mcp,
             )
         )
         return json.dumps(

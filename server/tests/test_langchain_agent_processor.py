@@ -228,6 +228,7 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
             user_sensing_max_age_s: float = 2.0,
             thread_id: str,
             job_submitter: Any | None = None,
+            verified_execution_client: Any | None = None,
             tracer: ProcessTracer,
         ):
             self.model = model
@@ -238,6 +239,7 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
             self.user_sensing_max_age_s = user_sensing_max_age_s
             self.thread_id = thread_id
             self.job_submitter = job_submitter
+            self.verified_execution_client = verified_execution_client
             self.tracer = tracer
             created_graphs.append(self)
 
@@ -261,6 +263,7 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
     assert created_bridges[0].tracer is tracer
     assert created_graphs[0].tracer is tracer
     assert created_graphs[0].job_submitter is processor._robot_job_submitter
+    assert created_graphs[0].verified_execution_client is None
     assert created_graphs[0].user_sensing_bridge is None
     backend_span = records_named(writer, "agent.backend_turn")[-1]
     assert backend_span["record_type"] == "span"
@@ -285,6 +288,7 @@ async def test_backend_turn_span_is_recorded_before_yielded_chunk_is_closed(
             robot_context: Any,
             thread_id: str,
             job_submitter: Any | None = None,
+            verified_execution_client: Any | None = None,
             tracer: ProcessTracer,
         ):
             pass
@@ -348,6 +352,56 @@ async def test_langchain_processor_starts_and_stops_robot_job_worker() -> None:
 
 
 @pytest.mark.asyncio
+async def test_langchain_processor_passes_verified_client_to_owned_job_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created: list[dict[str, Any]] = []
+
+    class FakeWorker:
+        def __init__(
+            self,
+            *,
+            board: Any,
+            tool_bridge: Any,
+            verified_execution_client: Any | None = None,
+        ) -> None:
+            created.append(
+                {
+                    "board": board,
+                    "tool_bridge": tool_bridge,
+                    "verified_execution_client": verified_execution_client,
+                }
+            )
+
+        async def start(self) -> None:
+            pass
+
+        async def stop(self) -> None:
+            pass
+
+    monkeypatch.setattr("agent_control.langchain_agent_processor.RobotJobWorker", FakeWorker)
+    verified_client: Any = object()
+    bridge = FakeBridge()
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=FakeChatModel([]),
+        model_label="fake",
+        tool_bridge=bridge,
+        verified_execution_client=verified_client,
+    )
+
+    await processor.connect()
+
+    assert created == [
+        {
+            "board": processor._robot_job_board,
+            "tool_bridge": bridge,
+            "verified_execution_client": verified_client,
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_langchain_processor_notifications_report_terminal_job_events() -> None:
     from robot_control.job_board import RobotJobBoard, SubmitRobotJob
 
@@ -370,3 +424,420 @@ async def test_langchain_processor_notifications_report_terminal_job_events() ->
 
     assert text == "Job complete."
     assert job.job_id not in text
+
+
+@pytest.mark.asyncio
+async def test_langchain_processor_notifications_record_pending_plan_from_job_result() -> None:
+    from robot_control.job_board import RobotJobBoard, SubmitRobotJob
+
+    board = RobotJobBoard()
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=FakeChatModel([]),
+        model_label="fake",
+        tool_bridge=FakeBridge(),
+        robot_job_board=board,
+    )
+    stream = processor.notifications()
+    job = await board.submit(
+        SubmitRobotJob(
+            "moveit_plan_free_motion",
+            {"robot_name": "UR10"},
+            "turn-1",
+        )
+    )
+    await board.claim_next()
+    await board.complete(
+        job.job_id,
+        json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "robot": "UR10",
+                    "feedback": {"can_execute": True},
+                    "raw": {"plan_name": "plan-1"},
+                }
+            }
+        ),
+    )
+
+    text = await asyncio.wait_for(stream.__anext__(), timeout=1)
+
+    assert text == "Plan ready for execution."
+    pending = processor._robot_context.pending_executable_plan("plan-1", max_age_s=60.0)
+    assert pending is not None
+    assert pending.robot_name == "UR10"
+    assert pending.source_tool == "moveit_plan_free_motion"
+
+
+@pytest.mark.asyncio
+async def test_processor_records_terminal_job_results_before_next_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from robot_control.job_board import RobotJobBoard, SubmitRobotJob
+
+    class FakeGraphAgent:
+        def __init__(
+            self,
+            *,
+            robot_context: Any,
+            **kwargs: Any,
+        ):
+            self.robot_context = robot_context
+
+        async def run_turn(self, turn: AgentTurnInput) -> str:
+            pending = self.robot_context.pending_executable_plan("plan-1", max_age_s=60.0)
+            return "plan-context-ready" if pending is not None else "missing-plan-context"
+
+    monkeypatch.setattr("agent_control.langchain_agent_processor.LangGraphRobotAgent", FakeGraphAgent)
+    board = RobotJobBoard()
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=FakeChatModel([]),
+        model_label="fake",
+        tool_bridge=FakeBridge(),
+        robot_job_board=board,
+    )
+    job = await board.submit(
+        SubmitRobotJob(
+            "moveit_plan_free_motion",
+            {"robot_name": "UR10"},
+            "turn-1",
+        )
+    )
+    await board.claim_next()
+    await board.complete(
+        job.job_id,
+        json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "robot": "UR10",
+                    "feedback": {"can_execute": True},
+                    "raw": {"plan_name": "plan-1"},
+                }
+            }
+        ),
+    )
+
+    result = await _run_turn(processor, "execute it")
+
+    assert result.chunks == ["plan-context-ready"]
+
+
+@pytest.mark.asyncio
+async def test_langchain_processor_passes_verified_execution_client_to_graph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created_graphs: list[Any] = []
+    verified_client: Any = object()
+
+    class FakeGraphAgent:
+        def __init__(
+            self,
+            *,
+            model: Any,
+            tool_bridge: Any,
+            robot_context: Any,
+            thread_id: str,
+            job_submitter: Any | None = None,
+            verified_execution_client: Any | None = None,
+            tracer: ProcessTracer,
+        ):
+            self.verified_execution_client = verified_execution_client
+            created_graphs.append(self)
+
+        async def run_turn(self, turn: AgentTurnInput) -> str:
+            return "ready"
+
+    monkeypatch.setattr("agent_control.langchain_agent_processor.LangGraphRobotAgent", FakeGraphAgent)
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=FakeChatModel([]),
+        model_label="fake",
+        tool_bridge=FakeBridge(),
+        verified_execution_client=verified_client,
+    )
+
+    result = await _run_turn(processor, "hello")
+
+    assert result.chunks == ["ready"]
+    assert created_graphs[0].verified_execution_client is verified_client
+
+
+@pytest.mark.asyncio
+async def test_failed_job_notification_sends_planner_data_to_recovery_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from robot_control.job_board import RobotJobBoard, SubmitRobotJob
+
+    turns: list[AgentTurnInput] = []
+
+    class FakeGraphAgent:
+        def __init__(
+            self,
+            *,
+            model: Any,
+            tool_bridge: Any,
+            robot_context: Any,
+            thread_id: str,
+            job_submitter: Any | None = None,
+            verified_execution_client: Any | None = None,
+            tracer: ProcessTracer,
+        ):
+            pass
+
+        async def run_turn(self, turn: AgentTurnInput) -> str:
+            turns.append(turn)
+            return "I cannot touch z=0 because planning failed; I can try a little higher."
+
+    monkeypatch.setattr("agent_control.langchain_agent_processor.LangGraphRobotAgent", FakeGraphAgent)
+    board = RobotJobBoard()
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=FakeChatModel([]),
+        model_label="fake",
+        tool_bridge=FakeBridge(),
+        robot_job_board=board,
+    )
+    planner_result = json.dumps(
+        {
+            "structured_content": {
+                "ok": False,
+                "feedback": {
+                    "message": "Planning failed; execution was not attempted",
+                    "correction": "Choose a nearby reachable pose.",
+                },
+                "plan": {"trajectory_points": 0},
+            }
+        }
+    )
+    stream = processor.notifications()
+    job = await board.submit(
+        SubmitRobotJob(
+            "moveit_plan_free_motion",
+            {
+                "robot_name": "UR10",
+                "target_pose": {
+                    "position": {"x": 0.57, "y": 0.39, "z": 0.0},
+                    "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+                },
+            },
+            "turn-1",
+            user_text="touch z equals zero",
+        )
+    )
+    await board.claim_next()
+    await board.fail(
+        job.job_id,
+        "Planning failed; execution was not attempted Choose a nearby reachable pose.",
+        result=planner_result,
+    )
+
+    text = await asyncio.wait_for(stream.__anext__(), timeout=1)
+
+    assert text == "I cannot touch z=0 because planning failed; I can try a little higher."
+    assert len(turns) == 1
+    assert "Original user request: touch z equals zero" in turns[0].user_text
+    assert "Tool: moveit_plan_free_motion" in turns[0].user_text
+    assert '"z": 0.0' in turns[0].user_text
+    assert "Planning failed; execution was not attempted" in turns[0].user_text
+
+
+@pytest.mark.asyncio
+async def test_failed_execute_job_notification_reports_blocker_without_recovery_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from robot_control.job_board import RobotJobBoard, SubmitRobotJob
+
+    class FakeGraphAgent:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        async def run_turn(self, turn: AgentTurnInput) -> str:
+            raise AssertionError("failed execute notifications must not run recovery turns")
+
+    monkeypatch.setattr("agent_control.langchain_agent_processor.LangGraphRobotAgent", FakeGraphAgent)
+    board = RobotJobBoard()
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=FakeChatModel([]),
+        model_label="fake",
+        tool_bridge=FakeBridge(),
+        robot_job_board=board,
+    )
+    stream = processor.notifications()
+    result = json.dumps(
+        {
+            "structured_content": {
+                "ok": False,
+                "robot": "UR10",
+                "tool": "execute_plan",
+                "feedback": {
+                    "message": "Execution could not be verified against fake controller joint state feedback",
+                    "correction": "Check fake controller joint-state feedback.",
+                },
+                "verification": {"result": "fail"},
+            },
+            "is_error": False,
+        }
+    )
+    job = await board.submit(
+        SubmitRobotJob(
+            "moveit_execute_plan",
+            {"robot_name": "UR10", "plan_name": "plan-1", "timeout_s": 10.0},
+            "turn-1",
+            user_text="proceed with the execution",
+        )
+    )
+    await board.claim_next()
+    await board.fail(
+        job.job_id,
+        (
+            "Execution could not be verified against fake controller joint state feedback "
+            "Check fake controller joint-state feedback."
+        ),
+        result=result,
+    )
+
+    text = await asyncio.wait_for(stream.__anext__(), timeout=1)
+
+    assert text == (
+        "Execution for plan plan-1 did not verify: "
+        "Execution could not be verified against fake controller joint state feedback "
+        "Check fake controller joint-state feedback."
+    )
+
+
+@pytest.mark.asyncio
+async def test_failed_job_recovery_turn_disables_pending_auto_execute(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from robot_control.job_board import RobotJobBoard, SubmitRobotJob
+
+    turns: list[AgentTurnInput] = []
+
+    class FakeGraphAgent:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        async def run_turn(self, turn: AgentTurnInput) -> str:
+            turns.append(turn)
+            return "I could not complete that robot action."
+
+    monkeypatch.setattr("agent_control.langchain_agent_processor.LangGraphRobotAgent", FakeGraphAgent)
+    board = RobotJobBoard()
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=FakeChatModel([]),
+        model_label="fake",
+        tool_bridge=FakeBridge(),
+        robot_job_board=board,
+    )
+    stream = processor.notifications()
+    planner_result = json.dumps(
+        {
+            "structured_content": {
+                "ok": False,
+                "feedback": {
+                    "message": "Planning failed; execution was not attempted",
+                    "correction": "Choose a nearby reachable pose.",
+                },
+            }
+        }
+    )
+    job = await board.submit(
+        SubmitRobotJob(
+            "moveit_plan_free_motion",
+            {"robot_name": "UR10"},
+            "turn-1",
+            user_text="execute the plan",
+        )
+    )
+    await board.claim_next()
+    await board.fail(
+        job.job_id,
+        "Planning failed; execution was not attempted Choose a nearby reachable pose.",
+        result=planner_result,
+    )
+
+    text = await asyncio.wait_for(stream.__anext__(), timeout=1)
+
+    assert text == "I could not complete that robot action."
+    assert len(turns) == 1
+    assert turns[0].allow_pending_plan_execution is False
+
+
+@pytest.mark.asyncio
+async def test_failed_job_notification_repairs_retry_claim_into_queued_action() -> None:
+    from robot_control.job_board import RobotJobBoard, RobotJobStatus, SubmitRobotJob
+
+    board = RobotJobBoard()
+    retry_args = {
+        "robot_name": "UR10",
+        "target_pose": {
+            "position": {"x": 0.57, "y": 0.39, "z": 0.1},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+    }
+    model = FakeChatModel(
+        [
+            ai_text("I can try a little higher."),
+            ai_tool_call("moveit_plan_free_motion", retry_args),
+            ai_text("I am retrying a little higher and will report the result."),
+        ]
+    )
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=model,
+        model_label="fake",
+        tool_bridge=FakeBridge(),
+        robot_job_board=board,
+    )
+    planner_result = json.dumps(
+        {
+            "structured_content": {
+                "ok": False,
+                "feedback": {
+                    "message": "Planning failed; execution was not attempted",
+                    "correction": "Choose a nearby reachable pose.",
+                },
+                "plan": {"trajectory_points": 0},
+            }
+        }
+    )
+    stream = processor.notifications()
+    job = await board.submit(
+        SubmitRobotJob(
+            "moveit_plan_free_motion",
+            {
+                "robot_name": "UR10",
+                "target_pose": {
+                    "position": {"x": 0.57, "y": 0.39, "z": 0.0},
+                    "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+                },
+            },
+            "turn-1",
+            user_text="touch z equals zero",
+        )
+    )
+    await board.claim_next()
+    await board.fail(
+        job.job_id,
+        "Planning failed; execution was not attempted Choose a nearby reachable pose.",
+        result=planner_result,
+    )
+
+    text = await asyncio.wait_for(stream.__anext__(), timeout=1)
+
+    assert text == "Planning now. I will report when a plan is ready."
+    queued_retry = [
+        candidate
+        for event in board.events_since(0)
+        if (candidate := board.get(event.job_id)) is not None
+        and candidate.job_id != job.job_id
+        and candidate.status is RobotJobStatus.QUEUED
+    ]
+    assert len(queued_retry) == 1
+    assert queued_retry[0].tool_name == "moveit_plan_free_motion"
+    assert queued_retry[0].arguments == retry_args

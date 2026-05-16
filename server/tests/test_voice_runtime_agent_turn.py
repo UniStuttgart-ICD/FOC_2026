@@ -27,6 +27,7 @@ from voice_runtime.agent_turn import (
     is_actionable_user_text,
     latest_user_text,
 )
+from voice_runtime.response_coordination import BotResponseCoordinator
 
 
 class EchoBackend:
@@ -200,6 +201,57 @@ async def test_agent_turn_pumps_backend_notifications_after_connect() -> None:
         LLMTextFrame,
         LLMFullResponseEndFrame,
     ]
+    assert isinstance(processor.pushed[1], LLMTextFrame)
+    assert processor.pushed[1].text == "position reached"
+
+    await processor.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_agent_turn_waits_for_response_coordinator_before_next_turn() -> None:
+    backend = EchoBackend(["done"])
+    coordinator = BotResponseCoordinator()
+    processor = CapturingProcessor(backend, response_coordinator=coordinator)
+
+    await processor.process_frame(
+        _context_frame([{"role": "user", "content": "move up"}]),
+        FrameDirection.DOWNSTREAM,
+    )
+    assert coordinator.is_response_active is True
+
+    second_turn = asyncio.create_task(
+        processor.process_frame(
+            _context_frame([{"role": "user", "content": "move down"}]),
+            FrameDirection.DOWNSTREAM,
+        )
+    )
+    await asyncio.sleep(0)
+
+    assert [turn.user_text for turn in backend.turns] == ["move up"]
+
+    coordinator.finish_response()
+    await asyncio.wait_for(second_turn, timeout=1)
+
+    assert [turn.user_text for turn in backend.turns] == ["move up", "move down"]
+
+
+@pytest.mark.asyncio
+async def test_notifications_wait_for_response_coordinator() -> None:
+    backend = NotifyingBackend()
+    coordinator = BotResponseCoordinator()
+    processor = CapturingProcessor(backend, response_coordinator=coordinator)
+    await coordinator.begin_response()
+
+    await processor.connect()
+    await asyncio.wait_for(backend.notifications_started.wait(), timeout=1)
+    await backend.notification_queue.put("position reached")
+    await asyncio.sleep(0)
+
+    assert processor.pushed == []
+
+    coordinator.finish_response()
+    await asyncio.wait_for(_wait_for_pushed_frames(processor, 3), timeout=1)
+
     assert isinstance(processor.pushed[1], LLMTextFrame)
     assert processor.pushed[1].text == "position reached"
 

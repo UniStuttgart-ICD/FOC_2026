@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from pipecat.frames.frames import (
     BotStoppedSpeakingFrame,
+    LLMContextFrame,
     LLMFullResponseEndFrame,
     LLMTextFrame,
     TranscriptionFrame,
@@ -13,6 +14,7 @@ from pipecat.frames.frames import (
     UserStoppedSpeakingFrame,
 )
 from pipecat.observers.base_observer import FramePushed
+from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 from metrics import VoiceMetricsObserver, VoiceMetricsRecorder
@@ -185,6 +187,71 @@ async def test_observer_emits_jsonl_from_turn_frames(monkeypatch, tmp_path: Path
     assert data["tts_first_audio_ms"] == 100.0
     assert data["tts_done_ms"] == 100.0
     assert data["total_turn_ms"] == 600.0
+
+
+@pytest.mark.asyncio
+async def test_observer_uses_context_frame_text_when_transcription_frame_is_absent(
+    monkeypatch, tmp_path: Path
+):
+    perf_counter_values = iter([100.0, 100.1, 100.2, 100.5, 100.6, 100.7, 100.8])
+    monkeypatch.setattr("metrics.time.perf_counter", lambda: next(perf_counter_values))
+    monkeypatch.setattr("metrics.time.time", lambda: 1_700_000_003.0)
+    path = tmp_path / "metrics.jsonl"
+    recorder = VoiceMetricsRecorder(
+        profile="hybrid_low_latency",
+        category="benchmark_streaming",
+        path=path,
+        include_text=True,
+    )
+    observer = VoiceMetricsObserver(recorder)
+
+    await observer.on_push_frame(_pushed(UserStartedSpeakingFrame()))
+    await observer.on_push_frame(_pushed(UserStoppedSpeakingFrame()))
+    await observer.on_push_frame(
+        _pushed(
+            LLMContextFrame(
+                context=LLMContext(messages=[{"role": "user", "content": "move up"}])
+            )
+        )
+    )
+    await observer.on_push_frame(_pushed(LLMFullResponseEndFrame()))
+    await observer.on_push_frame(
+        _pushed(TTSAudioRawFrame(audio=b"\0\0", sample_rate=16000, num_channels=1))
+    )
+    await observer.on_push_frame(_pushed(TTSStoppedFrame()))
+
+    data = _read_jsonl_record(path)
+    assert data["transcript"] == "move up"
+    assert data["stt_latency_ms"] == 100.0
+    assert data["agent_latency_ms"] == 300.0
+
+
+@pytest.mark.asyncio
+async def test_observer_deduplicates_repeated_pushes_of_same_llm_text_frame(tmp_path: Path):
+    path = tmp_path / "metrics.jsonl"
+    recorder = VoiceMetricsRecorder(
+        profile="hybrid_low_latency",
+        category="benchmark_streaming",
+        path=path,
+        include_text=True,
+    )
+    observer = VoiceMetricsObserver(recorder)
+    text_frame = LLMTextFrame(text="Moving up.")
+
+    await observer.on_push_frame(_pushed(UserStartedSpeakingFrame()))
+    await observer.on_push_frame(
+        _pushed(TranscriptionFrame(text="move up", user_id="u", timestamp="t", finalized=True))
+    )
+    await observer.on_push_frame(_pushed(text_frame))
+    await observer.on_push_frame(_pushed(text_frame))
+    await observer.on_push_frame(_pushed(LLMFullResponseEndFrame()))
+    await observer.on_push_frame(
+        _pushed(TTSAudioRawFrame(audio=b"\0\0", sample_rate=16000, num_channels=1))
+    )
+    await observer.on_push_frame(_pushed(TTSStoppedFrame()))
+
+    data = _read_jsonl_record(path)
+    assert data["response"] == "Moving up."
 
 
 @pytest.mark.asyncio

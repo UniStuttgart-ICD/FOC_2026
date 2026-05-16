@@ -118,3 +118,6 @@ class OpenWakeWordDetector:
             return False, None, 0.0
         name, score = max(scores.items(), key=lambda item: item[1])
         return score >= self._threshold, name, float(score)
+
+    def reset(self) -> None:
+        self._model.reset()

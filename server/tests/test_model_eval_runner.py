@@ -48,8 +48,8 @@ class MoveUpWithoutFinalObservationBackend(PoseOnlyBackend):
         import json
 
         pose = json.loads(pose_text)["structured_content"]["raw"]["pose"]
-        await self._recorder.call_tool(
-            "moveit_plan_and_execute_cartesian_motion",
+        plan_text = await self._recorder.call_tool(
+            "moveit_plan_cartesian_motion",
             {
                 "robot_name": "UR10",
                 "waypoints": [
@@ -63,6 +63,11 @@ class MoveUpWithoutFinalObservationBackend(PoseOnlyBackend):
                     }
                 ],
             },
+        )
+        plan_name = json.loads(plan_text)["structured_content"]["raw"]["plan_name"]
+        await self._recorder.call_tool(
+            "moveit_execute_plan",
+            {"robot_name": "UR10", "plan_name": plan_name},
         )
         yield "Moved up a bit."
 
@@ -233,6 +238,7 @@ async def test_run_eval_suite_observes_final_pose_after_execution(tmp_path: Path
     assert attempt.passed is True
     assert [call["name"] for call in attempt.tool_calls] == [
         "moveit_get_current_pose",
-        "moveit_plan_and_execute_cartesian_motion",
+        "moveit_plan_cartesian_motion",
+        "moveit_execute_plan",
         "moveit_get_current_pose",
     ]

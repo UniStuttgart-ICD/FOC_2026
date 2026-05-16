@@ -1,36 +1,51 @@
 # Voice Benchmarking
 
-## Profiles
+## Profile
 
-Benchmark profiles:
+The repository currently bundles one app profile:
 
-- `hybrid_low_latency`: Deepgram Flux STT + Cartesia Sonic TTS
-- `openai_all`: OpenAI Realtime STT + OpenAI streaming TTS
-- `deepgram_all`: Deepgram Flux STT + Deepgram Aura TTS
+- `hybrid_gemini_live_tts`: Mave wake word, OpenAI Realtime Whisper STT, Gemini Live TTS, and `gemini_api` Agent Control.
 
-Debug profiles:
+This profile needs:
 
-- `local_current`: local Whisper + Kokoro STT/TTS with Mave wake; OpenAI API LangChain agent
-- `no_wake_debug`: local Whisper + Kokoro STT/TTS without wake; OpenAI API LangChain agent
+```dotenv
+OPENAI_API_KEY=
+GOOGLE_API_KEY=
+```
 
-These are local STT/TTS debug profiles, not fully offline profiles. They need `OPENAI_API_KEY` and the configured MCP URL.
+It also needs the configured MoveIt MCP URL reachable. The default is `http://127.0.0.1:8765/mcp`.
 
 ## Running
 
+From `server/`:
+
 ```bash
-cd server
-uv run bot.py --profile hybrid_low_latency
+uv run bot.py
+```
+
+Equivalent explicit run:
+
+```bash
+uv run bot.py --profile hybrid_gemini_live_tts
 ```
 
 ## Metrics
 
-Metrics are appended to:
+The runtime profile configures these base paths:
 
 ```text
 server/logs/voice_metrics.jsonl
+server/logs/process_trace.jsonl
 ```
 
-Each JSONL record includes profile, category, wake phrase, transcript, response, and turn timing fields.
+`pipeline_builder.py` expands each base path into a session-scoped JSONL file under:
+
+```text
+server/logs/voice_metrics/
+server/logs/process_trace/
+```
+
+Voice Metrics records include profile, category, wake phrase, transcript, response, and turn timing fields.
 
 Duration semantics live in the Voice Metrics Module. Timing fields are milliseconds with deterministic stage semantics:
 
@@ -45,9 +60,9 @@ Duration semantics live in the Voice Metrics Module. Timing fields are milliseco
 
 Missing marks are recorded as `null`.
 
-## Test utterances
+## Test Utterances
 
-Use the same utterances across profiles:
+Use the same utterances between runs:
 
 1. `Mave, what is the robot status?`
 2. `Mave, what is the current position?`
@@ -56,8 +71,8 @@ Use the same utterances across profiles:
 
 `Mave, stop.` is a normal Voice Command test utterance, not an emergency-stop bypass.
 
-## Interpreting results
+## Interpreting Results
 
-- Compare benchmark profiles to each other.
-- Treat local STT/TTS profiles as debug/baseline, not fully offline or equivalent streaming latency competitors.
-- Do not compare runs if a profile silently failed or used fallback providers. Benchmark profiles fail startup instead of falling back.
+- Compare repeated runs of the same profile unless a new profile is intentionally added.
+- Do not compare runs if startup silently failed or the configured providers were changed.
+- Treat Process Trace as the detailed debugging artifact and Voice Metrics as the compact timing summary.

@@ -22,13 +22,9 @@ CURRENT_POSE_TOOL_NAME = "moveit_get_current_pose"
 MOTION_TOOL_NAMES = {
     "moveit_plan_free_motion",
     "moveit_plan_cartesian_motion",
-    "moveit_plan_and_execute_free_motion",
-    "moveit_plan_and_execute_cartesian_motion",
     "moveit_execute_plan",
 }
 EXECUTION_TOOL_NAMES = {
-    "moveit_plan_and_execute_free_motion",
-    "moveit_plan_and_execute_cartesian_motion",
     "moveit_execute_plan",
 }
 
@@ -215,7 +211,7 @@ def validate_wave_motion(run: LiveSmokeRun) -> ValidationResult:
         return ValidationResult(False, "wave did not observe a successful parseable current pose")
 
     cartesian_calls = [
-        call for call in run.tool_calls if call.name == "moveit_plan_and_execute_cartesian_motion"
+        call for call in run.tool_calls if call.name == "moveit_plan_cartesian_motion"
     ]
     if not cartesian_calls:
         free_motion_result = _validate_wave_free_motion(run.tool_calls, start)
@@ -223,10 +219,10 @@ def validate_wave_motion(run: LiveSmokeRun) -> ValidationResult:
             return free_motion_result
         return ValidationResult(False, "wave did not use a verified visible motion sequence")
 
-    execution_call = next((call for call in cartesian_calls if _is_verified_execution(call)), None)
-    if execution_call is None:
+    if not _has_verified_execution(run.tool_calls):
         return ValidationResult(False, "wave did not record verified cartesian execution")
 
+    execution_call = cartesian_calls[0]
     raw_waypoints = execution_call.arguments.get("waypoints")
     if not isinstance(raw_waypoints, list):
         return ValidationResult(False, "wave cartesian execution did not include waypoints")
@@ -269,15 +265,15 @@ def validate_up_down_motion(run: LiveSmokeRun) -> ValidationResult:
     if not _has_verified_execution(run.tool_calls):
         return ValidationResult(False, "up-down motion did not execute and verify")
     cartesian_calls = [
-        call for call in run.tool_calls if call.name == "moveit_plan_and_execute_cartesian_motion"
+        call for call in run.tool_calls if call.name == "moveit_plan_cartesian_motion"
     ]
     if not cartesian_calls:
         free_motion_calls = [
             call
             for call in run.tool_calls
-            if call.name == "moveit_plan_and_execute_free_motion" and _is_verified_execution(call)
+            if call.name == "moveit_plan_free_motion"
         ]
-        if len(free_motion_calls) >= 2:
+        if len(free_motion_calls) >= 2 and len(_verified_executions(run.tool_calls)) >= len(free_motion_calls):
             return ValidationResult(True, "up-down motion executed through verified free-motion sequence")
         return ValidationResult(False, "up-down motion did not use a verified motion sequence")
     return ValidationResult(True, "up-down motion executed through verified Cartesian tool")
@@ -333,6 +329,14 @@ def _has_verified_execution(calls: list[RecordedToolCall]) -> bool:
     return any(_is_verified_execution(call) for call in calls if call.name in EXECUTION_TOOL_NAMES)
 
 
+def _verified_executions(calls: list[RecordedToolCall]) -> list[RecordedToolCall]:
+    return [
+        call
+        for call in calls
+        if call.name in EXECUTION_TOOL_NAMES and _is_verified_execution(call)
+    ]
+
+
 def _validate_wave_free_motion(
     calls: list[RecordedToolCall],
     start: dict[str, float],
@@ -340,10 +344,12 @@ def _validate_wave_free_motion(
     free_motion_calls = [
         call
         for call in calls
-        if call.name == "moveit_plan_and_execute_free_motion" and _is_verified_execution(call)
+        if call.name == "moveit_plan_free_motion"
     ]
     if len(free_motion_calls) < 2:
         return None
+    if len(_verified_executions(calls)) < len(free_motion_calls):
+        return ValidationResult(False, "wave free-motion sequence did not verify each execution")
 
     targets = [_target_pose_position(call) for call in free_motion_calls]
     positions = [position for position in targets if position is not None]

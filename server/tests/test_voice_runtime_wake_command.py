@@ -38,6 +38,23 @@ class CapturingLogger:
         self.info_messages.append(message)
 
 
+class StaleDetector:
+    def __init__(self) -> None:
+        self.detected_calls = 0
+        self.reset_calls = 0
+        self._stale = True
+
+    def detected(self, pcm16: np.ndarray) -> tuple[bool, str | None, float]:
+        self.detected_calls += 1
+        if self._stale:
+            return True, "mave", 0.91
+        return False, "mave", 0.01
+
+    def reset(self) -> None:
+        self.reset_calls += 1
+        self._stale = False
+
+
 def _audio(value: int, samples: int = 1600, channels: int = 1) -> InputAudioRawFrame:
     pcm = np.full(samples * channels, value, dtype=np.int16).tobytes()
     return InputAudioRawFrame(audio=pcm, sample_rate=16000, num_channels=channels)
@@ -307,26 +324,36 @@ async def test_transcript_adapter_cleans_finalized_command_and_rearms_audio_gate
 
 
 @pytest.mark.asyncio
-async def test_empty_cleaned_transcript_is_not_emitted_but_rearms_when_single_command_is_enabled(
+async def test_empty_cleaned_transcript_is_not_emitted_and_does_not_rearm_audio_gate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     detector = Mock()
-    detector.detected.return_value = (True, "mave", 0.91)
+    detector.detected.side_effect = [(True, "mave", 0.91), (True, "mave", 0.92)]
     processors = build_mave_voice_command_processors(
         detector=detector, pre_buffer_s=1.5, rearm_delay_s=0.0
     )
-    _, transcript_capture = _capture(monkeypatch, processors)
+    audio_capture, transcript_capture = _capture(monkeypatch, processors)
 
     await processors.audio_gate.process_frame(_audio(1), FrameDirection.DOWNSTREAM)
     await processors.transcript_adapter.process_frame(
         TranscriptionFrame(text="Mave", user_id="u", timestamp="t", finalized=True),
         FrameDirection.DOWNSTREAM,
     )
+    await processors.audio_gate.process_frame(_audio(2), FrameDirection.DOWNSTREAM)
 
     assert not [
         frame for frame, _ in transcript_capture.pushed if isinstance(frame, TranscriptionFrame)
     ]
-    assert processors.audio_gate.is_awake is False
+    assert processors.audio_gate.is_awake is True
+    assert detector.detected.call_count == 1
+    wake_events = [
+        frame for frame, _ in audio_capture.pushed if isinstance(frame, WakeDetectedFrame)
+    ]
+    pushed_audio = [
+        frame for frame, _ in audio_capture.pushed if isinstance(frame, InputAudioRawFrame)
+    ]
+    assert len(wake_events) == 1
+    assert [np.frombuffer(frame.audio, dtype=np.int16)[0] for frame in pushed_audio] == [1, 2]
 
 
 @pytest.mark.asyncio
@@ -406,6 +433,38 @@ async def test_awake_timeout_rearms_and_blocks_more_audio(
     ]
     assert [np.frombuffer(frame.audio, dtype=np.int16)[0] for frame in pushed_audio] == [1, 2]
     assert processors.audio_gate.is_awake is True
+
+
+@pytest.mark.asyncio
+async def test_awake_timeout_resets_detector_state_before_rearming(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = 10.0
+
+    def time_fn() -> float:
+        return now
+
+    detector = StaleDetector()
+    processors = build_mave_voice_command_processors(
+        detector=detector, max_awake_s=1.0, rearm_delay_s=0.0, time_fn=time_fn
+    )
+    audio_capture, _ = _capture(monkeypatch, processors)
+
+    await processors.audio_gate.process_frame(_audio(1), FrameDirection.DOWNSTREAM)
+    now = 11.1
+    await processors.audio_gate.process_frame(_audio(2), FrameDirection.DOWNSTREAM)
+
+    wake_events = [
+        frame for frame, _ in audio_capture.pushed if isinstance(frame, WakeDetectedFrame)
+    ]
+    pushed_audio = [
+        frame for frame, _ in audio_capture.pushed if isinstance(frame, InputAudioRawFrame)
+    ]
+    assert len(wake_events) == 1
+    assert [np.frombuffer(frame.audio, dtype=np.int16)[0] for frame in pushed_audio] == [1]
+    assert processors.audio_gate.is_awake is False
+    assert detector.reset_calls == 1
+    assert detector.detected_calls == 2
 
 
 def test_processor_bundle_is_frozen() -> None:

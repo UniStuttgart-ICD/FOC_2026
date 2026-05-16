@@ -20,6 +20,7 @@ from voice_runtime.profiles import (
     EmergencyStopProfile,
     MetricsProfile,
     ProcessTraceProfile,
+    RobotExecutionProfile,
     RuntimeProfile,
     STTProfile,
     TTSProfile,
@@ -66,6 +67,7 @@ def _profile(tmp_path: Path) -> RuntimeProfile:
         mcp_robot_url="http://127.0.0.1:8765/mcp",
         metrics=MetricsProfile(enabled=False, path=tmp_path / "metrics.jsonl", include_text=False),
         process_trace=ProcessTraceProfile(enabled=False, path=tmp_path / "trace.jsonl"),
+        robot_execution=RobotExecutionProfile(),
         server_dir=tmp_path,
     )
 

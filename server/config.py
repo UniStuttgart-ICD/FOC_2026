@@ -14,6 +14,7 @@ from voice_runtime.profiles import (
     MetricsProfile,
     ProcessTraceProfile,
     ProfileError,
+    RobotExecutionProfile,
     RuntimeProfile,
     STTProfile,
     STTProvider,
@@ -33,6 +34,7 @@ TTSConfig = TTSProfile
 AgentConfig = AgentProfile
 MetricsConfig = MetricsProfile
 ProcessTraceConfig = ProcessTraceProfile
+RobotExecutionConfig = RobotExecutionProfile
 VoiceModulationConfig = object
 
 
@@ -48,6 +50,7 @@ class RuntimeConfig:
     mcp_robot_url: str
     metrics: MetricsConfig
     process_trace: ProcessTraceConfig
+    robot_execution: RobotExecutionConfig
     server_dir: Path
     voice_modulation: object | None = None
 
@@ -64,6 +67,7 @@ class RuntimeConfig:
             mcp_robot_url=profile.mcp_robot_url,
             metrics=profile.metrics,
             process_trace=profile.process_trace,
+            robot_execution=profile.robot_execution,
             server_dir=profile.server_dir,
             voice_modulation=profile.voice_modulation,
         )
@@ -80,6 +84,7 @@ class RuntimeConfig:
             mcp_robot_url=self.mcp_robot_url,
             metrics=self.metrics,
             process_trace=self.process_trace,
+            robot_execution=self.robot_execution,
             server_dir=self.server_dir,
             voice_modulation=self.voice_modulation,
         ).required_env_names()
@@ -130,6 +135,7 @@ __all__ = [
     "EmergencyStopConfig",
     "MetricsConfig",
     "ProcessTraceConfig",
+    "RobotExecutionConfig",
     "RuntimeConfig",
     "STTConfig",
     "STTProvider",

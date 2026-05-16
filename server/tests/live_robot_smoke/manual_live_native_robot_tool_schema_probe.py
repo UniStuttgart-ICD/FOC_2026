@@ -30,7 +30,7 @@ async def test_live_model_fills_real_moveit_tool_arguments_without_execution():
     await bridge.connect()
     try:
         tools = bridge.function_tools()
-        motion_tool = next(t for t in tools if t["name"] == "moveit_plan_and_execute_free_motion")
+        motion_tool = next(t for t in tools if t["name"] == "moveit_plan_free_motion")
         model = build_agent_chat_model(
             AgentProfile(
                 provider="openai_api",
@@ -41,7 +41,7 @@ async def test_live_model_fills_real_moveit_tool_arguments_without_execution():
         )
         bound = model.bind_tools([motion_tool])
         msg = await bound.ainvoke(
-            "For robot UR10, prepare a moveit_plan_and_execute_free_motion call that moves "
+            "For robot UR10, prepare a moveit_plan_free_motion call that plans moving "
             "the end effector up by about 5 cm from the current pose. Only call the tool."
         )
     finally:
@@ -49,6 +49,6 @@ async def test_live_model_fills_real_moveit_tool_arguments_without_execution():
 
     assert msg.tool_calls
     call = msg.tool_calls[0]
-    assert call["name"] == "moveit_plan_and_execute_free_motion"
+    assert call["name"] == "moveit_plan_free_motion"
     assert call["args"]["robot_name"] == "UR10"
     assert "target_pose" in call["args"]

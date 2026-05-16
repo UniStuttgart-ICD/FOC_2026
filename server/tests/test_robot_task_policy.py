@@ -74,6 +74,22 @@ def test_policy_allows_motion_after_recent_pose_observation() -> None:
     assert decision == TaskPolicyDecision(ok=True)
 
 
+def test_policy_treats_place_planning_as_motion() -> None:
+    decision = validate_task_step(
+        "moveit_plan_place",
+        {
+            "robot_name": "UR10",
+            "object_name": "beam_001",
+            "target_position": {"x": 0.75, "y": 0.2, "z": 0.28},
+        },
+        FakeTaskPolicyContext(),
+    )
+
+    assert decision.ok is False
+    assert decision.error == "Fresh robot pose is required before motion."
+    assert decision.suggested_next_tool == "moveit_get_current_pose"
+
+
 def test_policy_uses_configured_pose_freshness_window() -> None:
     context = FakeTaskPolicyContext(recent_pose=True)
 
@@ -93,6 +109,7 @@ def test_policy_rejects_execute_plan_when_plan_was_not_returned_by_planning() ->
         "moveit_execute_plan",
         {"robot_name": "UR10", "plan_name": "invented-plan"},
         FakeTaskPolicyContext(recent_pose=True),
+        explicit_execute_requested=True,
     )
 
     assert decision.ok is False
@@ -106,6 +123,7 @@ def test_policy_rejects_execute_plan_without_plan_name() -> None:
         "moveit_execute_plan",
         {"robot_name": "UR10"},
         FakeTaskPolicyContext(recent_pose=True),
+        explicit_execute_requested=True,
     )
 
     assert decision.ok is False
@@ -117,9 +135,23 @@ def test_policy_allows_execute_plan_when_plan_was_recently_recorded() -> None:
         "moveit_execute_plan",
         {"robot_name": "UR10", "plan_name": "plan-1"},
         FakeTaskPolicyContext(recent_pose=True, executable_plans={"plan-1"}),
+        explicit_execute_requested=True,
     )
 
     assert decision == TaskPolicyDecision(ok=True)
+
+
+def test_policy_rejects_execute_plan_without_explicit_user_request() -> None:
+    decision = validate_task_step(
+        "moveit_execute_plan",
+        {"robot_name": "UR10", "plan_name": "plan-1"},
+        FakeTaskPolicyContext(recent_pose=True, executable_plans={"plan-1"}),
+    )
+
+    assert decision.ok is False
+    assert decision.error == "Execution requires an explicit user request."
+    assert decision.correction == "Ask the user to explicitly confirm execution, then retry moveit_execute_plan."
+    assert decision.suggested_next_tool is None
 
 
 def test_policy_passes_executable_plan_freshness_window_to_context() -> None:
@@ -130,6 +162,7 @@ def test_policy_passes_executable_plan_freshness_window_to_context() -> None:
         {"robot_name": "UR10", "plan_name": "plan-1"},
         context,
         executable_plan_max_age_s=DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S,
+        explicit_execute_requested=True,
     )
 
     assert decision.ok is True

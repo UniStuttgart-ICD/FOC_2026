@@ -1,0 +1,1163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Common Model Pick Planning Findings</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23191d1a'/%3E%3Cpath d='M14 46h36v6H14z' fill='%23d99741'/%3E%3Cpath d='M22 43l8-24 10 3-8 24z' fill='%236a9f82'/%3E%3Cpath d='M34 19l10 7-5 7-10-7z' fill='%232f6f86'/%3E%3Ccircle cx='28' cy='20' r='5' fill='%23f2e7d1'/%3E%3Ccircle cx='43' cy='28' r='4' fill='%23f2e7d1'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f7f1e6;
+      --paper-2: #ebe0cc;
+      --ink: #182321;
+      --muted: #5d6862;
+      --line: rgba(24, 35, 33, 0.18);
+      --line-strong: rgba(24, 35, 33, 0.36);
+      --rail: #202928;
+      --green: #2f6f58;
+      --blue: #2f6f86;
+      --amber: #d99741;
+      --red: #b95745;
+      --white: #fffaf0;
+      --shadow: 0 24px 64px rgba(45, 39, 28, 0.14);
+      --pad: clamp(18px, 4vw, 56px);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(32, 41, 40, 0.055) 1px, transparent 1px) 0 0 / 36px 36px,
+        linear-gradient(180deg, rgba(32, 41, 40, 0.045) 1px, transparent 1px) 0 0 / 36px 36px,
+        linear-gradient(135deg, rgba(217, 151, 65, 0.12), transparent 34%, rgba(47, 111, 134, 0.12)),
+        var(--paper);
+      font-family: Aptos, Candara, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      line-height: 1.48;
+    }
+
+    a {
+      color: inherit;
+      text-decoration-color: rgba(24, 35, 33, 0.35);
+      text-underline-offset: 3px;
+    }
+
+    .shell {
+      width: min(1360px, 100%);
+      margin: 0 auto;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 64px;
+      padding: 12px var(--pad);
+      border-bottom: 1px solid var(--line);
+      background: rgba(247, 241, 230, 0.92);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      font-weight: 800;
+    }
+
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      position: relative;
+      flex: 0 0 auto;
+      border: 1px solid var(--line-strong);
+      background: var(--rail);
+    }
+
+    .brand-mark::before,
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      background: var(--white);
+    }
+
+    .brand-mark::before {
+      width: 8px;
+      height: 8px;
+      left: 7px;
+      top: 17px;
+    }
+
+    .brand-mark::after {
+      width: 7px;
+      height: 7px;
+      right: 6px;
+      top: 8px;
+    }
+
+    .brand-mark span {
+      position: absolute;
+      left: 11px;
+      top: 16px;
+      width: 18px;
+      height: 4px;
+      transform: rotate(-34deg);
+      transform-origin: left center;
+      background: var(--amber);
+    }
+
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .nav a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 700;
+      background: rgba(255, 250, 240, 0.5);
+    }
+
+    .hero {
+      min-height: 66vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 0.56fr);
+      gap: clamp(24px, 4vw, 58px);
+      align-items: center;
+      padding: clamp(34px, 6vw, 76px) var(--pad) 38px;
+    }
+
+    .eyebrow,
+    .tag {
+      width: fit-content;
+      border-left: 5px solid var(--amber);
+      background: rgba(255, 250, 240, 0.72);
+      color: var(--rail);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow {
+      margin: 0 0 18px;
+      padding: 4px 8px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      margin-bottom: 14px;
+      padding: 4px 8px;
+      border-left-color: var(--blue);
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      font-family: Cambria, Georgia, serif;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 850px;
+      font-size: clamp(3rem, 7vw, 7rem);
+    }
+
+    h2 {
+      max-width: 900px;
+      font-size: clamp(2rem, 4vw, 4rem);
+    }
+
+    h3 {
+      font-size: clamp(1.15rem, 1.7vw, 1.45rem);
+    }
+
+    p {
+      margin: 0;
+    }
+
+    .lede {
+      max-width: 780px;
+      margin-top: 22px;
+      color: var(--muted);
+      font-size: clamp(1.08rem, 1.8vw, 1.36rem);
+    }
+
+    .summary-stack {
+      display: grid;
+      gap: 12px;
+      align-self: stretch;
+      align-content: center;
+    }
+
+    .metric {
+      min-height: 118px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 250, 240, 0.74);
+      box-shadow: 0 12px 30px rgba(45, 39, 28, 0.08);
+    }
+
+    .metric strong {
+      display: block;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 8px;
+      color: var(--rail);
+      font-size: 2rem;
+      font-weight: 900;
+    }
+
+    section {
+      padding: clamp(38px, 6vw, 82px) var(--pad);
+      scroll-margin-top: 80px;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.86fr) minmax(260px, 0.46fr);
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 28px;
+    }
+
+    .section-note,
+    .panel p,
+    .finding-card p,
+    .evidence-card p,
+    .plan-card p {
+      color: var(--muted);
+      font-size: 1.02rem;
+    }
+
+    .finding-grid,
+    .evidence-grid,
+    .plan-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .finding-card,
+    .panel,
+    .evidence-card,
+    .plan-card {
+      border: 1px solid var(--line);
+      background: rgba(255, 250, 240, 0.74);
+      box-shadow: 0 12px 30px rgba(45, 39, 28, 0.08);
+    }
+
+    .finding-card,
+    .evidence-card,
+    .plan-card {
+      min-height: 190px;
+      padding: 18px;
+    }
+
+    .panel {
+      padding: 22px;
+    }
+
+    .panel p,
+    .finding-card p,
+    .evidence-card p,
+    .plan-card p {
+      margin-top: 10px;
+    }
+
+    code {
+      color: #0e3f4f;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: 0.94em;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 16px;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      background: rgba(255, 250, 240, 0.74);
+      box-shadow: 0 12px 30px rgba(45, 39, 28, 0.08);
+      table-layout: fixed;
+    }
+
+    th,
+    td {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+      overflow-wrap: anywhere;
+    }
+
+    th {
+      background: rgba(235, 224, 204, 0.76);
+      color: var(--rail);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .ok {
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .fail {
+      color: var(--red);
+      font-weight: 900;
+    }
+
+    .mixed {
+      color: #8a560e;
+      font-weight: 900;
+    }
+
+    .decision-band {
+      display: grid;
+      grid-template-columns: 0.72fr 1fr;
+      gap: 22px;
+      align-items: stretch;
+      border-block: 1px solid var(--line-strong);
+      background: rgba(24, 35, 33, 0.92);
+      color: var(--white);
+    }
+
+    .decision-band h2,
+    .decision-band .section-note {
+      color: var(--white);
+    }
+
+    .decision-band .section-note {
+      opacity: 0.76;
+    }
+
+    .flow {
+      display: grid;
+      align-content: center;
+      gap: 10px;
+    }
+
+    .flow-step {
+      display: grid;
+      grid-template-columns: 126px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+      padding: 14px;
+      border: 1px solid rgba(255, 250, 240, 0.22);
+      background: rgba(255, 250, 240, 0.06);
+    }
+
+    .flow-step b {
+      color: #f4c772;
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .flow-step span {
+      color: rgba(255, 250, 240, 0.78);
+    }
+
+    .comparison {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+    }
+
+    .panel.good {
+      border-top: 8px solid var(--green);
+    }
+
+    .panel.better {
+      border-top: 8px solid var(--blue);
+    }
+
+    .note {
+      margin-top: 18px;
+      padding: 18px;
+      border: 1px solid var(--line-strong);
+      border-left: 8px solid var(--amber);
+      background: var(--white);
+      box-shadow: var(--shadow);
+      color: var(--muted);
+    }
+
+    .note strong {
+      color: var(--rail);
+    }
+
+    .placeholder {
+      min-height: 180px;
+      border-block: 1px solid var(--line-strong);
+      background: rgba(235, 224, 204, 0.42);
+    }
+
+    .placeholder .panel {
+      background: var(--white);
+    }
+
+    .footer {
+      padding: 28px var(--pad) 46px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .section-head,
+      .decision-band,
+      .comparison {
+        grid-template-columns: 1fr;
+      }
+
+      .finding-grid,
+      .evidence-grid,
+      .plan-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 680px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .nav {
+        justify-content: flex-start;
+      }
+
+      .finding-grid,
+      .evidence-grid,
+      .plan-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-step {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+        table-layout: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark"><span></span></span>Common Model Pick Planning Findings</div>
+      <nav class="nav" aria-label="Page sections">
+        <a href="#scene-reload">Scene Reload</a>
+        <a href="#planner-comparison">Planner Comparison</a>
+        <a href="#collision-reading">Collision Reading</a>
+        <a href="#next-test">Next Test</a>
+        <a href="#live-pick-confirmation">Live Pick</a>
+        <a href="#implementation-plan">Implementation Plan</a>
+        <a href="#evidence">Evidence</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" id="top">
+        <div>
+          <p class="eyebrow">Pipecat agent control</p>
+          <h1>Pick planning needs a hybrid route.</h1>
+          <p class="lede">
+            The six-element common model reload confirmed that Cartesian pick planning is
+            too strict for many assembled-frame grasps. RRTConnect finds more robot-only
+            approach and pull-out poses, but those plans do not prove that a held beam can
+            clear the structure.
+          </p>
+        </div>
+
+        <div class="summary-stack" aria-label="Planning result summary">
+          <article class="metric">
+            <strong>Scene objects after reload</strong>
+            <span>7</span>
+            <p>Ground plane plus six mesh collision objects.</p>
+          </article>
+          <article class="metric">
+            <strong>Cartesian successes</strong>
+            <span>5 / 30</span>
+            <p>Horizontal: 4 / 15. Vertical: 1 / 15.</p>
+          </article>
+          <article class="metric">
+            <strong>RRTConnect candidates</strong>
+            <span>18 / 30</span>
+            <p>Horizontal: 10 / 15. Vertical: 8 / 15.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="scene-reload">
+        <div class="section-head">
+          <h2>Scene Reload</h2>
+          <p class="section-note">
+            A Docker restart cleared the temporary test objects. The six bodies from
+            <code>server/robot_control/shared_geometry/common_model.json</code> were re-added
+            as individual MoveIt <code>CollisionObject</code> meshes. The source JSON stayed
+            unchanged; the placement offset was applied only in the test scene.
+          </p>
+        </div>
+
+        <div class="finding-grid">
+          <article class="finding-card">
+            <span class="tag">readback</span>
+            <h3>All objects present</h3>
+            <p>Scene readback showed <code>object_count = 7</code>: the ground plane plus six <code>common_model_*</code> objects in <code>base_link</code>.</p>
+          </article>
+          <article class="finding-card">
+            <span class="tag">geometry</span>
+            <h3>One mesh per element</h3>
+            <p>Each model element was loaded as a mesh collision object with 8 vertices and 12 triangles.</p>
+          </article>
+          <article class="finding-card">
+            <span class="tag">placement</span>
+            <h3>Temporary offset</h3>
+            <p>The test placement used <code>-0.10, +0.15, +0.01</code> m while leaving the shared geometry file untouched.</p>
+          </article>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Object</th>
+              <th>Role</th>
+              <th>Bounds center (m)</th>
+              <th>Bounds size (m)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>common_model_element_01</code></td>
+              <td>Vertical B</td>
+              <td>x 0.700, y 0.150, z 0.110</td>
+              <td>x 0.040, y 0.040, z 0.200</td>
+            </tr>
+            <tr>
+              <td><code>common_model_element_02</code></td>
+              <td>Vertical B</td>
+              <td>x 0.550, y 0.410, z 0.110</td>
+              <td>x 0.040, y 0.040, z 0.200</td>
+            </tr>
+            <tr>
+              <td><code>common_model_element_03</code></td>
+              <td>Vertical B</td>
+              <td>x 0.850, y 0.410, z 0.110</td>
+              <td>x 0.040, y 0.040, z 0.200</td>
+            </tr>
+            <tr>
+              <td><code>common_model_element_04</code></td>
+              <td>Horizontal C</td>
+              <td>x 0.625, y 0.280, z 0.230</td>
+              <td>x 0.185, y 0.280, z 0.040</td>
+            </tr>
+            <tr>
+              <td><code>common_model_element_05</code></td>
+              <td>Horizontal C</td>
+              <td>x 0.775, y 0.280, z 0.230</td>
+              <td>x 0.280, y 0.185, z 0.040</td>
+            </tr>
+            <tr>
+              <td><code>common_model_element_06</code></td>
+              <td>Horizontal C</td>
+              <td>x 0.700, y 0.410, z 0.270</td>
+              <td>x 0.300, y 0.040, z 0.040</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="decision-band" id="planner-comparison">
+        <div>
+          <p class="eyebrow">Planner comparison</p>
+          <h2>Cartesian proves less than reachability. RRTConnect proves only reachability.</h2>
+          <p class="section-note">
+            The current pick workflow uses Cartesian waypoints for approach, pre-grasp,
+            close, attach, and lift metadata. RRTConnect was used only as a sampled planning
+            probe for robot poses.
+          </p>
+        </div>
+        <div class="flow">
+          <div class="flow-step"><b>Cartesian</b><span>Strict straight waypoint paths. Good signal when complete, but fragile near assembled contacts.</span></div>
+          <div class="flow-step"><b>RRTConnect</b><span>Joint-space sampling can route to approach and pull-out poses that Cartesian rejects.</span></div>
+          <div class="flow-step"><b>Caveat</b><span>RRTConnect results here are plan-only. They do not close the gripper, attach the beam, or test object extraction.</span></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>Result Matrix</h2>
+          <p class="section-note">
+            Each element used the same comparison faces: <code>top</code>, <code>back</code>,
+            <code>front</code>, <code>left</code>, and <code>right</code>. Cartesian values are
+            from <code>moveit_plan_pick</code>. RRTConnect values are sampled plan-only sequences.
+          </p>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Element</th>
+              <th>Type</th>
+              <th>Cartesian success faces</th>
+              <th>RRTConnect success faces</th>
+              <th>Reading</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>element_01</code></td>
+              <td>Vertical B</td>
+              <td class="mixed">1 / 5: back</td>
+              <td class="ok">3 / 5: top, left, right</td>
+              <td>Sampling reaches more tool poses, but top extraction still needs attached-object collision testing.</td>
+            </tr>
+            <tr>
+              <td><code>element_02</code></td>
+              <td>Vertical B</td>
+              <td class="fail">0 / 5</td>
+              <td class="ok">3 / 5: top, front, left</td>
+              <td>RRTConnect improves robot reachability where Cartesian finds no complete path.</td>
+            </tr>
+            <tr>
+              <td><code>element_03</code></td>
+              <td>Vertical B</td>
+              <td class="fail">0 / 5</td>
+              <td class="mixed">2 / 5: top, back</td>
+              <td>Sampling helps, but several approach or pull-out poses still fail.</td>
+            </tr>
+            <tr>
+              <td><code>element_04</code></td>
+              <td>Horizontal C</td>
+              <td class="mixed">1 / 5: back</td>
+              <td class="ok">4 / 5: top, back, front, left</td>
+              <td>RRTConnect improves approach and pull pose reachability for the lower span.</td>
+            </tr>
+            <tr>
+              <td><code>element_05</code></td>
+              <td>Horizontal C</td>
+              <td class="mixed">2 / 5: top, back</td>
+              <td class="ok">3 / 5: top, back, front</td>
+              <td>Sampling adds the front direction; end approaches still fail.</td>
+            </tr>
+            <tr>
+              <td><code>element_06</code></td>
+              <td>Horizontal C</td>
+              <td class="mixed">1 / 5: top</td>
+              <td class="ok">3 / 5: top, front, left</td>
+              <td>Sampling opens more pull-away candidates for the upper beam.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="comparison" style="margin-top: 16px;">
+          <article class="panel good">
+            <h3>Horizontal C elements</h3>
+            <p>Cartesian succeeded on <strong>4 / 15</strong> faces. RRTConnect found <strong>10 / 15</strong> plan-only candidates, especially on top, back, and front faces.</p>
+          </article>
+          <article class="panel better">
+            <h3>Vertical B elements</h3>
+            <p>Cartesian succeeded on <strong>1 / 15</strong> faces. RRTConnect found <strong>8 / 15</strong> stricter approach, pre-grasp, and pull-out sequences.</p>
+          </article>
+        </div>
+
+        <p class="note">
+          <strong>Important limitation:</strong> the RRTConnect probes check robot pose reachability,
+          not successful beam removal. A real pick/removal workflow must close the gripper, attach
+          or otherwise model the target beam as moving with the gripper, and then test extraction.
+        </p>
+      </section>
+
+      <section id="collision-reading">
+        <div class="section-head">
+          <h2>Collision Reading</h2>
+          <p class="section-note">
+            The planning scene treats each beam as a hard collision object. Intentional
+            contact in the assembled frame still constrains MoveIt unless the workflow
+            removes, attaches, or allows contact for the manipulated object.
+          </p>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Current reading</th>
+              <th>Evidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Are vertical elements failing because horizontals sit on top?</td>
+              <td class="ok">Most likely, yes.</td>
+              <td>All three vertical top Cartesian pick checks failed in the full structure. Earlier isolation checks succeeded after removing the horizontal beams.</td>
+            </tr>
+            <tr>
+              <td>Is that also why horizontal picks fail?</td>
+              <td class="mixed">Partly, depending on face and pull direction.</td>
+              <td>Some horizontal grasps still succeed. Failures cluster around paths that pass through adjacent beam geometry or tighter gripper corridors.</td>
+            </tr>
+            <tr>
+              <td>Why can RRTConnect succeed where Cartesian fails?</td>
+              <td>It can sample a curved joint-space route to the same pose.</td>
+              <td><code>element_04/top</code>, <code>element_04/front</code>, <code>element_04/left</code>, <code>element_05/front</code>, <code>element_06/front</code>, and <code>element_06/left</code> failed in Cartesian but planned in RRTConnect.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="next-test">
+        <div class="section-head">
+          <h2>Recommended Next Test</h2>
+          <p class="section-note">
+            The useful next workflow is hybrid: sampled free-space approach, explicit grasp
+            state change, constrained extraction, then sampled retreat.
+          </p>
+        </div>
+
+        <div class="finding-grid">
+          <article class="finding-card">
+            <span class="tag">approach</span>
+            <h3>Use OMPL/RRTConnect</h3>
+            <p>Plan from the current state to a standoff pose so the arm can route around the assembled frame.</p>
+          </article>
+          <article class="finding-card">
+            <span class="tag">grasp</span>
+            <h3>Close and attach</h3>
+            <p>Close the gripper, then attach the target object or define allowed touch links before extraction.</p>
+          </article>
+          <article class="finding-card">
+            <span class="tag">extract</span>
+            <h3>Constrain the pull</h3>
+            <p>Use a short Cartesian pull along the selected removal direction, followed by a sampled retreat after clearance.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="live-pick-confirmation">
+        <div class="section-head">
+          <h2>Live RViz Pickup Confirmation</h2>
+          <p class="section-note">
+            On 15 May 2026 around the 14:20 local run, the live RViz session confirmed
+            a successful staged pickup of the horizontal object <code>dynamic_5</code>.
+            The important result is not only that planning succeeded, but that the object
+            became attached and moved with the gripper after execution.
+          </p>
+        </div>
+
+        <div class="comparison">
+          <article class="panel good">
+            <span class="tag">observed</span>
+            <h3>What RViz showed</h3>
+            <p>
+              RViz first showed the translucent preview path for the planned motion.
+              After execution, the solid robot model moved along the same staged route.
+              The run ended with <code>dynamic_5</code> verified as attached to the gripper,
+              so this was a real simulated pickup rather than only a pose-reachability probe.
+            </p>
+          </article>
+          <article class="panel better">
+            <span class="tag">meaning</span>
+            <h3>What this proves</h3>
+            <p>
+              The working route was hybrid: a free-space preposition above the object,
+              followed by a short Cartesian descent and lift. This validates the staged
+              follow-up behavior that was missing from the earlier failed agent run.
+            </p>
+          </article>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Step</th>
+              <th>Tool call</th>
+              <th>Observed result</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Scene grounding</td>
+              <td><code>moveit_list_scene_objects</code>, then <code>moveit_get_object_context(dynamic_5)</code></td>
+              <td><code>dynamic_5</code> was a free horizontal beam centered near <code>x=0.259808, y=-0.8, z=0.26</code>, with bounds <code>z=0.24..0.28</code>.</td>
+            </tr>
+            <tr>
+              <td>Prepare gripper</td>
+              <td><code>moveit_open_gripper</code></td>
+              <td>Gripper opened before the approach.</td>
+            </tr>
+            <tr>
+              <td>Plan free preposition</td>
+              <td><code>moveit_plan_pick(dynamic_5, planning_strategy=auto, grasp_face=top)</code></td>
+              <td>Resolved to <code>staged_preposition</code>. Target pose was above the beam at <code>x=0.259808, y=-0.8, z=0.36</code>; the preposition plan had 108 points and passed verification.</td>
+            </tr>
+            <tr>
+              <td>Execute free preposition</td>
+              <td><code>moveit_execute_plan</code></td>
+              <td>The robot moved above the object in RViz, and the final joint-state verification passed.</td>
+            </tr>
+            <tr>
+              <td>Plan local Cartesian pick</td>
+              <td><code>moveit_plan_cartesian_motion</code></td>
+              <td>The local path moved from <code>z=0.36</code> down to <code>z=0.31</code>, then lifted to <code>z=0.41</code>. The Cartesian plan had 7 points and passed verification.</td>
+            </tr>
+            <tr>
+              <td>Grasp and attach</td>
+              <td><code>moveit_close_gripper</code>, then <code>moveit_attach_object(dynamic_5)</code></td>
+              <td>The scene state changed from free object to attached object before the local pick execution.</td>
+            </tr>
+            <tr>
+              <td>Execute and verify</td>
+              <td><code>moveit_execute_plan</code>, then <code>moveit_verify_attached_object(dynamic_5)</code></td>
+              <td>The local Cartesian pick executed, final joint-state verification passed, and <code>dynamic_5</code> was verified as attached to the gripper.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p class="note">
+          This was not yet proof of the full <code>sampled_approach</code> pickup contract.
+          The run used the now-working <code>auto</code> staged route: free movement to a
+          useful standoff pose, then Cartesian local pickup. The sampled/RRTConnect backend
+          was confirmed to exist in the Docker MoveIt stack, but the old containerized MCP
+          endpoint still needs the wiring baked into its image so the actual agent endpoint
+          can request sampled planning without a temporary local patched server.
+        </p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Open item</th>
+              <th>Status after the live run</th>
+              <th>Next check</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Horizontal pickup</td>
+              <td class="ok">Confirmed on <code>dynamic_5</code>; follow-up place also confirmed.</td>
+              <td>Keep using the staged <code>auto</code> route: free preposition, local Cartesian pick, attach verification, then place/release.</td>
+            </tr>
+            <tr>
+              <td>Vertical pickup</td>
+              <td class="mixed">Pickup confirmed on <code>dynamic_1</code>; place planning remained blocked.</td>
+              <td>Use a face-specific side grasp and shorter approach. The attached vertical post still needs a safer place workflow than the current all-Cartesian release plan.</td>
+            </tr>
+            <tr>
+              <td><code>sampled_approach</code></td>
+              <td class="mixed">Backend route exists, but product wiring is incomplete.</td>
+              <td>Persist the RRTConnect sampled-planning route in the MoveIt MCP server/tool implementation and rebuild the running MCP container.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="live-pick-place-e2e">
+        <div class="section-head">
+          <h2>Pick And Place E2E</h2>
+          <p class="section-note">
+            Follow-up live test on 15 May 2026 against the patched local MoveIt MCP at
+            <code>127.0.0.1:8766/mcp</code>.
+          </p>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Trial</th>
+              <th>Tool sequence</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Horizontal <code>dynamic_5</code></td>
+              <td>
+                <code>moveit_plan_pick(auto)</code> -> <code>moveit_execute_plan</code> ->
+                <code>moveit_plan_pick(cartesian)</code> -> close/attach -> execute/verify ->
+                <code>moveit_plan_place</code> -> <code>moveit_execute_plan</code>.
+              </td>
+              <td class="ok">
+                Fully passed. Preposition had 108 points, local Cartesian pick had 7 points,
+                place had 9 points, and execute returned
+                <code>place motion and release verified</code>. Final readback:
+                <code>dynamic_5</code> free at <code>{x:0.38, y:-0.8, z:0.3}</code>.
+              </td>
+            </tr>
+            <tr>
+              <td>Vertical <code>dynamic_1</code></td>
+              <td>
+                First <code>front</code> face failed. <code>right</code> face with
+                <code>approach_distance_m=0.04</code> produced the staged free preposition,
+                local Cartesian pick, close/attach, execute, and attachment verification.
+              </td>
+              <td class="mixed">
+                Pickup passed, but <code>moveit_plan_place</code> returned
+                <code>incomplete path</code> for all tested targets/orientation modes while the
+                post was attached. The object was released afterward with a direct planning-scene
+                detach and final readback is free at <code>{x:0.42, y:-0.55, z:0.16}</code>.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="comparison">
+          <article class="panel better">
+            <span class="tag">fix</span>
+            <h3>Place wiring added</h3>
+            <p>
+              The MoveIt MCP now exposes <code>moveit_plan_place</code>. Its execute path opens
+              the gripper and detaches the object after verified motion. Tests cover server schema,
+              place planning, execute-time release, and mesh-center release.
+            </p>
+          </article>
+          <article class="panel warn">
+            <span class="tag">blocker</span>
+            <h3>Vertical place needs staging</h3>
+            <p>
+              The vertical pickup can work, but the attached post stays in a constrained posture.
+              A robust vertical place needs a staged carry/release workflow instead of one
+              Cartesian place plan containing approach, release, and retreat.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="placeholder" id="implementation-plan">
+        <div class="section-head">
+          <h2>Implementation Plan</h2>
+          <p class="section-note">
+            Add a semantic planner choice to <code>moveit_plan_pick</code> as
+            <code>planning_strategy</code>. The agent may choose a strategy, but the
+            MoveIt layer remains responsible for turning that strategy into real planner behavior.
+          </p>
+        </div>
+
+        <div class="comparison">
+          <article class="panel good">
+            <span class="tag">contract</span>
+            <h3><code>planning_strategy</code></h3>
+            <p>
+              Allowed values are <code>auto</code>, <code>cartesian</code>, and
+              <code>sampled_approach</code>. Default to <code>auto</code>. Use
+              <code>cartesian</code> for straight, constrained approach or lift behavior.
+              Use <code>sampled_approach</code> when clutter blocks the straight path or the user
+              asks for the random/sampling technique.
+            </p>
+          </article>
+          <article class="panel better">
+            <span class="tag">backend caveat</span>
+            <h3>Do not fake sampling</h3>
+            <p>
+              Current pick planning calls the Cartesian planner. Current Vizor free motion is
+              PTP-style target planning, not enough by itself to mean sampled pick approach.
+              If sampled backend support is missing, return a structured unsupported-strategy
+              failure instead of silently downgrading to Cartesian.
+            </p>
+          </article>
+        </div>
+
+        <div class="plan-grid" style="margin-top: 16px;">
+          <article class="plan-card">
+            <span class="tag">pipecat</span>
+            <h3>Validate the argument</h3>
+            <p>
+              Update <code>server/robot_control/call_validation.py</code> so
+              <code>moveit_plan_pick</code> accepts only the three strategy values.
+              Add tests for valid, omitted, and invalid values.
+            </p>
+          </article>
+          <article class="plan-card">
+            <span class="tag">prompt</span>
+            <h3>Teach the agent when to choose</h3>
+            <p>
+              Update <code>server/agent_control/prompt_parts/robot_contract.md</code>:
+              <code>auto</code> by default, <code>cartesian</code> for straight pulls,
+              <code>sampled_approach</code> for cluttered or explicitly random-technique asks.
+            </p>
+          </article>
+          <article class="plan-card">
+            <span class="tag">bridge</span>
+            <h3>Forward without interpretation</h3>
+            <p>
+              Keep Pipecat validation local, then forward <code>planning_strategy</code>
+              unchanged through the MCP bridge. The robot layer, not the prompt, resolves
+              strategy into planner behavior.
+            </p>
+          </article>
+          <article class="plan-card">
+            <span class="tag">moveit mcp</span>
+            <h3>Add schema and routing</h3>
+            <p>
+              Add the parameter to <code>moveit_mcp/server.py</code> and
+              <code>moveit_mcp/tools.py</code>. Resolve <code>auto</code> truthfully,
+              preserve current behavior for <code>cartesian</code>, and report
+              <code>planning_strategy_resolved</code> in results.
+            </p>
+          </article>
+          <article class="plan-card">
+            <span class="tag">sampled path</span>
+            <h3>Implement or block clearly</h3>
+            <p>
+              Add a real sampled approach backend path only if Vizor or MoveIt MCP can plan
+              approach and pre-grasp with sampled semantics. Otherwise return
+              <code>status="planning strategy unavailable"</code> with a retry correction.
+            </p>
+          </article>
+          <article class="plan-card">
+            <span class="tag">verification</span>
+            <h3>Prove the contract</h3>
+            <p>
+              Cover validation, prompt text, bridge forwarding, MCP strategy metadata, and
+              sampled unsupported behavior. Live checks should call omitted, Cartesian, and
+              sampled strategy variants.
+            </p>
+          </article>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Strategy</th>
+              <th>Agent meaning</th>
+              <th>First implementation behavior</th>
+              <th>When to use</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>auto</code></td>
+              <td>Let the robot layer choose the best available pick planner.</td>
+              <td>May resolve to <code>cartesian</code>, but must say so in <code>raw.planning_strategy_resolved</code>.</td>
+              <td>Default for normal pick requests.</td>
+            </tr>
+            <tr>
+              <td><code>cartesian</code></td>
+              <td>Use the current waypoint-based pick workflow.</td>
+              <td>Same behavior as current <code>moveit_plan_pick</code>.</td>
+              <td>Straight pulls, vertical lifts, constrained extraction, and debugging baseline tests.</td>
+            </tr>
+            <tr>
+              <td><code>sampled_approach</code></td>
+              <td>Use sampled planning to reach approach and pre-grasp poses around clutter.</td>
+              <td>Either call a real sampled backend path or fail with a structured unsupported-strategy result.</td>
+              <td>When Cartesian fails in clutter, or when the user asks for the random/sampling technique.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p class="note">
+          Full task-by-task plan:
+          <a href="../../.pi/plans/2026-05-15-planning-strategy-tooling.md">2026-05-15-planning-strategy-tooling.md</a>.
+          The plan covers Pipecat validation, prompt updates, bridge forwarding, MoveIt MCP schema and routing,
+          backend sampled support, and verification commands.
+        </p>
+      </section>
+
+      <section id="evidence">
+        <div class="section-head">
+          <h2>Evidence Files</h2>
+          <p class="section-note">
+            Links are relative to this design note and point back to the captured evidence in
+            <code>server/evidence</code>.
+          </p>
+        </div>
+
+        <div class="evidence-grid">
+          <article class="evidence-card">
+            <span class="tag">reload</span>
+            <h3><a href="../../server/evidence/common_model_readd_20260515_verification.json">Scene verification</a></h3>
+            <p>Live scene readback and spot pick checks after the Docker restart.</p>
+          </article>
+          <article class="evidence-card">
+            <span class="tag">cartesian</span>
+            <h3><a href="../../server/evidence/common_model_horizontal_cartesian_pick_results.json">Horizontal sweep</a></h3>
+            <p>Cartesian pick sweep for horizontal beams.</p>
+          </article>
+          <article class="evidence-card">
+            <span class="tag">cartesian</span>
+            <h3><a href="../../server/evidence/common_model_vertical_cartesian_pick_results.json">Vertical sweep</a></h3>
+            <p>Cartesian pick sweep for vertical beams.</p>
+          </article>
+          <article class="evidence-card">
+            <span class="tag">rrtconnect</span>
+            <h3><a href="../../server/evidence/common_model_rrtconnect_pullout_results.json">Horizontal pull-out probe</a></h3>
+            <p>RRTConnect plan-only approach and pull-out probe.</p>
+          </article>
+          <article class="evidence-card">
+            <span class="tag">rrtconnect</span>
+            <h3><a href="../../server/evidence/common_model_rrtconnect_vertical_results.json">Vertical probe</a></h3>
+            <p>RRTConnect vertical approach, pre-grasp, and pull-out probe.</p>
+          </article>
+          <article class="evidence-card">
+            <span class="tag">e2e</span>
+            <h3><a href="../../server/evidence/live_pick_place_horizontal_dynamic5_20260515.json">Horizontal pick/place</a></h3>
+            <p>Live MCP sequence for <code>dynamic_5</code>: staged pickup, attach verification, place, and release.</p>
+          </article>
+          <article class="evidence-card">
+            <span class="tag">e2e</span>
+            <h3><a href="../../server/evidence/live_pick_place_vertical_dynamic1_20260515.json">Vertical pick/place attempt</a></h3>
+            <p>Live MCP sequence for <code>dynamic_1</code>: side pickup succeeded; place planning returned incomplete path.</p>
+          </article>
+          <article class="evidence-card">
+            <span class="tag">snapshot</span>
+            <h3><a href="../../server/evidence/common_model_horizontal_snapshot.json">Pre-restart snapshot</a></h3>
+            <p>Scene snapshot from the same temporary placement.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      Design note migrated from <code>server/evidence/common_model_pick_planning_findings.html</code>.
+      Core rule: use sampled planning to reach useful robot poses, then prove object motion with explicit grasp, attachment, extraction, and verification.
+    </footer>
+  </div>
+</body>
+</html>

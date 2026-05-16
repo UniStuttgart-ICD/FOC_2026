@@ -1,0 +1,3544 @@
+{
+  "run": "horizontal_dynamic5_pick_place",
+  "mcp_url": "http://127.0.0.1:8766/mcp",
+  "robot": "UR10",
+  "started_at": "2026-05-15T16:21:19+0200",
+  "calls": [
+    {
+      "tool": "moveit_list_scene_objects",
+      "args": {
+        "robot_name": "UR10",
+        "timeout_s": 3.0
+      },
+      "elapsed_s": 0.064,
+      "result": {
+        "ok": true,
+        "robot": "UR10",
+        "tool": "moveit_list_scene_objects",
+        "feedback": {
+          "phase": "observed",
+          "status": "planning scene observed",
+          "message": "Observed 7 planning-scene objects",
+          "can_execute": false
+        },
+        "verification": {
+          "result": "pass",
+          "checks": [
+            {
+              "name": "planning_scene_observed",
+              "passed": true,
+              "details": "planning scene observed"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "kind": "ros_service",
+            "summary": "Observed 7 planning-scene objects",
+            "path": "/UR10/get_planning_scene"
+          }
+        ],
+        "raw": {
+          "planning_frame": "base_link",
+          "object_count": 7,
+          "objects": [
+            {
+              "name": "dynamic_0",
+              "state": "free",
+              "frame": "base_link",
+              "pose": {
+                "position": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "orientation": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0,
+                  "w": 1.0
+                }
+              },
+              "bounds": {
+                "min": {
+                  "x": -0.02,
+                  "y": -0.82,
+                  "z": 0.0
+                },
+                "max": {
+                  "x": 0.02,
+                  "y": -0.78,
+                  "z": 0.2
+                },
+                "center": {
+                  "x": 0.0,
+                  "y": -0.8,
+                  "z": 0.1
+                },
+                "size": {
+                  "x": 0.04,
+                  "y": 0.04,
+                  "z": 0.2
+                }
+              },
+              "shapes": [
+                {
+                  "kind": "mesh",
+                  "vertex_count": 84,
+                  "triangle_count": 108,
+                  "pose": {
+                    "position": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0
+                    },
+                    "orientation": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0,
+                      "w": 1.0
+                    }
+                  },
+                  "bounds": {
+                    "min": {
+                      "x": -0.02,
+                      "y": -0.82,
+                      "z": 0.0
+                    },
+                    "max": {
+                      "x": 0.02,
+                      "y": -0.78,
+                      "z": 0.2
+                    },
+                    "center": {
+                      "x": 0.0,
+                      "y": -0.8,
+                      "z": 0.1
+                    },
+                    "size": {
+                      "x": 0.04,
+                      "y": 0.04,
+                      "z": 0.2
+                    }
+                  },
+                  "alignment_axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 1.0
+                  }
+                }
+              ]
+            },
+            {
+              "name": "dynamic_1",
+              "state": "free",
+              "frame": "base_link",
+              "pose": {
+                "position": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "orientation": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0,
+                  "w": 1.0
+                }
+              },
+              "bounds": {
+                "min": {
+                  "x": 0.239808,
+                  "y": -0.67,
+                  "z": 0.0
+                },
+                "max": {
+                  "x": 0.279808,
+                  "y": -0.63,
+                  "z": 0.2
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.65,
+                  "z": 0.1
+                },
+                "size": {
+                  "x": 0.04,
+                  "y": 0.04,
+                  "z": 0.2
+                }
+              },
+              "shapes": [
+                {
+                  "kind": "mesh",
+                  "vertex_count": 84,
+                  "triangle_count": 108,
+                  "pose": {
+                    "position": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0
+                    },
+                    "orientation": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0,
+                      "w": 1.0
+                    }
+                  },
+                  "bounds": {
+                    "min": {
+                      "x": 0.239808,
+                      "y": -0.67,
+                      "z": 0.0
+                    },
+                    "max": {
+                      "x": 0.279808,
+                      "y": -0.63,
+                      "z": 0.2
+                    },
+                    "center": {
+                      "x": 0.259808,
+                      "y": -0.65,
+                      "z": 0.1
+                    },
+                    "size": {
+                      "x": 0.04,
+                      "y": 0.04,
+                      "z": 0.2
+                    }
+                  },
+                  "alignment_axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 1.0
+                  }
+                }
+              ]
+            },
+            {
+              "name": "dynamic_2",
+              "state": "free",
+              "frame": "base_link",
+              "pose": {
+                "position": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "orientation": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0,
+                  "w": 1.0
+                }
+              },
+              "bounds": {
+                "min": {
+                  "x": 0.239808,
+                  "y": -0.97,
+                  "z": 0.0
+                },
+                "max": {
+                  "x": 0.279808,
+                  "y": -0.93,
+                  "z": 0.2
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.95,
+                  "z": 0.1
+                },
+                "size": {
+                  "x": 0.04,
+                  "y": 0.04,
+                  "z": 0.2
+                }
+              },
+              "shapes": [
+                {
+                  "kind": "mesh",
+                  "vertex_count": 84,
+                  "triangle_count": 108,
+                  "pose": {
+                    "position": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0
+                    },
+                    "orientation": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0,
+                      "w": 1.0
+                    }
+                  },
+                  "bounds": {
+                    "min": {
+                      "x": 0.239808,
+                      "y": -0.97,
+                      "z": 0.0
+                    },
+                    "max": {
+                      "x": 0.279808,
+                      "y": -0.93,
+                      "z": 0.2
+                    },
+                    "center": {
+                      "x": 0.259808,
+                      "y": -0.95,
+                      "z": 0.1
+                    },
+                    "size": {
+                      "x": 0.04,
+                      "y": 0.04,
+                      "z": 0.2
+                    }
+                  },
+                  "alignment_axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 1.0
+                  }
+                }
+              ]
+            },
+            {
+              "name": "dynamic_3",
+              "state": "free",
+              "frame": "base_link",
+              "pose": {
+                "position": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "orientation": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0,
+                  "w": 1.0
+                }
+              },
+              "bounds": {
+                "min": {
+                  "x": -0.009999989,
+                  "y": -0.8173205,
+                  "z": 0.2
+                },
+                "max": {
+                  "x": 0.269808,
+                  "y": -0.63267946,
+                  "z": 0.24
+                },
+                "center": {
+                  "x": 0.1299040055,
+                  "y": -0.72499998,
+                  "z": 0.22
+                },
+                "size": {
+                  "x": 0.279807989,
+                  "y": 0.18464104,
+                  "z": 0.04
+                }
+              },
+              "shapes": [
+                {
+                  "kind": "mesh",
+                  "vertex_count": 56,
+                  "triangle_count": 44,
+                  "pose": {
+                    "position": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0
+                    },
+                    "orientation": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0,
+                      "w": 1.0
+                    }
+                  },
+                  "bounds": {
+                    "min": {
+                      "x": -0.009999989,
+                      "y": -0.8173205,
+                      "z": 0.2
+                    },
+                    "max": {
+                      "x": 0.269808,
+                      "y": -0.63267946,
+                      "z": 0.24
+                    },
+                    "center": {
+                      "x": 0.1299040055,
+                      "y": -0.72499998,
+                      "z": 0.22
+                    },
+                    "size": {
+                      "x": 0.279807989,
+                      "y": 0.18464104,
+                      "z": 0.04
+                    }
+                  },
+                  "alignment_axis": {
+                    "x": 0.86602570303,
+                    "y": 0.49999948169,
+                    "z": 0.0
+                  }
+                }
+              ]
+            },
+            {
+              "name": "dynamic_4",
+              "state": "free",
+              "frame": "base_link",
+              "pose": {
+                "position": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "orientation": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0,
+                  "w": 1.0
+                }
+              },
+              "bounds": {
+                "min": {
+                  "x": -0.009999989,
+                  "y": -0.9673205,
+                  "z": 0.2
+                },
+                "max": {
+                  "x": 0.269808,
+                  "y": -0.7826795,
+                  "z": 0.24
+                },
+                "center": {
+                  "x": 0.1299040055,
+                  "y": -0.875,
+                  "z": 0.22
+                },
+                "size": {
+                  "x": 0.279807989,
+                  "y": 0.184641,
+                  "z": 0.04
+                }
+              },
+              "shapes": [
+                {
+                  "kind": "mesh",
+                  "vertex_count": 56,
+                  "triangle_count": 44,
+                  "pose": {
+                    "position": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0
+                    },
+                    "orientation": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0,
+                      "w": 1.0
+                    }
+                  },
+                  "bounds": {
+                    "min": {
+                      "x": -0.009999989,
+                      "y": -0.9673205,
+                      "z": 0.2
+                    },
+                    "max": {
+                      "x": 0.269808,
+                      "y": -0.7826795,
+                      "z": 0.24
+                    },
+                    "center": {
+                      "x": 0.1299040055,
+                      "y": -0.875,
+                      "z": 0.22
+                    },
+                    "size": {
+                      "x": 0.279807989,
+                      "y": 0.184641,
+                      "z": 0.04
+                    }
+                  },
+                  "alignment_axis": {
+                    "x": 0.866025733127,
+                    "y": -0.499999429562,
+                    "z": 0.0
+                  }
+                }
+              ]
+            },
+            {
+              "name": "dynamic_5",
+              "state": "free",
+              "frame": "base_link",
+              "pose": {
+                "position": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "orientation": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0,
+                  "w": 1.0
+                }
+              },
+              "bounds": {
+                "min": {
+                  "x": 0.239808,
+                  "y": -0.95,
+                  "z": 0.24
+                },
+                "max": {
+                  "x": 0.279808,
+                  "y": -0.65,
+                  "z": 0.28
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.8,
+                  "z": 0.26
+                },
+                "size": {
+                  "x": 0.04,
+                  "y": 0.3,
+                  "z": 0.04
+                }
+              },
+              "shapes": [
+                {
+                  "kind": "mesh",
+                  "vertex_count": 56,
+                  "triangle_count": 44,
+                  "pose": {
+                    "position": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0
+                    },
+                    "orientation": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0,
+                      "w": 1.0
+                    }
+                  },
+                  "bounds": {
+                    "min": {
+                      "x": 0.239808,
+                      "y": -0.95,
+                      "z": 0.24
+                    },
+                    "max": {
+                      "x": 0.279808,
+                      "y": -0.65,
+                      "z": 0.28
+                    },
+                    "center": {
+                      "x": 0.259808,
+                      "y": -0.8,
+                      "z": 0.26
+                    },
+                    "size": {
+                      "x": 0.04,
+                      "y": 0.3,
+                      "z": 0.04
+                    }
+                  },
+                  "alignment_axis": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                  }
+                }
+              ]
+            },
+            {
+              "name": "ground_plane",
+              "state": "free",
+              "frame": "base_link",
+              "pose": {
+                "position": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "orientation": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0,
+                  "w": 1.0
+                }
+              },
+              "bounds": {
+                "min": {
+                  "x": -2.5,
+                  "y": -2.5,
+                  "z": -0.005
+                },
+                "max": {
+                  "x": 2.5,
+                  "y": 2.5,
+                  "z": 0.005
+                },
+                "center": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "size": {
+                  "x": 5.0,
+                  "y": 5.0,
+                  "z": 0.01
+                }
+              },
+              "shapes": [
+                {
+                  "kind": "box",
+                  "dimensions": [
+                    5.0,
+                    5.0,
+                    0.01
+                  ],
+                  "pose": {
+                    "position": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0
+                    },
+                    "orientation": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0,
+                      "w": 1.0
+                    }
+                  },
+                  "bounds": {
+                    "min": {
+                      "x": -2.5,
+                      "y": -2.5,
+                      "z": -0.005
+                    },
+                    "max": {
+                      "x": 2.5,
+                      "y": 2.5,
+                      "z": 0.005
+                    },
+                    "center": {
+                      "x": 0.0,
+                      "y": 0.0,
+                      "z": 0.0
+                    },
+                    "size": {
+                      "x": 5.0,
+                      "y": 5.0,
+                      "z": 0.01
+                    }
+                  },
+                  "alignment_axis": {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 0.0
+                  }
+                }
+              ]
+            }
+          ],
+          "source": "/UR10/get_planning_scene"
+        }
+      }
+    },
+    {
+      "tool": "moveit_get_object_context",
+      "args": {
+        "robot_name": "UR10",
+        "object_name": "dynamic_5",
+        "timeout_s": 3.0
+      },
+      "elapsed_s": 0.035,
+      "result": {
+        "ok": true,
+        "robot": "UR10",
+        "tool": "moveit_get_object_context",
+        "feedback": {
+          "phase": "observed",
+          "status": "object context observed",
+          "message": "Object context observed for dynamic_5",
+          "can_execute": false
+        },
+        "verification": {
+          "result": "pass",
+          "checks": [
+            {
+              "name": "planning_scene_observed",
+              "passed": true,
+              "details": "object context observed"
+            },
+            {
+              "name": "object_observed",
+              "passed": true,
+              "details": "dynamic_5"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "kind": "ros_service",
+            "summary": "Object context observed for dynamic_5",
+            "path": "/UR10/get_planning_scene"
+          }
+        ],
+        "raw": {
+          "planning_frame": "base_link",
+          "object": {
+            "name": "dynamic_5",
+            "state": "free",
+            "frame": "base_link",
+            "pose": {
+              "position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "orientation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              }
+            },
+            "bounds": {
+              "min": {
+                "x": 0.239808,
+                "y": -0.95,
+                "z": 0.24
+              },
+              "max": {
+                "x": 0.279808,
+                "y": -0.65,
+                "z": 0.28
+              },
+              "center": {
+                "x": 0.259808,
+                "y": -0.8,
+                "z": 0.26
+              },
+              "size": {
+                "x": 0.04,
+                "y": 0.3,
+                "z": 0.04
+              }
+            },
+            "shapes": [
+              {
+                "kind": "mesh",
+                "vertex_count": 56,
+                "triangle_count": 44,
+                "pose": {
+                  "position": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                  },
+                  "orientation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0,
+                    "w": 1.0
+                  }
+                },
+                "bounds": {
+                  "min": {
+                    "x": 0.239808,
+                    "y": -0.95,
+                    "z": 0.24
+                  },
+                  "max": {
+                    "x": 0.279808,
+                    "y": -0.65,
+                    "z": 0.28
+                  },
+                  "center": {
+                    "x": 0.259808,
+                    "y": -0.8,
+                    "z": 0.26
+                  },
+                  "size": {
+                    "x": 0.04,
+                    "y": 0.3,
+                    "z": 0.04
+                  }
+                },
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              }
+            ],
+            "planning_frame": "base_link",
+            "clearance": {
+              "reference": "ground_plane",
+              "z_m": 0.235
+            },
+            "grasp_faces": [
+              {
+                "name": "right",
+                "normal": {
+                  "x": 1.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.279808,
+                  "y": -0.8,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.3,
+                  "height": 0.04
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "left",
+                "normal": {
+                  "x": -1.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.239808,
+                  "y": -0.8,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.3,
+                  "height": 0.04
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "front",
+                "normal": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.65,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.04
+                },
+                "area": 0.0016
+              },
+              {
+                "name": "back",
+                "normal": {
+                  "x": 0.0,
+                  "y": -1.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.95,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.04
+                },
+                "area": 0.0016
+              },
+              {
+                "name": "top",
+                "normal": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 1.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.8,
+                  "z": 0.28
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.3
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "bottom",
+                "normal": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": -1.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.8,
+                  "z": 0.24
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.3
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              }
+            ]
+          },
+          "available_objects": [
+            "dynamic_0",
+            "dynamic_1",
+            "dynamic_2",
+            "dynamic_3",
+            "dynamic_4",
+            "dynamic_5",
+            "ground_plane"
+          ],
+          "source": "/UR10/get_planning_scene"
+        }
+      }
+    },
+    {
+      "tool": "moveit_open_gripper",
+      "args": {
+        "robot_name": "UR10",
+        "timeout_s": 8.0
+      },
+      "elapsed_s": 0.244,
+      "result": {
+        "ok": true,
+        "robot": "UR10",
+        "tool": "open_gripper",
+        "feedback": {
+          "phase": "gripper",
+          "status": "open",
+          "message": "Gripper open command completed through the Robotiq action server",
+          "can_execute": false
+        },
+        "verification": {
+          "result": "pass",
+          "checks": [
+            {
+              "name": "robotiq_action_goal_sent",
+              "passed": true,
+              "details": "/UR10/command_robotiq_action"
+            },
+            {
+              "name": "robotiq_action_result_observed",
+              "passed": true,
+              "details": "{'header': {'seq': 0, 'stamp': {'secs': 1778854880, 'nsecs': 52835941}, 'frame_id': ''}, 'is_ready': True, 'is_reset': False, 'is_moving': False, 'obj_detected': False, 'fault_status': 0, 'position': 0.08500000089406967, 'requested_position': 0.08500000089406967, 'current': 0.0}"
+            },
+            {
+              "name": "robotiq_finger_joint_matched",
+              "passed": true,
+              "details": "expected=0, observed=0"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "kind": "ros_action",
+            "summary": "goal position 0.085m",
+            "path": "/UR10/command_robotiq_action"
+          },
+          {
+            "kind": "ros_topic",
+            "summary": "0",
+            "topic": "/UR10/gripper_joint_states"
+          },
+          {
+            "kind": "mcp_state",
+            "summary": "open"
+          }
+        ],
+        "raw": {
+          "gripper_state": "open",
+          "attached_object": null,
+          "action_name": "/UR10/command_robotiq_action",
+          "action_type": "robotiq_2f_gripper_msgs/CommandRobotiqGripperAction",
+          "joint_state_topic": "/UR10/gripper_joint_states",
+          "goal_position_m": 0.085,
+          "speed_mps": 0.05,
+          "force": 50.0,
+          "expected_joint_position": 0.0,
+          "observed_joint_position": 0.0,
+          "action_result": {
+            "header": {
+              "seq": 0,
+              "stamp": {
+                "secs": 1778854880,
+                "nsecs": 52835941
+              },
+              "frame_id": ""
+            },
+            "is_ready": true,
+            "is_reset": false,
+            "is_moving": false,
+            "obj_detected": false,
+            "fault_status": 0,
+            "position": 0.08500000089406967,
+            "requested_position": 0.08500000089406967,
+            "current": 0.0
+          }
+        }
+      }
+    },
+    {
+      "tool": "moveit_plan_pick",
+      "args": {
+        "robot_name": "UR10",
+        "object_name": "dynamic_5",
+        "plan_name": "h_dyn5_auto_1778854879",
+        "grasp_face": "top",
+        "planning_strategy": "auto",
+        "timeout_s": 20.0
+      },
+      "elapsed_s": 2.192,
+      "result": {
+        "ok": true,
+        "robot": "UR10",
+        "tool": "moveit_plan_pick",
+        "feedback": {
+          "phase": "planned",
+          "status": "success! ",
+          "message": "Pick preposition plan succeeded; execute it before retrying the local Cartesian pick",
+          "can_execute": true
+        },
+        "verification": {
+          "result": "pass",
+          "checks": [
+            {
+              "name": "object_context_observed",
+              "passed": true,
+              "details": "dynamic_5"
+            },
+            {
+              "name": "grasp_face_selected",
+              "passed": true,
+              "details": "top"
+            },
+            {
+              "name": "status_success",
+              "passed": true,
+              "details": "success! "
+            },
+            {
+              "name": "trajectory_observed",
+              "passed": true,
+              "details": "108 points"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "kind": "ros_service",
+            "summary": "object context observed for dynamic_5",
+            "path": "/UR10/get_planning_scene"
+          },
+          {
+            "kind": "mcp_state",
+            "summary": "selected staging face: top"
+          },
+          {
+            "kind": "ros_topic",
+            "summary": "success! ",
+            "topic": "/UR10/request/status"
+          },
+          {
+            "kind": "ros_topic",
+            "summary": "preposition plan h_dyn5_auto_1778854879__preposition: 108 trajectory points",
+            "topic": "/UR10/request/planned_path"
+          }
+        ],
+        "raw": {
+          "plan_name": "h_dyn5_auto_1778854879__preposition",
+          "object_name": "dynamic_5",
+          "planning_frame": "base_link",
+          "object": {
+            "name": "dynamic_5",
+            "state": "free",
+            "frame": "base_link",
+            "pose": {
+              "position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "orientation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              }
+            },
+            "bounds": {
+              "min": {
+                "x": 0.239808,
+                "y": -0.95,
+                "z": 0.24
+              },
+              "max": {
+                "x": 0.279808,
+                "y": -0.65,
+                "z": 0.28
+              },
+              "center": {
+                "x": 0.259808,
+                "y": -0.8,
+                "z": 0.26
+              },
+              "size": {
+                "x": 0.04,
+                "y": 0.3,
+                "z": 0.04
+              }
+            },
+            "shapes": [
+              {
+                "kind": "mesh",
+                "vertex_count": 56,
+                "triangle_count": 44,
+                "pose": {
+                  "position": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                  },
+                  "orientation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0,
+                    "w": 1.0
+                  }
+                },
+                "bounds": {
+                  "min": {
+                    "x": 0.239808,
+                    "y": -0.95,
+                    "z": 0.24
+                  },
+                  "max": {
+                    "x": 0.279808,
+                    "y": -0.65,
+                    "z": 0.28
+                  },
+                  "center": {
+                    "x": 0.259808,
+                    "y": -0.8,
+                    "z": 0.26
+                  },
+                  "size": {
+                    "x": 0.04,
+                    "y": 0.3,
+                    "z": 0.04
+                  }
+                },
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              }
+            ],
+            "planning_frame": "base_link",
+            "clearance": {
+              "reference": "ground_plane",
+              "z_m": 0.235
+            },
+            "grasp_faces": [
+              {
+                "name": "right",
+                "normal": {
+                  "x": 1.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.279808,
+                  "y": -0.8,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.3,
+                  "height": 0.04
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "left",
+                "normal": {
+                  "x": -1.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.239808,
+                  "y": -0.8,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.3,
+                  "height": 0.04
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "front",
+                "normal": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.65,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.04
+                },
+                "area": 0.0016
+              },
+              {
+                "name": "back",
+                "normal": {
+                  "x": 0.0,
+                  "y": -1.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.95,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.04
+                },
+                "area": 0.0016
+              },
+              {
+                "name": "top",
+                "normal": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 1.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.8,
+                  "z": 0.28
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.3
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "bottom",
+                "normal": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": -1.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.8,
+                  "z": 0.24
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.3
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              }
+            ]
+          },
+          "selected_grasp_face": {
+            "name": "top",
+            "normal": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 1.0
+            },
+            "center": {
+              "x": 0.259808,
+              "y": -0.8,
+              "z": 0.28
+            },
+            "size": {
+              "width": 0.04,
+              "height": 0.3
+            },
+            "area": 0.012,
+            "alignment_axis": {
+              "x": 0.0,
+              "y": 1.0,
+              "z": 0.0
+            }
+          },
+          "preposition": {
+            "plan_name": "h_dyn5_auto_1778854879__preposition",
+            "planner": "free_motion",
+            "staging_face": "top",
+            "target_pose": {
+              "position": {
+                "x": 0.259808,
+                "y": -0.8,
+                "z": 0.36
+              },
+              "orientation": {
+                "x": 0.707106781187,
+                "y": 0.707106781187,
+                "z": 0.0,
+                "w": 0.0
+              }
+            }
+          },
+          "workflow_segments": [
+            {
+              "name": "preposition",
+              "planner": "free_motion",
+              "plan_name": "h_dyn5_auto_1778854879__preposition",
+              "target_pose": {
+                "position": {
+                  "x": 0.259808,
+                  "y": -0.8,
+                  "z": 0.36
+                },
+                "orientation": {
+                  "x": 0.707106781187,
+                  "y": 0.707106781187,
+                  "z": 0.0,
+                  "w": 0.0
+                }
+              }
+            },
+            {
+              "name": "local_cartesian_pick",
+              "planner": "cartesian",
+              "plan_name": "h_dyn5_auto_1778854879__local_pick",
+              "waypoints": [
+                {
+                  "position": {
+                    "x": 0.259808,
+                    "y": -0.8,
+                    "z": 0.36
+                  },
+                  "orientation": {
+                    "x": 0.707106781187,
+                    "y": 0.707106781187,
+                    "z": 0.0,
+                    "w": 0.0
+                  }
+                },
+                {
+                  "position": {
+                    "x": 0.259808,
+                    "y": -0.8,
+                    "z": 0.29
+                  },
+                  "orientation": {
+                    "x": 0.707106781187,
+                    "y": 0.707106781187,
+                    "z": 0.0,
+                    "w": 0.0
+                  }
+                },
+                {
+                  "position": {
+                    "x": 0.259808,
+                    "y": -0.8,
+                    "z": 0.39
+                  },
+                  "orientation": {
+                    "x": 0.707106781187,
+                    "y": 0.707106781187,
+                    "z": 0.0,
+                    "w": 0.0
+                  }
+                }
+              ]
+            }
+          ],
+          "workflow_steps": [
+            {
+              "name": "approach",
+              "kind": "motion",
+              "waypoint_index": 0
+            },
+            {
+              "name": "pre_grasp",
+              "kind": "motion",
+              "waypoint_index": 1
+            },
+            {
+              "name": "close_gripper",
+              "kind": "gripper",
+              "tool": "moveit_close_gripper"
+            },
+            {
+              "name": "attach_object",
+              "kind": "scene",
+              "tool": "moveit_attach_object",
+              "object_name": "dynamic_5"
+            },
+            {
+              "name": "lift",
+              "kind": "motion",
+              "waypoint_index": 2
+            }
+          ],
+          "waypoints": [
+            {
+              "position": {
+                "x": 0.259808,
+                "y": -0.8,
+                "z": 0.36
+              },
+              "orientation": {
+                "x": 0.707106781187,
+                "y": 0.707106781187,
+                "z": 0.0,
+                "w": 0.0
+              }
+            },
+            {
+              "position": {
+                "x": 0.259808,
+                "y": -0.8,
+                "z": 0.29
+              },
+              "orientation": {
+                "x": 0.707106781187,
+                "y": 0.707106781187,
+                "z": 0.0,
+                "w": 0.0
+              }
+            },
+            {
+              "position": {
+                "x": 0.259808,
+                "y": -0.8,
+                "z": 0.39
+              },
+              "orientation": {
+                "x": 0.707106781187,
+                "y": 0.707106781187,
+                "z": 0.0,
+                "w": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "grasp_face": "top",
+            "approach_distance_m": 0.08,
+            "grasp_standoff_m": 0.01,
+            "lift_distance_m": 0.1
+          },
+          "next_action": {
+            "tool": "moveit_execute_plan",
+            "plan_name": "h_dyn5_auto_1778854879__preposition",
+            "after_success": {
+              "tool": "moveit_plan_pick",
+              "arguments": {
+                "object_name": "dynamic_5",
+                "plan_name": "h_dyn5_auto_1778854879__local_pick",
+                "grasp_face": "top",
+                "approach_distance_m": 0.08,
+                "grasp_standoff_m": 0.01,
+                "lift_distance_m": 0.1,
+                "planning_strategy": "cartesian"
+              }
+            }
+          },
+          "status": "success! ",
+          "trajectory_points": 108,
+          "can_execute": true,
+          "final_joint_positions": [
+            -1.4529425962326536,
+            -1.3198960438439982,
+            1.548938341150848,
+            -1.799838665959611,
+            -1.5707966649332423,
+            1.688649991488183
+          ],
+          "planning_strategy": "auto",
+          "planning_strategy_resolved": "staged_preposition",
+          "available_planning_strategies": [
+            "auto",
+            "cartesian",
+            "sampled_approach"
+          ],
+          "candidate_attempts": []
+        },
+        "suggested_next_tool": "moveit_execute_plan"
+      }
+    },
+    {
+      "tool": "moveit_execute_plan",
+      "args": {
+        "robot_name": "UR10",
+        "plan_name": "h_dyn5_auto_1778854879__preposition",
+        "timeout_s": 20.0
+      },
+      "elapsed_s": 11.133,
+      "result": {
+        "ok": true,
+        "robot": "UR10",
+        "tool": "execute_plan",
+        "feedback": {
+          "phase": "executed",
+          "status": "final joint state matched",
+          "message": "Execute command published and fake controller joint state matched the planned final positions",
+          "can_execute": false
+        },
+        "verification": {
+          "result": "pass",
+          "checks": [
+            {
+              "name": "plan_previously_verified",
+              "passed": true,
+              "details": "h_dyn5_auto_1778854879__preposition"
+            },
+            {
+              "name": "planned_can_execute",
+              "passed": true,
+              "details": "success! "
+            },
+            {
+              "name": "physical_mode_safe",
+              "passed": true,
+              "details": "False"
+            },
+            {
+              "name": "execute_command_published",
+              "passed": true,
+              "details": "True"
+            },
+            {
+              "name": "fake_controller_state_observed",
+              "passed": true,
+              "details": "[1.5489430084483167, -1.3199498346270377, -1.4526309786602647, -1.7994526483996383, -1.5704597707952959, 1.68828782094385]"
+            },
+            {
+              "name": "final_joint_positions_match",
+              "passed": true,
+              "details": "expected=[-1.4529425962326536, -1.3198960438439982, 1.548938341150848, -1.799838665959611, -1.5707966649332423, 1.688649991488183], observed=[1.5489430084483167, -1.3199498346270377, -1.4526309786602647, -1.7994526483996383, -1.5704597707952959, 1.68828782094385], tolerance=0.001, expected_names=['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint'], observed_names=['elbow_joint', 'shoulder_lift_joint', 'shoulder_pan_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "kind": "ros_param",
+            "summary": "false",
+            "path": "/vizor_robot_control/physical"
+          },
+          {
+            "kind": "ros_topic",
+            "summary": "[1.5489430084483167, -1.3199498346270377, -1.4526309786602647, -1.7994526483996383, -1.5704597707952959, 1.68828782094385]",
+            "topic": "/UR10/move_group/fake_controller_joint_states"
+          }
+        ],
+        "raw": {
+          "plan_name": "h_dyn5_auto_1778854879__preposition",
+          "physical_mode": false,
+          "command_published": true,
+          "expected_joint_state": [
+            -1.4529425962326536,
+            -1.3198960438439982,
+            1.548938341150848,
+            -1.799838665959611,
+            -1.5707966649332423,
+            1.688649991488183
+          ],
+          "observed_joint_state": [
+            1.5489430084483167,
+            -1.3199498346270377,
+            -1.4526309786602647,
+            -1.7994526483996383,
+            -1.5704597707952959,
+            1.68828782094385
+          ],
+          "joint_tolerance": 0.001,
+          "expected_joint_names": [
+            "shoulder_pan_joint",
+            "shoulder_lift_joint",
+            "elbow_joint",
+            "wrist_1_joint",
+            "wrist_2_joint",
+            "wrist_3_joint"
+          ],
+          "observed_joint_names": [
+            "elbow_joint",
+            "shoulder_lift_joint",
+            "shoulder_pan_joint",
+            "wrist_1_joint",
+            "wrist_2_joint",
+            "wrist_3_joint"
+          ]
+        }
+      }
+    },
+    {
+      "tool": "moveit_plan_pick",
+      "args": {
+        "object_name": "dynamic_5",
+        "plan_name": "h_dyn5_auto_1778854879__local_pick",
+        "grasp_face": "top",
+        "approach_distance_m": 0.08,
+        "grasp_standoff_m": 0.01,
+        "lift_distance_m": 0.1,
+        "planning_strategy": "cartesian",
+        "robot_name": "UR10",
+        "timeout_s": 20.0
+      },
+      "elapsed_s": 2.094,
+      "result": {
+        "ok": true,
+        "robot": "UR10",
+        "tool": "moveit_plan_pick",
+        "feedback": {
+          "phase": "planned",
+          "status": "success",
+          "message": "Pick plan succeeded and trajectory feedback was observed",
+          "can_execute": true
+        },
+        "verification": {
+          "result": "pass",
+          "checks": [
+            {
+              "name": "object_context_observed",
+              "passed": true,
+              "details": "dynamic_5"
+            },
+            {
+              "name": "grasp_face_selected",
+              "passed": true,
+              "details": "top"
+            },
+            {
+              "name": "status_success",
+              "passed": true,
+              "details": "success"
+            },
+            {
+              "name": "trajectory_observed",
+              "passed": true,
+              "details": "7 points"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "kind": "ros_service",
+            "summary": "object context observed for dynamic_5",
+            "path": "/UR10/get_planning_scene"
+          },
+          {
+            "kind": "mcp_state",
+            "summary": "selected grasp face: top"
+          },
+          {
+            "kind": "ros_topic",
+            "summary": "success",
+            "topic": "/UR10/request/status"
+          },
+          {
+            "kind": "ros_topic",
+            "summary": "pick plan h_dyn5_auto_1778854879__local_pick: 7 trajectory points",
+            "topic": "/UR10/request/planned_path"
+          }
+        ],
+        "raw": {
+          "plan_name": "h_dyn5_auto_1778854879__local_pick",
+          "object_name": "dynamic_5",
+          "planning_frame": "base_link",
+          "object": {
+            "name": "dynamic_5",
+            "state": "free",
+            "frame": "base_link",
+            "pose": {
+              "position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "orientation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              }
+            },
+            "bounds": {
+              "min": {
+                "x": 0.239808,
+                "y": -0.95,
+                "z": 0.24
+              },
+              "max": {
+                "x": 0.279808,
+                "y": -0.65,
+                "z": 0.28
+              },
+              "center": {
+                "x": 0.259808,
+                "y": -0.8,
+                "z": 0.26
+              },
+              "size": {
+                "x": 0.04,
+                "y": 0.3,
+                "z": 0.04
+              }
+            },
+            "shapes": [
+              {
+                "kind": "mesh",
+                "vertex_count": 56,
+                "triangle_count": 44,
+                "pose": {
+                  "position": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                  },
+                  "orientation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0,
+                    "w": 1.0
+                  }
+                },
+                "bounds": {
+                  "min": {
+                    "x": 0.239808,
+                    "y": -0.95,
+                    "z": 0.24
+                  },
+                  "max": {
+                    "x": 0.279808,
+                    "y": -0.65,
+                    "z": 0.28
+                  },
+                  "center": {
+                    "x": 0.259808,
+                    "y": -0.8,
+                    "z": 0.26
+                  },
+                  "size": {
+                    "x": 0.04,
+                    "y": 0.3,
+                    "z": 0.04
+                  }
+                },
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              }
+            ],
+            "planning_frame": "base_link",
+            "clearance": {
+              "reference": "ground_plane",
+              "z_m": 0.235
+            },
+            "grasp_faces": [
+              {
+                "name": "right",
+                "normal": {
+                  "x": 1.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.279808,
+                  "y": -0.8,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.3,
+                  "height": 0.04
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "left",
+                "normal": {
+                  "x": -1.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.239808,
+                  "y": -0.8,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.3,
+                  "height": 0.04
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "front",
+                "normal": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.65,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.04
+                },
+                "area": 0.0016
+              },
+              {
+                "name": "back",
+                "normal": {
+                  "x": 0.0,
+                  "y": -1.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.95,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.04
+                },
+                "area": 0.0016
+              },
+              {
+                "name": "top",
+                "normal": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 1.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.8,
+                  "z": 0.28
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.3
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "bottom",
+                "normal": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": -1.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.8,
+                  "z": 0.24
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.3
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              }
+            ]
+          },
+          "selected_grasp_face": {
+            "name": "top",
+            "normal": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 1.0
+            },
+            "center": {
+              "x": 0.259808,
+              "y": -0.8,
+              "z": 0.28
+            },
+            "size": {
+              "width": 0.04,
+              "height": 0.3
+            },
+            "area": 0.012,
+            "alignment_axis": {
+              "x": 0.0,
+              "y": 1.0,
+              "z": 0.0
+            }
+          },
+          "waypoints": [
+            {
+              "position": {
+                "x": 0.259808,
+                "y": -0.8,
+                "z": 0.36
+              },
+              "orientation": {
+                "x": 0.707106781187,
+                "y": 0.707106781187,
+                "z": 0.0,
+                "w": 0.0
+              }
+            },
+            {
+              "position": {
+                "x": 0.259808,
+                "y": -0.8,
+                "z": 0.29
+              },
+              "orientation": {
+                "x": 0.707106781187,
+                "y": 0.707106781187,
+                "z": 0.0,
+                "w": 0.0
+              }
+            },
+            {
+              "position": {
+                "x": 0.259808,
+                "y": -0.8,
+                "z": 0.39
+              },
+              "orientation": {
+                "x": 0.707106781187,
+                "y": 0.707106781187,
+                "z": 0.0,
+                "w": 0.0
+              }
+            }
+          ],
+          "workflow_steps": [
+            {
+              "name": "approach",
+              "kind": "motion",
+              "waypoint_index": 0
+            },
+            {
+              "name": "pre_grasp",
+              "kind": "motion",
+              "waypoint_index": 1
+            },
+            {
+              "name": "close_gripper",
+              "kind": "gripper",
+              "tool": "moveit_close_gripper"
+            },
+            {
+              "name": "attach_object",
+              "kind": "scene",
+              "tool": "moveit_attach_object",
+              "object_name": "dynamic_5"
+            },
+            {
+              "name": "lift",
+              "kind": "motion",
+              "waypoint_index": 2
+            }
+          ],
+          "parameters": {
+            "grasp_face": "top",
+            "approach_distance_m": 0.08,
+            "grasp_standoff_m": 0.01,
+            "lift_distance_m": 0.1
+          },
+          "status": "success",
+          "trajectory_points": 7,
+          "can_execute": true,
+          "final_joint_positions": [
+            -1.452942614764931,
+            -1.3298161743495631,
+            1.5079658835270726,
+            -1.748946077830278,
+            -1.5707966649332414,
+            1.6886499729559057
+          ],
+          "planning_strategy": "cartesian",
+          "planning_strategy_resolved": "cartesian",
+          "available_planning_strategies": [
+            "auto",
+            "cartesian",
+            "sampled_approach"
+          ],
+          "candidate_attempts": [
+            {
+              "attempt_index": 1,
+              "plan_name": "h_dyn5_auto_1778854879__local_pick",
+              "grasp_face": "top",
+              "approach_distance_m": 0.08,
+              "grasp_standoff_m": 0.01,
+              "lift_distance_m": 0.1,
+              "planner": "cartesian",
+              "status": "success",
+              "trajectory_points": 7,
+              "can_execute": true,
+              "selected": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "tool": "moveit_close_gripper",
+      "args": {
+        "robot_name": "UR10",
+        "timeout_s": 8.0
+      },
+      "elapsed_s": 1.83,
+      "result": {
+        "ok": true,
+        "robot": "UR10",
+        "tool": "close_gripper",
+        "feedback": {
+          "phase": "gripper",
+          "status": "closed",
+          "message": "Gripper close command completed through the Robotiq action server",
+          "can_execute": false
+        },
+        "verification": {
+          "result": "pass",
+          "checks": [
+            {
+              "name": "robotiq_action_goal_sent",
+              "passed": true,
+              "details": "/UR10/command_robotiq_action"
+            },
+            {
+              "name": "robotiq_action_result_observed",
+              "passed": true,
+              "details": "{'header': {'seq': 0, 'stamp': {'secs': 1778854897, 'nsecs': 135541200}, 'frame_id': ''}, 'is_ready': True, 'is_reset': False, 'is_moving': True, 'obj_detected': False, 'fault_status': 0, 'position': 0.009387370198965073, 'requested_position': 0.0, 'current': 0.0}"
+            },
+            {
+              "name": "robotiq_finger_joint_matched",
+              "passed": true,
+              "details": "expected=0.8, observed=0.8"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "kind": "ros_action",
+            "summary": "goal position 0.000m",
+            "path": "/UR10/command_robotiq_action"
+          },
+          {
+            "kind": "ros_topic",
+            "summary": "0.8",
+            "topic": "/UR10/gripper_joint_states"
+          },
+          {
+            "kind": "mcp_state",
+            "summary": "closed"
+          }
+        ],
+        "raw": {
+          "gripper_state": "closed",
+          "attached_object": null,
+          "action_name": "/UR10/command_robotiq_action",
+          "action_type": "robotiq_2f_gripper_msgs/CommandRobotiqGripperAction",
+          "joint_state_topic": "/UR10/gripper_joint_states",
+          "goal_position_m": 0.0,
+          "speed_mps": 0.05,
+          "force": 50.0,
+          "expected_joint_position": 0.8,
+          "observed_joint_position": 0.8,
+          "action_result": {
+            "header": {
+              "seq": 0,
+              "stamp": {
+                "secs": 1778854897,
+                "nsecs": 135541200
+              },
+              "frame_id": ""
+            },
+            "is_ready": true,
+            "is_reset": false,
+            "is_moving": true,
+            "obj_detected": false,
+            "fault_status": 0,
+            "position": 0.009387370198965073,
+            "requested_position": 0.0,
+            "current": 0.0
+          }
+        }
+      }
+    },
+    {
+      "tool": "moveit_attach_object",
+      "args": {
+        "robot_name": "UR10",
+        "object_name": "dynamic_5"
+      },
+      "elapsed_s": 0.077,
+      "result": {
+        "ok": true,
+        "robot": "UR10",
+        "tool": "attach_object",
+        "feedback": {
+          "phase": "gripper",
+          "status": "attached",
+          "message": "Object attached in MCP simulated gripper state and applied as a MoveIt attached collision object",
+          "can_execute": false
+        },
+        "verification": {
+          "result": "pass",
+          "checks": [
+            {
+              "name": "gripper_closed",
+              "passed": true,
+              "details": "closed"
+            },
+            {
+              "name": "planning_scene_object_observed",
+              "passed": true,
+              "details": "dynamic_5"
+            },
+            {
+              "name": "planning_scene_diff_applied",
+              "passed": true,
+              "details": "/UR10/apply_planning_scene"
+            },
+            {
+              "name": "object_attached",
+              "passed": true,
+              "details": "dynamic_5"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "kind": "ros_service",
+            "summary": "Verified MoveIt planning-scene attachment of dynamic_5 to tool0",
+            "path": "/UR10/get_planning_scene; /UR10/apply_planning_scene"
+          },
+          {
+            "kind": "ros_service",
+            "summary": "attached dynamic_5 to tool0",
+            "path": "/UR10/apply_planning_scene"
+          },
+          {
+            "kind": "mcp_state",
+            "summary": "attached:dynamic_5"
+          }
+        ],
+        "raw": {
+          "gripper_state": "closed",
+          "attached_object": "dynamic_5",
+          "scene_update_published": true,
+          "attached_to": "tool0",
+          "touch_links": [
+            "tool0",
+            "wrist_3_link",
+            "robotiq_arg2f_base_link",
+            "left_outer_knuckle",
+            "right_outer_knuckle",
+            "left_inner_knuckle",
+            "right_inner_knuckle",
+            "left_outer_finger",
+            "right_outer_finger",
+            "left_inner_finger",
+            "right_inner_finger",
+            "left_inner_finger_pad",
+            "right_inner_finger_pad"
+          ],
+          "planning_frame": "base_link"
+        }
+      }
+    },
+    {
+      "tool": "moveit_execute_plan",
+      "args": {
+        "robot_name": "UR10",
+        "plan_name": "h_dyn5_auto_1778854879__local_pick",
+        "timeout_s": 20.0
+      },
+      "elapsed_s": 1.441,
+      "result": {
+        "ok": true,
+        "robot": "UR10",
+        "tool": "execute_plan",
+        "feedback": {
+          "phase": "executed",
+          "status": "final joint state matched",
+          "message": "Execute command published and fake controller joint state matched the planned final positions",
+          "can_execute": false
+        },
+        "verification": {
+          "result": "pass",
+          "checks": [
+            {
+              "name": "plan_previously_verified",
+              "passed": true,
+              "details": "h_dyn5_auto_1778854879__local_pick"
+            },
+            {
+              "name": "planned_can_execute",
+              "passed": true,
+              "details": "success"
+            },
+            {
+              "name": "physical_mode_safe",
+              "passed": true,
+              "details": "False"
+            },
+            {
+              "name": "execute_command_published",
+              "passed": true,
+              "details": "True"
+            },
+            {
+              "name": "fake_controller_state_observed",
+              "passed": true,
+              "details": "[1.5081016714873587, -1.3297827330141536, -1.452942614764906, -1.7491153071259735, -1.5707966649332414, 1.6886499729559306]"
+            },
+            {
+              "name": "final_joint_positions_match",
+              "passed": true,
+              "details": "expected=[-1.452942614764931, -1.3298161743495631, 1.5079658835270726, -1.748946077830278, -1.5707966649332414, 1.6886499729559057], observed=[1.5081016714873587, -1.3297827330141536, -1.452942614764906, -1.7491153071259735, -1.5707966649332414, 1.6886499729559306], tolerance=0.001, expected_names=['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint'], observed_names=['elbow_joint', 'shoulder_lift_joint', 'shoulder_pan_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "kind": "ros_param",
+            "summary": "false",
+            "path": "/vizor_robot_control/physical"
+          },
+          {
+            "kind": "ros_topic",
+            "summary": "[1.5081016714873587, -1.3297827330141536, -1.452942614764906, -1.7491153071259735, -1.5707966649332414, 1.6886499729559306]",
+            "topic": "/UR10/move_group/fake_controller_joint_states"
+          }
+        ],
+        "raw": {
+          "plan_name": "h_dyn5_auto_1778854879__local_pick",
+          "physical_mode": false,
+          "command_published": true,
+          "expected_joint_state": [
+            -1.452942614764931,
+            -1.3298161743495631,
+            1.5079658835270726,
+            -1.748946077830278,
+            -1.5707966649332414,
+            1.6886499729559057
+          ],
+          "observed_joint_state": [
+            1.5081016714873587,
+            -1.3297827330141536,
+            -1.452942614764906,
+            -1.7491153071259735,
+            -1.5707966649332414,
+            1.6886499729559306
+          ],
+          "joint_tolerance": 0.001,
+          "expected_joint_names": [
+            "shoulder_pan_joint",
+            "shoulder_lift_joint",
+            "elbow_joint",
+            "wrist_1_joint",
+            "wrist_2_joint",
+            "wrist_3_joint"
+          ],
+          "observed_joint_names": [
+            "elbow_joint",
+            "shoulder_lift_joint",
+            "shoulder_pan_joint",
+            "wrist_1_joint",
+            "wrist_2_joint",
+            "wrist_3_joint"
+          ]
+        }
+      }
+    },
+    {
+      "tool": "moveit_verify_attached_object",
+      "args": {
+        "robot_name": "UR10",
+        "object_name": "dynamic_5",
+        "timeout_s": 3.0
+      },
+      "elapsed_s": 0.037,
+      "result": {
+        "ok": true,
+        "robot": "UR10",
+        "tool": "moveit_verify_attached_object",
+        "feedback": {
+          "phase": "verified",
+          "status": "attached to gripper",
+          "message": "Planning-scene object is attached to the gripper link and will move with the gripper.",
+          "can_execute": false
+        },
+        "verification": {
+          "result": "pass",
+          "checks": [
+            {
+              "name": "planning_scene_object_attached",
+              "passed": true,
+              "details": "attached"
+            },
+            {
+              "name": "attached_to_gripper_link",
+              "passed": true,
+              "details": "tool0"
+            },
+            {
+              "name": "mcp_gripper_state_not_conflicting",
+              "passed": true,
+              "details": "dynamic_5"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "kind": "mcp_state",
+            "summary": "attached_object=dynamic_5"
+          },
+          {
+            "kind": "ros_service",
+            "summary": "Object context observed for dynamic_5",
+            "path": "/UR10/get_planning_scene"
+          }
+        ],
+        "raw": {
+          "object_name": "dynamic_5",
+          "mcp_attached_object": "dynamic_5",
+          "mcp_gripper_holds_object": true,
+          "planning_scene_state": "attached",
+          "attached_to": "tool0",
+          "moves_with_gripper": true,
+          "object": {
+            "name": "dynamic_5",
+            "state": "attached",
+            "frame": "tool0",
+            "pose": {
+              "position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "orientation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              }
+            },
+            "bounds": {
+              "min": {
+                "x": 0.239808,
+                "y": -0.95,
+                "z": 0.24
+              },
+              "max": {
+                "x": 0.279808,
+                "y": -0.65,
+                "z": 0.28
+              },
+              "center": {
+                "x": 0.259808,
+                "y": -0.8,
+                "z": 0.26
+              },
+              "size": {
+                "x": 0.04,
+                "y": 0.3,
+                "z": 0.04
+              }
+            },
+            "shapes": [
+              {
+                "kind": "mesh",
+                "vertex_count": 56,
+                "triangle_count": 44,
+                "pose": {
+                  "position": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                  },
+                  "orientation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0,
+                    "w": 1.0
+                  }
+                },
+                "bounds": {
+                  "min": {
+                    "x": 0.239808,
+                    "y": -0.95,
+                    "z": 0.24
+                  },
+                  "max": {
+                    "x": 0.279808,
+                    "y": -0.65,
+                    "z": 0.28
+                  },
+                  "center": {
+                    "x": 0.259808,
+                    "y": -0.8,
+                    "z": 0.26
+                  },
+                  "size": {
+                    "x": 0.04,
+                    "y": 0.3,
+                    "z": 0.04
+                  }
+                },
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              }
+            ],
+            "attached_to": "tool0",
+            "touch_links": [
+              "left_inner_finger",
+              "left_inner_finger_pad",
+              "left_inner_knuckle",
+              "left_outer_finger",
+              "left_outer_knuckle",
+              "right_inner_finger",
+              "right_inner_finger_pad",
+              "right_inner_knuckle",
+              "right_outer_finger",
+              "right_outer_knuckle",
+              "robotiq_arg2f_base_link",
+              "tool0",
+              "wrist_3_link"
+            ],
+            "planning_frame": "base_link",
+            "clearance": {
+              "reference": "ground_plane",
+              "z_m": 0.235
+            },
+            "grasp_faces": [
+              {
+                "name": "right",
+                "normal": {
+                  "x": 1.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.279808,
+                  "y": -0.8,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.3,
+                  "height": 0.04
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "left",
+                "normal": {
+                  "x": -1.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.239808,
+                  "y": -0.8,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.3,
+                  "height": 0.04
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "front",
+                "normal": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.65,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.04
+                },
+                "area": 0.0016
+              },
+              {
+                "name": "back",
+                "normal": {
+                  "x": 0.0,
+                  "y": -1.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.95,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.04
+                },
+                "area": 0.0016
+              },
+              {
+                "name": "top",
+                "normal": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 1.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.8,
+                  "z": 0.28
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.3
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "bottom",
+                "normal": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": -1.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.8,
+                  "z": 0.24
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.3
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              }
+            ]
+          },
+          "available_objects": [
+            "dynamic_0",
+            "dynamic_1",
+            "dynamic_2",
+            "dynamic_3",
+            "dynamic_4",
+            "ground_plane",
+            "dynamic_5"
+          ]
+        }
+      }
+    },
+    {
+      "tool": "moveit_plan_place",
+      "args": {
+        "robot_name": "UR10",
+        "object_name": "dynamic_5",
+        "plan_name": "h_dyn5_place_1778854879",
+        "target_position": {
+          "x": 0.38,
+          "y": -0.8,
+          "z": 0.3
+        },
+        "orientation_mode": "keep",
+        "timeout_s": 20.0
+      },
+      "elapsed_s": 2.281,
+      "result": {
+        "ok": true,
+        "robot": "UR10",
+        "tool": "moveit_plan_place",
+        "feedback": {
+          "phase": "planned",
+          "status": "success",
+          "message": "Place plan succeeded and trajectory feedback was observed",
+          "can_execute": true
+        },
+        "verification": {
+          "result": "pass",
+          "checks": [
+            {
+              "name": "object_context_observed",
+              "passed": true,
+              "details": "dynamic_5"
+            },
+            {
+              "name": "object_attached_before_place",
+              "passed": true,
+              "details": "attached"
+            },
+            {
+              "name": "status_success",
+              "passed": true,
+              "details": "success"
+            },
+            {
+              "name": "trajectory_observed",
+              "passed": true,
+              "details": "9 points"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "kind": "ros_service",
+            "summary": "object context observed for dynamic_5",
+            "path": "/UR10/get_planning_scene"
+          },
+          {
+            "kind": "mcp_state",
+            "summary": "place release pose: {'x': 0.38, 'y': -0.8, 'z': 0.31}"
+          },
+          {
+            "kind": "ros_topic",
+            "summary": "success",
+            "topic": "/UR10/request/status"
+          },
+          {
+            "kind": "ros_topic",
+            "summary": "place plan h_dyn5_place_1778854879: 9 trajectory points",
+            "topic": "/UR10/request/planned_path"
+          }
+        ],
+        "raw": {
+          "workflow_kind": "place",
+          "plan_name": "h_dyn5_place_1778854879",
+          "object_name": "dynamic_5",
+          "planning_frame": "base_link",
+          "object": {
+            "name": "dynamic_5",
+            "state": "attached",
+            "frame": "tool0",
+            "pose": {
+              "position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "orientation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              }
+            },
+            "bounds": {
+              "min": {
+                "x": 0.239808,
+                "y": -0.95,
+                "z": 0.24
+              },
+              "max": {
+                "x": 0.279808,
+                "y": -0.65,
+                "z": 0.28
+              },
+              "center": {
+                "x": 0.259808,
+                "y": -0.8,
+                "z": 0.26
+              },
+              "size": {
+                "x": 0.04,
+                "y": 0.3,
+                "z": 0.04
+              }
+            },
+            "shapes": [
+              {
+                "kind": "mesh",
+                "vertex_count": 56,
+                "triangle_count": 44,
+                "pose": {
+                  "position": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                  },
+                  "orientation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0,
+                    "w": 1.0
+                  }
+                },
+                "bounds": {
+                  "min": {
+                    "x": 0.239808,
+                    "y": -0.95,
+                    "z": 0.24
+                  },
+                  "max": {
+                    "x": 0.279808,
+                    "y": -0.65,
+                    "z": 0.28
+                  },
+                  "center": {
+                    "x": 0.259808,
+                    "y": -0.8,
+                    "z": 0.26
+                  },
+                  "size": {
+                    "x": 0.04,
+                    "y": 0.3,
+                    "z": 0.04
+                  }
+                },
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              }
+            ],
+            "attached_to": "tool0",
+            "touch_links": [
+              "left_inner_finger",
+              "left_inner_finger_pad",
+              "left_inner_knuckle",
+              "left_outer_finger",
+              "left_outer_knuckle",
+              "right_inner_finger",
+              "right_inner_finger_pad",
+              "right_inner_knuckle",
+              "right_outer_finger",
+              "right_outer_knuckle",
+              "robotiq_arg2f_base_link",
+              "tool0",
+              "wrist_3_link"
+            ],
+            "planning_frame": "base_link",
+            "clearance": {
+              "reference": "ground_plane",
+              "z_m": 0.235
+            },
+            "grasp_faces": [
+              {
+                "name": "right",
+                "normal": {
+                  "x": 1.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.279808,
+                  "y": -0.8,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.3,
+                  "height": 0.04
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "left",
+                "normal": {
+                  "x": -1.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.239808,
+                  "y": -0.8,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.3,
+                  "height": 0.04
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "front",
+                "normal": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.65,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.04
+                },
+                "area": 0.0016
+              },
+              {
+                "name": "back",
+                "normal": {
+                  "x": 0.0,
+                  "y": -1.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.95,
+                  "z": 0.26
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.04
+                },
+                "area": 0.0016
+              },
+              {
+                "name": "top",
+                "normal": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 1.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.8,
+                  "z": 0.28
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.3
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "bottom",
+                "normal": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": -1.0
+                },
+                "center": {
+                  "x": 0.259808,
+                  "y": -0.8,
+                  "z": 0.24
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.3
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              }
+            ]
+          },
+          "target_object_pose": {
+            "position": {
+              "x": 0.38,
+              "y": -0.8,
+              "z": 0.3
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "release_tcp_pose": {
+            "position": {
+              "x": 0.38,
+              "y": -0.8,
+              "z": 0.31
+            },
+            "orientation": {
+              "x": -0.707106757971,
+              "y": -0.707106804402,
+              "z": 1.45751e-07,
+              "w": 8.8371e-08
+            }
+          },
+          "waypoints": [
+            {
+              "position": {
+                "x": 0.38,
+                "y": -0.8,
+                "z": 0.38
+              },
+              "orientation": {
+                "x": -0.707106757971,
+                "y": -0.707106804402,
+                "z": 1.45751e-07,
+                "w": 8.8371e-08
+              }
+            },
+            {
+              "position": {
+                "x": 0.38,
+                "y": -0.8,
+                "z": 0.31
+              },
+              "orientation": {
+                "x": -0.707106757971,
+                "y": -0.707106804402,
+                "z": 1.45751e-07,
+                "w": 8.8371e-08
+              }
+            },
+            {
+              "position": {
+                "x": 0.38,
+                "y": -0.8,
+                "z": 0.41
+              },
+              "orientation": {
+                "x": -0.707106757971,
+                "y": -0.707106804402,
+                "z": 1.45751e-07,
+                "w": 8.8371e-08
+              }
+            }
+          ],
+          "workflow_steps": [
+            {
+              "name": "carry_approach",
+              "kind": "motion",
+              "waypoint_index": 0
+            },
+            {
+              "name": "release_pose",
+              "kind": "motion",
+              "waypoint_index": 1
+            },
+            {
+              "name": "open_gripper",
+              "kind": "gripper",
+              "tool": "moveit_open_gripper"
+            },
+            {
+              "name": "detach_object",
+              "kind": "scene",
+              "object_name": "dynamic_5"
+            },
+            {
+              "name": "retreat",
+              "kind": "motion",
+              "waypoint_index": 2
+            }
+          ],
+          "parameters": {
+            "orientation_mode": "keep",
+            "place_face": null,
+            "support_face": null,
+            "approach_distance_m": 0.08,
+            "place_standoff_m": 0.01,
+            "retreat_distance_m": 0.1
+          },
+          "release_after_execute": {
+            "object_name": "dynamic_5",
+            "object_pose": {
+              "position": {
+                "x": 0.38,
+                "y": -0.8,
+                "z": 0.3
+              },
+              "orientation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              }
+            }
+          },
+          "status": "success",
+          "trajectory_points": 9,
+          "can_execute": true,
+          "final_joint_positions": [
+            -1.3135268841681473,
+            -1.2608781907553535,
+            1.383400251954651,
+            -1.6933183824466636,
+            -1.5707966685737793,
+            1.828065703552697
+          ]
+        }
+      }
+    },
+    {
+      "tool": "moveit_execute_plan",
+      "args": {
+        "robot_name": "UR10",
+        "plan_name": "h_dyn5_place_1778854879",
+        "timeout_s": 20.0
+      },
+      "elapsed_s": 4.259,
+      "result": {
+        "ok": true,
+        "robot": "UR10",
+        "tool": "execute_plan",
+        "feedback": {
+          "phase": "executed",
+          "status": "place motion and release verified",
+          "message": "Execute command published, fake controller joint state matched, and place release was verified",
+          "can_execute": false
+        },
+        "verification": {
+          "result": "pass",
+          "checks": [
+            {
+              "name": "plan_previously_verified",
+              "passed": true,
+              "details": "h_dyn5_place_1778854879"
+            },
+            {
+              "name": "planned_can_execute",
+              "passed": true,
+              "details": "success"
+            },
+            {
+              "name": "physical_mode_safe",
+              "passed": true,
+              "details": "False"
+            },
+            {
+              "name": "execute_command_published",
+              "passed": true,
+              "details": "True"
+            },
+            {
+              "name": "fake_controller_state_observed",
+              "passed": true,
+              "details": "[1.383400251954651, -1.2608781907553535, -1.3135268841681473, -1.6933183824466636, -1.5707966685737793, 1.828065703552697]"
+            },
+            {
+              "name": "final_joint_positions_match",
+              "passed": true,
+              "details": "expected=[-1.3135268841681473, -1.2608781907553535, 1.383400251954651, -1.6933183824466636, -1.5707966685737793, 1.828065703552697], observed=[1.383400251954651, -1.2608781907553535, -1.3135268841681473, -1.6933183824466636, -1.5707966685737793, 1.828065703552697], tolerance=0.001, expected_names=['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint'], observed_names=['elbow_joint', 'shoulder_lift_joint', 'shoulder_pan_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']"
+            },
+            {
+              "name": "place_gripper_opened",
+              "passed": true,
+              "details": "0.0"
+            },
+            {
+              "name": "planning_scene_object_released",
+              "passed": true,
+              "details": "released collision object verified"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "kind": "ros_param",
+            "summary": "false",
+            "path": "/vizor_robot_control/physical"
+          },
+          {
+            "kind": "ros_topic",
+            "summary": "[1.383400251954651, -1.2608781907553535, -1.3135268841681473, -1.6933183824466636, -1.5707966685737793, 1.828065703552697]",
+            "topic": "/UR10/move_group/fake_controller_joint_states"
+          },
+          {
+            "kind": "ros_action",
+            "summary": "goal position 0.085m",
+            "path": "/UR10/command_robotiq_action"
+          },
+          {
+            "kind": "ros_topic",
+            "summary": "0",
+            "topic": "/UR10/gripper_joint_states"
+          },
+          {
+            "kind": "ros_service",
+            "summary": "Verified MoveIt planning-scene release of dynamic_5 from tool0",
+            "path": "/UR10/get_planning_scene; /UR10/apply_planning_scene"
+          }
+        ],
+        "raw": {
+          "plan_name": "h_dyn5_place_1778854879",
+          "physical_mode": false,
+          "command_published": true,
+          "expected_joint_state": [
+            -1.3135268841681473,
+            -1.2608781907553535,
+            1.383400251954651,
+            -1.6933183824466636,
+            -1.5707966685737793,
+            1.828065703552697
+          ],
+          "observed_joint_state": [
+            1.383400251954651,
+            -1.2608781907553535,
+            -1.3135268841681473,
+            -1.6933183824466636,
+            -1.5707966685737793,
+            1.828065703552697
+          ],
+          "joint_tolerance": 0.001,
+          "expected_joint_names": [
+            "shoulder_pan_joint",
+            "shoulder_lift_joint",
+            "elbow_joint",
+            "wrist_1_joint",
+            "wrist_2_joint",
+            "wrist_3_joint"
+          ],
+          "observed_joint_names": [
+            "elbow_joint",
+            "shoulder_lift_joint",
+            "shoulder_pan_joint",
+            "wrist_1_joint",
+            "wrist_2_joint",
+            "wrist_3_joint"
+          ],
+          "release": {
+            "object_name": "dynamic_5",
+            "gripper_opened": true,
+            "planning_scene_released": true,
+            "gripper_state": "open",
+            "detach_status": "released collision object verified",
+            "released_object_pose": {
+              "position": {
+                "x": 0.38,
+                "y": -0.8,
+                "z": 0.3
+              },
+              "orientation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "tool": "moveit_get_object_context",
+      "args": {
+        "robot_name": "UR10",
+        "object_name": "dynamic_5",
+        "timeout_s": 3.0
+      },
+      "elapsed_s": 0.041,
+      "result": {
+        "ok": true,
+        "robot": "UR10",
+        "tool": "moveit_get_object_context",
+        "feedback": {
+          "phase": "observed",
+          "status": "object context observed",
+          "message": "Object context observed for dynamic_5",
+          "can_execute": false
+        },
+        "verification": {
+          "result": "pass",
+          "checks": [
+            {
+              "name": "planning_scene_observed",
+              "passed": true,
+              "details": "object context observed"
+            },
+            {
+              "name": "object_observed",
+              "passed": true,
+              "details": "dynamic_5"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "kind": "ros_service",
+            "summary": "Object context observed for dynamic_5",
+            "path": "/UR10/get_planning_scene"
+          }
+        ],
+        "raw": {
+          "planning_frame": "base_link",
+          "object": {
+            "name": "dynamic_5",
+            "state": "free",
+            "frame": "base_link",
+            "pose": {
+              "position": {
+                "x": 0.38,
+                "y": -0.8,
+                "z": 0.3
+              },
+              "orientation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              }
+            },
+            "bounds": {
+              "min": {
+                "x": 0.619808,
+                "y": -1.75,
+                "z": 0.54
+              },
+              "max": {
+                "x": 0.659808,
+                "y": -1.45,
+                "z": 0.58
+              },
+              "center": {
+                "x": 0.639808,
+                "y": -1.6,
+                "z": 0.56
+              },
+              "size": {
+                "x": 0.04,
+                "y": 0.3,
+                "z": 0.04
+              }
+            },
+            "shapes": [
+              {
+                "kind": "mesh",
+                "vertex_count": 56,
+                "triangle_count": 44,
+                "pose": {
+                  "position": {
+                    "x": 0.38,
+                    "y": -0.8,
+                    "z": 0.3
+                  },
+                  "orientation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0,
+                    "w": 1.0
+                  }
+                },
+                "bounds": {
+                  "min": {
+                    "x": 0.619808,
+                    "y": -1.75,
+                    "z": 0.54
+                  },
+                  "max": {
+                    "x": 0.659808,
+                    "y": -1.45,
+                    "z": 0.58
+                  },
+                  "center": {
+                    "x": 0.639808,
+                    "y": -1.6,
+                    "z": 0.56
+                  },
+                  "size": {
+                    "x": 0.04,
+                    "y": 0.3,
+                    "z": 0.04
+                  }
+                },
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              }
+            ],
+            "planning_frame": "base_link",
+            "clearance": {
+              "reference": "ground_plane",
+              "z_m": 0.535
+            },
+            "grasp_faces": [
+              {
+                "name": "right",
+                "normal": {
+                  "x": 1.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.659808,
+                  "y": -1.6,
+                  "z": 0.56
+                },
+                "size": {
+                  "width": 0.3,
+                  "height": 0.04
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "left",
+                "normal": {
+                  "x": -1.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.619808,
+                  "y": -1.6,
+                  "z": 0.56
+                },
+                "size": {
+                  "width": 0.3,
+                  "height": 0.04
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "front",
+                "normal": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.639808,
+                  "y": -1.45,
+                  "z": 0.56
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.04
+                },
+                "area": 0.0016
+              },
+              {
+                "name": "back",
+                "normal": {
+                  "x": 0.0,
+                  "y": -1.0,
+                  "z": 0.0
+                },
+                "center": {
+                  "x": 0.639808,
+                  "y": -1.75,
+                  "z": 0.56
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.04
+                },
+                "area": 0.0016
+              },
+              {
+                "name": "top",
+                "normal": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 1.0
+                },
+                "center": {
+                  "x": 0.639808,
+                  "y": -1.6,
+                  "z": 0.58
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.3
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "name": "bottom",
+                "normal": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": -1.0
+                },
+                "center": {
+                  "x": 0.639808,
+                  "y": -1.6,
+                  "z": 0.54
+                },
+                "size": {
+                  "width": 0.04,
+                  "height": 0.3
+                },
+                "area": 0.012,
+                "alignment_axis": {
+                  "x": 0.0,
+                  "y": 1.0,
+                  "z": 0.0
+                }
+              }
+            ]
+          },
+          "available_objects": [
+            "dynamic_0",
+            "dynamic_1",
+            "dynamic_2",
+            "dynamic_3",
+            "dynamic_4",
+            "dynamic_5",
+            "ground_plane"
+          ],
+          "source": "/UR10/get_planning_scene"
+        }
+      }
+    }
+  ],
+  "object": "dynamic_5",
+  "orientation_trial": "horizontal",
+  "place_target_position": {
+    "x": 0.38,
+    "y": -0.8,
+    "z": 0.3
+  },
+  "finished_at": "2026-05-15T16:21:45+0200",
+  "ok": true,
+  "post_run_note": "After mesh-release translation fix, final planning-scene center was normalized to the requested place target.",
+  "final_readback": {
+    "object": "dynamic_5",
+    "state": "free",
+    "bounds_center": {
+      "x": 0.38,
+      "y": -0.8,
+      "z": 0.3
+    }
+  }
+}

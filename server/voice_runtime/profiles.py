@@ -100,6 +100,12 @@ class ProcessTraceProfile:
 
 
 @dataclass(frozen=True)
+class RobotExecutionProfile:
+    simulation_only: bool = True
+    verified_execution_url: str | None = None
+
+
+@dataclass(frozen=True)
 class RuntimeProfile:
     name: str
     category: Category
@@ -111,6 +117,7 @@ class RuntimeProfile:
     mcp_robot_url: str
     metrics: MetricsProfile
     process_trace: ProcessTraceProfile
+    robot_execution: RobotExecutionProfile
     server_dir: Path
     voice_modulation: Any | None = None
 
@@ -170,6 +177,7 @@ def load_runtime_profile(
     robot = _table(mcp, "robot")
     metrics = _parse_metrics(_table(raw_profile, "metrics"), server_root)
     process_trace = _parse_process_trace(_optional_table(raw_profile, "process_trace"), server_root)
+    robot_execution = _parse_robot_execution(_optional_table(raw_profile, "robot_execution"))
 
     profile = RuntimeProfile(
         name=selected_profile,
@@ -182,6 +190,7 @@ def load_runtime_profile(
         mcp_robot_url=_string(robot, "url"),
         metrics=metrics,
         process_trace=process_trace,
+        robot_execution=robot_execution,
         server_dir=server_root,
     )
     _validate_runtime_profile(profile)
@@ -268,6 +277,13 @@ def _parse_process_trace(table: dict[str, Any], server_dir: Path) -> ProcessTrac
         path=_path(table, "path", server_dir, "logs/process_trace.jsonl"),
         include_text=_bool(table, "include_text", True),
         include_tool_payloads=_bool(table, "include_tool_payloads", True),
+    )
+
+
+def _parse_robot_execution(table: dict[str, Any]) -> RobotExecutionProfile:
+    return RobotExecutionProfile(
+        simulation_only=_bool(table, "simulation_only", True),
+        verified_execution_url=_optional_string(table, "verified_execution_url"),
     )
 
 

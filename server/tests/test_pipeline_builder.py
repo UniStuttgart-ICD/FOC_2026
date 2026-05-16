@@ -11,6 +11,7 @@ from config import (
     EmergencyStopConfig,
     MetricsConfig,
     ProcessTraceConfig,
+    RobotExecutionConfig,
     RuntimeConfig,
     STTConfig,
     TTSConfig,
@@ -21,7 +22,9 @@ from pipeline_builder import _create_voice_modulation_processor, build_pipeline
 from voice_modulation.processor import VoiceModulationProcessor
 from voice_modulation.settings import VoiceModulationSettings
 from voice_runtime.profiles import TTSProfile
+from voice_runtime.response_coordination import BotResponseCoordinator, BotSpeechOutputCoordinator
 from voice_runtime.wake_command import MaveVoiceCommandAudioGate, MaveVoiceCommandTranscriptAdapter
+from voice_runtime.wake_tone import WakeToneProcessor
 
 
 def test_pipeline_builder_uses_voice_runtime_provider_factories():
@@ -99,6 +102,7 @@ def _config(
     wake_enabled: bool = False,
     voice_modulation: object | None = None,
     tts: TTSConfig | None = None,
+    robot_execution: RobotExecutionConfig | None = None,
 ) -> RuntimeConfig:
     return RuntimeConfig(
         profile_name="no_wake_debug",
@@ -131,6 +135,7 @@ def _config(
             include_text=True,
             include_tool_payloads=False,
         ),
+        robot_execution=robot_execution or RobotExecutionConfig(),
         voice_modulation=voice_modulation,
         server_dir=tmp_path,
     )
@@ -272,6 +277,78 @@ def test_pipeline_passes_vizor_mcp_env_options_to_agent_processor(monkeypatch, t
     assert seen_agent_kwargs["user_sensing_max_age_s"] == 3.5
 
 
+def test_pipeline_passes_verified_execution_env_to_agent_processor(monkeypatch, tmp_path: Path):
+    seen_agent_kwargs: dict[str, Any] = {}
+    _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
+    monkeypatch.setenv("VERIFIED_EXECUTION_URL", "http://127.0.0.1:8770")
+
+    build_pipeline(
+        _config(
+            tmp_path,
+            metrics_enabled=False,
+            robot_execution=RobotExecutionConfig(simulation_only=False),
+        ),
+        cast(BaseTransport, FakeTransport()),
+    )
+
+    assert seen_agent_kwargs["verified_execution_url"] == "http://127.0.0.1:8770"
+
+
+def test_pipeline_simulation_only_blocks_verified_execution_env(monkeypatch, tmp_path: Path):
+    seen_agent_kwargs: dict[str, Any] = {}
+    _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
+    monkeypatch.setenv("VERIFIED_EXECUTION_URL", "http://127.0.0.1:8770")
+
+    build_pipeline(
+        _config(tmp_path, metrics_enabled=False),
+        cast(BaseTransport, FakeTransport()),
+    )
+
+    assert seen_agent_kwargs["verified_execution_url"] is None
+
+
+def test_pipeline_uses_profile_verified_execution_url_when_real_execution_enabled(
+    monkeypatch,
+    tmp_path: Path,
+):
+    seen_agent_kwargs: dict[str, Any] = {}
+    _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
+
+    build_pipeline(
+        _config(
+            tmp_path,
+            metrics_enabled=False,
+            robot_execution=RobotExecutionConfig(
+                simulation_only=False,
+                verified_execution_url="http://127.0.0.1:8770",
+            ),
+        ),
+        cast(BaseTransport, FakeTransport()),
+    )
+
+    assert seen_agent_kwargs["verified_execution_url"] == "http://127.0.0.1:8770"
+
+
+def test_pipeline_allows_env_override_for_simulation_only(monkeypatch, tmp_path: Path):
+    seen_agent_kwargs: dict[str, Any] = {}
+    _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
+    monkeypatch.setenv("ROBOT_EXECUTION_SIMULATION_ONLY", "true")
+
+    build_pipeline(
+        _config(
+            tmp_path,
+            metrics_enabled=False,
+            robot_execution=RobotExecutionConfig(
+                simulation_only=False,
+                verified_execution_url="http://127.0.0.1:8770",
+            ),
+        ),
+        cast(BaseTransport, FakeTransport()),
+    )
+
+    assert seen_agent_kwargs["verified_execution_url"] is None
+
+
 def test_pipeline_applies_modular_speech_delivery_to_gemini_live_tts(
     monkeypatch,
     tmp_path: Path,
@@ -402,17 +479,24 @@ def test_logs_use_session_scoped_paths(monkeypatch, tmp_path: Path):
 
 def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tmp_path: Path):
     stt = FrameProcessor()
+    tts = FrameProcessor()
+    transport_output = FrameProcessor()
     seen_detector_kwargs = {}
     seen_agent_kwargs: dict[str, Any] = {}
     wake_config_logs: list[str] = []
 
     _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
     monkeypatch.setattr("pipeline_builder.create_stt_service", lambda config: stt)
+    monkeypatch.setattr("pipeline_builder.create_tts_service", lambda config: tts)
     monkeypatch.setattr(
         "pipeline_builder.logger",
         Mock(info=lambda message, *args: wake_config_logs.append(message.format(*args))),
         raising=False,
     )
+
+    class WakeToneTransport(FakeTransport):
+        def output(self):
+            return transport_output
 
     def fake_detector(model_path, *, threshold, vad_threshold):
         seen_detector_kwargs["model_path"] = model_path
@@ -426,13 +510,24 @@ def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tm
 
     built = build_pipeline(
         _config(tmp_path, metrics_enabled=False, wake_enabled=True),
-        cast(BaseTransport, FakeTransport()),
+        cast(BaseTransport, WakeToneTransport()),
     )
     processors = cast(FakePipeline, built.pipeline).processors
     stt_index = processors.index(stt)
+    wake_tone_index = next(
+        index for index, processor in enumerate(processors) if isinstance(processor, WakeToneProcessor)
+    )
+    bot_speech_output_index = next(
+        index
+        for index, processor in enumerate(processors)
+        if isinstance(processor, BotSpeechOutputCoordinator)
+    )
 
     assert isinstance(processors[stt_index - 1], MaveVoiceCommandAudioGate)
     assert isinstance(processors[stt_index + 1], MaveVoiceCommandTranscriptAdapter)
+    assert processors[bot_speech_output_index - 1] is tts
+    assert wake_tone_index == bot_speech_output_index + 1
+    assert processors[wake_tone_index + 1] is transport_output
     assert processors[stt_index - 1]._wake_threshold == 0.5
     assert processors[stt_index - 1]._pre_buffer_s == 2.0
     assert processors[stt_index - 1]._candidate_log_threshold == 0.4
@@ -441,13 +536,14 @@ def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tm
     assert processors[stt_index - 1]._min_wake_peak == 150
     assert processors[stt_index - 1]._rearm_delay_s == 6.0
     assert processors[stt_index + 1]._single_command is False
+    assert isinstance(seen_agent_kwargs["response_coordinator"], BotResponseCoordinator)
     assert seen_detector_kwargs == {
         "model_path": tmp_path / "mave.onnx",
         "threshold": 0.5,
         "vad_threshold": 0.3,
     }
     assert callable(seen_agent_kwargs["on_turn_started"])
-    assert callable(seen_agent_kwargs["on_turn_finished"])
+    assert "on_turn_finished" not in seen_agent_kwargs
     assert any(
         "Wake config" in message
         and "threshold=0.5" in message
@@ -458,6 +554,19 @@ def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tm
         and "rearm_delay_s=6.0" in message
         for message in wake_config_logs
     )
+
+
+def test_wake_disabled_does_not_wire_wake_tone(monkeypatch, tmp_path: Path):
+    _patch_pipeline_dependencies(monkeypatch)
+
+    built = build_pipeline(
+        _config(tmp_path, metrics_enabled=False, wake_enabled=False),
+        cast(BaseTransport, FakeTransport()),
+    )
+    processors = cast(FakePipeline, built.pipeline).processors
+
+    assert not any(isinstance(processor, WakeToneProcessor) for processor in processors)
+    assert not any(isinstance(processor, BotSpeechOutputCoordinator) for processor in processors)
 
 
 def test_create_voice_modulation_processor_returns_none_for_missing_disabled_or_unknown_settings() -> None:

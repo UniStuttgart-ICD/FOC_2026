@@ -220,6 +220,9 @@ class MaveVoiceCommandAudioGate(FrameProcessor):
         self._ring_samples = 0
         self._rearm_until = now + self._rearm_delay_s
         self._consecutive_hits = 0
+        reset_detector = getattr(self._detector, "reset", None)
+        if callable(reset_detector):
+            reset_detector()
 
     def _diagnostic_message(
         self,
@@ -294,7 +297,8 @@ class MaveVoiceCommandTranscriptAdapter(FrameProcessor):
             )
 
         if (
-            finalized_transcription
+            cleaned_text
+            and finalized_transcription
             and self._single_command
             and self._on_finalized_transcription is not None
         ):

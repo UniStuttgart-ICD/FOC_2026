@@ -8,6 +8,7 @@ from voice_runtime.profiles import (
     MetricsProfile,
     ProcessTraceProfile,
     ProfileError,
+    RobotExecutionProfile,
     RuntimeProfile,
     STTProfile,
     TTSProfile,
@@ -110,8 +111,12 @@ def test_bundled_default_profile_uses_gemini_live_tts():
     assert profile.agent.provider == "gemini_api"
     assert profile.agent.model == "gemini-3.1-flash-lite-preview"
     assert profile.agent.reasoning_effort == "high"
-    assert profile.agent.temperature == 0.2
+    assert profile.agent.temperature == 0.7
     assert profile.agent.api_key_env == "GOOGLE_API_KEY"
+    assert profile.robot_execution == RobotExecutionProfile(
+        simulation_only=False,
+        verified_execution_url="http://127.0.0.1:8770",
+    )
 
 
 def test_hybrid_gemini_live_tts_profile_is_available():
@@ -124,7 +129,9 @@ def test_hybrid_gemini_live_tts_profile_is_available():
     assert profile.tts.voice == "Sadaltager"
     assert profile.tts.instructions is None
     assert profile.agent.provider == "gemini_api"
-    assert profile.agent.temperature == 0.2
+    assert profile.agent.temperature == 0.7
+    assert profile.robot_execution.simulation_only is False
+    assert profile.robot_execution.verified_execution_url == "http://127.0.0.1:8770"
     assert profile.required_env_names() == ("OPENAI_API_KEY", "GOOGLE_API_KEY")
 
 
@@ -257,6 +264,49 @@ def test_loads_profile_without_constructing_adapters(tmp_path: Path):
         include_text=True,
         include_tool_payloads=True,
     )
+    assert profile.robot_execution == RobotExecutionProfile(simulation_only=True)
+
+
+def test_profile_parses_real_robot_execution_mode(tmp_path: Path) -> None:
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profile(
+        profiles_path,
+        """
+[profiles.real_robot]
+category = "local_debug"
+[profiles.real_robot.wake]
+provider = "none"
+[profiles.real_robot.emergency_stop]
+enabled = false
+[profiles.real_robot.stt]
+provider = "whisper"
+model = "base"
+[profiles.real_robot.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.real_robot.agent]
+provider = "openai_api"
+model = "gpt-5.4-mini"
+[profiles.real_robot.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.real_robot.robot_execution]
+simulation_only = false
+verified_execution_url = "http://127.0.0.1:8770"
+[profiles.real_robot.metrics]
+enabled = false
+""",
+    )
+
+    profile = load_runtime_profile(
+        profiles_path=profiles_path,
+        server_dir=tmp_path,
+        profile_name="real_robot",
+    )
+
+    assert profile.robot_execution == RobotExecutionProfile(
+        simulation_only=False,
+        verified_execution_url="http://127.0.0.1:8770",
+    )
 
 
 def test_profile_parses_explicit_process_trace_section(tmp_path: Path) -> None:
@@ -323,6 +373,7 @@ def test_profile_exports_typed_dataclasses(tmp_path: Path):
     assert isinstance(profile.agent, AgentProfile)
     assert isinstance(profile.metrics, MetricsProfile)
     assert isinstance(profile.process_trace, ProcessTraceProfile)
+    assert isinstance(profile.robot_execution, RobotExecutionProfile)
 
 
 def test_profile_reports_required_env_names_without_reading_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

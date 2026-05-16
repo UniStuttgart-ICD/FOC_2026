@@ -31,7 +31,7 @@ class FakeRobotToolAdapter:
             {"type": "function", "name": "moveit_get_current_pose", "parameters": {"type": "object"}},
             {
                 "type": "function",
-                "name": "moveit_plan_and_execute_free_motion",
+                "name": "moveit_plan_free_motion",
                 "parameters": {"type": "object"},
             },
         ]
@@ -186,7 +186,7 @@ def test_wave_motion_accepts_visible_verified_cartesian_sweep() -> None:
         reply="I waved.",
         tool_calls=[
             pose_call(z=0.62, y=0.39),
-            verified_cartesian_execution_call(
+            cartesian_plan_call(
                 [
                     waypoint(y=0.49, z=0.70),
                     waypoint(y=0.29, z=0.70),
@@ -195,6 +195,7 @@ def test_wave_motion_accepts_visible_verified_cartesian_sweep() -> None:
                     waypoint(y=0.39, z=0.62),
                 ]
             ),
+            verified_execution_call("wave"),
             pose_call(z=0.62, y=0.39),
         ],
     )
@@ -212,7 +213,7 @@ def test_wave_motion_rejects_timid_sweep() -> None:
         reply="I waved.",
         tool_calls=[
             pose_call(z=0.62, y=0.39),
-            verified_cartesian_execution_call(
+            cartesian_plan_call(
                 [
                     waypoint(y=0.43, z=0.65),
                     waypoint(y=0.35, z=0.65),
@@ -220,6 +221,7 @@ def test_wave_motion_rejects_timid_sweep() -> None:
                     waypoint(y=0.35, z=0.65),
                 ]
             ),
+            verified_execution_call("wave"),
             pose_call(z=0.62, y=0.39),
         ],
     )
@@ -236,8 +238,10 @@ def test_wave_motion_accepts_visible_verified_free_motion_sweep() -> None:
         reply="Waved.",
         tool_calls=[
             pose_call(z=0.62, y=0.39),
-            verified_free_motion_execution_call(y=0.49, z=0.70),
-            verified_free_motion_execution_call(y=0.29, z=0.70),
+            free_motion_plan_call(y=0.49, z=0.70),
+            verified_execution_call("wave-a"),
+            free_motion_plan_call(y=0.29, z=0.70),
+            verified_execution_call("wave-b"),
             pose_call(z=0.62, y=0.39),
         ],
     )
@@ -256,13 +260,14 @@ def test_up_down_motion_accepts_verified_cartesian_execution() -> None:
         reply="Moved up and down.",
         tool_calls=[
             pose_call(z=0.30),
-            verified_cartesian_execution_call(
+            cartesian_plan_call(
                 [
                     waypoint(y=0.20, z=0.36),
                     waypoint(y=0.20, z=0.24),
                     waypoint(y=0.20, z=0.30),
                 ]
             ),
+            verified_execution_call("up-down"),
             pose_call(z=0.30),
         ],
     )
@@ -279,8 +284,10 @@ def test_up_down_motion_accepts_verified_free_motion_sequence() -> None:
         reply="Moved up and down.",
         tool_calls=[
             pose_call(z=0.30),
-            verified_free_motion_execution_call(z=0.36),
-            verified_free_motion_execution_call(z=0.24),
+            free_motion_plan_call(z=0.36),
+            verified_execution_call("up"),
+            free_motion_plan_call(z=0.24),
+            verified_execution_call("down"),
             pose_call(z=0.30),
         ],
     )
@@ -353,7 +360,7 @@ def pose_call(*, z: float, x: float = 0.10, y: float = 0.20) -> RecordedToolCall
     )
 
 
-def verified_execution_call() -> RecordedToolCall:
+def verified_execution_call(plan_name: str = "plan-1") -> RecordedToolCall:
     output_json = {
         "structured_content": {
             "ok": True,
@@ -361,14 +368,14 @@ def verified_execution_call() -> RecordedToolCall:
         }
     }
     return RecordedToolCall(
-        name="moveit_plan_and_execute_free_motion",
-        arguments={"robot_name": "UR10", "target_pose": {"x": 0.1, "y": 0.2, "z": 0.35}},
+        name="moveit_execute_plan",
+        arguments={"robot_name": "UR10", "plan_name": plan_name},
         output_text=json.dumps(output_json),
         output_json=output_json,
     )
 
 
-def verified_free_motion_execution_call(
+def free_motion_plan_call(
     *,
     z: float,
     x: float = 0.10,
@@ -377,11 +384,11 @@ def verified_free_motion_execution_call(
     output_json = {
         "structured_content": {
             "ok": True,
-            "verification": {"result": "pass"},
+            "feedback": {"can_execute": True},
         }
     }
     return RecordedToolCall(
-        name="moveit_plan_and_execute_free_motion",
+        name="moveit_plan_free_motion",
         arguments={
             "robot_name": "UR10",
             "target_pose": waypoint(x=x, y=y, z=z),
@@ -398,15 +405,15 @@ def waypoint(*, y: float, z: float, x: float = 0.10) -> dict[str, object]:
     }
 
 
-def verified_cartesian_execution_call(waypoints: list[dict[str, object]]) -> RecordedToolCall:
+def cartesian_plan_call(waypoints: list[dict[str, object]]) -> RecordedToolCall:
     output_json = {
         "structured_content": {
             "ok": True,
-            "verification": {"result": "pass"},
+            "feedback": {"can_execute": True},
         }
     }
     return RecordedToolCall(
-        name="moveit_plan_and_execute_cartesian_motion",
+        name="moveit_plan_cartesian_motion",
         arguments={"robot_name": "UR10", "waypoints": waypoints},
         output_text=json.dumps(output_json),
         output_json=output_json,

@@ -33,6 +33,9 @@ class UserSensingContextStore:
         context = self._snapshot.context
         lines.append(f"- attention target: {self._attention_text(context.get('attention'))}")
         lines.append(f"- gaze target: {self._gaze_text(context.get('gaze'))}")
+        gaze_object_candidate = self._gaze_object_candidate_text(context.get("gaze"))
+        if gaze_object_candidate is not None:
+            lines.append(f"- gaze object candidate: {gaze_object_candidate}")
         lines.append(f"- user position: {self._pose_text(context.get('user'))}")
         lines.append(f"- manual target: {self._pose_text(context.get('manual_target'))}")
         return "\n".join(lines)
@@ -95,6 +98,13 @@ class UserSensingContextStore:
         return _with_stale_suffix(target, value)
 
     @staticmethod
+    def _gaze_object_candidate_text(value: Any) -> str | None:
+        candidate = _gaze_object_candidate(value)
+        if candidate is None or not isinstance(value, dict):
+            return None
+        return _with_stale_suffix(candidate, value)
+
+    @staticmethod
     def _attention_text(value: Any) -> str:
         if not isinstance(value, dict) or value.get("available") is not True:
             return "unavailable"
@@ -132,6 +142,9 @@ class UserSensingContextStore:
             )
         except (KeyError, TypeError, ValueError):
             return "unavailable"
+        frame = value.get("frame")
+        if isinstance(frame, str) and frame:
+            text = f"{text}, frame={frame}"
         return _with_stale_suffix(text, value)
 
 
@@ -175,4 +188,18 @@ def _field_attributes(prefix: str, value: Any) -> dict[str, Any]:
         attributes[f"{prefix}.last_stable_target"] = value.get("last_stable_target")
     elif prefix == "gaze":
         attributes[f"{prefix}.target"] = value.get("target")
+        attributes[f"{prefix}.raw_target"] = value.get("raw_target")
+        attributes[f"{prefix}.object_candidate"] = _gaze_object_candidate(value)
     return attributes
+
+
+def _gaze_object_candidate(value: Any) -> str | None:
+    if not isinstance(value, dict) or value.get("available") is not True:
+        return None
+    raw_target = value.get("raw_target")
+    if isinstance(raw_target, str) and raw_target.strip():
+        return raw_target.strip()
+    target = value.get("target")
+    if isinstance(target, str) and target.strip().isdigit():
+        return f"dynamic_{target.strip()}"
+    return None

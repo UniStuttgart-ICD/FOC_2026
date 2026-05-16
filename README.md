@@ -9,7 +9,7 @@ See [Architecture](ARCHITECTURE.md) for the target Module boundaries.
 Default profile:
 
 ```text
-hybrid_openai_stt = Mave wake word + OpenAI Realtime Whisper STT + Gemini API LangChain agent + Cartesia Sonic TTS
+hybrid_gemini_live_tts = Mave wake word + OpenAI Realtime Whisper STT + Gemini Live TTS + Gemini API LangChain agent
 ```
 
 Run the default profile:
@@ -22,16 +22,12 @@ uv run bot.py
 Run a specific profile:
 
 ```bash
-uv run bot.py --profile local_current
-uv run bot.py --profile hybrid_openai_stt
-uv run bot.py --profile openai_all
-uv run bot.py --profile deepgram_all
-uv run bot.py --profile no_wake_debug
+uv run bot.py --profile hybrid_gemini_live_tts
 ```
 
 `--profile` overrides `VOICE_PROFILE`.
 
-`hybrid_openai_stt` uses Mave wake word, OpenAI Realtime Whisper STT, Gemini API agent, and Cartesia Sonic TTS.
+`server/runtime_profiles.toml` intentionally carries one bundled app profile. Do not rebuild the old provider matrix without a new architecture decision.
 
 ### Wake tuning
 
@@ -63,26 +59,11 @@ Open `http://127.0.0.1:8897`, choose a runtime profile, generate a clean TTS pre
 For the default profile, set:
 
 ```dotenv
-CARTESIA_API_KEY=
 OPENAI_API_KEY=
 GOOGLE_API_KEY=
 ```
 
-For `openai_all`, set:
-
-```dotenv
-OPENAI_API_KEY=
-```
-
-For `hybrid_openai_stt`, set:
-
-```dotenv
-CARTESIA_API_KEY=
-OPENAI_API_KEY=
-GOOGLE_API_KEY=
-```
-
-`local_current` and `no_wake_debug` use local STT/TTS with the OpenAI API LangChain agent backend. Keep `OPENAI_API_KEY` and the configured robot MCP URL reachable.
+Keep the configured robot MCP URL reachable. The bundled default is `http://127.0.0.1:8765/mcp`.
 
 ### Wake word
 
@@ -98,7 +79,7 @@ Normal commands require `mave`, for example:
 Mave, move up a bit.
 ```
 
-Local debug profiles are local STT/TTS debug profiles, not fully offline profiles. Benchmark profiles use streaming STT/TTS providers.
+The bundled profile uses streaming STT/TTS providers.
 
 ### Robot movement safety
 

@@ -38,6 +38,30 @@ The processor-ordering interface for transport input, optional Voice Command aud
 **Agent Control Module**:
 The target module for API-key-backed LangChain intent handling and Agent Orchestration.
 
+**Workshop Agent Location Contrast**:
+The workshop research contrast between a **Robot-Inhabiting Agent** and a **Separate Floating AR Avatar**, where embodiment, voice source, visual position, visual appearance, persona, and authority cues are intentionally tunable by participants.
+
+**Robot-Inhabiting Agent**:
+A workshop agent state where participants design the agent as perceived through, or as part of, the robot body.
+
+**Separate Floating AR Avatar**:
+A workshop agent state where participants design the agent as a distinct AR participant beside the robot rather than as the robot.
+
+**Agent Location Fit**:
+How well a participant-tuned agent location and embodiment configuration fits a specific construction uncertainty, including the tradeoffs it creates for authority, clarity, trust, responsibility, and collaboration.
+
+**Post-Run Evaluation Questions**:
+The stable workshop questions participants answer after each construction run to compare Agent Location Fit across tuned agent states.
+
+**Starter Agent Persona Card Deck**:
+A workshop card deck of initial agent concepts that participants adapt into paired Robot-Inhabiting Agent and Separate Floating AR Avatar states.
+
+**MAVE Starter Persona**:
+A robot-oriented starter persona where the agent feels like a self-directed machine-body collaborator, with expressive movement cues and a little independent judgment, while still respecting robot-control limits and human material judgment.
+
+**Robot Nonverbal Cues**:
+Small bounded robot movements that communicate turn-taking, attention, excitement, hesitation, refusal, or confirmation without changing the construction state.
+
 **LangChain API Backend**:
 The native LangChain chat-model backend accessed with provider API keys.
 
@@ -82,6 +106,36 @@ A deterministic Robot Control worker that validates and executes the exact queue
 **Executable Plan**:
 A successful MoveIt planning result with `ok=true`, `feedback.can_execute=true`, and a valid returned `raw.plan_name` that can be executed through a MoveIt execution workflow.
 
+**Task Solution**:
+A successful task-level MoveIt MCP planning result with `ok=true`, `feedback.can_execute=true`, and a valid returned `raw.task_solution_id` for ordered pick/place stages. It is planning evidence, not physical execution evidence.
+
+**Verified Real Robot Execution**:
+The host-side actuation boundary that executes cached MoveIt plans on the physical UR10 and Robotiq path after explicit execution intent.
+
+**Simulation-Only Robot Execution**:
+The runtime profile mode where robot execution stays inside MoveIt MCP/RViz/noVNC and Pipecat does not create a Verified Real Robot Execution client.
+
+**Verified Task Plan Execution Bridge**:
+The `moveit_execute_task_plan` Robot Control bridge that consumes a recent pick **Task Solution**, plans concrete motion stages, executes returned plan names through **Verified Real Robot Execution**, interleaves gripper and attachment tools, and verifies attachment before success.
+
+**Task-Level Pick**:
+A MoveIt MCP pick workflow that plans observe, approach, gripper, attach, lift, and attachment-verification stages as one **Task Solution**.
+
+**Task-Level Place**:
+A MoveIt MCP place workflow that plans object placement stages as one **Task Solution** and still requires execution plus release or placed-object evidence before a success claim.
+
+**MTC Backend**:
+An optional MoveIt Task Constructor implementation backend for task-level tools. The current default backend remains emulated; MTC proof startup is opt-in with `VIZOR_ENABLE_MTC_PROOF=1`.
+
+**Partial Pick Diagnostic**:
+A failed legacy pick planning result where only a preposition or earlier segment solved. It is diagnostic evidence, not an executable pick.
+
+**Execution Approval Payload**:
+Structured approval evidence bound to the exact plan or **Task Solution**, source tool, object, expected movement, scene snapshot, approval turn, and approval time.
+
+**Scene Snapshot Evidence**:
+Compact evidence that binds a planning result to the grounded scene object, planning frame, pose age, and `scene_snapshot_id`.
+
 **MoveIt Safety Boundary**:
 The accepted movement-safety boundary; robot movement safety is delegated to MoveIt planning/execution and the robot simulation stack.
 
@@ -118,6 +172,9 @@ A repository policy where Live LLM Robot Evals are never part of normal CI and r
 
 **Live Eval Evidence**:
 The minimal JSON artifact saved by a Live LLM Robot Eval, containing prompts, assistant replies, recorded tool calls, tool outputs, validator results, and pass/fail reasons.
+
+**Replay Artifact**:
+A compact local artifact recording tool order, typed tool outputs, policy decisions, validation results, approvals, execution results, verification results, and terminal job events for review and replay.
 
 **Recording Robot Tool Adapter**:
 A test-only wrapper around the real Robot Tool Adapter that records each robot tool call and output for Live Eval Evidence without changing runtime behavior.
@@ -158,11 +215,16 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - **Robot Job Blackboard** decouples slow robot action execution from the spoken **Agent Turn**.
 - **Robot Job Worker** owns deterministic execution of queued robot jobs and writes terminal events back to the **Robot Job Blackboard**.
 - An **Executable Plan** may be auto-executed only through a MoveIt execution workflow.
+- **Simulation-Only Robot Execution** is selected by `robot_execution.simulation_only = true` and is the default mode for RViz/noVNC testing.
+- A **Task Solution** may be executed through `moveit_execute_task_solution` only for sim/emulated task-solution execution; verified real-robot pick execution uses the **Verified Task Plan Execution Bridge** after a matching **Execution Approval Payload**.
+- The **Verified Task Plan Execution Bridge** currently supports **Task-Level Pick** only.
+- A **Partial Pick Diagnostic** must not be stored as an **Executable Plan** or **Task Solution**.
 - A blocked **Task Policy Decision** is returned to **Agent Orchestration** as structured tool feedback, not as a movement-safety claim.
 - A **Live LLM Robot Smoke Test** belongs to the manual pass/fail testing pipeline and does not exercise wake, STT, TTS, or browser audio.
 - An **Exploratory Gesture Eval** stays outside the pass/fail testing pipeline until its assertions become deterministic and actionable.
 - A **Manual Live Eval Gate** keeps Live LLM Robot Evals out of normal CI.
 - **Live Eval Evidence** is saved as minimal JSON, not as a human HTML report.
+- A **Replay Artifact** preserves the task-solution workflow evidence needed to review observe, plan, approve, execute, verify, and summarize loops.
 - A **Recording Robot Tool Adapter** observes live smoke tests without adding production logging hooks.
 - The **Model Eval Module** runs through the **Agent Turn** seam and evaluates **Agent Orchestration**; it does not own the Robot Agent Prompt, Task Policy Layer, Robot Call Validation, or MoveIt Safety Boundary.
 - An **Eval Tool Adapter** satisfies the same robot adapter interface as the production Robot Tool Adapter so model evaluation can switch between simulated and live MCP runs.

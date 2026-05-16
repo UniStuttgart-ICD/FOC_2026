@@ -1,0 +1,1956 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shared Geometry Model - Visual Brief</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      --paper: #f7f8f4;
+      --panel: #ffffff;
+      --ink: #121514;
+      --muted: #64706d;
+      --line: #ccd2cc;
+      --line-strong: #9aa69d;
+      --green: #5f7f62;
+      --teal: #147d78;
+      --orange: #dc6748;
+      --yellow: #edc65e;
+      --black: #101211;
+      --code: #111312;
+      --code-ink: #f6f7ef;
+      --radius: 8px;
+      --mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      --serif: Georgia, "Times New Roman", serif;
+      --sans: "Aptos", "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(rgba(18, 21, 20, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(18, 21, 20, 0.035) 1px, transparent 1px),
+        var(--paper);
+      background-size: 32px 32px;
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.55;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .page {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 56px 0 96px;
+    }
+
+    .eyebrow,
+    .label,
+    .tag,
+    .section-number,
+    .caption,
+    .mini-title,
+    .node-small,
+    th {
+      font-family: var(--mono);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 14px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      font-family: var(--serif);
+      font-weight: 500;
+      line-height: 1.05;
+      margin: 0;
+    }
+
+    h1 {
+      max-width: 920px;
+      font-size: clamp(42px, 7vw, 92px);
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: clamp(28px, 4vw, 44px);
+    }
+
+    h3 {
+      font-size: 22px;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 780px;
+    }
+
+    code {
+      font-family: var(--mono);
+      font-size: 0.9em;
+      background: rgba(18, 21, 20, 0.06);
+      border: 1px solid rgba(18, 21, 20, 0.12);
+      border-radius: 5px;
+      padding: 0.1rem 0.32rem;
+      color: var(--ink);
+    }
+
+    .brief {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.7);
+      margin-top: 28px;
+      padding: 22px 24px;
+      max-width: 850px;
+    }
+
+    .brief .label {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 10px;
+    }
+
+    .brief p {
+      color: var(--ink);
+      font-size: 16px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin: 42px 0 70px;
+    }
+
+    .stat {
+      min-height: 88px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.78);
+      padding: 20px;
+    }
+
+    .stat .label {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 10px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 18px;
+    }
+
+    .stat strong.accent {
+      color: var(--orange);
+    }
+
+    section {
+      margin-top: 84px;
+    }
+
+    .section-head {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .section-number {
+      display: inline-grid;
+      place-items: center;
+      width: 34px;
+      height: 26px;
+      border-radius: 7px;
+      background: #e8e5db;
+      color: var(--ink);
+      font-size: 11px;
+      border: 1px solid rgba(18, 21, 20, 0.08);
+    }
+
+    .lead {
+      font-size: 17px;
+      margin-bottom: 28px;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 28px;
+      margin-top: 34px;
+      position: relative;
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 154px;
+      top: 14px;
+      bottom: 16px;
+      width: 2px;
+      background: var(--line);
+    }
+
+    .timeline-row {
+      display: grid;
+      grid-template-columns: 130px 28px 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .time {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      padding-top: 5px;
+    }
+
+    .dot {
+      width: 14px;
+      height: 14px;
+      margin: 6px auto 0;
+      border-radius: 999px;
+      background: var(--paper);
+      border: 3px solid var(--orange);
+      z-index: 1;
+    }
+
+    .dot.full {
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .timeline-card {
+      padding-bottom: 4px;
+    }
+
+    .timeline-card p {
+      margin-top: 8px;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .tag {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.76);
+      padding: 4px 8px;
+      font-size: 11px;
+      color: var(--ink);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .diagram-panel,
+    .mock-panel,
+    .code-panel,
+    .table-shell,
+    .question {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .diagram-panel {
+      margin-top: 28px;
+      padding: 26px 28px 22px;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    .diagram-panel svg {
+      width: 100%;
+      min-width: 900px;
+      height: auto;
+      display: block;
+    }
+
+    .caption {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      margin-top: 28px;
+    }
+
+    .mock-panel {
+      overflow: hidden;
+      min-height: 410px;
+    }
+
+    .mock-title {
+      border-bottom: 1px solid var(--line);
+      padding: 14px 18px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .mock-body {
+      padding: 24px;
+    }
+
+    .beam-stage {
+      position: relative;
+      min-height: 310px;
+      background:
+        linear-gradient(90deg, rgba(20, 125, 120, 0.08) 1px, transparent 1px),
+        linear-gradient(rgba(20, 125, 120, 0.08) 1px, transparent 1px);
+      background-size: 26px 26px;
+      border: 1px solid rgba(20, 125, 120, 0.15);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .beam {
+      position: absolute;
+      height: 22px;
+      width: 185px;
+      border: 2px solid var(--black);
+      background: #f4c95d;
+      box-shadow: 5px 5px 0 rgba(18, 21, 20, 0.12);
+    }
+
+    .beam::before,
+    .beam::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--orange);
+      transform: translateY(-50%);
+    }
+
+    .beam::before {
+      left: -5px;
+    }
+
+    .beam::after {
+      right: -5px;
+    }
+
+    .beam.one {
+      left: 62px;
+      top: 170px;
+      transform: rotate(0deg);
+    }
+
+    .beam.two {
+      left: 175px;
+      top: 118px;
+      transform: rotate(-60deg);
+    }
+
+    .beam.three {
+      left: 30px;
+      top: 118px;
+      transform: rotate(60deg);
+    }
+
+    .beam-label {
+      position: absolute;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 4px 7px;
+    }
+
+    .kit-stage {
+      display: grid;
+      gap: 18px;
+      min-height: 310px;
+      padding: 24px;
+      background:
+        linear-gradient(90deg, rgba(20, 125, 120, 0.08) 1px, transparent 1px),
+        linear-gradient(rgba(20, 125, 120, 0.08) 1px, transparent 1px);
+      background-size: 26px 26px;
+      border: 1px solid rgba(20, 125, 120, 0.15);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .kit-row {
+      display: grid;
+      grid-template-columns: 54px 1fr;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .kit-label {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--ink);
+    }
+
+    .kit-bars {
+      display: grid;
+      gap: 8px;
+    }
+
+    .kit-beam {
+      position: relative;
+      height: 22px;
+      width: var(--beam-width);
+      min-width: 72px;
+      border: 2px solid var(--black);
+      background: var(--beam-fill);
+      box-shadow: 5px 5px 0 rgba(18, 21, 20, 0.12);
+    }
+
+    .kit-beam span {
+      position: absolute;
+      left: 9px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink);
+    }
+
+    .kit-beam::before,
+    .kit-beam::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--orange);
+      transform: translateY(-50%);
+    }
+
+    .kit-beam::before {
+      left: -5px;
+    }
+
+    .kit-beam::after {
+      right: -5px;
+    }
+
+    .kit-beam.a {
+      --beam-width: 34%;
+      --beam-fill: #f0d36f;
+    }
+
+    .kit-beam.b {
+      --beam-width: 62%;
+      --beam-fill: #82b0aa;
+    }
+
+    .kit-beam.c {
+      --beam-width: 92%;
+      --beam-fill: #dc9a7f;
+    }
+
+    .end-map {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .end-card {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .end-card strong {
+      color: var(--ink);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .house-stage {
+      position: relative;
+      min-height: 310px;
+      background:
+        linear-gradient(90deg, rgba(220, 103, 72, 0.08) 1px, transparent 1px),
+        linear-gradient(rgba(220, 103, 72, 0.08) 1px, transparent 1px);
+      background-size: 26px 26px;
+      border: 1px solid rgba(220, 103, 72, 0.16);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .post,
+    .header {
+      position: absolute;
+      border: 2px solid var(--black);
+      background: #82b0aa;
+      box-shadow: 5px 5px 0 rgba(18, 21, 20, 0.12);
+    }
+
+    .post {
+      width: 22px;
+      height: 138px;
+      bottom: 50px;
+    }
+
+    .header {
+      width: 170px;
+      height: 24px;
+    }
+
+    .post.p1 { left: 58px; }
+    .post.p2 { left: 205px; }
+    .post.p3 { left: 278px; bottom: 86px; opacity: 0.72; }
+    .post.p4 { left: 425px; bottom: 86px; opacity: 0.72; }
+    .header.h1 { left: 48px; bottom: 188px; }
+    .header.h2 { left: 268px; bottom: 224px; opacity: 0.72; }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .legend-item {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.74);
+      padding: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .legend-item strong {
+      color: var(--ink);
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .code-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      margin-top: 28px;
+    }
+
+    .code-grid > div,
+    .two-col > div {
+      min-width: 0;
+    }
+
+    .code-panel {
+      overflow: hidden;
+      background: var(--code);
+      color: var(--code-ink);
+      border-color: var(--code);
+      max-width: 100%;
+    }
+
+    .code-title {
+      color: #d6ded6;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+      padding: 14px 18px;
+      font-family: var(--mono);
+      font-size: 12px;
+      max-width: 100%;
+    }
+
+    pre {
+      margin: 0;
+      padding: 18px;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--code-ink);
+      max-width: 100%;
+    }
+
+    pre .key { color: #f08f68; }
+    pre .str { color: #f0d36f; }
+    pre .num { color: #8fcac3; }
+    pre .note { color: #96a19b; }
+
+    .table-shell {
+      margin-top: 28px;
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: rgba(255, 255, 255, 0.84);
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 18px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #ebeee7;
+      font-size: 11px;
+      color: var(--ink);
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    td {
+      color: var(--muted);
+    }
+
+    .sev {
+      display: inline-block;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink);
+      background: #e8e5db;
+    }
+
+    .sev.high {
+      background: #f4c8b8;
+    }
+
+    .sev.med {
+      background: #efe0ad;
+    }
+
+    .sev.low {
+      background: #dce8d6;
+    }
+
+    .questions {
+      display: grid;
+      gap: 16px;
+      margin-top: 28px;
+      max-width: 850px;
+    }
+
+    .question {
+      border-left: 4px solid var(--orange);
+      padding: 18px 20px;
+    }
+
+    .question strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .question p {
+      font-size: 15px;
+    }
+
+    .fabrication-panel {
+      margin-top: 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.84);
+      overflow: hidden;
+    }
+
+    .fabrication-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: start;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .fabrication-head p {
+      margin-top: 6px;
+      font-size: 15px;
+    }
+
+    .fabrication-badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--orange);
+      border: 1px solid rgba(220, 103, 72, 0.35);
+      border-radius: 999px;
+      padding: 6px 10px;
+      white-space: nowrap;
+    }
+
+    .fabrication-body {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 0;
+    }
+
+    .fabrication-diagram {
+      padding: 20px 24px 24px;
+      border-right: 1px solid var(--line);
+      overflow-x: auto;
+    }
+
+    .option-list {
+      display: grid;
+      gap: 12px;
+      padding: 20px 24px 24px;
+    }
+
+    .option-card {
+      border-left: 4px solid var(--line-strong);
+      background: rgba(247, 248, 244, 0.86);
+      padding: 13px 14px;
+    }
+
+    .option-card.recommended {
+      border-left-color: var(--orange);
+    }
+
+    .option-card strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .option-card p {
+      font-size: 14px;
+    }
+
+    .source {
+      margin-top: 44px;
+      border-top: 1px solid var(--line);
+      padding-top: 18px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .svg-text {
+      font-family: var(--mono);
+      font-size: 13px;
+      fill: var(--ink);
+    }
+
+    .svg-small {
+      font-family: var(--mono);
+      font-size: 11px;
+      fill: var(--muted);
+    }
+
+    .svg-invert {
+      fill: var(--code-ink);
+    }
+
+    .svg-accent {
+      fill: #f0d36f;
+    }
+
+    .svg-orange {
+      fill: var(--orange);
+    }
+
+    .flow-label {
+      paint-order: stroke;
+      stroke: var(--paper);
+      stroke-width: 5px;
+      stroke-linejoin: round;
+    }
+
+    @media (max-width: 860px) {
+      .page {
+        width: min(100% - 28px, 680px);
+        padding-top: 34px;
+      }
+
+      .stats,
+      .two-col,
+      .code-grid,
+      .legend,
+      .end-map,
+      .fabrication-body,
+      .fabrication-head {
+        grid-template-columns: 1fr;
+      }
+
+      .timeline::before {
+        left: 12px;
+      }
+
+      .timeline-row {
+        grid-template-columns: 28px 1fr;
+      }
+
+      .time {
+        grid-column: 2;
+        padding-top: 0;
+      }
+
+      .dot {
+        grid-column: 1;
+        grid-row: 1 / span 2;
+      }
+
+      .timeline-card {
+        grid-column: 2;
+      }
+
+      .diagram-panel {
+        padding: 18px 16px;
+      }
+
+      .fabrication-diagram {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .mock-panel {
+        min-height: auto;
+      }
+
+      .house-stage,
+      .beam-stage {
+        transform-origin: top left;
+        min-height: 260px;
+      }
+
+      .beam-stage .beam {
+        width: 150px;
+      }
+
+      .beam-stage .beam.one {
+        left: 48px;
+        top: 164px;
+      }
+
+      .beam-stage .beam.two {
+        left: 145px;
+        top: 122px;
+      }
+
+      .beam-stage .beam.three {
+        left: 28px;
+        top: 122px;
+      }
+
+      .house-stage .post {
+        height: 112px;
+        bottom: 42px;
+      }
+
+      .house-stage .header {
+        width: 132px;
+      }
+
+      .house-stage .post.p1 { left: 38px; }
+      .house-stage .post.p2 { left: 150px; }
+      .house-stage .post.p3 { left: 195px; bottom: 72px; }
+      .house-stage .post.p4 { left: 307px; bottom: 72px; }
+      .house-stage .header.h1 { left: 28px; bottom: 154px; }
+      .house-stage .header.h2 { left: 185px; bottom: 184px; }
+
+      table,
+      tbody,
+      tr,
+      td,
+      th {
+        display: block;
+      }
+
+      th {
+        display: none;
+      }
+
+      td {
+        border-bottom: 0;
+        padding: 12px 16px;
+      }
+
+      tr {
+        border-bottom: 1px solid var(--line);
+      }
+
+      tr:last-child {
+        border-bottom: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div class="eyebrow">Architecture brief &middot; Pipecat / Vizor / ROS</div>
+      <h1>Shared Geometry Model</h1>
+      <div class="brief">
+        <div class="label">Chosen direction</div>
+        <p>
+          Use <code>common_model.json</code> as the canonical beam inventory and
+          editable graph state. Rhino/Grasshopper, ROS, RViz, and AR should be
+          projections of that same body-and-pose model, not separate sources of truth.
+          Current model: <code>six_element_b_c_triangular_frame</code>.
+        </p>
+      </div>
+    </header>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="label">Canonical file</div>
+        <strong class="accent">common_model.json</strong>
+      </div>
+      <div class="stat">
+        <div class="label">Current scene</div>
+        <strong>6 beams</strong>
+      </div>
+      <div class="stat">
+        <div class="label">Section</div>
+        <strong>4 x 4 cm</strong>
+      </div>
+      <div class="stat">
+        <div class="label">Families used</div>
+        <strong>B vertical / C horizontal</strong>
+      </div>
+    </div>
+
+    <section id="thesis">
+      <div class="section-head">
+        <span class="section-number">01</span>
+        <h2>Core thesis</h2>
+      </div>
+      <p class="lead">
+        Do not ask the LLM to be a CAD kernel. Give it a compact, readable structure
+        so it can choose the right operation, then let deterministic tools do the exact math.
+      </p>
+
+      <div class="timeline">
+        <div class="timeline-row">
+          <div class="time">Human</div>
+          <div class="dot full"></div>
+          <div class="timeline-card">
+            <h3>Speaks in spatial intent</h3>
+            <p>"Move element_06 onto the two lower C beams." "Bring element_04.end_start to element_05.end_start." "Can the robot grasp this from above?"</p>
+            <div class="tags">
+              <span class="tag">natural language</span>
+              <span class="tag">ambiguous references</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="timeline-row">
+          <div class="time">LLM Agent</div>
+          <div class="dot"></div>
+          <div class="timeline-card">
+            <h3>Converts intent to typed operations</h3>
+            <p>The agent reads the assembly graph, picks features, and emits operations like <code>split_body</code>, <code>satisfy_constraint</code>, or <code>solve_grasp_pose</code>.</p>
+            <div class="tags">
+              <span class="tag">symbolic reasoning</span>
+              <span class="tag">operation selection</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="timeline-row">
+          <div class="time">Solver</div>
+          <div class="dot"></div>
+          <div class="timeline-card">
+            <h3>Computes exact transforms</h3>
+            <p>A deterministic geometry layer moves points, aligns faces, preserves constraints, updates poses, and records what changed.</p>
+            <div class="tags">
+              <span class="tag">pose diffs</span>
+              <span class="tag">constraint checks</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="timeline-row">
+          <div class="time">Adapters</div>
+          <div class="dot"></div>
+          <div class="timeline-card">
+            <h3>Validates and renders</h3>
+            <p>Geometry is projected into Rhino/Grasshopper Breps, MoveIt collision objects, RViz markers, Vizor state, and later AR assets.</p>
+            <div class="tags">
+              <span class="tag">Grasshopper</span>
+              <span class="tag">MoveIt</span>
+              <span class="tag">RViz</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="code-grid" style="padding: 0 24px 24px; margin-top: 0;">
+          <div>
+            <div class="code-title" style="background:#111312;border-radius:8px 8px 0 0;">common_model.json - logical joint</div>
+            <div class="code-panel" style="border-radius:0 0 8px 8px;">
+<pre>{
+  <span class="key">"id"</span>: <span class="str">"joint_front"</span>,
+  <span class="key">"type"</span>: <span class="str">"logical_joint"</span>,
+  <span class="key">"logical_xyz"</span>: [<span class="num">0.0</span>, <span class="num">0.0</span>, <span class="num">0.22</span>],
+  <span class="key">"support"</span>: <span class="str">"element_01.face_top"</span>,
+  <span class="key">"fabrication_policy"</span>: <span class="str">"no_cut_offset_endpoints"</span>,
+  <span class="key">"clearance_m"</span>: <span class="num">0.002</span>,
+  <span class="key">"forbidden_operations"</span>: [
+    <span class="str">"trim"</span>,
+    <span class="str">"miter"</span>,
+    <span class="str">"notch"</span>
+  ]
+}</pre>
+            </div>
+          </div>
+          <div>
+            <div class="code-title" style="background:#111312;border-radius:8px 8px 0 0;">common_model.json - physical endpoint</div>
+            <div class="code-panel" style="border-radius:0 0 8px 8px;">
+<pre>{
+  <span class="key">"end_start"</span>: {
+    <span class="key">"logical_joint"</span>: <span class="str">"joint_front"</span>,
+    <span class="key">"world_xyz"</span>: [<span class="num">0.036</span>, <span class="num">0.020</span>, <span class="num">0.22</span>],
+    <span class="key">"offset_from_logical_xyz"</span>: [<span class="num">0.036</span>, <span class="num">0.020</span>, <span class="num">0.0</span>],
+    <span class="key">"offset_policy"</span>: <span class="str">"solver_controlled"</span>
+  },
+  <span class="key">"checks"</span>: [
+    <span class="str">"rectangular_section_unchanged"</span>,
+    <span class="str">"endpoint_caps_do_not_overlap"</span>,
+    <span class="str">"bearing_patch_on_B_top"</span>
+  ]
+}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="flow">
+      <div class="section-head">
+        <span class="section-number">02</span>
+        <h2>System responsibility</h2>
+      </div>
+      <p class="lead">
+        The shared model is the source of truth. Every other system reads from it, writes validated updates back to it, or projects it into its own runtime format.
+      </p>
+
+      <div class="diagram-panel">
+        <svg viewBox="0 0 1040 390" role="img" aria-label="System responsibility flow from user to LLM, common model, solver, adapters, MoveIt, RViz, Rhino Grasshopper, and feedback.">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#121514"></path>
+            </marker>
+            <marker id="arrowOrange" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#dc6748"></path>
+            </marker>
+          </defs>
+
+          <rect x="10" y="130" width="145" height="82" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="82" y="164" text-anchor="middle" class="svg-text">User</text>
+          <text x="82" y="184" text-anchor="middle" class="svg-small">spatial request</text>
+
+          <rect x="205" y="118" width="170" height="106" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="290" y="152" text-anchor="middle" class="svg-text">LLM Agent</text>
+          <text x="290" y="174" text-anchor="middle" class="svg-small">chooses operation</text>
+          <text x="290" y="194" text-anchor="middle" class="svg-small">uses graph context</text>
+
+          <rect x="435" y="95" width="185" height="150" rx="8" fill="#111312" stroke="#111312"></rect>
+          <text x="528" y="135" text-anchor="middle" class="svg-text svg-invert">common_model.json</text>
+          <text x="528" y="160" text-anchor="middle" class="svg-small svg-accent">6 beams + poses</text>
+          <text x="528" y="180" text-anchor="middle" class="svg-small svg-accent">generated features</text>
+          <text x="528" y="200" text-anchor="middle" class="svg-small svg-accent">editable graph</text>
+
+          <rect x="690" y="40" width="155" height="88" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="768" y="73" text-anchor="middle" class="svg-text">Geometry Solver</text>
+          <text x="768" y="94" text-anchor="middle" class="svg-small">exact transforms</text>
+
+          <rect x="690" y="176" width="155" height="88" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="768" y="209" text-anchor="middle" class="svg-text">Adapters</text>
+          <text x="768" y="230" text-anchor="middle" class="svg-small">project artifacts</text>
+
+          <rect x="900" y="38" width="125" height="66" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="963" y="68" text-anchor="middle" class="svg-text">MoveIt</text>
+          <text x="963" y="87" text-anchor="middle" class="svg-small">check + plan</text>
+
+          <rect x="900" y="142" width="125" height="66" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="963" y="172" text-anchor="middle" class="svg-text">RViz/Vizor</text>
+          <text x="963" y="191" text-anchor="middle" class="svg-small">visualize</text>
+
+          <rect x="900" y="246" width="125" height="66" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="963" y="276" text-anchor="middle" class="svg-text">Rhino/GH</text>
+          <text x="963" y="295" text-anchor="middle" class="svg-small">derived Breps</text>
+
+          <path d="M155 171 H205" stroke="#121514" stroke-width="2" marker-end="url(#arrow)"></path>
+          <path d="M375 171 H435" stroke="#121514" stroke-width="2" marker-end="url(#arrow)"></path>
+          <path d="M620 132 H660 V84 H690" fill="none" stroke="#121514" stroke-width="2" marker-end="url(#arrow)"></path>
+          <path d="M690 104 H660 V158 H620" fill="none" stroke="#dc6748" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#arrowOrange)"></path>
+          <path d="M620 205 H690" stroke="#121514" stroke-width="2" marker-end="url(#arrow)"></path>
+          <path d="M845 84 H900" stroke="#121514" stroke-width="2" marker-end="url(#arrow)"></path>
+          <path d="M845 220 H872 V175 H900" fill="none" stroke="#121514" stroke-width="2" marker-end="url(#arrow)"></path>
+          <path d="M845 220 H872 V279 H900" fill="none" stroke="#121514" stroke-width="2" marker-end="url(#arrow)"></path>
+          <path d="M963 104 V352 H290 V224" fill="none" stroke="#dc6748" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#arrowOrange)"></path>
+          <text x="628" y="342" class="svg-small svg-orange flow-label">validation feedback: feasible / blocked / alternatives</text>
+        </svg>
+        <div class="caption">Solid lines are state/projection flow. Dashed lines are solved updates and feedback. Grasshopper reads the same body/pose truth through an adapter.</div>
+      </div>
+    </section>
+
+    <section id="model">
+      <div class="section-head">
+        <span class="section-number">03</span>
+        <h2>What goes in the model</h2>
+      </div>
+      <p class="lead">
+        Start with physical facts: six rectangular beams, a center pose for each,
+        generated feature names, and graph edges that describe the built assembly.
+        The catalog still records A/B/C sizes, but this scene uses only B and C bodies.
+      </p>
+
+      <div class="diagram-panel">
+        <svg viewBox="0 0 1040 300" role="img" aria-label="Model layers from physical beams to generated features, draft graph, agent edits, and projections.">
+          <defs>
+            <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#121514"></path>
+            </marker>
+          </defs>
+
+          <g>
+            <rect x="25" y="92" width="160" height="92" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+            <text x="105" y="124" text-anchor="middle" class="svg-text">Physical beams</text>
+            <text x="105" y="146" text-anchor="middle" class="svg-small">B/C lengths</text>
+            <text x="105" y="166" text-anchor="middle" class="svg-small">center pose</text>
+          </g>
+          <g>
+            <rect x="238" y="92" width="160" height="92" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+            <text x="318" y="124" text-anchor="middle" class="svg-text">Generated features</text>
+            <text x="318" y="146" text-anchor="middle" class="svg-small">end_pos_x</text>
+            <text x="318" y="166" text-anchor="middle" class="svg-small">faces + axes</text>
+          </g>
+          <g>
+            <rect x="451" y="92" width="160" height="92" rx="8" fill="#111312" stroke="#111312"></rect>
+            <text x="531" y="124" text-anchor="middle" class="svg-text svg-invert">Assembly graph</text>
+            <text x="531" y="146" text-anchor="middle" class="svg-small svg-accent">typed relations</text>
+            <text x="531" y="166" text-anchor="middle" class="svg-small svg-accent">editable roles</text>
+          </g>
+          <g>
+            <rect x="664" y="92" width="160" height="92" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+            <text x="744" y="124" text-anchor="middle" class="svg-text">Agent edits</text>
+            <text x="744" y="146" text-anchor="middle" class="svg-small">assign role</text>
+            <text x="744" y="166" text-anchor="middle" class="svg-small">request contact</text>
+          </g>
+          <g>
+            <rect x="877" y="92" width="140" height="92" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+            <text x="947" y="124" text-anchor="middle" class="svg-text">Projections</text>
+            <text x="947" y="146" text-anchor="middle" class="svg-small">Grasshopper</text>
+            <text x="947" y="166" text-anchor="middle" class="svg-small">ROS/RViz</text>
+          </g>
+
+          <path d="M185 138 H238" stroke="#121514" stroke-width="2" marker-end="url(#arrow2)"></path>
+          <path d="M398 138 H451" stroke="#121514" stroke-width="2" marker-end="url(#arrow2)"></path>
+          <path d="M611 138 H664" stroke="#121514" stroke-width="2" marker-end="url(#arrow2)"></path>
+          <path d="M824 138 H877" stroke="#121514" stroke-width="2" marker-end="url(#arrow2)"></path>
+
+          <text x="25" y="230" class="svg-small">Rule: keep dimensions and poses explicit; graph relations explain support/contact without replacing geometry.</text>
+        </svg>
+      </div>
+
+      <div class="code-grid">
+        <div>
+          <div class="code-title" style="background:#111312;border-radius:8px 8px 0 0;">common_model.json - body</div>
+          <div class="code-panel" style="border-radius:0 0 8px 8px;">
+<pre>{
+  <span class="key">"id"</span>: <span class="str">"element_06"</span>,
+  <span class="key">"label"</span>: <span class="str">"C horizontal left-to-right"</span>,
+  <span class="key">"family"</span>: <span class="str">"C"</span>,
+  <span class="key">"group"</span>: <span class="str">"horizontal"</span>,
+  <span class="key">"solid"</span>: {
+    <span class="key">"type"</span>: <span class="str">"box"</span>,
+    <span class="key">"origin"</span>: <span class="str">"center"</span>,
+    <span class="key">"dimensions"</span>: {
+      <span class="key">"x"</span>: <span class="num">0.30</span>,
+      <span class="key">"y"</span>: <span class="num">0.04</span>,
+      <span class="key">"z"</span>: <span class="num">0.04</span>
+    }
+  },
+  <span class="key">"axis"</span>: {
+    <span class="key">"start_xyz"</span>: [<span class="num">-0.15</span>, <span class="num">0.259808</span>, <span class="num">0.26</span>],
+    <span class="key">"end_xyz"</span>: [<span class="num">0.15</span>, <span class="num">0.259808</span>, <span class="num">0.26</span>]
+  },
+  <span class="key">"pose"</span>: {
+    <span class="key">"frame"</span>: <span class="str">"rhino_world"</span>,
+    <span class="key">"xyz"</span>: [<span class="num">0.0</span>, <span class="num">0.259808</span>, <span class="num">0.26</span>],
+    <span class="key">"quat_xyzw"</span>: [<span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>, <span class="num">1</span>]
+  },
+  <span class="key">"features"</span>: {
+    <span class="key">"face_bottom"</span>: { <span class="key">"center_xyz"</span>: [<span class="num">0.0</span>, <span class="num">0.259808</span>, <span class="num">0.24</span>] }
+  },
+  <span class="key">"state"</span>: {
+    <span class="key">"status"</span>: <span class="str">"built"</span>,
+    <span class="key">"alignment"</span>: <span class="str">"horizontal"</span>
+  }
+}</pre>
+          </div>
+        </div>
+        <div>
+          <div class="code-title" style="background:#111312;border-radius:8px 8px 0 0;">common_model.json - assembly graph edge</div>
+          <div class="code-panel" style="border-radius:0 0 8px 8px;">
+<pre>{
+  <span class="key">"id"</span>: <span class="str">"rel_005"</span>,
+  <span class="key">"relation_type"</span>: <span class="str">"bearing_contact"</span>,
+  <span class="key">"a"</span>: <span class="str">"element_04.face_top"</span>,
+  <span class="key">"b"</span>: <span class="str">"element_06.face_bottom"</span>,
+  <span class="key">"role"</span>: <span class="str">"upper_left_bearing"</span>,
+  <span class="key">"status"</span>: <span class="str">"built"</span>
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="question">
+          <strong>Physical ID vs semantic role</strong>
+          <p>Give every beam a stable physical ID at startup, like <code>element_01</code>. Family names such as <code>B</code> or roles such as <code>shared_vertex_support</code> stay editable metadata, not the primary body identity.</p>
+        </div>
+        <div class="question">
+          <strong>End and direction names</strong>
+          <p>Use the axis as the canonical language: <code>end_start</code> and <code>end_end</code> are stable, while <code>end_neg_x</code> and <code>end_pos_x</code> remain local-frame aliases. Human aliases such as top, left, or shared vertex can be derived from pose.</p>
+        </div>
+        <div class="question">
+          <strong>Grasshopper advice</strong>
+          <p>Use the same <code>common_model.json</code> for beam dimensions and center poses. Let Grasshopper generate Breps from <code>solid.dimensions</code> plus <code>pose</code>; keep Grasshopper layer names and baked object IDs in a derived adapter output.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="examples">
+      <div class="section-head">
+        <span class="section-number">04</span>
+        <h2>Assembly examples</h2>
+      </div>
+      <p class="lead">
+        The first real scene is now a built six-beam structure:
+        three B verticals support two lower C horizontals, and the third C horizontal rests on top of those two beams.
+      </p>
+
+      <div class="two-col">
+        <div class="mock-panel">
+          <div class="mock-title">Current model &middot; 6 physical elements</div>
+          <div class="mock-body">
+            <div class="kit-stage">
+              <div class="kit-row">
+                <div class="kit-label">B<br>20 cm<br>vertical</div>
+                <div class="kit-bars">
+                  <div class="kit-beam b"><span>element_01</span></div>
+                  <div class="kit-beam b"><span>element_02</span></div>
+                  <div class="kit-beam b"><span>element_03</span></div>
+                </div>
+              </div>
+              <div class="kit-row">
+                <div class="kit-label">C<br>30 cm<br>horizontal</div>
+                <div class="kit-bars">
+                  <div class="kit-beam c"><span>element_04</span></div>
+                  <div class="kit-beam c"><span>element_05</span></div>
+                  <div class="kit-beam c"><span>element_06</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><strong>Known</strong> IDs, family, length, 4 x 4 cm section</div>
+              <div class="legend-item"><strong>Built</strong> 3 B verticals and 3 C horizontals</div>
+              <div class="legend-item"><strong>Graph</strong> 6 bearing contacts and 1 shared endpoint</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mock-panel">
+          <div class="mock-title">Assembly state &middot; upper C beam is stacked</div>
+          <div class="mock-body">
+            <div class="house-stage">
+              <svg viewBox="0 0 520 310" role="img" aria-label="Six beam triangular frame with three B vertical supports and three C horizontal beams, where element 06 rests on top of elements 04 and 05.">
+                <defs>
+                  <filter id="beamShadow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="5" dy="5" stdDeviation="0" flood-color="rgba(18,21,20,0.14)"></feDropShadow>
+                  </filter>
+                </defs>
+                <line x1="260" y1="226" x2="150" y2="92" stroke="#9aa69d" stroke-width="1.5" stroke-dasharray="5 5"></line>
+                <line x1="260" y1="226" x2="370" y2="92" stroke="#9aa69d" stroke-width="1.5" stroke-dasharray="5 5"></line>
+                <line x1="150" y1="92" x2="370" y2="92" stroke="#9aa69d" stroke-width="1.5" stroke-dasharray="5 5"></line>
+
+                <rect x="246" y="150" width="28" height="104" rx="3" fill="#82b0aa" stroke="#101211" stroke-width="2" filter="url(#beamShadow)"></rect>
+                <rect x="136" y="78" width="28" height="104" rx="3" fill="#82b0aa" stroke="#101211" stroke-width="2" filter="url(#beamShadow)"></rect>
+                <rect x="356" y="78" width="28" height="104" rx="3" fill="#82b0aa" stroke="#101211" stroke-width="2" filter="url(#beamShadow)"></rect>
+
+                <g transform="translate(260 226) rotate(-129)">
+                  <rect x="0" y="-13" width="300" height="26" rx="3" fill="#dc9a7f" stroke="#101211" stroke-width="2" filter="url(#beamShadow)"></rect>
+                  <text x="112" y="5" text-anchor="middle" class="svg-small" fill="#121514">element_04</text>
+                </g>
+                <g transform="translate(260 226) rotate(-51)">
+                  <rect x="0" y="-13" width="300" height="26" rx="3" fill="#dc9a7f" stroke="#101211" stroke-width="2" filter="url(#beamShadow)"></rect>
+                  <text x="112" y="5" text-anchor="middle" class="svg-small" fill="#121514">element_05</text>
+                </g>
+                <g transform="translate(150 72)">
+                  <rect x="0" y="-13" width="220" height="26" rx="3" fill="#edc65e" stroke="#101211" stroke-width="2" filter="url(#beamShadow)"></rect>
+                  <text x="110" y="5" text-anchor="middle" class="svg-small" fill="#121514">element_06 on top</text>
+                </g>
+
+                <text x="258" y="276" text-anchor="middle" class="svg-small">element_01 B</text>
+                <text x="150" y="66" text-anchor="middle" class="svg-small">element_02 B</text>
+                <text x="370" y="66" text-anchor="middle" class="svg-small">element_03 B</text>
+                <text x="260" y="24" text-anchor="middle" class="svg-small svg-orange">element_06 bottom z=0.24 equals lower C top z=0.24</text>
+              </svg>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><strong>Lower C</strong> element_04 and element_05 centerline z=0.22</div>
+              <div class="legend-item"><strong>Upper C</strong> element_06 centerline z=0.26</div>
+              <div class="legend-item"><strong>Contact</strong> element_06.face_bottom bears on lower face_top features</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fabrication-panel">
+        <div class="fabrication-head">
+          <div>
+            <h3>Fabricability check: shared centerlines create a solid clash</h3>
+            <p>
+              The current graph correctly says <code>element_04.end_start</code> and
+              <code>element_05.end_start</code> share a front vertex, but the top view
+              shows the physical problem: two 4 cm wide rectangular beams cannot occupy
+              the same wedge of space near that vertex. Treat the shared point as a
+              logical joint, then solve separate physical endpoints.
+            </p>
+          </div>
+          <div class="fabrication-badge">model gap</div>
+        </div>
+
+        <div class="fabrication-body">
+          <div class="fabrication-diagram">
+            <svg viewBox="0 0 700 380" role="img" aria-label="Top view showing current lower C beam overlap and the preferred no-cut solution using a logical joint with offset physical endpoints.">
+              <defs>
+                <marker id="jointArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#121514"></path>
+                </marker>
+              </defs>
+
+              <text x="112" y="24" text-anchor="middle" class="svg-text">Current model</text>
+              <text x="112" y="44" text-anchor="middle" class="svg-small">centerlines meet, solids overlap</text>
+              <g transform="translate(110 168)">
+                <line x1="0" y1="0" x2="-82" y2="-98" stroke="#9aa69d" stroke-width="1.4" stroke-dasharray="5 5"></line>
+                <line x1="0" y1="0" x2="104" y2="-75" stroke="#9aa69d" stroke-width="1.4" stroke-dasharray="5 5"></line>
+                <g transform="rotate(-130)">
+                  <rect x="-5" y="-20" width="210" height="40" fill="#dc6748" fill-opacity="0.78" stroke="#101211" stroke-width="2"></rect>
+                </g>
+                <g transform="rotate(-36)">
+                  <rect x="-5" y="-20" width="210" height="40" fill="#dc6748" fill-opacity="0.78" stroke="#101211" stroke-width="2"></rect>
+                </g>
+                <path d="M-9 -29 L37 -8 L2 28 L-32 -3 Z" fill="#dc6748" fill-opacity="0.38" stroke="#dc6748" stroke-width="2"></path>
+                <circle cx="0" cy="0" r="4" fill="#121514"></circle>
+                <text x="-20" y="58" class="svg-small svg-orange">collision volume</text>
+              </g>
+
+              <path d="M236 168 H310" stroke="#121514" stroke-width="2" marker-end="url(#jointArrow)"></path>
+              <text x="273" y="150" text-anchor="middle" class="svg-small">solve endpoint setbacks</text>
+
+              <text x="448" y="18" text-anchor="middle" class="svg-text">Preferred no-cut solution</text>
+              <text x="448" y="36" text-anchor="middle" class="svg-small">one logical joint, two physical end caps</text>
+              <g transform="translate(448 194)">
+                <line x1="0" y1="0" x2="-82" y2="-98" stroke="#9aa69d" stroke-width="1.4" stroke-dasharray="5 5"></line>
+                <line x1="0" y1="0" x2="104" y2="-75" stroke="#9aa69d" stroke-width="1.4" stroke-dasharray="5 5"></line>
+                <rect x="-34" y="-28" width="68" height="56" rx="4" fill="rgba(20,125,120,0.10)" stroke="#147d78" stroke-width="1.6" stroke-dasharray="5 4"></rect>
+                <g transform="rotate(-130)">
+                  <rect x="46" y="-20" width="170" height="40" fill="#dc9a7f" stroke="#101211" stroke-width="2"></rect>
+                  <line x1="0" y1="0" x2="46" y2="0" stroke="#dc6748" stroke-width="2" stroke-dasharray="5 4"></line>
+                </g>
+                <g transform="rotate(-36)">
+                  <rect x="46" y="-20" width="170" height="40" fill="#dc9a7f" stroke="#101211" stroke-width="2"></rect>
+                  <line x1="0" y1="0" x2="46" y2="0" stroke="#dc6748" stroke-width="2" stroke-dasharray="5 4"></line>
+                </g>
+                <circle cx="0" cy="0" r="4" fill="#121514"></circle>
+                <text x="-78" y="66" class="svg-small">logical joint P</text>
+                <text x="38" y="86" class="svg-small svg-orange">physical starts set back</text>
+              </g>
+
+              <text x="448" y="318" text-anchor="middle" class="svg-small">
+                Rule: physical_start = logical_joint + d * local_axis, with d solved from section width and clearance.
+              </text>
+              <text x="448" y="340" text-anchor="middle" class="svg-small svg-orange">
+                For a 60 deg joint and 4 cm section: d is about 4.2-4.5 cm with small clearance.
+              </text>
+            </svg>
+          </div>
+
+          <div class="option-list">
+            <div class="option-card recommended">
+              <strong>Recommendation: logical joint + physical setbacks</strong>
+              <p>
+                Keep the abstract shared vertex <code>P</code>, but do not use it as the solid endpoint.
+                Store separate physical starts for <code>element_04</code> and <code>element_05</code>,
+                offset along their axes until the 4 cm rectangular volumes clear each other.
+              </p>
+            </div>
+            <div class="option-card">
+              <strong>Option A: move the logical apex beyond the B top</strong>
+              <p>
+                This matches the rotation idea: the beams aim at a virtual point beyond the support,
+                while their physical end caps sit back on valid bearing patches over the B top.
+                The solver must preserve minimum bearing length on <code>element_01.face_top</code>.
+              </p>
+            </div>
+            <div class="option-card">
+              <strong>Option B: symmetric endpoint setback</strong>
+              <p>
+                For two C beams meeting at angle <code>theta</code>, solve
+                <code>d &gt;= (0.04 + clearance) / (2 sin(theta/2))</code>.
+                The result is a deliberate V gap: same logical joint, separate uncut end caps.
+              </p>
+            </div>
+            <div class="option-card">
+              <strong>Option C: asymmetric endpoint setback</strong>
+              <p>
+                Let one beam sit closer to <code>P</code> and move the other farther back when one member
+                needs a better bearing patch. This is fabricable, but less visually symmetric.
+              </p>
+            </div>
+            <div class="option-card">
+              <strong>Rejected: face-axis centerline</strong>
+              <p>
+                Making the centerline run along an inside face hides the clash but pollutes the meaning
+                of beam axis. Keep centroid axes for solids; use guide curves only for logical joints.
+              </p>
+            </div>
+            <div class="option-card">
+              <strong>No-solution case</strong>
+              <p>
+                With no endpoint offset, no connector, no vertical layering, and one shared coplanar physical
+                endpoint, two untrimmed 4 cm rectangular beams cannot both fit. The solver should reject it.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fabrication-panel" aria-label="Virtual apex and endpoint setbacks explanation">
+        <div class="section-kicker">Best no-extra-part solution</div>
+        <h3>Virtual apex + endpoint setbacks</h3>
+        <p>
+          The joint point becomes digital only. The two C beams still aim at the same virtual apex,
+          but their real rectangular solids stop before that point. This preserves the intended V geometry
+          without adding a cap, trimming the beams, or pretending that two 4 cm solids can occupy the same space.
+        </p>
+
+        <div class="fabrication-body">
+          <figure class="fabrication-diagram" aria-label="Top view of virtual apex with two physical endpoint setbacks">
+            <svg class="fabrication-svg" viewBox="0 0 720 380" role="img">
+              <defs>
+                <marker id="setbackArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#334155" />
+                </marker>
+              </defs>
+              <rect x="16" y="16" width="688" height="348" rx="12" fill="#fff" stroke="#d8e5e0" />
+              <text x="48" y="52" class="svg-title">Top view: one virtual apex, two real beam starts</text>
+
+              <rect x="308" y="212" width="104" height="104" rx="4" fill="#d9f0ec" stroke="#166b62" stroke-width="3" />
+              <text x="334" y="267" class="svg-small" fill="#0f4f49">B top</text>
+
+              <circle cx="360" cy="112" r="7" fill="#111827" />
+              <text x="377" y="116" class="svg-small" fill="#111827">virtual apex P</text>
+              <text x="292" y="94" class="svg-small" fill="#64748b">not a solid endpoint</text>
+
+              <line x1="360" y1="112" x2="226" y2="274" stroke="#94a3b8" stroke-width="2" stroke-dasharray="7 6" />
+              <line x1="360" y1="112" x2="494" y2="274" stroke="#94a3b8" stroke-width="2" stroke-dasharray="7 6" />
+
+              <polygon points="82,326 279,247 294,284 98,363" fill="#f6c85f" stroke="#1f2937" stroke-width="3" />
+              <polygon points="638,326 441,247 426,284 622,363" fill="#f6c85f" stroke="#1f2937" stroke-width="3" />
+              <line x1="91" y1="344" x2="287" y2="265" stroke="rgba(31,41,55,.55)" stroke-width="2" stroke-dasharray="7 6" />
+              <line x1="629" y1="344" x2="433" y2="265" stroke="rgba(31,41,55,.55)" stroke-width="2" stroke-dasharray="7 6" />
+
+              <rect x="278" y="243" width="44" height="44" rx="3" fill="rgba(220,103,72,.20)" stroke="#dc6748" stroke-width="2" transform="rotate(-22 300 265)" />
+              <rect x="398" y="243" width="44" height="44" rx="3" fill="rgba(220,103,72,.20)" stroke="#dc6748" stroke-width="2" transform="rotate(22 420 265)" />
+              <text x="252" y="224" class="svg-small svg-orange">physical start</text>
+              <text x="411" y="224" class="svg-small svg-orange">physical start</text>
+
+              <line x1="346" y1="124" x2="304" y2="242" stroke="#334155" stroke-width="2" marker-start="url(#setbackArrow)" marker-end="url(#setbackArrow)" />
+              <line x1="374" y1="124" x2="416" y2="242" stroke="#334155" stroke-width="2" marker-start="url(#setbackArrow)" marker-end="url(#setbackArrow)" />
+              <text x="226" y="174" class="svg-small" fill="#334155">setback d1</text>
+              <text x="444" y="174" class="svg-small" fill="#334155">setback d2</text>
+
+              <path d="M318 276 H402" stroke="#166b62" stroke-width="3" stroke-dasharray="7 6" />
+              <text x="292" y="338" class="svg-small" fill="#166b62">bearing zone remains on B</text>
+            </svg>
+            <figcaption>
+              The shared point remains useful for reasoning; the solver converts it into clash-free physical starts.
+            </figcaption>
+          </figure>
+
+          <div class="option-list">
+            <article class="option-card recommend">
+              <strong>Why this fits the goal</strong>
+              <p>No new physical part is introduced. The fix lives in the digital model: a virtual joint plus computed endpoint positions.</p>
+            </article>
+            <article class="option-card">
+              <strong>What the agent sees</strong>
+              <p><code>joint_front</code> is still one graph node. Each beam stores a relationship to it plus a real endpoint setback.</p>
+            </article>
+            <article class="option-card">
+              <strong>What the solver does</strong>
+              <p>It finds <code>d1</code> and <code>d2</code> so rectangular solids clear each other while preserving the target beam axes.</p>
+            </article>
+            <article class="option-card">
+              <strong>What validation proves</strong>
+              <p>No beam-beam collision, enough clearance, valid bearing on the B top, and unchanged 4 x 4 cm sections.</p>
+            </article>
+          </div>
+        </div>
+
+        <div class="fabrication-body">
+          <figure class="fabrication-diagram" aria-label="Solver validation flow for virtual apex endpoint setback">
+            <svg class="fabrication-svg" viewBox="0 0 720 300" role="img">
+              <defs>
+                <marker id="digitalFlowArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#334155" />
+                </marker>
+              </defs>
+              <rect x="16" y="16" width="688" height="268" rx="12" fill="#fff" stroke="#d8e5e0" />
+              <text x="48" y="52" class="svg-title">Digital validation loop</text>
+
+              <rect x="52" y="94" width="126" height="70" rx="8" fill="#f8fafc" stroke="#94a3b8" />
+              <text x="75" y="123" class="svg-small">LLM intent</text>
+              <text x="69" y="146" class="svg-small">make V joint</text>
+
+              <rect x="224" y="94" width="144" height="70" rx="8" fill="#f8fafc" stroke="#94a3b8" />
+              <text x="250" y="123" class="svg-small">common_model</text>
+              <text x="242" y="146" class="svg-small">P + offsets</text>
+
+              <rect x="414" y="94" width="124" height="70" rx="8" fill="#f8fafc" stroke="#94a3b8" />
+              <text x="444" y="123" class="svg-small">solver</text>
+              <text x="435" y="146" class="svg-small">compute d</text>
+
+              <rect x="584" y="94" width="92" height="70" rx="8" fill="#ecfdf5" stroke="#0f766e" />
+              <text x="608" y="123" class="svg-small">report</text>
+              <text x="602" y="146" class="svg-small">valid</text>
+
+              <line x1="178" y1="129" x2="224" y2="129" stroke="#334155" stroke-width="2.5" marker-end="url(#digitalFlowArrow)" />
+              <line x1="368" y1="129" x2="414" y2="129" stroke="#334155" stroke-width="2.5" marker-end="url(#digitalFlowArrow)" />
+              <line x1="538" y1="129" x2="584" y2="129" stroke="#334155" stroke-width="2.5" marker-end="url(#digitalFlowArrow)" />
+
+              <rect x="90" y="206" width="540" height="42" rx="8" fill="#fff7ed" stroke="#fdba74" />
+              <text x="110" y="232" class="svg-small" fill="#7c2d12">The LLM decides the joint type; geometry tools prove whether the offsets work.</text>
+            </svg>
+            <figcaption>
+              The solver can be small and deterministic: it turns a high-level joint into checked beam endpoints.
+            </figcaption>
+          </figure>
+
+          <div class="code-card">
+            <div class="code-title">common_model.json - virtual joint pattern</div>
+            <pre><code>{
+  "joints": [
+    {
+      "id": "joint_front",
+      "type": "virtual_apex",
+      "world_xyz": [0.0, 0.0, 0.22],
+      "fabrication_policy": "offset_physical_endpoints",
+      "clearance_m": 0.002
+    }
+  ],
+  "endpoint_features": [
+    {
+      "body": "element_04",
+      "end": "start",
+      "logical_joint": "joint_front",
+      "offset_from_joint_m": 0.045
+    }
+  ]
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="fabrication-panel" aria-label="Asymmetric endpoint setback explanation">
+        <div class="section-kicker">Useful when one beam needs priority</div>
+        <h3>Asymmetric setback</h3>
+        <p>
+          Symmetric setbacks are clean, but not always best. If one C beam needs more reliable bearing,
+          better robot access, or a stricter visual alignment, keep that priority beam closer to the virtual apex
+          and push the other beam farther back until the rectangular volumes clear.
+        </p>
+
+        <div class="fabrication-body">
+          <figure class="fabrication-diagram" aria-label="Top view of asymmetric endpoint setback giving one beam priority bearing">
+            <svg class="fabrication-svg" viewBox="0 0 720 380" role="img">
+              <defs>
+                <marker id="asymArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#334155" />
+                </marker>
+              </defs>
+              <rect x="16" y="16" width="688" height="348" rx="12" fill="#fff" stroke="#d8e5e0" />
+              <text x="48" y="52" class="svg-title">Top view: priority beam stays closer, secondary beam steps back</text>
+
+              <rect x="306" y="212" width="108" height="108" rx="4" fill="#d9f0ec" stroke="#166b62" stroke-width="3" />
+              <text x="336" y="270" class="svg-small" fill="#0f4f49">B top</text>
+
+              <circle cx="360" cy="112" r="7" fill="#111827" />
+              <text x="376" y="116" class="svg-small" fill="#111827">virtual apex P</text>
+
+              <line x1="360" y1="112" x2="250" y2="252" stroke="#94a3b8" stroke-width="2" stroke-dasharray="7 6" />
+              <line x1="360" y1="112" x2="520" y2="300" stroke="#94a3b8" stroke-width="2" stroke-dasharray="7 6" />
+
+              <polygon points="84,328 299,247 314,285 99,366" fill="#f6c85f" stroke="#1f2937" stroke-width="3" />
+              <text x="146" y="314" class="svg-label" transform="rotate(-20 146 314)">priority C</text>
+
+              <polygon points="654,338 456,254 440,292 638,376" fill="#dc9a7f" stroke="#1f2937" stroke-width="3" />
+              <text x="528" y="324" class="svg-label" transform="rotate(23 528 324)">secondary C</text>
+
+              <rect x="294" y="245" width="44" height="44" rx="3" fill="rgba(20,125,120,0.16)" stroke="#147d78" stroke-width="2" transform="rotate(-21 316 267)" />
+              <rect x="430" y="256" width="44" height="44" rx="3" fill="rgba(220,103,72,.20)" stroke="#dc6748" stroke-width="2" transform="rotate(23 452 278)" />
+
+              <line x1="344" y1="124" x2="316" y2="246" stroke="#334155" stroke-width="2" marker-start="url(#asymArrow)" marker-end="url(#asymArrow)" />
+              <line x1="376" y1="124" x2="452" y2="256" stroke="#334155" stroke-width="2" marker-start="url(#asymArrow)" marker-end="url(#asymArrow)" />
+              <text x="235" y="176" class="svg-small" fill="#166b62">shorter setback</text>
+              <text x="462" y="186" class="svg-small svg-orange">longer setback</text>
+
+              <rect x="274" y="314" width="152" height="34" rx="7" fill="#f8fafc" stroke="#cbd5e1" />
+              <text x="292" y="336" class="svg-small" fill="#334155">same P, unequal d values</text>
+            </svg>
+            <figcaption>
+              Asymmetry is a controlled exception: the graph stays simple, but the physical offsets can differ.
+            </figcaption>
+          </figure>
+
+          <div class="option-list">
+            <article class="option-card recommend">
+              <strong>When to use it</strong>
+              <p>Use it when one member carries more load, needs more visible alignment, or must remain easier for the robot to grasp.</p>
+            </article>
+            <article class="option-card">
+              <strong>What changes</strong>
+              <p>The joint graph stays the same. Only <code>d1</code> and <code>d2</code> differ, with a reason stored in the model.</p>
+            </article>
+            <article class="option-card">
+              <strong>What the agent can say</strong>
+              <p><code>element_04</code> is the priority member; <code>element_05</code> yields by moving farther from the apex.</p>
+            </article>
+            <article class="option-card">
+              <strong>What the validator checks</strong>
+              <p>The priority is respected, the secondary beam clears it, and both beams still have acceptable support conditions.</p>
+            </article>
+          </div>
+        </div>
+
+        <div class="code-grid">
+          <div class="code-card">
+            <div class="code-title">common_model.json - asymmetric policy</div>
+            <pre><code>{
+  "joint_constraints": [
+    {
+      "joint": "joint_front",
+      "policy": "asymmetric_endpoint_setback",
+      "priority_body": "element_04",
+      "yielding_body": "element_05",
+      "reason": "preserve_bearing_for_priority_member"
+    }
+  ]
+}</code></pre>
+          </div>
+          <div class="code-card">
+            <div class="code-title">validation report - agent readable</div>
+            <pre><code>{
+  "joint_front": {
+    "status": "valid",
+    "strategy": "asymmetric_endpoint_setback",
+    "offsets_m": {
+      "element_04.start": 0.032,
+      "element_05.start": 0.061
+    },
+    "checks": {
+      "solid_collision": false,
+      "minimum_clearance_m": 0.002,
+      "bearing_on_B": "valid"
+    }
+  }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="operation">
+      <div class="section-head">
+        <span class="section-number">05</span>
+        <h2>One operation end to end</h2>
+      </div>
+      <p class="lead">
+        A user asks for a spatial change. The agent edits graph constraints,
+        the solver checks geometry, and adapters project the same updated pose into Rhino, RViz, or the robot stack.
+      </p>
+
+      <div class="diagram-panel">
+        <svg viewBox="0 0 1040 360" role="img" aria-label="Operation path for stacking the upper C beam and validating geometry.">
+          <defs>
+            <marker id="arrow3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#121514"></path>
+            </marker>
+          </defs>
+          <rect x="20" y="132" width="165" height="84" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="102" y="164" text-anchor="middle" class="svg-text">Instruction</text>
+          <text x="102" y="185" text-anchor="middle" class="svg-small">"stack element_06"</text>
+
+          <rect x="242" y="76" width="180" height="90" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="332" y="110" text-anchor="middle" class="svg-text">Graph lookup</text>
+          <text x="332" y="131" text-anchor="middle" class="svg-small">element_06 back_span</text>
+          <text x="332" y="151" text-anchor="middle" class="svg-small">face features known</text>
+
+          <rect x="242" y="204" width="180" height="90" rx="8" fill="#111312" stroke="#111312"></rect>
+          <text x="332" y="238" text-anchor="middle" class="svg-text svg-invert">Operation</text>
+          <text x="332" y="259" text-anchor="middle" class="svg-small svg-accent">satisfy_constraint</text>
+          <text x="332" y="279" text-anchor="middle" class="svg-small svg-accent">bearing_contact</text>
+
+          <rect x="492" y="132" width="170" height="84" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="577" y="164" text-anchor="middle" class="svg-text">Solver</text>
+          <text x="577" y="185" text-anchor="middle" class="svg-small">z=0.26 centerline</text>
+
+          <rect x="724" y="132" width="140" height="84" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="794" y="164" text-anchor="middle" class="svg-text">Model update</text>
+          <text x="794" y="185" text-anchor="middle" class="svg-small">relations rel_005/006</text>
+
+          <rect x="916" y="80" width="110" height="64" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="971" y="110" text-anchor="middle" class="svg-text">MoveIt</text>
+          <text x="971" y="128" text-anchor="middle" class="svg-small">reachable?</text>
+
+          <rect x="916" y="204" width="110" height="64" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="971" y="234" text-anchor="middle" class="svg-text">Rhino/GH</text>
+          <text x="971" y="252" text-anchor="middle" class="svg-small">rendered</text>
+
+          <path d="M185 174 H214 V121 H242" stroke="#121514" stroke-width="2" fill="none" marker-end="url(#arrow3)"></path>
+          <path d="M185 174 H214 V249 H242" stroke="#121514" stroke-width="2" fill="none" marker-end="url(#arrow3)"></path>
+          <path d="M422 249 H455 V174 H492" stroke="#121514" stroke-width="2" fill="none" marker-end="url(#arrow3)"></path>
+          <path d="M662 174 H724" stroke="#121514" stroke-width="2" marker-end="url(#arrow3)"></path>
+          <path d="M864 174 H890 V112 H916" stroke="#121514" stroke-width="2" fill="none" marker-end="url(#arrow3)"></path>
+          <path d="M864 174 H890 V236 H916" stroke="#121514" stroke-width="2" fill="none" marker-end="url(#arrow3)"></path>
+        </svg>
+      </div>
+
+      <div class="code-grid">
+        <div>
+          <div class="code-title" style="background:#111312;border-radius:8px 8px 0 0;">Agent emits</div>
+          <div class="code-panel" style="border-radius:0 0 8px 8px;">
+<pre>{
+  <span class="key">"op"</span>: <span class="str">"edit_and_solve"</span>,
+  <span class="key">"target"</span>: <span class="str">"element_06"</span>,
+  <span class="key">"edits"</span>: [
+    {
+      <span class="key">"relation_type"</span>: <span class="str">"bearing_contact"</span>,
+      <span class="key">"a"</span>: <span class="str">"element_04.face_top"</span>,
+      <span class="key">"b"</span>: <span class="str">"element_06.face_bottom"</span>,
+      <span class="key">"role"</span>: <span class="str">"upper_left_bearing"</span>
+    },
+    {
+      <span class="key">"relation_type"</span>: <span class="str">"bearing_contact"</span>,
+      <span class="key">"a"</span>: <span class="str">"element_05.face_top"</span>,
+      <span class="key">"b"</span>: <span class="str">"element_06.face_bottom"</span>,
+      <span class="key">"role"</span>: <span class="str">"upper_right_bearing"</span>
+    }
+  ]
+}</pre>
+          </div>
+        </div>
+        <div>
+          <div class="code-title" style="background:#111312;border-radius:8px 8px 0 0;">Solver returns</div>
+          <div class="code-panel" style="border-radius:0 0 8px 8px;">
+<pre>{
+  <span class="key">"ok"</span>: <span class="str">true</span>,
+  <span class="key">"updated_bodies"</span>: [<span class="str">"element_06"</span>],
+  <span class="key">"pose_diff"</span>: {
+    <span class="key">"element_06"</span>: {
+      <span class="key">"xyz"</span>: [<span class="num">0.0</span>, <span class="num">0.259808</span>, <span class="num">0.26</span>],
+      <span class="key">"quat_xyzw"</span>: [<span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>, <span class="num">1</span>]
+    }
+  },
+  <span class="key">"relations"</span>: [
+    {
+      <span class="key">"id"</span>: <span class="str">"rel_005"</span>,
+      <span class="key">"relation_type"</span>: <span class="str">"bearing_contact"</span>,
+      <span class="key">"a"</span>: <span class="str">"element_04.face_top"</span>,
+      <span class="key">"b"</span>: <span class="str">"element_06.face_bottom"</span>,
+      <span class="key">"status"</span>: <span class="str">"built"</span>
+    },
+    {
+      <span class="key">"id"</span>: <span class="str">"rel_006"</span>,
+      <span class="key">"relation_type"</span>: <span class="str">"bearing_contact"</span>,
+      <span class="key">"a"</span>: <span class="str">"element_05.face_top"</span>,
+      <span class="key">"b"</span>: <span class="str">"element_06.face_bottom"</span>,
+      <span class="key">"status"</span>: <span class="str">"built"</span>
+    }
+  ]
+}</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="placement">
+      <div class="section-head">
+        <span class="section-number">06</span>
+        <h2>Where to implement it</h2>
+      </div>
+      <p class="lead">
+        Put the model where robot-side spatial context belongs: under Robot Control.
+        Keep Rhino/Grasshopper and ROS as projection adapters beside the existing MoveIt MCP.
+      </p>
+
+      <div class="diagram-panel">
+        <svg viewBox="0 0 1080 420" role="img" aria-label="Codebase module placement for shared geometry.">
+          <defs>
+            <marker id="arrow4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#121514"></path>
+            </marker>
+          </defs>
+
+          <rect x="25" y="40" width="190" height="78" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="120" y="74" text-anchor="middle" class="svg-text">voice_runtime</text>
+          <text x="120" y="94" text-anchor="middle" class="svg-small">audio pipeline only</text>
+
+          <rect x="280" y="40" width="190" height="78" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="375" y="74" text-anchor="middle" class="svg-text">agent_control</text>
+          <text x="375" y="94" text-anchor="middle" class="svg-small">LLM tool loop</text>
+
+          <rect x="535" y="40" width="190" height="78" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="630" y="74" text-anchor="middle" class="svg-text">robot_control</text>
+          <text x="630" y="94" text-anchor="middle" class="svg-small">policy + context + tools</text>
+
+          <rect x="510" y="172" width="240" height="116" rx="8" fill="#111312" stroke="#111312"></rect>
+          <text x="630" y="210" text-anchor="middle" class="svg-text svg-invert">shared_geometry</text>
+          <text x="630" y="233" text-anchor="middle" class="svg-small svg-accent">model, graph, features</text>
+          <text x="630" y="253" text-anchor="middle" class="svg-small svg-accent">operations, solver, store</text>
+
+          <rect x="810" y="154" width="190" height="78" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="905" y="188" text-anchor="middle" class="svg-text">geometry_adapters</text>
+          <text x="905" y="208" text-anchor="middle" class="svg-small">ROS + Rhino/GH</text>
+
+          <rect x="810" y="272" width="190" height="78" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="905" y="306" text-anchor="middle" class="svg-text">moveit_mcp</text>
+          <text x="905" y="326" text-anchor="middle" class="svg-small">planning + execution</text>
+
+          <rect x="510" y="336" width="240" height="58" rx="8" fill="#fff" stroke="#ccd2cc"></rect>
+          <text x="630" y="361" text-anchor="middle" class="svg-text">server/robot_control/shared_geometry</text>
+          <text x="630" y="380" text-anchor="middle" class="svg-small">common_model.json</text>
+
+          <path d="M215 79 H280" stroke="#121514" stroke-width="2" marker-end="url(#arrow4)"></path>
+          <path d="M470 79 H535" stroke="#121514" stroke-width="2" marker-end="url(#arrow4)"></path>
+          <path d="M630 118 V172" stroke="#121514" stroke-width="2" marker-end="url(#arrow4)"></path>
+          <path d="M750 193 H810" fill="none" stroke="#121514" stroke-width="2" marker-end="url(#arrow4)"></path>
+          <path d="M725 79 H1030 V311 H1000" fill="none" stroke="#121514" stroke-width="2" marker-end="url(#arrow4)"></path>
+          <path d="M630 288 V336" stroke="#121514" stroke-width="2" marker-end="url(#arrow4)"></path>
+        </svg>
+        <div class="caption">The core model stays pure and testable. Grasshopper builds display geometry from center pose and dimensions; MoveIt remains the movement-safety boundary.</div>
+      </div>
+    </section>
+
+    <section id="risks">
+      <div class="section-head">
+        <span class="section-number">07</span>
+        <h2>Risks and mitigations</h2>
+      </div>
+
+      <div class="table-shell">
+        <table>
+          <thead>
+            <tr>
+              <th>Risk</th>
+              <th>Sev</th>
+              <th>Mitigation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>The LLM treats the graph as physical truth.</td>
+              <td><span class="sev high">High</span></td>
+              <td>State clearly that the graph is assembly intent. Collision, reachability, support, and stability must be checked by deterministic tools.</td>
+            </tr>
+            <tr>
+              <td><code>common_model.json</code>, Grasshopper, and ROS state drift apart.</td>
+              <td><span class="sev high">High</span></td>
+              <td>Make <code>common_model.json</code> canonical. Treat Grasshopper Breps, RViz markers, and collision objects as regenerated projections.</td>
+            </tr>
+            <tr>
+              <td>The model becomes a raw render asset dump.</td>
+              <td><span class="sev med">Med</span></td>
+              <td>Keep primitives, poses, and generated features canonical. Store Rhino object IDs, GLB, USDZ, MarkerArray, and CollisionObject as derived adapter outputs.</td>
+            </tr>
+            <tr>
+              <td>The first schema tries to support every geometry type.</td>
+              <td><span class="sev med">Med</span></td>
+              <td>Start with boxes/beams, generated features, basic contacts, and subassemblies. Add more solids only when the beam workflow is stable.</td>
+            </tr>
+            <tr>
+              <td>Implementation leaks geometry math into agent prompts.</td>
+              <td><span class="sev low">Low</span></td>
+              <td>Expose narrow tools like <code>geometry_apply_operation</code> and <code>geometry_solve_grasp_pose</code>; keep math inside <code>shared_geometry</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="questions">
+      <div class="section-head">
+        <span class="section-number">08</span>
+        <h2>Next decisions</h2>
+      </div>
+
+      <div class="questions">
+        <div class="question">
+          <strong>How much history should the file store?</strong>
+          <p>Recommendation: keep current state plus a short operation history. Full replay can wait until the schema proves itself.</p>
+        </div>
+        <div class="question">
+          <strong>Should Grasshopper use the same file?</strong>
+          <p>Yes for v0.1. Let it read <code>common_model.json</code> and generate Rhino geometry from <code>solid.dimensions</code> plus <code>pose</code>. Add a separate generated projection file only when Grasshopper needs bake IDs, layers, or mesh caches.</p>
+        </div>
+        <div class="question">
+          <strong>What does <code>bearing_contact</code> mean?</strong>
+          <p>It means a named supporting feature bears on another named feature within tolerance. In the current file, <code>element_06.face_bottom</code> bears on <code>element_04.face_top</code> and <code>element_05.face_top</code>.</p>
+        </div>
+        <div class="question">
+          <strong>Which operations are v0.1?</strong>
+          <p>Start with <code>set_alignment</code>, <code>move_body</code>, <code>propose_contact</code>, <code>satisfy_constraint</code>, and <code>solve_grasp_pose</code>.</p>
+        </div>
+        <div class="question">
+          <strong>Where does ambiguity resolution live?</strong>
+          <p>The LLM may resolve "those two beams" using user sensing or selection context, but the geometry tool should reject unresolved references.</p>
+        </div>
+      </div>
+
+      <p class="source">
+        Source note: <a href="./shared-geometry-model-research-2026-05-12.md">shared-geometry-model-research-2026-05-12.md</a>.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

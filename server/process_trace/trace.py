@@ -209,6 +209,7 @@ class _TraceSpan:
     _span_id: str | None = None
     _started_at_unix_ns: int | None = None
     _token: Token[TraceContext | None] | None = None
+    _status: str = "ok"
 
     def __enter__(self) -> "_TraceSpan":
         parent_context = self._context or self._tracer.current_context()
@@ -224,6 +225,14 @@ class _TraceSpan:
         self._token = _set_trace_context(span_context)
         return self
 
+    def set_status(self, status: str) -> None:
+        self._status = status
+
+    def update_attributes(self, attributes: dict[str, Any]) -> None:
+        if self._attributes is None:
+            self._attributes = {}
+        self._attributes.update(attributes)
+
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
@@ -232,7 +241,7 @@ class _TraceSpan:
     ) -> bool:
         ended_at_unix_ns = time.time_ns()
         attributes = dict(self._attributes or {})
-        status = "ok"
+        status = self._status
         if exc is not None:
             status = "cancelled" if isinstance(exc, asyncio.CancelledError) else "error"
             attributes["error_type"] = type(exc).__name__
@@ -377,6 +386,12 @@ def _noop_record(
 class _NoopSpan:
     def __enter__(self) -> "_NoopSpan":
         return self
+
+    def set_status(self, status: str) -> None:
+        pass
+
+    def update_attributes(self, attributes: dict[str, Any]) -> None:
+        pass
 
     def __exit__(
         self,

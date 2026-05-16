@@ -13,7 +13,7 @@ async def test_submitter_queues_exact_tool_call_and_returns_queued_feedback() ->
     arguments = {"robot_name": "UR10", "timeout_s": 10}
 
     output = await submitter.submit_tool(
-        "moveit_plan_and_execute_free_motion",
+        "moveit_plan_free_motion",
         arguments,
         requested_by_turn_id="turn-1",
     )
@@ -21,7 +21,7 @@ async def test_submitter_queues_exact_tool_call_and_returns_queued_feedback() ->
     job = await board.claim_next()
     assert job is not None
     assert job.status is RobotJobStatus.RUNNING
-    assert job.tool_name == "moveit_plan_and_execute_free_motion"
+    assert job.tool_name == "moveit_plan_free_motion"
     assert job.arguments == arguments
     assert job.requested_by_turn_id == "turn-1"
     payload = json.loads(output)
@@ -29,16 +29,24 @@ async def test_submitter_queues_exact_tool_call_and_returns_queued_feedback() ->
         "ok": True,
         "status": "queued",
         "job_id": job.job_id,
-        "tool_name": "moveit_plan_and_execute_free_motion",
+        "tool_name": "moveit_plan_free_motion",
     }
     assert payload["is_error"] is False
     assert payload["content"] == [
-        f"Queued robot job {job.job_id} for moveit_plan_and_execute_free_motion. "
+        f"Queued robot job {job.job_id} for moveit_plan_free_motion. "
         "The robot worker will report completion or failure."
     ]
 
 
 def test_queueable_action_tools_do_not_include_observation() -> None:
     assert "moveit_get_current_pose" not in QUEUEABLE_ROBOT_ACTION_TOOLS
-    assert "moveit_plan_and_execute_free_motion" in QUEUEABLE_ROBOT_ACTION_TOOLS
+    assert "moveit_plan_and_execute_free_motion" not in QUEUEABLE_ROBOT_ACTION_TOOLS
+    assert "moveit_plan_free_motion" in QUEUEABLE_ROBOT_ACTION_TOOLS
+    assert "moveit_explain_motion_failure" not in QUEUEABLE_ROBOT_ACTION_TOOLS
+    assert "moveit_verify_attached_object" not in QUEUEABLE_ROBOT_ACTION_TOOLS
     assert "moveit_open_gripper" in QUEUEABLE_ROBOT_ACTION_TOOLS
+
+
+def test_pick_and_place_planning_are_queueable_robot_jobs() -> None:
+    assert "moveit_plan_pick" in QUEUEABLE_ROBOT_ACTION_TOOLS
+    assert "moveit_plan_place" in QUEUEABLE_ROBOT_ACTION_TOOLS

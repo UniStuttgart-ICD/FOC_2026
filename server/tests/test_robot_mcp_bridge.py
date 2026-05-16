@@ -36,6 +36,20 @@ class FakeServer:
         )
 
 
+class FakeFailedResultServer(FakeServer):
+    async def call_tool(self, tool_name, arguments):
+        self.called.append((tool_name, arguments))
+        return CallToolResult(
+            content=[TextContent(type="text", text="plan failed")],
+            structuredContent={
+                "ok": False,
+                "error": "Target is outside simulation workspace",
+                "retryable": False,
+            },
+            isError=True,
+        )
+
+
 def _trace_record_names(writer):
     return [record["name"] for record in writer.records]
 
@@ -53,6 +67,36 @@ class FakeCanonicalServer(FakeServer):
                 inputSchema={"type": "object"},
             ),
             Tool(name="moveit_get_robot_state", description="State", inputSchema={"type": "object"}),
+            Tool(name="moveit_list_scene_objects", description="Scene objects", inputSchema={"type": "object"}),
+            Tool(name="moveit_get_object_context", description="Object context", inputSchema={"type": "object"}),
+            Tool(name="moveit_plan_pick", description="Plan pick", inputSchema={"type": "object"}),
+            Tool(name="moveit_plan_place", description="Plan place", inputSchema={"type": "object"}),
+            Tool(name="moveit_plan_pick_task", description="Plan pick task", inputSchema={"type": "object"}),
+            Tool(name="moveit_plan_place_task", description="Plan place task", inputSchema={"type": "object"}),
+            Tool(
+                name="moveit_execute_task_solution",
+                description="Execute task solution",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "robot_name": {"type": "string"},
+                        "task_solution_id": {"type": "string"},
+                        "scene_snapshot_id": {"type": "string"},
+                        "timeout_s": {"type": "number"},
+                    },
+                    "required": ["robot_name", "task_solution_id", "scene_snapshot_id"],
+                },
+            ),
+            Tool(
+                name="moveit_explain_motion_failure",
+                description="Explain failure",
+                inputSchema={"type": "object"},
+            ),
+            Tool(
+                name="moveit_verify_attached_object",
+                description="Verify attached object",
+                inputSchema={"type": "object"},
+            ),
         ]
 
 
@@ -82,6 +126,39 @@ class FakeLegacyWorkflowServer(FakeServer):
                 inputSchema={"type": "object"},
             ),
         ]
+
+
+class FakeCartesianAliasServer(FakeServer):
+    async def list_tools(self):
+        return [
+            Tool(
+                name="moveit_plan_cartesian_motion",
+                description="Canonical Cartesian plan",
+                inputSchema={"type": "object"},
+            ),
+        ]
+
+
+TASK_SOLUTION_EXECUTION_PARAMETERS = {
+    "type": "object",
+    "properties": {
+        "robot_name": {"type": "string"},
+        "task_solution_id": {"type": "string"},
+        "timeout_s": {"type": "number"},
+    },
+    "required": ["robot_name", "task_solution_id"],
+    "additionalProperties": False,
+}
+TASK_PLAN_EXECUTION_PARAMETERS = {
+    "type": "object",
+    "properties": {
+        "robot_name": {"type": "string"},
+        "task_solution_id": {"type": "string"},
+        "timeout_s": {"type": "number"},
+    },
+    "required": ["robot_name", "task_solution_id"],
+    "additionalProperties": False,
+}
 
 
 @pytest.mark.asyncio
@@ -116,6 +193,33 @@ async def test_valid_call_tool_emits_validation_and_mcp_call_spans():
     assert mcp_call["attributes"]["tool.name"] == "moveit_get_current_pose"
     assert mcp_call["attributes"]["mcp.tool.name"] == "get_current_pose"
     assert mcp_call["attributes"]["tool.arguments"] == {"robot_name": "UR10"}
+
+
+@pytest.mark.asyncio
+async def test_failed_structured_tool_result_marks_mcp_call_span_failed_result():
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
+    server = FakeFailedResultServer()
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server, tracer=tracer)
+    await bridge.connect()
+
+    output = await bridge.call_tool("moveit_get_current_pose", {"robot_name": "UR10"})
+
+    assert json.loads(output) == {
+        "content": ["plan failed"],
+        "structured_content": {
+            "ok": False,
+            "error": "Target is outside simulation workspace",
+            "retryable": False,
+        },
+        "is_error": True,
+    }
+    mcp_call = _trace_record(writer, "robot.mcp.call_tool")
+    assert mcp_call["status"] == "failed-result"
+    assert mcp_call["attributes"]["mcp.transport.ok"] is True
+    assert mcp_call["attributes"]["tool.result.ok"] is False
+    assert mcp_call["attributes"]["tool.result.is_error"] is True
+    assert mcp_call["attributes"]["tool.result.error"] == "Target is outside simulation workspace"
 
 
 @pytest.mark.asyncio
@@ -237,6 +341,76 @@ async def test_calls_canonical_listed_tool_by_advertised_name():
             "parameters": {"type": "object"},
             "strict": None,
         },
+        {
+            "type": "function",
+            "name": "moveit_list_scene_objects",
+            "description": agent_tool_description("moveit_list_scene_objects"),
+            "parameters": {"type": "object"},
+            "strict": None,
+        },
+        {
+            "type": "function",
+            "name": "moveit_get_object_context",
+            "description": agent_tool_description("moveit_get_object_context"),
+            "parameters": {"type": "object"},
+            "strict": None,
+        },
+        {
+            "type": "function",
+            "name": "moveit_plan_pick_task",
+            "description": agent_tool_description("moveit_plan_pick_task"),
+            "parameters": {"type": "object"},
+            "strict": None,
+        },
+        {
+            "type": "function",
+            "name": "moveit_plan_place_task",
+            "description": agent_tool_description("moveit_plan_place_task"),
+            "parameters": {"type": "object"},
+            "strict": None,
+        },
+        {
+            "type": "function",
+            "name": "moveit_execute_task_plan",
+            "description": agent_tool_description("moveit_execute_task_plan"),
+            "parameters": TASK_PLAN_EXECUTION_PARAMETERS,
+            "strict": None,
+        },
+        {
+            "type": "function",
+            "name": "moveit_execute_task_solution",
+            "description": agent_tool_description("moveit_execute_task_solution"),
+            "parameters": TASK_SOLUTION_EXECUTION_PARAMETERS,
+            "strict": None,
+        },
+        {
+            "type": "function",
+            "name": "moveit_plan_pick",
+            "description": agent_tool_description("moveit_plan_pick"),
+            "parameters": {"type": "object"},
+            "strict": None,
+        },
+        {
+            "type": "function",
+            "name": "moveit_plan_place",
+            "description": agent_tool_description("moveit_plan_place"),
+            "parameters": {"type": "object"},
+            "strict": None,
+        },
+        {
+            "type": "function",
+            "name": "moveit_explain_motion_failure",
+            "description": agent_tool_description("moveit_explain_motion_failure"),
+            "parameters": {"type": "object"},
+            "strict": None,
+        },
+        {
+            "type": "function",
+            "name": "moveit_verify_attached_object",
+            "description": agent_tool_description("moveit_verify_attached_object"),
+            "parameters": {"type": "object"},
+            "strict": None,
+        },
     ]
 
     output = await bridge.call_tool("moveit_get_current_pose", {"robot_name": "UR10"})
@@ -247,33 +421,96 @@ async def test_calls_canonical_listed_tool_by_advertised_name():
     await bridge.call_tool("moveit_get_robot_state", {"robot_name": "UR10"})
     assert ("moveit_get_robot_state", {"robot_name": "UR10"}) in server.called
 
+    await bridge.call_tool("moveit_get_object_context", {"robot_name": "UR10", "object_name": "beam_001"})
+    assert ("moveit_get_object_context", {"robot_name": "UR10", "object_name": "beam_001"}) in server.called
+
+    pick_args = {"robot_name": "UR10", "object_name": "beam_001", "planning_strategy": "cartesian"}
+    await bridge.call_tool("moveit_plan_pick", pick_args)
+    assert ("moveit_plan_pick", pick_args) in server.called
+
+    place_args = {
+        "robot_name": "UR10",
+        "object_name": "beam_001",
+        "target_position": {"x": 0.75, "y": 0.2, "z": 0.28},
+        "orientation_mode": "horizontal",
+    }
+    await bridge.call_tool("moveit_plan_place", place_args)
+    assert ("moveit_plan_place", place_args) in server.called
+
+    pick_task_args = {"robot_name": "UR10", "object_name": "beam_001"}
+    await bridge.call_tool("moveit_plan_pick_task", pick_task_args)
+    assert ("moveit_plan_pick_task", pick_task_args) in server.called
+
+    place_task_args = {
+        "robot_name": "UR10",
+        "object_name": "beam_001",
+        "target_position": {"x": 0.75, "y": 0.2, "z": 0.28},
+        "orientation_mode": "keep",
+    }
+    await bridge.call_tool("moveit_plan_place_task", place_task_args)
+    assert ("moveit_plan_place_task", place_task_args) in server.called
+
+    execute_task_args = {
+        "robot_name": "UR10",
+        "task_solution_id": "pick_task_beam_001_001",
+    }
+    await bridge.call_tool("moveit_execute_task_solution", execute_task_args)
+    assert ("moveit_execute_task_solution", execute_task_args) in server.called
+
+    failure_args = {
+        "robot_name": "UR10",
+        "failed_tool_name": "moveit_plan_pick",
+        "failed_tool_result": {"ok": False, "feedback": {"status": "incomplete path"}},
+    }
+    await bridge.call_tool("moveit_explain_motion_failure", failure_args)
+    assert ("moveit_explain_motion_failure", failure_args) in server.called
+
+    verify_args = {"robot_name": "UR10", "object_name": "beam_001"}
+    await bridge.call_tool("moveit_verify_attached_object", verify_args)
+    assert ("moveit_verify_attached_object", verify_args) in server.called
+
 
 @pytest.mark.asyncio
-async def test_maps_legacy_plan_and_execute_workflows_to_canonical_agent_tools():
+async def test_task_solution_execution_schema_hides_upstream_scene_snapshot_id():
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeCanonicalServer())
+    await bridge.connect()
+
+    tools = {tool["name"]: tool for tool in bridge.function_tools()}
+
+    parameters = tools["moveit_execute_task_solution"]["parameters"]
+    assert parameters == TASK_SOLUTION_EXECUTION_PARAMETERS
+    assert "scene_snapshot_id" not in parameters["properties"]
+    assert "scene_snapshot_id" not in parameters["required"]
+
+
+@pytest.mark.asyncio
+async def test_bridge_advertises_synthetic_task_plan_execution_tool():
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeCanonicalServer())
+    await bridge.connect()
+
+    tools = {tool["name"]: tool for tool in bridge.function_tools()}
+
+    assert tools["moveit_execute_task_plan"] == {
+        "type": "function",
+        "name": "moveit_execute_task_plan",
+        "description": agent_tool_description("moveit_execute_task_plan"),
+        "parameters": TASK_PLAN_EXECUTION_PARAMETERS,
+        "strict": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_legacy_plan_and_execute_workflows_are_not_advertised():
     server = FakeLegacyWorkflowServer()
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
     await bridge.connect()
 
-    assert [tool["name"] for tool in bridge.function_tools()] == [
-        "moveit_plan_and_execute_free_motion",
-        "moveit_plan_and_execute_cartesian_motion",
-    ]
-
-    free_args = {
-        "robot_name": "UR10",
-        "target_pose": {
-            "position": {"x": 0.1, "y": 0.2, "z": 0.3},
-            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
-        },
-    }
-    await bridge.call_tool("moveit_plan_and_execute_free_motion", free_args)
-
-    assert server.called == [("plan_and_execute_free_motion", free_args)]
+    assert bridge.function_tools() == []
 
 
 @pytest.mark.asyncio
 async def test_normalizes_cartesian_points_alias_before_mcp_call():
-    server = FakeLegacyWorkflowServer()
+    server = FakeCartesianAliasServer()
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
     await bridge.connect()
     points = [
@@ -288,13 +525,13 @@ async def test_normalizes_cartesian_points_alias_before_mcp_call():
     ]
 
     await bridge.call_tool(
-        "moveit_plan_and_execute_cartesian_motion",
+        "moveit_plan_cartesian_motion",
         {"robot_name": "UR10", "points": points, "timeout_s": 10.0},
     )
 
     assert server.called == [
         (
-            "plan_and_execute_cartesian_motion",
+            "moveit_plan_cartesian_motion",
             {"robot_name": "UR10", "waypoints": points, "timeout_s": 10.0},
         )
     ]
@@ -302,7 +539,7 @@ async def test_normalizes_cartesian_points_alias_before_mcp_call():
 
 @pytest.mark.asyncio
 async def test_strips_cartesian_alias_when_waypoints_are_already_canonical():
-    server = FakeLegacyWorkflowServer()
+    server = FakeCartesianAliasServer()
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
     await bridge.connect()
     points = [
@@ -319,13 +556,13 @@ async def test_strips_cartesian_alias_when_waypoints_are_already_canonical():
     ]
 
     await bridge.call_tool(
-        "moveit_plan_and_execute_cartesian_motion",
+        "moveit_plan_cartesian_motion",
         {"robot_name": "UR10", "points": points, "waypoints": waypoints, "timeout_s": 10.0},
     )
 
     assert server.called == [
         (
-            "plan_and_execute_cartesian_motion",
+            "moveit_plan_cartesian_motion",
             {"robot_name": "UR10", "waypoints": waypoints, "timeout_s": 10.0},
         )
     ]

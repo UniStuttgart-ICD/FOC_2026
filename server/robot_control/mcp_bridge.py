@@ -20,6 +20,51 @@ from robot_control.call_validation import (
 )
 
 LEGACY_TO_AGENT_TOOL_NAMES = {legacy: agent for agent, legacy in AGENT_TO_LEGACY_MCP_TOOL_NAMES.items()}
+TASK_SOLUTION_EXECUTION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "robot_name": {"type": "string"},
+        "task_solution_id": {"type": "string"},
+        "timeout_s": {"type": "number"},
+    },
+    "required": ["robot_name", "task_solution_id"],
+    "additionalProperties": False,
+}
+TASK_PLAN_EXECUTION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "robot_name": {"type": "string"},
+        "task_solution_id": {"type": "string"},
+        "timeout_s": {"type": "number"},
+    },
+    "required": ["robot_name", "task_solution_id"],
+    "additionalProperties": False,
+}
+AGENT_TOOL_ORDER = {
+    name: index
+    for index, name in enumerate(
+        [
+            "moveit_get_current_pose",
+            "moveit_get_robot_state",
+            "moveit_list_scene_objects",
+            "moveit_get_object_context",
+            "moveit_plan_pick_task",
+            "moveit_plan_place_task",
+            "moveit_execute_task_plan",
+            "moveit_execute_task_solution",
+            "moveit_plan_pick",
+            "moveit_plan_place",
+            "moveit_plan_free_motion",
+            "moveit_plan_cartesian_motion",
+            "moveit_execute_plan",
+            "moveit_explain_motion_failure",
+            "moveit_verify_attached_object",
+            "moveit_open_gripper",
+            "moveit_close_gripper",
+            "moveit_attach_object",
+        ]
+    )
+}
 
 
 class RobotMCPError(RuntimeError):
@@ -119,8 +164,9 @@ class RobotMCPBridge:
                 existing = selected_tools.get(agent_name)
                 if existing is None or tool.name == agent_name:
                     selected_tools[agent_name] = tool
-        self._tools = list(selected_tools.values())
-        self._backing_tool_names = {agent_name: tool.name for agent_name, tool in selected_tools.items()}
+        ordered_tools = sorted(selected_tools.items(), key=lambda item: _agent_tool_order(item[0]))
+        self._tools = [tool for _, tool in ordered_tools]
+        self._backing_tool_names = {agent_name: tool.name for agent_name, tool in ordered_tools}
         self._connected = True
 
     async def disconnect(self) -> None:
@@ -140,11 +186,24 @@ class RobotMCPBridge:
                     "type": "function",
                     "name": agent_name,
                     "description": agent_tool_description(agent_name),
-                    "parameters": tool.inputSchema,
+                    "parameters": _agent_tool_schema(agent_name, tool.inputSchema),
                     "strict": None,
                 }
             )
-        return tools
+        if self._should_advertise_task_plan_execution():
+            tools.append(
+                {
+                    "type": "function",
+                    "name": "moveit_execute_task_plan",
+                    "description": agent_tool_description("moveit_execute_task_plan"),
+                    "parameters": _agent_tool_schema(
+                        "moveit_execute_task_plan",
+                        TASK_PLAN_EXECUTION_SCHEMA,
+                    ),
+                    "strict": None,
+                }
+            )
+        return sorted(tools, key=lambda tool: _agent_tool_order(str(tool.get("name") or "")))
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
         normalized_arguments = _normalize_agent_arguments(name, arguments)
@@ -180,9 +239,13 @@ class RobotMCPBridge:
             "robot.mcp.call_tool",
             "robot_control",
             attributes=call_attributes,
-        ):
+        ) as span:
             result = await self._server.call_tool(backing_tool_name, normalized_arguments)
             serialized_output = _serialize_tool_result(result)
+            result_attributes = _tool_result_trace_attributes(result)
+            span.update_attributes(result_attributes)
+            if _tool_result_failed(result):
+                span.set_status("failed-result")
             if self._tracer.options.include_tool_payloads:
                 self._tracer.event(
                     "robot.mcp.tool_result",
@@ -207,12 +270,12 @@ class RobotMCPBridge:
             attributes["tool.arguments"] = arguments
         return attributes
 
+    def _should_advertise_task_plan_execution(self) -> bool:
+        return "moveit_plan_pick_task" in self._backing_tool_names
+
 
 def _normalize_agent_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    if name not in {
-        "moveit_plan_cartesian_motion",
-        "moveit_plan_and_execute_cartesian_motion",
-    }:
+    if name != "moveit_plan_cartesian_motion":
         return arguments
     normalized = {key: value for key, value in arguments.items() if key not in {"points", "positions"}}
     if "waypoints" in normalized:
@@ -222,6 +285,28 @@ def _normalize_agent_arguments(name: str, arguments: dict[str, Any]) -> dict[str
         return arguments
     normalized["waypoints"] = points
     return normalized
+
+
+def _agent_tool_schema(name: str, input_schema: dict[str, Any]) -> dict[str, Any]:
+    if name == "moveit_execute_task_solution":
+        return {
+            "type": "object",
+            "properties": dict(TASK_SOLUTION_EXECUTION_SCHEMA["properties"]),
+            "required": list(TASK_SOLUTION_EXECUTION_SCHEMA["required"]),
+            "additionalProperties": False,
+        }
+    if name == "moveit_execute_task_plan":
+        return {
+            "type": "object",
+            "properties": dict(TASK_PLAN_EXECUTION_SCHEMA["properties"]),
+            "required": list(TASK_PLAN_EXECUTION_SCHEMA["required"]),
+            "additionalProperties": False,
+        }
+    return input_schema
+
+
+def _agent_tool_order(name: str) -> int:
+    return AGENT_TOOL_ORDER.get(name, len(AGENT_TOOL_ORDER))
 
 
 def _serialize_validation_failure(exc: RobotCallValidationError) -> str:
@@ -243,3 +328,23 @@ def _serialize_tool_result(result: CallToolResult) -> str:
         },
         ensure_ascii=False,
     )
+
+
+def _tool_result_failed(result: CallToolResult) -> bool:
+    structured_content = result.structuredContent
+    if isinstance(structured_content, dict) and structured_content.get("ok") is False:
+        return True
+    return result.isError is True
+
+
+def _tool_result_trace_attributes(result: CallToolResult) -> dict[str, Any]:
+    structured_content = result.structuredContent
+    attributes: dict[str, Any] = {
+        "mcp.transport.ok": True,
+        "tool.result.is_error": result.isError,
+    }
+    if isinstance(structured_content, dict) and "ok" in structured_content:
+        attributes["tool.result.ok"] = structured_content["ok"]
+    if isinstance(structured_content, dict) and isinstance(structured_content.get("error"), str):
+        attributes["tool.result.error"] = structured_content["error"]
+    return attributes

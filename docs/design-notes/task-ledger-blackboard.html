@@ -37,6 +37,10 @@
       scroll-behavior: smooth;
     }
 
+    section {
+      scroll-margin-top: 82px;
+    }
+
     body {
       margin: 0;
       color: var(--ink);
@@ -127,11 +131,11 @@
 
     .hero {
       display: grid;
-      grid-template-columns: minmax(300px, 0.95fr) minmax(520px, 1.25fr);
-      gap: clamp(24px, 4vw, 56px);
-      min-height: calc(100vh - 64px);
-      padding: clamp(34px, 6vw, 80px) clamp(16px, 4vw, 52px) 38px;
-      align-items: center;
+      grid-template-columns: minmax(300px, 0.78fr) minmax(520px, 1.22fr);
+      gap: clamp(22px, 3vw, 42px);
+      min-height: auto;
+      padding: clamp(28px, 4vw, 54px) clamp(16px, 4vw, 52px) 34px;
+      align-items: start;
     }
 
     .eyebrow {
@@ -154,31 +158,32 @@
     }
 
     h1 {
-      max-width: 760px;
-      margin-top: 18px;
-      font-size: clamp(3rem, 8vw, 7.6rem);
-      line-height: 0.88;
+      max-width: 680px;
+      margin-top: 14px;
+      font-family: "Bahnschrift", "Aptos", "Segoe UI", sans-serif;
+      font-size: clamp(1.7rem, 2.5vw, 2.75rem);
+      line-height: 1.12;
     }
 
     .lead {
-      max-width: 720px;
-      margin: 20px 0 0;
+      max-width: 680px;
+      margin: 16px 0 0;
       color: var(--muted);
-      font-size: clamp(1.05rem, 1.7vw, 1.3rem);
+      font-size: clamp(1rem, 1.25vw, 1.14rem);
     }
 
     .thesis {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 1px;
-      margin-top: 30px;
+      margin-top: 22px;
       max-width: 760px;
       border: 1px solid var(--line);
       background: var(--line);
     }
 
     .thesis-item {
-      min-height: 126px;
+      min-height: 104px;
       padding: 16px;
       background: rgba(25, 29, 26, 0.9);
     }
@@ -521,6 +526,245 @@
       font-size: 0.88rem;
     }
 
+    .prototype-shell {
+      display: grid;
+      grid-template-columns: minmax(320px, 0.82fr) minmax(0, 1.18fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .prototype-options {
+      display: grid;
+      gap: 10px;
+    }
+
+    .prototype-option {
+      position: relative;
+      min-height: 164px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: rgba(25, 29, 26, 0.82);
+      text-align: left;
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    .prototype-option::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 6px;
+      background: var(--accent);
+    }
+
+    .prototype-option[aria-pressed="true"] {
+      color: var(--ink);
+      border-color: var(--paper);
+      background:
+        linear-gradient(90deg, rgba(228, 213, 188, 0.12), rgba(255, 255, 255, 0.02)),
+        var(--panel);
+    }
+
+    .prototype-option strong {
+      display: block;
+      color: var(--paper);
+      margin-bottom: 8px;
+      font-size: 1.05rem;
+    }
+
+    .prototype-option span {
+      display: block;
+      margin-bottom: 14px;
+    }
+
+    .prototype-meters {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .meter {
+      padding: 7px;
+      color: #101311;
+      background: var(--meter-bg);
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .prototype-detail {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      min-height: 560px;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(135deg, rgba(123, 184, 216, 0.08), transparent 38%),
+        rgba(25, 29, 26, 0.94);
+      overflow: hidden;
+    }
+
+    .prototype-detail-head {
+      display: grid;
+      gap: 10px;
+      padding: 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.16);
+    }
+
+    .prototype-detail-head h3 {
+      font-size: clamp(1.9rem, 3.2vw, 3.2rem);
+      line-height: 0.96;
+    }
+
+    .prototype-detail-head p {
+      max-width: 860px;
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .prototype-flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 1px;
+      border-bottom: 1px solid var(--line);
+      background: var(--line);
+    }
+
+    .flow-step {
+      min-height: 118px;
+      padding: 13px;
+      background: var(--panel);
+    }
+
+    .flow-step b {
+      display: block;
+      color: var(--paper);
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.8rem;
+      margin-bottom: 8px;
+    }
+
+    .flow-step span {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .prototype-columns {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+    }
+
+    .prototype-column {
+      min-height: 260px;
+      padding: 16px;
+      background: var(--panel);
+    }
+
+    .prototype-column h4 {
+      margin: 0 0 12px;
+      color: var(--paper);
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.86rem;
+      letter-spacing: 0;
+    }
+
+    .prototype-column ul {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    .prototype-example {
+      padding: 16px;
+      border-top: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.16);
+    }
+
+    .prototype-example h4 {
+      margin: 0 0 8px;
+      color: var(--paper);
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.86rem;
+      letter-spacing: 0;
+    }
+
+    .prototype-example p {
+      margin: 0 0 14px;
+      color: var(--muted);
+    }
+
+    .example-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      border: 1px solid var(--line);
+      background: var(--line);
+    }
+
+    .example-card {
+      min-height: 154px;
+      padding: 14px;
+      background: var(--panel);
+    }
+
+    .example-card b {
+      display: block;
+      color: var(--paper);
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.8rem;
+      margin-bottom: 8px;
+    }
+
+    .example-card span {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .compare-matrix {
+      display: grid;
+      grid-template-columns: 1fr repeat(3, minmax(0, 1.1fr));
+      gap: 1px;
+      margin-top: 18px;
+      border: 1px solid var(--line);
+      background: var(--line);
+    }
+
+    .compare-cell {
+      min-height: 78px;
+      padding: 12px;
+      background: var(--panel);
+      color: var(--muted);
+    }
+
+    .compare-cell b {
+      display: block;
+      color: var(--paper);
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.78rem;
+      margin-bottom: 6px;
+    }
+
+    .compare-cell.header {
+      min-height: 54px;
+      color: var(--paper);
+      background: rgba(0, 0, 0, 0.22);
+      font-weight: 700;
+    }
+
+    .path-note {
+      margin-top: 18px;
+      padding: 15px 16px;
+      border-left: 4px solid var(--green);
+      color: var(--muted);
+      background: var(--green-soft);
+    }
+
     .artifact-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -637,6 +881,10 @@
       .job,
       .event-cell,
       .coordinator-node,
+      .prototype-option,
+      .flow-step,
+      .compare-cell,
+      .example-card,
       .artifact,
       .strip-cell {
         transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
@@ -646,6 +894,10 @@
       .job:hover,
       .event-cell:hover,
       .coordinator-node:hover,
+      .prototype-option:hover,
+      .flow-step:hover,
+      .compare-cell:hover,
+      .example-card:hover,
       .artifact:hover,
       .strip-cell:hover {
         transform: translateY(-2px);
@@ -665,12 +917,21 @@
 
     @media (max-width: 1080px) {
       .hero,
-      .scenario-shell {
+      .scenario-shell,
+      .prototype-shell {
         grid-template-columns: 1fr;
       }
 
       .diagram-card {
         min-width: 0;
+      }
+
+      .prototype-flow {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .example-grid {
+        grid-template-columns: 1fr;
       }
 
       .artifact-grid,
@@ -696,6 +957,10 @@
       .job-grid,
       .event-grid,
       .scenario-grid,
+      .prototype-flow,
+      .prototype-columns,
+      .example-grid,
+      .compare-matrix,
       .artifact-grid,
       .event-strip {
         grid-template-columns: 1fr;
@@ -724,7 +989,9 @@
     </div>
     <nav class="nav" aria-label="Sections">
       <a href="#model">Model</a>
+      <a href="#current">Current</a>
       <a href="#scenarios">Scenarios</a>
+      <a href="#prototypes">Prototypes</a>
       <a href="#implementation">Implementation</a>
       <a href="#events">Events</a>
     </nav>
@@ -734,22 +1001,22 @@
     <section class="hero" id="model">
       <div>
         <div class="eyebrow">turn_id -> task_id -> job_id</div>
-        <h1>Make the blackboard remember intent, not just execution.</h1>
+        <h1>Task ledger for robot command recovery</h1>
         <p class="lead">
-          The current job board can track many queued MoveIt calls. The missing layer is a task ledger above it, so background recovery, new user commands, retries, and cancellations all attach to the right user intent.
+          Updated after the 2026-05-15 retry-loop fix. The Robot Job Blackboard and worker stay in place; the new change adds a small safety gate so worker failure notifications cannot accidentally become fresh permission to execute an old pending plan.
         </p>
         <div class="thesis" aria-label="Main design claims">
           <div class="thesis-item">
             <strong>Jobs are tool executions.</strong>
-            <span>One MoveIt call, one result, one terminal event.</span>
+            <span>The worker runs the exact queued MoveIt call and reports one terminal event.</span>
           </div>
           <div class="thesis-item">
-            <strong>Tasks are user intent.</strong>
-            <span>One command may produce several jobs and recovery turns.</span>
+            <strong>Events are facts.</strong>
+            <span>A failed worker event is not a new user command and not execution approval.</span>
           </div>
           <div class="thesis-item">
-            <strong>The coordinator owns concurrency.</strong>
-            <span>The LLM acts only inside a selected task context.</span>
+            <strong>Tasks are the next layer.</strong>
+            <span>The full ledger can build on this gate by adding task ownership above jobs.</span>
           </div>
         </div>
       </div>
@@ -777,7 +1044,7 @@
               <div class="turns">
                 <div class="coordinator-node accent-red"><b>failure event</b><span>Do not speak over newer user intent.</span></div>
                 <div class="coordinator-node accent-blue"><b>independent</b><span>Run immediately. It does not touch the robot queue.</span></div>
-                <div class="coordinator-node accent-amber"><b>continuation</b><span>Attach as child task or retry plan.</span></div>
+                <div class="coordinator-node accent-amber"><b>recovery gate</b><span>Recovery may plan, but may not auto-execute an old plan.</span></div>
               </div>
             </div>
           </div>
@@ -797,7 +1064,7 @@
                   <div class="ticket accent-blue"><b>answer</b><span>Return observation while task-a waits.</span></div>
                 </div>
                 <div class="lane">
-                  <div class="lane-name"><span>task-c</span><span class="status queued">child</span></div>
+                  <div class="lane-name"><span>task-c</span><span class="status queued">future child</span></div>
                   <div class="ticket accent-amber"><b>parent_task</b><span>task-a</span></div>
                   <div class="ticket accent-amber"><b>supersedes</b><span>task-a recovery proposal.</span></div>
                 </div>
@@ -822,12 +1089,51 @@
               <div class="event-grid">
                 <div class="event-cell accent-red"><b>job_failed</b><span>Attached to task-a.</span></div>
                 <div class="event-cell accent-blue"><b>task_completed</b><span>Attached to task-b.</span></div>
-                <div class="event-cell accent-amber"><b>job_queued</b><span>Attached to task-c.</span></div>
+                <div class="event-cell accent-amber"><b>recovery_turn</b><span>Pending auto-exec disabled.</span></div>
               </div>
             </div>
           </div>
         </div>
       </section>
+    </section>
+
+    <section class="band" id="current">
+      <div class="band-head">
+        <h2>Current State</h2>
+        <p>The shipped fix is a narrow safety layer on top of the existing blackboard worker. It does not add the full task ledger yet.</p>
+      </div>
+      <div class="artifact-grid">
+        <article class="artifact">
+          <h3>What already existed</h3>
+          <p>The agent queues long-running MoveIt work on the Robot Job Blackboard. The Robot Job Worker executes the exact queued call and reports completed or failed.</p>
+          <div class="mini-code">
+            <span>RobotJobBoard</span>
+            <span>RobotJobWorker</span>
+            <span>job_queued -> job_failed</span>
+          </div>
+        </article>
+        <article class="artifact">
+          <h3>What changed now</h3>
+          <p>Internal recovery turns carry a flag that blocks automatic execution of a pending plan. A failed execute job reports the blocker directly.</p>
+          <div class="mini-code">
+            <span>allow_pending_plan_execution = false</span>
+            <span>moveit_execute_plan failure -> blocker text</span>
+            <span>planning failure -> guarded recovery</span>
+          </div>
+        </article>
+        <article class="artifact">
+          <h3>What comes next</h3>
+          <p>The task ledger can add user-intent ownership above jobs: task ids, parent-child retries, cancellation, and stale-recovery suppression by task.</p>
+          <div class="mini-code">
+            <span>turn_id -> task_id -> job_id</span>
+            <span>continuation vs conflict</span>
+            <span>coordinator leases</span>
+          </div>
+        </article>
+      </div>
+      <div class="path-note">
+        Plain-language read: this builds on the blackboard. The worker still does deterministic robot work; the new gate controls how the agent reacts to worker failure facts.
+      </div>
     </section>
 
     <section class="band" id="scenarios">
@@ -887,20 +1193,129 @@
       </div>
     </section>
 
+    <section class="band" id="prototypes">
+      <div class="band-head">
+        <h2>Prototype Paths</h2>
+        <p>Three implementation slices, each useful for a different goal. The selector now shows concrete examples so we can discuss behavior instead of abstract architecture.</p>
+      </div>
+      <div class="prototype-shell">
+        <div class="prototype-options" role="group" aria-label="Prototype selector">
+          <button class="prototype-option accent-green" type="button" data-prototype="correlated" aria-pressed="true">
+            <strong>A. Current Worker Safety Gate</strong>
+            <span>Implemented slice: keep the worker blackboard, but stop failed internal notifications from auto-executing old pending plans.</span>
+            <div class="prototype-meters" aria-label="Prototype A scores">
+              <div class="meter" style="--meter-bg: var(--green)">shipped</div>
+              <div class="meter" style="--meter-bg: var(--amber)">scope tiny</div>
+              <div class="meter" style="--meter-bg: var(--blue)">proof safety</div>
+            </div>
+          </button>
+          <button class="prototype-option accent-amber" type="button" data-prototype="coordinator" aria-pressed="false">
+            <strong>B. Task-Correlated Blackboard</strong>
+            <span>Next slice: add task ownership and stale-recovery suppression while keeping robot execution deterministic.</span>
+            <div class="prototype-meters" aria-label="Prototype B scores">
+              <div class="meter" style="--meter-bg: var(--green)">risk low</div>
+              <div class="meter" style="--meter-bg: var(--amber)">scope small</div>
+              <div class="meter" style="--meter-bg: var(--blue)">proof lineage</div>
+            </div>
+          </button>
+          <button class="prototype-option accent-blue" type="button" data-prototype="evented" aria-pressed="false">
+            <strong>C. Task Event Ledger</strong>
+            <span>Trace-first slice: record task events and replay timelines before committing to heavier arbitration.</span>
+            <div class="prototype-meters" aria-label="Prototype C scores">
+            <div class="meter" style="--meter-bg: var(--green)">risk low-med</div>
+            <div class="meter" style="--meter-bg: var(--amber)">scope med</div>
+            <div class="meter" style="--meter-bg: var(--blue)">proof replay</div>
+            </div>
+          </button>
+        </div>
+
+        <div class="prototype-detail" aria-live="polite">
+          <div class="prototype-detail-head">
+            <div class="eyebrow" id="prototypeBadge">implemented 2026-05-15</div>
+            <h3 id="prototypeTitle">Current Worker Safety Gate</h3>
+            <p id="prototypeSummary">Keep the Robot Job Blackboard and worker. Add a narrow gate so failed worker notifications can explain or recover, but cannot silently execute a pending plan unless the user turn allows it.</p>
+          </div>
+          <div class="prototype-flow" id="prototypeFlow">
+            <div class="flow-step"><b>01 job</b><span>Worker reports failed job.</span></div>
+            <div class="flow-step"><b>02 execute</b><span>Execute failure becomes blocker text.</span></div>
+            <div class="flow-step"><b>03 planning</b><span>Planning failure may ask graph for recovery.</span></div>
+            <div class="flow-step"><b>04 gate</b><span>Recovery turn disables pending auto-exec.</span></div>
+            <div class="flow-step"><b>05 user</b><span>Fresh user turn may still execute explicitly.</span></div>
+          </div>
+          <div class="prototype-columns">
+            <div class="prototype-column">
+              <h4>Module Changes</h4>
+              <ul id="prototypeChanges">
+                <li>Add allow_pending_plan_execution to AgentTurnInput.</li>
+                <li>Gate pending-plan auto-execution after robot observation.</li>
+                <li>Return deterministic text for failed moveit_execute_plan jobs.</li>
+              </ul>
+            </div>
+            <div class="prototype-column">
+              <h4>What It Proves</h4>
+              <ul id="prototypeProof">
+                <li>Worker failure facts no longer become hidden execution approval.</li>
+                <li>The blackboard worker remains deterministic.</li>
+                <li>The task ledger can be added as a layer above this gate.</li>
+              </ul>
+            </div>
+            <div class="prototype-column">
+              <h4>Does Not Solve Yet</h4>
+              <ul id="prototypeLimits">
+                <li>No task_id ownership yet.</li>
+                <li>No real job cancellation or robot preemption.</li>
+                <li>No full concurrent command coordinator.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="prototype-example">
+            <h4>Concrete Example</h4>
+            <p id="prototypeExampleIntro">User says "reach in my direction". Planning eventually produces a plan, but execution fails because the verified execution server is unavailable.</p>
+            <div class="example-grid" id="prototypeExamples">
+              <div class="example-card"><b>What changes</b><span>The failed execute job speaks the blocker. It does not ask the graph to recover by executing the old plan.</span></div>
+              <div class="example-card"><b>System behavior</b><span>Planning failures can still recover, but those recovery turns cannot auto-execute a pending plan.</span></div>
+              <div class="example-card"><b>Test evidence</b><span>Regressions cover execute failure text, guarded recovery turns, and graph routing with pending auto-exec disabled.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-matrix" aria-label="Prototype comparison matrix">
+        <div class="compare-cell header">Dimension</div>
+        <div class="compare-cell header">A. Gate</div>
+        <div class="compare-cell header">B. Correlate</div>
+        <div class="compare-cell header">C. Replay</div>
+        <div class="compare-cell"><b>Best for</b>Immediate safety</div>
+        <div class="compare-cell">Stopping the observed retry loop without changing the worker.</div>
+        <div class="compare-cell">End-to-end IDs with little behavior churn.</div>
+        <div class="compare-cell">Understanding traces before changing behavior.</div>
+        <div class="compare-cell"><b>Primary risk</b>Partial model</div>
+        <div class="compare-cell">Blocks the loop but does not model user intent as tasks.</div>
+        <div class="compare-cell">May suppress useful recovery after any newer turn.</div>
+        <div class="compare-cell">More observability than behavior improvement.</div>
+        <div class="compare-cell"><b>Recommended order</b>Stackable</div>
+        <div class="compare-cell">Already implemented.</div>
+        <div class="compare-cell">Build next.</div>
+        <div class="compare-cell">Can build beside A or before B.</div>
+      </div>
+      <div class="path-note">
+        My merge recommendation: keep the current safety gate, then add task correlation. Add event replay when traces become hard to explain by reading logs.
+      </div>
+    </section>
+
     <section class="band" id="implementation">
       <div class="band-head">
         <h2>Code Shape</h2>
-        <p>Keep the current job board deterministic. Add task ownership above it and route failed jobs through a coordinator instead of directly into a recovery graph turn.</p>
+        <p>Keep the current job board deterministic. The shipped gate sits between worker events and graph recovery; the future task ledger sits above jobs.</p>
       </div>
       <div class="artifact-grid">
         <article class="artifact">
-          <h3>RobotTaskBoard</h3>
-          <p>Stores user-level intent, task status, parent/supersedes links, and which jobs belong to each task.</p>
+          <h3>AgentTurnInput</h3>
+          <p>Carries whether this turn may auto-execute a pending plan. Normal user turns default to yes; internal recovery turns can say no.</p>
           <div class="mini-code">
-            <span>task_id</span>
-            <span>requested_by_turn_id</span>
-            <span>jobs: list[str]</span>
-            <span>status: recovering | blocked | done</span>
+            <span>user_text</span>
+            <span>messages</span>
+            <span>allow_pending_plan_execution</span>
           </div>
         </article>
         <article class="artifact">
@@ -908,27 +1323,27 @@
           <p>Still owns exact MoveIt calls. The worker must not repair, reinterpret, or merge commands.</p>
           <div class="mini-code">
             <span>job_id</span>
-            <span>task_id</span>
             <span>tool_name</span>
             <span>arguments</span>
+            <span>terminal event</span>
           </div>
         </article>
         <article class="artifact">
-          <h3>TaskCoordinator</h3>
-          <p>Classifies new turns against active tasks before deciding whether to run, attach, queue, cancel, or recover.</p>
+          <h3>LangGraph Gate</h3>
+          <p>Checks the turn flag before executing the latest pending plan after observation.</p>
           <div class="mini-code">
-            <span>classify_turn(...)</span>
-            <span>route_event(...)</span>
-            <span>select_task_context(...)</span>
+            <span>observe_current_pose</span>
+            <span>if allowed: execute_pending_plan</span>
+            <span>else: call_model</span>
           </div>
         </article>
         <article class="artifact">
           <h3>Recovery Turn</h3>
-          <p>Runs only when selected by the coordinator and includes explicit task context, not just a plain user-looking prompt.</p>
+          <p>Planning-job recovery can still ask the graph for help, but it disables pending-plan auto-execution.</p>
           <div class="mini-code">
-            <span>source = "task_recovery"</span>
-            <span>task_id = "task-a"</span>
-            <span>job_id = "job-91"</span>
+            <span>source = failed_job</span>
+            <span>allow_pending_plan_execution = false</span>
+            <span>execute failure = blocker text</span>
           </div>
         </article>
       </div>
@@ -937,24 +1352,146 @@
     <section class="band" id="events">
       <div class="band-head">
         <h2>Event Grammar</h2>
-        <p>This is the minimum event vocabulary I would want before letting multiple commands and background recovery run at the same time.</p>
+        <p>Current worker events are enough for the safety gate. The task events are the future vocabulary for full concurrent command handling.</p>
       </div>
       <div class="event-strip">
-        <div class="strip-cell"><b>task_created</b><span>A user turn becomes a tracked intent.</span></div>
-        <div class="strip-cell"><b>job_queued</b><span>A MoveIt tool call is attached to one task.</span></div>
-        <div class="strip-cell"><b>job_failed</b><span>The failure payload stays on the job and task.</span></div>
-        <div class="strip-cell"><b>recovery_requested</b><span>The coordinator, not the worker, asks for recovery.</span></div>
-        <div class="strip-cell"><b>task_superseded</b><span>A newer command replaces older recovery.</span></div>
-        <div class="strip-cell"><b>task_cancelled</b><span>Stop/forget commands suppress stale follow-up.</span></div>
+        <div class="strip-cell"><b>job_queued</b><span>Current: a MoveIt tool call entered the worker queue.</span></div>
+        <div class="strip-cell"><b>job_completed</b><span>Current: the worker produced a terminal success event.</span></div>
+        <div class="strip-cell"><b>job_failed</b><span>Current: the worker produced a terminal failure event.</span></div>
+        <div class="strip-cell"><b>recovery_guarded</b><span>Current: internal recovery may not auto-execute a pending plan.</span></div>
+        <div class="strip-cell"><b>task_created</b><span>Future: a user turn becomes tracked intent.</span></div>
+        <div class="strip-cell"><b>task_superseded</b><span>Future: a newer command replaces older recovery.</span></div>
       </div>
     </section>
   </main>
 
   <footer class="footer">
-    Static visualization for the Pipecat robot agent. Design target: keep MoveIt jobs deterministic, make user intent first-class, and let a coordinator arbitrate concurrent turns before any recovery LLM call.
+    Static visualization for the Pipecat robot agent. Current target: keep MoveIt jobs deterministic, treat worker events as facts, and add user-intent task ownership as the next layer.
   </footer>
 
   <script>
+    const prototypes = {
+      correlated: {
+        badge: "implemented 2026-05-15",
+        title: "Current Worker Safety Gate",
+        summary: "Keep the Robot Job Blackboard and worker. Add a narrow gate so failed worker notifications can explain or recover, but cannot silently execute a pending plan unless the user turn allows it.",
+        flow: [
+          ["01 job", "Worker reports failed job."],
+          ["02 execute", "Execute failure becomes blocker text."],
+          ["03 planning", "Planning failure may ask graph for recovery."],
+          ["04 gate", "Recovery turn disables pending auto-exec."],
+          ["05 user", "Fresh user turn may still execute explicitly."]
+        ],
+        changes: [
+          "Add allow_pending_plan_execution to AgentTurnInput.",
+          "Copy that flag into LangGraphRobotAgent state.",
+          "Check the flag before executing the latest pending plan.",
+          "For failed moveit_execute_plan jobs, return deterministic blocker text.",
+          "For planning-job recovery turns, set allow_pending_plan_execution to false."
+        ],
+        proof: [
+          "Worker failure facts no longer become hidden execution approval.",
+          "The blackboard worker remains deterministic.",
+          "Execute failure messages do not invoke graph recovery.",
+          "Planning recovery can still propose a new plan.",
+          "The task ledger can be added as a layer above this gate."
+        ],
+        limits: [
+          "No task_id ownership yet.",
+          "No real job cancellation or robot preemption.",
+          "No full concurrent command coordinator.",
+          "No durable persistence.",
+          "No parent-child task lineage.",
+          "Independent read-only turns are not deeply modeled yet."
+        ],
+        exampleIntro: "Example: user says \"reach in my direction\". Planning eventually produces a plan, but execution fails because the verified execution server is unavailable.",
+        examples: [
+          ["What changes", "The failed execute job speaks the blocker. It does not ask the graph to recover by executing the old plan."],
+          ["System behavior", "Planning failures can still recover, but those recovery turns cannot auto-execute a pending plan."],
+          ["Test evidence", "Regressions cover execute failure text, guarded recovery turns, and graph routing with pending auto-exec disabled."]
+        ]
+      },
+      coordinator: {
+        badge: "recommended next slice",
+        title: "Task-Correlated Robot Job Blackboard",
+        summary: "Add task ownership around the existing job board without changing robot execution. Every MoveIt job knows which user intent owns it, and failed-job recovery is allowed only while that task is still current.",
+        flow: [
+          ["01 turn", "User command opens a task."],
+          ["02 job", "MoveIt job gets task_id."],
+          ["03 current", "Ledger remembers the latest task."],
+          ["04 worker", "Worker behavior stays unchanged."],
+          ["05 gate", "Recover only if still current."]
+        ],
+        changes: [
+          "Add optional task_id to SubmitRobotJob, RobotJob, and RobotJobEvent.",
+          "Add a small TaskLedger in Agent Control with open_task, attach_job, mark_failed, and is_current.",
+          "When LangGraph queues a MoveIt action, RobotJobSubmitter attaches the active task_id.",
+          "Gate failed-job recovery with ledger.is_current(task_id).",
+          "Keep RobotJobWorker simple: claim job, call exact tool, report result."
+        ],
+        proof: [
+          "turn_id -> task_id -> job_id correlation works.",
+          "Failed jobs tie back to user intent.",
+          "Recovery retries can stay attached to the original task.",
+          "Stale recovery can be suppressed without changing MoveIt or tool execution.",
+          "The current safety gate has a task-aware owner."
+        ],
+        limits: [
+          "No rich concurrent scheduling.",
+          "No durable persistence.",
+          "Newer-turn-wins is conservative, not semantic.",
+          "No hard preemption of a running MoveIt action.",
+          "Independent read-only turns are still lightly modeled."
+        ],
+        exampleIntro: "Example: user says \"touch the table at z=0\". MoveIt returns 0 trajectory points. Before recovery speaks, the user asks \"what is your pose?\"",
+        examples: [
+          ["What changes", "The failed MoveIt job carries task-a. The pose question opens task-b. The worker still executed the original z=0 tool call exactly."],
+          ["System behavior", "The pose answer can run. When the failure notification for task-a arrives, recovery is skipped if task-a is no longer current."],
+          ["Test evidence", "Assert job-91 has task-a, pose turn has task-b, and superseded task-a does not trigger graph.run_turn recovery."]
+        ]
+      },
+      evented: {
+        badge: "observability prototype",
+        title: "Task Event Ledger",
+        summary: "Build an append-only task event layer and replay timeline. This does less immediate behavior work than the coordinator, but gives us a precise record of task/job/recovery ordering before we change more runtime semantics.",
+        flow: [
+          ["01 event", "User turn emits task_opened."],
+          ["02 attach", "Job event attaches to task."],
+          ["03 fail", "Job failure emits recovery_requested."],
+          ["04 replay", "Timeline reconstructs active task state."],
+          ["05 decide", "Suppress, defer, or start recovery from evidence."]
+        ],
+        changes: [
+          "Add robot_control/task_ledger.py with event reducer and replay helpers.",
+          "Mirror task_id into job events and Process Trace attributes.",
+          "Record recovery_requested before any recovery graph turn.",
+          "Use golden timelines for concurrency cases.",
+          "Expose task snapshots reconstructed from events, not mutable guesses.",
+          "Keep behavior close to today until replay shows the failure modes clearly."
+        ],
+        proof: [
+          "Task lineage is inspectable in traces.",
+          "Stale recovery can be detected by replay.",
+          "Retry jobs stop floating as anonymous background work.",
+          "Concurrency semantics can be validated with fixtures.",
+          "Debugging becomes less log archaeology and more timeline inspection."
+        ],
+        limits: [
+          "Does not define full coordinator policy.",
+          "Does not classify attach vs supersede vs cancel by itself.",
+          "May add observability before user-visible behavior improves.",
+          "Still process-local unless persistence is added.",
+          "Can become another log stream unless the reducer and fixtures stay small."
+        ],
+        exampleIntro: "Example: a run contains turn-42, job-91 failed, turn-43 asks for pose, and recovery for job-91 tries to speak after turn-43.",
+        examples: [
+          ["What changes", "The ledger records task_opened, job_attached, job_failed, recovery_requested, task_opened, and recovery_suppressed as ordered facts."],
+          ["System behavior", "At first, behavior may remain mostly the same. The value is a replay that proves exactly when recovery became stale."],
+          ["Test evidence", "Golden fixture replay: feed six events into the reducer and assert task-a is recovery_pending, task-b is completed, and job-91 recovery is stale."]
+        ]
+      }
+    };
+
     const scenarios = {
       independent: {
         title: "Independent command",
@@ -1076,6 +1613,54 @@
     buttons.forEach((button) => {
       button.addEventListener("click", () => selectScenario(button.dataset.scenario));
     });
+
+    const prototypeButtons = document.querySelectorAll("[data-prototype]");
+    const prototypeBadge = document.getElementById("prototypeBadge");
+    const prototypeTitle = document.getElementById("prototypeTitle");
+    const prototypeSummary = document.getElementById("prototypeSummary");
+    const prototypeFlow = document.getElementById("prototypeFlow");
+    const prototypeChanges = document.getElementById("prototypeChanges");
+    const prototypeProof = document.getElementById("prototypeProof");
+    const prototypeLimits = document.getElementById("prototypeLimits");
+    const prototypeExampleIntro = document.getElementById("prototypeExampleIntro");
+    const prototypeExamples = document.getElementById("prototypeExamples");
+
+    function listItems(items) {
+      return items.map((item) => `<li>${item}</li>`).join("");
+    }
+
+    function flowItems(items) {
+      return items
+        .map(([label, text]) => `<div class="flow-step"><b>${label}</b><span>${text}</span></div>`)
+        .join("");
+    }
+
+    function exampleItems(items) {
+      return items
+        .map(([label, text]) => `<div class="example-card"><b>${label}</b><span>${text}</span></div>`)
+        .join("");
+    }
+
+    function selectPrototype(name) {
+      const prototype = prototypes[name];
+      prototypeBadge.textContent = prototype.badge;
+      prototypeTitle.textContent = prototype.title;
+      prototypeSummary.textContent = prototype.summary;
+      prototypeFlow.innerHTML = flowItems(prototype.flow);
+      prototypeChanges.innerHTML = listItems(prototype.changes);
+      prototypeProof.innerHTML = listItems(prototype.proof);
+      prototypeLimits.innerHTML = listItems(prototype.limits);
+      prototypeExampleIntro.textContent = prototype.exampleIntro;
+      prototypeExamples.innerHTML = exampleItems(prototype.examples);
+      prototypeButtons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.prototype === name));
+      });
+    }
+
+    prototypeButtons.forEach((button) => {
+      button.addEventListener("click", () => selectPrototype(button.dataset.prototype));
+    });
+    selectPrototype("correlated");
   </script>
 </body>
 </html>

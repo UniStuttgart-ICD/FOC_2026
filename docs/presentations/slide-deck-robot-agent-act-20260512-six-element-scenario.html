@@ -1,42 +1,42 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Robots and Embodied Agents in Collaborative Construction</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg viewBox='0 0 64 64'%3E%3Crect x='10' y='34' width='44' height='8' fill='%23c58b52'/%3E%3Crect x='18' y='16' width='8' height='26' fill='%23f2bd2f'/%3E%3Crect x='38' y='16' width='8' height='26' fill='%23f2bd2f'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg viewBox='0 0 64 64'%3E%3Crect x='10' y='34' width='44' height='8' fill='%23b57a4a'/%3E%3Crect x='18' y='16' width='8' height='26' fill='%23dc8a5a'/%3E%3Crect x='38' y='16' width='8' height='26' fill='%23dc8a5a'/%3E%3C/svg%3E">
 <style>
   :root[data-theme="dark"] {
-    --bg: #11130f;
-    --surface: #191b17;
-    --surface-2: #22251f;
-    --text: #f2efe7;
-    --muted: #aba696;
-    --timber: #c58b52;
-    --timber-dark: #8f6033;
-    --hazard: #f2bd2f;
-    --cyan: #83c5be;
-    --red: #dc6b5f;
-    --green: #7fa66a;
-    --border: rgba(242, 239, 231, 0.14);
-    --shadow: rgba(0, 0, 0, 0.38);
+    --bg: #202823;
+    --surface: #29332e;
+    --surface-2: #35423b;
+    --text: #f6f1e8;
+    --muted: #c7beb1;
+    --timber: #b57a4a;
+    --timber-dark: #7a543a;
+    --hazard: #dc8a5a;
+    --cyan: #8ac7bf;
+    --red: #d66c64;
+    --green: #91aa73;
+    --border: rgba(246, 241, 232, 0.16);
+    --shadow: rgba(13, 18, 16, 0.34);
     --font-body: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   }
   :root[data-theme="light"] {
-    --bg: #f4efe4;
-    --surface: #fff9ed;
-    --surface-2: #eadfcf;
-    --text: #1d211a;
-    --muted: #6b6559;
-    --timber: #a7672f;
-    --timber-dark: #6c4425;
-    --hazard: #c99112;
-    --cyan: #326f78;
-    --red: #a9443d;
-    --green: #567b42;
-    --border: rgba(29, 33, 26, 0.16);
-    --shadow: rgba(77, 57, 31, 0.16);
+    --bg: #e9efeb;
+    --surface: #fbf5ea;
+    --surface-2: #dfe9e2;
+    --text: #25312d;
+    --muted: #64726b;
+    --timber: #a5683f;
+    --timber-dark: #694932;
+    --hazard: #b86642;
+    --cyan: #2f7e80;
+    --red: #b95a50;
+    --green: #637f55;
+    --border: rgba(37, 49, 45, 0.18);
+    --shadow: rgba(45, 55, 49, 0.18);
   }
 
   *, *::before, *::after { box-sizing: border-box; }
@@ -168,6 +168,58 @@
   }
   .panel h3 { margin-bottom: 0.75rem; color: var(--hazard); }
   .panel p, .panel li { color: var(--muted); font-size: 0.94rem; }
+  .method-loop {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.85rem;
+    width: 100%;
+    margin-top: 2rem;
+  }
+  .method-loop .step,
+  .persona-card,
+  .research-note {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    padding: 1rem;
+    box-shadow: 0 18px 42px var(--shadow);
+  }
+  .method-loop strong,
+  .persona-card h3,
+  .research-note h3 {
+    display: block;
+    color: var(--hazard);
+    margin-bottom: 0.55rem;
+  }
+  .method-loop span,
+  .persona-card p,
+  .research-note p {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .persona-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    width: 100%;
+    margin-top: 1.6rem;
+  }
+  .persona-card ul,
+  .research-note ul { margin-top: 0.75rem; }
+  .persona-card li,
+  .research-note li {
+    color: var(--muted);
+    font-size: 0.88rem;
+  }
+  .contrast-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin-top: 1rem;
+  }
+  .research-note {
+    margin-top: 1rem;
+  }
   ul { margin: 1rem 0 0; padding-left: 1.2rem; }
   li { margin: 0.45rem 0; }
   li::marker { color: var(--hazard); }
@@ -201,14 +253,14 @@
   }
   .viewer {
     border: 1px solid var(--border);
-    background: #0e100d;
+    background: #1b241f;
     border-radius: 8px;
     box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02), 0 24px 70px var(--shadow);
     min-height: 455px;
     position: relative;
     overflow: hidden;
   }
-  :root[data-theme="light"] .viewer { background: #efe4d2; }
+  :root[data-theme="light"] .viewer { background: #dfe9e2; }
   #modelCanvas,
   #thresholdCanvas {
     width: 100%;
@@ -223,12 +275,81 @@
     position: absolute;
     left: 1rem;
     top: 1rem;
-    background: rgba(0,0,0,0.42);
-    color: #fff6df;
-    border: 1px solid rgba(255,255,255,0.18);
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: rgba(31, 40, 35, 0.78);
+    color: #f9f2e7;
+    border: 1px solid rgba(249,242,231,0.22);
     border-radius: 6px;
     padding: 0.45rem 0.65rem;
     font-size: 0.82rem;
+  }
+  .viewer-badge::before,
+  .hover-cue-pin {
+    content: "";
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--hazard);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--hazard) 50%, transparent);
+    animation: cuePulse 1.65s ease-out infinite;
+    flex: 0 0 auto;
+  }
+  .hover-cue-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .hover-cue-pin {
+    position: absolute;
+    width: 15px;
+    height: 15px;
+    margin: -7.5px 0 0 -7.5px;
+    border: 2px solid rgba(249,242,231,0.78);
+    background: color-mix(in srgb, var(--hazard) 88%, white);
+    filter: drop-shadow(0 4px 14px rgba(13,18,16,0.42));
+  }
+  @keyframes cuePulse {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--hazard) 56%, transparent); }
+    70% { box-shadow: 0 0 0 13px color-mix(in srgb, var(--hazard) 0%, transparent); }
+    100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--hazard) 0%, transparent); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .viewer-badge::before,
+    .hover-cue-pin { animation: none; }
+  }
+  .model-tooltip {
+    position: absolute;
+    z-index: 5;
+    max-width: min(330px, calc(100% - 2rem));
+    transform: translate(-50%, calc(-100% - 18px));
+    background: rgba(34, 43, 38, 0.94);
+    color: #f9f2e7;
+    border: 1px solid color-mix(in srgb, var(--hazard) 46%, rgba(249,242,231,0.24));
+    border-radius: 8px;
+    box-shadow: 0 18px 42px rgba(13,18,16,0.32);
+    padding: 0.7rem 0.8rem;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+  }
+  .model-tooltip.visible { opacity: 1; }
+  .model-tooltip::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -8px;
+    transform: translateX(-50%) rotate(45deg);
+    width: 14px;
+    height: 14px;
+    background: rgba(34, 43, 38, 0.94);
+    border-right: 1px solid color-mix(in srgb, var(--hazard) 46%, rgba(249,242,231,0.24));
+    border-bottom: 1px solid color-mix(in srgb, var(--hazard) 46%, rgba(249,242,231,0.24));
   }
   .control-panel {
     display: flex;
@@ -258,24 +379,25 @@
   .card-grid {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 0.8rem;
+    gap: 0.72rem;
+    align-items: stretch;
     width: 100%;
-    margin-top: 1.35rem;
+    margin-top: 1rem;
     perspective: 1200px;
   }
   .play-card {
     --tilt: 0deg;
-    min-height: 430px;
-    border: 2px solid color-mix(in srgb, var(--hazard) 55%, var(--border));
+    min-height: 360px;
+    border: 2px solid color-mix(in srgb, var(--hazard) 42%, var(--border));
     border-radius: 14px;
-    background: linear-gradient(180deg, #342819 0%, #171814 100%);
-    padding: 0.7rem;
+    background: linear-gradient(180deg, #344138 0%, #222b26 100%);
+    padding: 0.62rem;
     box-shadow: 0 18px 42px var(--shadow);
     display: flex;
     flex-direction: column;
-    gap: 0.55rem;
+    gap: 0.42rem;
     cursor: zoom-in;
-    transform: rotate(var(--tilt)) translateY(0);
+    transform: translateY(0);
     transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
     position: relative;
     isolation: isolate;
@@ -284,24 +406,19 @@
     content: "";
     position: absolute;
     inset: 7px;
-    border: 1px solid color-mix(in srgb, var(--hazard) 34%, transparent);
+    border: 1px solid color-mix(in srgb, var(--hazard) 26%, transparent);
     border-radius: 10px;
     pointer-events: none;
   }
-  .play-card:nth-child(1) { --tilt: -2deg; }
-  .play-card:nth-child(2) { --tilt: 1.4deg; }
-  .play-card:nth-child(3) { --tilt: -0.8deg; }
-  .play-card:nth-child(4) { --tilt: 1.8deg; }
-  .play-card:nth-child(5) { --tilt: -1.2deg; }
   .play-card:hover,
   .play-card:focus-visible {
     border-color: var(--hazard);
-    box-shadow: 0 24px 52px var(--shadow), 0 0 0 1px color-mix(in srgb, var(--hazard) 38%, transparent);
+    box-shadow: 0 24px 52px var(--shadow), 0 0 0 1px color-mix(in srgb, var(--hazard) 28%, transparent);
     outline: none;
-    transform: rotate(0deg) translateY(-10px);
+    transform: translateY(-10px);
   }
   :root[data-theme="light"] .play-card {
-    background: linear-gradient(180deg, #fff4d4 0%, #e6d4b2 100%);
+    background: linear-gradient(180deg, #fff7eb 0%, #dce8df 100%);
   }
   .card-top {
     display: flex;
@@ -314,31 +431,25 @@
     color: var(--hazard);
   }
   .card-art {
-    border: 1px solid rgba(255,255,255,0.18);
+    border: 1px solid rgba(246,241,232,0.16);
     background:
-      radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--hazard) 16%, transparent), transparent 34%),
+      radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--cyan) 14%, transparent), transparent 34%),
       linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
     border-radius: 8px;
-    height: 158px;
+    height: 144px;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
   }
   .card-art svg { width: 100%; height: 100%; }
-  .card-art text {
-    font-family: var(--font-mono);
-    font-weight: 800;
-    letter-spacing: 0;
-    text-transform: uppercase;
-  }
-  .play-card h3 { color: var(--text); font-size: 1rem; }
-  .play-card p { color: var(--muted); font-size: 0.76rem; line-height: 1.35; }
+  .play-card h3 { color: var(--text); font-size: 0.96rem; }
+  .play-card p { color: var(--muted); font-size: 0.72rem; line-height: 1.32; }
   .tag {
     display: inline-block;
     border: 1px solid var(--border);
     color: var(--text);
-    background: rgba(255,255,255,0.06);
+    background: rgba(246,241,232,0.07);
     border-radius: 99px;
     padding: 0.18rem 0.48rem;
     font-size: 0.68rem;
@@ -350,7 +461,7 @@
     display: none;
     place-items: center;
     padding: 4vh 4vw;
-    background: rgba(6, 7, 5, 0.76);
+    background: rgba(27, 35, 31, 0.68);
     backdrop-filter: blur(10px);
     z-index: 20;
   }
@@ -362,14 +473,14 @@
     display: grid;
     grid-template-columns: 1.04fr 0.96fr;
     gap: 1.2rem;
-    border: 1px solid color-mix(in srgb, var(--hazard) 46%, var(--border));
+    border: 1px solid color-mix(in srgb, var(--hazard) 36%, var(--border));
     border-radius: 12px;
-    background: linear-gradient(135deg, #211b12 0%, var(--surface) 58%, #11130f 100%);
-    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.58);
+    background: linear-gradient(135deg, #303a32 0%, var(--surface) 58%, #1f2823 100%);
+    box-shadow: 0 30px 90px rgba(13, 18, 16, 0.48);
     padding: 1rem;
   }
   :root[data-theme="light"] .card-inspector-panel {
-    background: linear-gradient(135deg, #fff4d4 0%, var(--surface) 58%, #eadfcf 100%);
+    background: linear-gradient(135deg, #fff7eb 0%, var(--surface) 58%, #dce8df 100%);
   }
   .inspector-art {
     min-height: 440px;
@@ -455,11 +566,44 @@
     display: grid;
     place-items: center;
     background: var(--hazard);
-    color: #17140e;
+    color: #241b15;
     font-weight: 900;
     border-radius: 50%;
   }
   .event p { font-size: 0.94rem; color: var(--muted); }
+  .question-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin-top: 1.25rem;
+    width: 100%;
+  }
+  .question-card {
+    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    border-radius: 8px;
+    padding: 0.95rem;
+    min-height: 118px;
+  }
+  .question-card.wide { grid-column: 1 / -1; }
+  .question-card h3 {
+    color: var(--hazard);
+    font-size: 0.96rem;
+    margin-bottom: 0.45rem;
+  }
+  .question-card p {
+    color: var(--text);
+    font-size: 0.91rem;
+    line-height: 1.34;
+  }
+  .question-card .measure {
+    display: block;
+    margin-top: 0.55rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+  }
   .quote blockquote {
     font-size: 2.35rem;
     line-height: 1.18;
@@ -500,7 +644,7 @@
     inset: 0;
     display: none;
     place-items: center;
-    background: rgba(0,0,0,0.7);
+    background: rgba(31, 39, 35, 0.72);
     z-index: 99;
   }
   .help.visible { display: grid; }
@@ -543,10 +687,45 @@
   body.overview .slide h2 { font-size: 1.35rem; }
   body.overview .slide p, body.overview .slide li { font-size: 0.62rem; }
   body.overview .chrome { display: none; }
-  body.overview .viewer-wrap, body.overview .card-grid, body.overview .grid-3, body.overview .flow, body.overview .scenario {
+  body.overview .viewer-wrap, body.overview .card-grid, body.overview .grid-3, body.overview .method-loop, body.overview .persona-grid, body.overview .contrast-row, body.overview .flow, body.overview .scenario, body.overview .question-grid {
     transform: scale(0.72);
     transform-origin: top left;
     width: 138%;
+  }
+
+  @media (max-width: 760px) {
+    .slide.interactive-slide {
+      align-items: stretch;
+      justify-content: flex-start;
+      padding: 1rem 1.45rem 4.75rem;
+      overflow-y: auto;
+    }
+    .viewer-wrap {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.75rem;
+    }
+    .viewer {
+      min-height: 210px;
+      height: min(28vh, 235px);
+    }
+    .viewer-badge {
+      max-width: calc(100% - 2rem);
+      font-size: 0.6rem;
+      line-height: 1.25;
+      padding: 0.36rem 0.5rem;
+    }
+    .control-panel { gap: 0.5rem; }
+    .control-panel h2 {
+      font-size: clamp(2.1rem, 10.5vw, 2.75rem);
+      line-height: 0.94;
+    }
+    .control-panel p { font-size: 0.9rem; }
+    .button-row { gap: 0.45rem; }
+    .button-row button { padding: 0.45rem 0.65rem; }
+    .model-stat { gap: 0.5rem; }
+    .model-stat div { padding: 0.55rem 0.65rem; }
+    .model-stat strong { font-size: 0.95rem; }
+    .model-stat span { font-size: 0.68rem; }
   }
 
   @page { size: 1280px 720px; margin: 0; }
@@ -571,7 +750,7 @@
   <section class="slide title active">
     <p class="eyebrow">Workshop proposal</p>
     <h1>Robots and Embodied Agents in Collaborative Construction</h1>
-    <p class="subtitle">A slide deck for the card-driven construction act: agent attributes, abstract goals, uncertainty cards, and a rotatable 3D timber model.</p>
+    <p class="subtitle">A card-driven workshop for testing how agent location fits construction uncertainty: robot-inhabiting agent versus separate floating AR avatar.</p>
     <svg class="deck-mark" viewBox="0 0 200 200" aria-hidden="true">
       <rect x="30" y="130" width="140" height="18" rx="3" fill="var(--timber)"/>
       <rect x="58" y="62" width="18" height="78" rx="3" fill="var(--timber)"/>
@@ -583,302 +762,274 @@
   </section>
 
   <section class="slide">
-    <p class="eyebrow">Premise</p>
-    <h2>The workshop is an act, not a task list.</h2>
-    <p class="lead">Students draw a character for their agent, an abstract artifact to fabricate, and construction problem cards that force improvisation among human, robot, and agent.</p>
-    <div class="grid-3">
-      <div class="panel">
-        <h3>Agent attributes</h3>
-        <p>Define how the agent behaves under pressure: patient mediator, risk-aware builder, human amplifier, expressive collaborator.</p>
+    <p class="eyebrow">Research spine</p>
+    <h2>The same uncertainty can need a different agent location.</h2>
+    <p class="lead">The workshop studies fit and tradeoff, not a winner. Participants tune one agent concept into two states, then test how each state changes collaboration.</p>
+    <div class="question-grid">
+      <div class="question-card wide">
+        <h3>RQ1</h3>
+        <p>How does a robot-inhabiting agent versus a separate floating AR avatar change perceived robot agency, authority, and role attribution during construction uncertainty?</p>
+        <span class="measure">Same agent concept, different location state.</span>
       </div>
-      <div class="panel">
-        <h3>Act / goal</h3>
-        <p>Defines what the artifact should become: threshold, bridge, shelter, signal, leaning figure, counterweight.</p>
-      </div>
-      <div class="panel">
-        <h3>Problem cards</h3>
-        <p>Introduce construction uncertainty that no single actor can solve alone.</p>
+      <div class="question-card wide">
+        <h3>RQ2</h3>
+        <p>When a build becomes uncertain, which agent location better fits the moment, and what does that choice make worse?</p>
+        <span class="measure">Compare clarity, trust, responsibility, social crowding, and willingness to follow instructions.</span>
       </div>
     </div>
   </section>
 
   <section class="slide two-col">
-    <p class="eyebrow">Actors</p>
+    <p class="eyebrow">Method</p>
     <div class="body">
       <div>
-        <h2>Three actors, shifting authority.</h2>
-        <p class="lead">The point is not to automate construction. The point is to negotiate who should act now.</p>
+        <h2>Fix the construction frame, tune the agent.</h2>
+        <p class="lead">The six-beam act and problem cards keep uncertainty comparable. Voice, appearance, mood, authority, and location stay open for design.</p>
       </div>
-      <svg class="triad" viewBox="0 0 720 500" role="img" aria-label="Human robot agent triad">
-        <defs>
-          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-            <path d="M0 0L10 5L0 10z" fill="var(--hazard)"/>
-          </marker>
-        </defs>
-        <g fill="var(--surface)" stroke="var(--border)" stroke-width="2">
-          <rect x="56" y="72" width="176" height="118" rx="8"/>
-          <rect x="488" y="72" width="176" height="118" rx="8"/>
-          <rect x="272" y="350" width="176" height="118" rx="8"/>
-        </g>
-        <g font-family="var(--font-body)" fill="var(--text)">
-          <text x="144" y="120" text-anchor="middle" font-size="24" font-weight="800">Human</text>
-          <text x="144" y="152" text-anchor="middle" font-size="14" fill="var(--muted)">judges, fixes, aligns</text>
-          <text x="576" y="120" text-anchor="middle" font-size="24" font-weight="800">Robot</text>
-          <text x="576" y="152" text-anchor="middle" font-size="14" fill="var(--muted)">holds, lifts, presses</text>
-          <text x="360" y="398" text-anchor="middle" font-size="24" font-weight="800">Agent</text>
-          <text x="360" y="430" text-anchor="middle" font-size="14" fill="var(--muted)">sequences, names, mediates</text>
-        </g>
-        <g stroke="var(--hazard)" stroke-width="3" fill="none" marker-end="url(#arr)">
-          <path d="M232 132C310 78 410 78 488 132"/>
-          <path d="M540 190C520 266 482 326 448 374"/>
-          <path d="M272 374C222 326 170 250 144 190"/>
-        </g>
-        <g transform="translate(228 214)">
-          <path d="M132 122L26 84M132 122L238 84" stroke="var(--timber-dark)" stroke-width="16" stroke-linecap="round"/>
-          <rect x="18" y="18" width="26" height="78" rx="4" fill="var(--timber-dark)"/>
-          <rect x="212" y="18" width="26" height="78" rx="4" fill="var(--timber-dark)"/>
-          <rect x="6" y="10" width="244" height="28" rx="4" fill="var(--timber)"/>
-          <path d="M132 122L130 26" stroke="var(--cyan)" stroke-width="14" stroke-linecap="round"/>
-          <circle cx="132" cy="122" r="7" fill="var(--cyan)"/>
-        </g>
-      </svg>
+      <div class="method-loop" style="grid-template-columns:1fr;">
+        <div class="step"><strong>1. Tune agent spec</strong><span>Start from Kibbitz or MAVE, then adapt voice, visual position, appearance, mood, confidence, and authority style.</span></div>
+        <div class="step"><strong>2. Run uncertainty</strong><span>Use the same construction kit and problem cards to create concrete moments of stopped action.</span></div>
+        <div class="step"><strong>3. Answer evaluation questions</strong><span>Capture role attribution, clarity, trust, authority, responsibility, and social crowding.</span></div>
+        <div class="step"><strong>4. Compare fit and tradeoff</strong><span>Ask where the agent should live for this uncertainty, and what that choice costs.</span></div>
+      </div>
     </div>
   </section>
 
   <section class="slide">
-    <p class="eyebrow">Mechanic</p>
-    <h2>A good card invalidates one action and creates co-action.</h2>
-    <div class="flow">
-      <div class="step"><strong>1. Plan</strong><span>The group has a next move: place, lift, span, support, brace.</span></div>
-      <div class="step"><strong>2. Card</strong><span>A physical condition changes: broken beam, no-hand zone, heavy crown.</span></div>
-      <div class="step"><strong>3. Stop</strong><span>The robot cannot simply continue or release the part.</span></div>
-      <div class="step"><strong>4. Reassign</strong><span>Robot handles force or risk. Human fixes or judges. Agent sequences.</span></div>
-      <div class="step"><strong>5. Artifact</strong><span>The final structure records the improvisation.</span></div>
+    <p class="eyebrow">Starter personas</p>
+    <h2>Two seeds, many tuned states.</h2>
+    <p class="lead">Participants use the personas as starting points. The depth comes from how each group adapts location, voice, visual form, authority, and nonverbal behavior to its scenario.</p>
+    <div class="persona-grid">
+      <article class="persona-card">
+        <h3>Kibbitz</h3>
+        <p>A separate digital agent in AR, dry and erudite, operating the UR10 as a borrowed hand rather than a body.</p>
+        <ul>
+          <li>Best starting point for mediation, explanation, and theatrical presence.</li>
+          <li>Boundary: never invents scene facts, safety, geometry, or intent.</li>
+        </ul>
+      </article>
+      <article class="persona-card">
+        <h3>MAVE</h3>
+        <p>A self-directed machine-body collaborator with compact language and small bounded motions for excitement, hesitation, refusal, and confirmation.</p>
+        <ul>
+          <li>Best starting point for robot-inhabiting agency and expressive physical turn-taking.</li>
+          <li>Boundary: motion stays bounded, grounded, and never disturbs the construction state.</li>
+        </ul>
+      </article>
+    </div>
+    <div class="research-note">
+      <h3>Tuning rule</h3>
+      <p>Keep the core persona recognizable across both states, then compare how robot-inhabiting and separate AR versions fit the same uncertainty.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <p class="eyebrow">Uncertainty probes</p>
+    <h2>The cards make agent location consequential.</h2>
+    <p class="lead">Each card invalidates one planned action and stresses a different RQ dimension: authority, trust, clarity, responsibility, or social crowding.</p>
+    <div class="card-grid">
+      <article class="play-card" data-card="false-horizon" role="button" tabindex="0" aria-label="Inspect False Horizon card">
+        <div class="card-top"><span>Card 01</span><span>Sequence</span></div>
+        <div class="card-art">
+          <svg viewBox="0 0 220 150" role="img" aria-label="Horizontal beam held before support exists">
+            <path d="M42 124h136" stroke="var(--timber-dark)" stroke-width="8" stroke-linecap="round" opacity="0.75"/>
+            <rect x="38" y="56" width="144" height="18" rx="4" fill="var(--hazard)"/>
+            <path d="M58 82v38M162 82v38" stroke="var(--timber)" stroke-width="12" stroke-linecap="round" stroke-dasharray="8 8" opacity="0.55"/>
+            <path d="M46 50h128" stroke="var(--cyan)" stroke-width="4" stroke-linecap="round"/>
+            <path d="M56 44l-10 6 10 6M164 44l10 6-10 6" stroke="var(--cyan)" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M110 24v24" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
+            <path d="M100 38l10 10 10-10" stroke="var(--red)" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="58" cy="124" r="5" fill="var(--timber)"/>
+            <circle cx="162" cy="124" r="5" fill="var(--timber)"/>
+          </svg>
+        </div>
+        <h3>False Horizon</h3>
+        <span class="tag">Sequence uncertainty</span>
+        <p>A roof line appears before support exists. Probes spatial clarity, role sequencing, and authority to block release.</p>
+      </article>
+      <article class="play-card" data-card="broken-transport" role="button" tabindex="0" aria-label="Inspect Broken in Transport card">
+        <div class="card-top"><span>Card 02</span><span>Material</span></div>
+        <div class="card-art">
+          <svg viewBox="0 0 220 150" role="img" aria-label="One beam split into two pieces">
+            <path d="M34 118h152" stroke="var(--timber-dark)" stroke-width="8" stroke-linecap="round" opacity="0.75"/>
+            <rect x="30" y="62" width="72" height="20" rx="4" fill="var(--timber)"/>
+            <rect x="118" y="62" width="72" height="20" rx="4" fill="var(--timber)"/>
+            <path d="M108 50l-10 42M122 50l-10 42" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
+            <path d="M102 75h-18M118 75h18" stroke="var(--cyan)" stroke-width="4" stroke-linecap="round"/>
+            <path d="M90 67l-8 8 8 8M130 67l8 8-8 8" stroke="var(--cyan)" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M110 86v32" stroke="var(--timber)" stroke-width="12" stroke-linecap="round" opacity="0.7"/>
+          </svg>
+        </div>
+        <h3>Broken in Transport</h3>
+        <span class="tag">Material truth</span>
+        <p>A single planned span becomes two pieces. Probes trust, responsibility, and whether the agent preserves material honesty.</p>
+      </article>
+      <article class="play-card" data-card="hazard-duty" role="button" tabindex="0" aria-label="Inspect Hazard Duty card">
+        <div class="card-top"><span>Card 03</span><span>HRC</span></div>
+        <div class="card-art">
+          <svg viewBox="0 0 220 150" role="img" aria-label="No hand zone around risky contact">
+            <rect x="42" y="70" width="136" height="18" rx="4" fill="var(--timber)"/>
+            <path d="M150 61h35l14 18-14 18h-35z" fill="color-mix(in srgb, var(--red) 18%, transparent)" stroke="var(--red)" stroke-width="4" stroke-linejoin="round"/>
+            <circle cx="168" cy="79" r="32" fill="none" stroke="var(--red)" stroke-width="5"/>
+            <path d="M146 101l44-44" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
+            <path d="M68 48h42v24M89 72v30" stroke="var(--cyan)" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="89" cy="102" r="8" fill="var(--cyan)"/>
+            <path d="M122 50c9 9 9 22 0 31" stroke="var(--hazard)" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M58 120h124" stroke="var(--timber-dark)" stroke-width="8" stroke-linecap="round" opacity="0.75"/>
+          </svg>
+        </div>
+        <h3>Hazard Duty</h3>
+        <span class="tag">Risk boundary</span>
+        <p>A contact point becomes unsafe for human hands. Probes safety trust, robot-role interpretation, and authority around risk.</p>
+      </article>
+      <article class="play-card" data-card="miss-measured-street-line" role="button" tabindex="0" aria-label="Inspect Miss-Measured / Violated Street-Line card">
+        <div class="card-top"><span>Card 04</span><span>Alignment</span></div>
+        <div class="card-art">
+          <svg viewBox="0 0 220 150" role="img" aria-label="Completed frame with one vertical support shifted inward">
+            <path d="M46 124h132" stroke="var(--timber-dark)" stroke-width="9" stroke-linecap="round"/>
+            <path d="M58 42h124" stroke="var(--timber)" stroke-width="13" stroke-linecap="round"/>
+            <path d="M72 48v74M148 48v74" stroke="var(--timber)" stroke-width="12" stroke-linecap="round"/>
+            <path d="M176 24v102" stroke="var(--red)" stroke-width="4" stroke-linecap="round" stroke-dasharray="7 7"/>
+            <path d="M148 86h-28" stroke="var(--cyan)" stroke-width="5" stroke-linecap="round"/>
+            <path d="M128 78l-8 8 8 8" stroke="var(--cyan)" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M96 122l42-74" stroke="var(--hazard)" stroke-width="9" stroke-linecap="round"/>
+            <path d="M154 30c14 12 18 28 8 46" stroke="var(--red)" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M162 76l-8-2 4-8" stroke="var(--red)" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h3>Miss-Measured / Violated Street-Line</h3>
+        <span class="tag">Final alignment</span>
+        <p>After assembly, one main vertical support must shift inward. Probes late correction, bracing responsibility, and trust during rework.</p>
+      </article>
+      <article class="play-card" data-card="heavy-crown" role="button" tabindex="0" aria-label="Inspect Heavy Crown card">
+        <div class="card-top"><span>Card 05</span><span>Load</span></div>
+        <div class="card-art">
+          <svg viewBox="0 0 220 150" role="img" aria-label="Top load pressing down over supports">
+            <path d="M48 124h124" stroke="var(--timber-dark)" stroke-width="8" stroke-linecap="round"/>
+            <rect x="38" y="48" width="144" height="22" rx="5" fill="var(--hazard)"/>
+            <path d="M70 70v54M150 70v54" stroke="var(--timber)" stroke-width="12" stroke-linecap="round"/>
+            <path d="M110 72l-38 52" stroke="var(--cyan)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M82 22v18M110 18v22M138 22v18" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
+            <path d="M74 34l8 8 8-8M102 34l8 8 8-8M130 34l8 8 8-8" stroke="var(--red)" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M56 88h28M136 88h28" stroke="var(--hazard)" stroke-width="4" stroke-linecap="round" opacity="0.85"/>
+            <circle cx="70" cy="124" r="5" fill="var(--timber)"/>
+            <circle cx="150" cy="124" r="5" fill="var(--timber)"/>
+          </svg>
+        </div>
+        <h3>Heavy Crown</h3>
+        <span class="tag">Load path</span>
+        <p>The crown can be lifted but not released onto the current structure. Probes trust, release authority, and perceived robot agency.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="slide scenario-slide">
+    <p class="eyebrow">Prototype run A</p>
+    <div class="scenario">
+      <div>
+        <h2>The Crowned Shelter</h2>
+        <p class="lead">Drawn goal: build a covered artifact. Drawn cards: Heavy Crown + Miss-Measured / Violated Street-Line.</p>
+        <div class="research-note">
+          <h3>Contrast hint</h3>
+          <p>Should the agent speak from the robot holding the structure during correction, or appear separately on the violated street-line that must be understood?</p>
+          <span class="tag">Tests: load-path clarity, late correction, trust, responsibility</span>
+        </div>
+      </div>
+      <div class="timeline">
+        <div class="event"><div class="num">1</div><p>Human places two supports and names the roof as "oversized and protective."</p></div>
+        <div class="event"><div class="num">2</div><p>Robot lifts the heavy roof beam but does not release it.</p></div>
+        <div class="event"><div class="num">3</div><p>Agent blocks release: the roof needs a named load path before the robot can let go.</p></div>
+        <div class="event"><div class="num">4</div><p>Human commits the sixth beam as a diagonal prop; robot keeps the crown at intended height.</p></div>
+        <div class="event"><div class="num">5</div><p>After assembly, inspection reveals one main vertical support violates the street-line and must shift inward.</p></div>
+        <div class="event"><div class="num">6</div><p>Robot or human substitutes as temporary support while the wrong column is loosened, shifted inward, and fixed again.</p></div>
+      </div>
     </div>
   </section>
 
   <section class="slide interactive-slide">
-    <p class="eyebrow">Interactive 3D model</p>
+    <p class="eyebrow">Prototype A 3D</p>
     <div class="viewer-wrap interactive-zone">
       <div class="viewer">
         <canvas id="modelCanvas" width="1280" height="720" aria-label="Rotatable 3D timber shelter model"></canvas>
-        <div class="viewer-badge">Drag to rotate · buttons switch construction stage</div>
+        <div class="viewer-badge">Hover glowing pins for cues · drag to rotate · buttons switch stage</div>
       </div>
       <div class="control-panel">
-        <h2>The Crowned Shelter</h2>
-        <p>The model uses exactly six timber elements as a triangular pavilion: two base rails, two columns, one crown beam, and one movable strut.</p>
+        <h2>Six-Element Triangle Frame 3D</h2>
+        <p>The model now follows the six-piece target: 4x4 cm sections, three two-thirds-height vertex columns, two touching lower spans, and one touching upper span.</p>
         <div class="button-row" id="stageButtons">
-          <button data-stage="falseHorizon" class="active">False Horizon</button>
-          <button data-stage="unbraced">Unbraced Footing</button>
-          <button data-stage="heavyCrown">Heavy Crown</button>
-          <button data-stage="final">Final artifact</button>
+          <button data-stage="falseHorizon" class="active" title="Start with three vertical columns that form the triangle vertices.">Vertex columns</button>
+          <button data-stage="unbraced" title="Place two horizontal beams on top of the columns; both share one vertex and span to the opposing vertices.">Shared beams</button>
+          <button data-stage="heavyCrown" title="Place the final horizontal beam above the two lower beams, spanning the opposing vertices.">Upper beam</button>
+          <button data-stage="final" title="Final artifact: three columns, two shared lower beams, and one upper opposing beam.">Final artifact</button>
         </div>
         <div class="model-stat">
           <div><strong id="actorRobot">Hold</strong><span>Robot role</span></div>
           <div><strong id="actorHuman">Fix</strong><span>Human role</span></div>
         </div>
-        <p id="stageCaption">With only six pieces, the robot holds the crown while the human turns one loose column into the second support.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="slide">
-    <p class="eyebrow">Card deck</p>
-    <h2>Five construction problem cards.</h2>
-    <div class="card-grid">
-      <article class="play-card" data-card="false-horizon" role="button" tabindex="0" aria-label="Inspect False Horizon card">
-        <div class="card-top"><span>Card 01</span><span>Sequence</span></div>
-        <div class="card-art">
-          <svg viewBox="0 0 220 150" role="img" aria-label="Robot holding a horizontal beam while a human builds supports underneath">
-            <rect x="38" y="50" width="144" height="16" rx="4" fill="var(--hazard)"/>
-            <path d="M42 83v44M178 83v44" stroke="var(--timber)" stroke-width="10" stroke-linecap="round" stroke-dasharray="8 7"/>
-            <path d="M30 66h160" stroke="var(--cyan)" stroke-width="3" stroke-dasharray="7 5"/>
-            <path d="M78 31c-22 4-34 16-36 34" stroke="var(--cyan)" stroke-width="8" fill="none" stroke-linecap="round"/>
-            <circle cx="78" cy="31" r="8" fill="var(--cyan)"/>
-            <circle cx="42" cy="65" r="7" fill="var(--cyan)"/>
-            <rect x="16" y="95" width="32" height="12" rx="3" fill="var(--cyan)"/>
-            <circle cx="166" cy="92" r="6" fill="var(--text)"/>
-            <path d="M166 98v25M166 106l-20 18M166 108l20 14" stroke="var(--text)" stroke-width="4" stroke-linecap="round"/>
-            <rect x="140" y="120" width="16" height="10" rx="2" fill="var(--timber)"/>
-            <path d="M111 24l12 16h-24z" fill="var(--surface-2)" stroke="var(--hazard)"/>
-            <text x="111" y="20" text-anchor="middle" fill="var(--hazard)" font-size="10">AGENT: HOLD</text>
-            <text x="110" y="142" text-anchor="middle" fill="var(--muted)" font-size="9">support is built after the beam exists</text>
-          </svg>
-        </div>
-        <h3>False Horizon</h3>
-        <span class="tag">Robot holds first</span>
-        <p>A horizontal beam must be held before supports exist. The human builds the support while the robot becomes temporary structure.</p>
-      </article>
-      <article class="play-card" data-card="broken-transport" role="button" tabindex="0" aria-label="Inspect Broken in Transport card">
-        <div class="card-top"><span>Card 02</span><span>Material</span></div>
-        <div class="card-art">
-          <svg viewBox="0 0 220 150" role="img" aria-label="A long bridge beam split into two halves above a central support">
-            <rect x="20" y="64" width="78" height="15" rx="4" fill="var(--timber)"/>
-            <rect x="122" y="64" width="78" height="15" rx="4" fill="var(--timber)"/>
-            <path d="M105 54l-9 35M122 54l-9 35" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
-            <rect x="102" y="88" width="18" height="42" rx="3" fill="var(--cyan)"/>
-            <path d="M33 103h156" stroke="var(--timber-dark)" stroke-width="7" stroke-linecap="round"/>
-            <path d="M69 35c-16 5-26 15-31 30" stroke="var(--cyan)" stroke-width="7" fill="none" stroke-linecap="round"/>
-            <circle cx="69" cy="35" r="7" fill="var(--cyan)"/>
-            <circle cx="170" cy="101" r="6" fill="var(--text)"/>
-            <path d="M170 107v22M170 113l-22-13M170 113l18-10" stroke="var(--text)" stroke-width="4" stroke-linecap="round"/>
-            <path d="M146 24h48v24h-48z" fill="var(--surface-2)" stroke="var(--hazard)"/>
-            <text x="170" y="40" text-anchor="middle" fill="var(--hazard)" font-size="9">OVERLAP?</text>
-            <text x="110" y="142" text-anchor="middle" fill="var(--muted)" font-size="9">one span becomes two negotiated halves</text>
-          </svg>
-        </div>
-        <h3>Broken in Transport</h3>
-        <span class="tag">Joint needed</span>
-        <p>One long element arrives as two halves. The trio must overlap, support, or celebrate the break.</p>
-      </article>
-      <article class="play-card" data-card="hazard-duty" role="button" tabindex="0" aria-label="Inspect Hazard Duty card">
-        <div class="card-top"><span>Card 03</span><span>HRC</span></div>
-        <div class="card-art">
-          <svg viewBox="0 0 220 150" role="img" aria-label="Robot grips a hazardous beam end while the human stays outside the no hand zone">
-            <path d="M131 45h55l15 14-17 17h-53z" fill="color-mix(in srgb, var(--red) 22%, transparent)" stroke="var(--red)" stroke-width="3"/>
-            <rect x="47" y="69" width="125" height="15" rx="4" fill="var(--timber)"/>
-            <path d="M172 70l25-17 10 12-29 22z" fill="var(--red)"/>
-            <path d="M54 39h39v25H54zM74 64v32" stroke="var(--cyan)" stroke-width="8" fill="none" stroke-linejoin="round"/>
-            <circle cx="74" cy="96" r="8" fill="var(--cyan)"/>
-            <path d="M119 38l18 18M137 38l-18 18" stroke="var(--hazard)" stroke-width="5" stroke-linecap="round"/>
-            <circle cx="34" cy="97" r="6" fill="var(--text)"/>
-            <path d="M34 103v24M34 111l17-17M34 112l18 13" stroke="var(--text)" stroke-width="4" stroke-linecap="round"/>
-            <path d="M25 128h70" stroke="var(--green)" stroke-width="4" stroke-linecap="round"/>
-            <text x="160" y="34" text-anchor="middle" fill="var(--red)" font-size="10">NO HAND</text>
-            <text x="73" y="24" text-anchor="middle" fill="var(--cyan)" font-size="9">ROBOT CONTACT</text>
-            <text x="111" y="142" text-anchor="middle" fill="var(--muted)" font-size="9">risk shifts the physical role boundary</text>
-          </svg>
-        </div>
-        <h3>Hazard Duty</h3>
-        <span class="tag">Robot takes risk</span>
-        <p>A pinch, splinter, adhesive, or overhead hold becomes a no-hand zone. Robot handles danger; human works safely.</p>
-      </article>
-      <article class="play-card" data-card="unbraced-footing" role="button" tabindex="0" aria-label="Inspect Unbraced Footing card">
-        <div class="card-top"><span>Card 04</span><span>Support</span></div>
-        <div class="card-art">
-          <svg viewBox="0 0 220 150" role="img" aria-label="Robot steadies a rocking post while the human adds a diagonal brace">
-            <rect x="40" y="122" width="138" height="11" rx="3" fill="var(--timber-dark)"/>
-            <g transform="rotate(-7 108 83)">
-              <rect x="101" y="38" width="15" height="85" rx="3" fill="var(--timber)"/>
-            </g>
-            <path d="M62 121L107 75" stroke="var(--cyan)" stroke-width="10" stroke-linecap="round"/>
-            <path d="M124 43c16 11 18 27 4 43" stroke="var(--red)" fill="none" stroke-width="4" stroke-linecap="round"/>
-            <path d="M132 85l-7 1 4 7" stroke="var(--red)" fill="none" stroke-width="4" stroke-linecap="round"/>
-            <path d="M91 30c-20 10-28 25-22 44" stroke="var(--cyan)" stroke-width="8" fill="none" stroke-linecap="round"/>
-            <circle cx="91" cy="30" r="7" fill="var(--cyan)"/>
-            <circle cx="53" cy="96" r="6" fill="var(--text)"/>
-            <path d="M53 102v24M53 110l-17 14M53 109l22-10" stroke="var(--text)" stroke-width="4" stroke-linecap="round"/>
-            <path d="M150 23h45v24h-45z" fill="var(--surface-2)" stroke="var(--hazard)"/>
-            <text x="172" y="39" text-anchor="middle" fill="var(--hazard)" font-size="9">FIX BASE</text>
-            <text x="110" y="142" text-anchor="middle" fill="var(--muted)" font-size="9">the brace becomes visible structure</text>
-          </svg>
-        </div>
-        <h3>Unbraced Footing</h3>
-        <span class="tag">Fix to structure</span>
-        <p>In the model, the right-hand column leans until the robot pins its top and the blue sixth beam ties it back into the triangular base.</p>
-      </article>
-      <article class="play-card" data-card="heavy-crown" role="button" tabindex="0" aria-label="Inspect Heavy Crown card">
-        <div class="card-top"><span>Card 05</span><span>Load</span></div>
-        <div class="card-art">
-          <svg viewBox="0 0 220 150" role="img" aria-label="Robot holds a heavy top beam while the human adds a diagonal prop under the load">
-            <rect x="38" y="34" width="144" height="22" rx="5" fill="var(--hazard)"/>
-            <path d="M70 56v70M154 56v70" stroke="var(--timber)" stroke-width="12" stroke-linecap="round"/>
-            <path d="M111 58l-39 68" stroke="var(--cyan)" stroke-width="12" stroke-linecap="round"/>
-            <path d="M50 126h132" stroke="var(--timber-dark)" stroke-width="8" stroke-linecap="round"/>
-            <path d="M96 17c-18 6-30 16-36 30" stroke="var(--cyan)" stroke-width="8" fill="none" stroke-linecap="round"/>
-            <circle cx="96" cy="17" r="7" fill="var(--cyan)"/>
-            <path d="M111 14v18M87 14v18M135 14v18" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
-            <circle cx="36" cy="105" r="6" fill="var(--text)"/>
-            <path d="M36 111v23M36 119l23-12M36 120l18 14" stroke="var(--text)" stroke-width="4" stroke-linecap="round"/>
-            <path d="M149 75l-9 10 12 2" stroke="var(--red)" fill="none" stroke-width="4" stroke-linecap="round"/>
-            <path d="M168 73c-12 12-23 18-41 17" stroke="var(--red)" fill="none" stroke-width="4" stroke-linecap="round"/>
-            <text x="111" y="28" text-anchor="middle" fill="var(--red)" font-size="10">HEAVY</text>
-            <text x="110" y="142" text-anchor="middle" fill="var(--muted)" font-size="9">preserve height by adding load path</text>
-          </svg>
-        </div>
-        <h3>Heavy Crown</h3>
-        <span class="tag">Preserve height</span>
-        <p>The top element is too heavy for the current supports. Add a prop or buttress before release.</p>
-      </article>
-    </div>
-  </section>
-
-  <section class="slide scenario-slide">
-    <p class="eyebrow">Example run</p>
-    <div class="scenario">
-      <div>
-        <h2>The Crowned Shelter</h2>
-        <p class="lead">Drawn goal: build a covered artifact. Drawn cards: Heavy Crown + Unbraced Footing.</p>
-      </div>
-      <div class="timeline">
-        <div class="event"><div class="num">1</div><p>Human places two supports and names the roof as "oversized and protective."</p></div>
-        <div class="event"><div class="num">2</div><p>Robot lifts the heavy roof beam but does not release it.</p></div>
-        <div class="event"><div class="num">3</div><p>Agent blocks release: current supports lean under the test load.</p></div>
-        <div class="event"><div class="num">4</div><p>Human commits the sixth beam as a diagonal prop; robot keeps the crown at intended height.</p></div>
-        <div class="event"><div class="num">5</div><p>The prop wants to slide, so the human fixes that same beam into the base rail. There is no spare crosspiece.</p></div>
-        <div class="event"><div class="num">6</div><p>Agent names the load path and asks for a slow robot release.</p></div>
+        <p id="stageCaption">Vertex columns: elements 01, 02, and 03 stand as 4x4 cm vertical vertices, each two-thirds the horizontal span length.</p>
       </div>
     </div>
   </section>
 
   <section class="slide scenario-slide">
-    <p class="eyebrow">Second run</p>
+    <p class="eyebrow">Prototype run B</p>
     <div class="scenario">
       <div>
-        <h2>The Braced Gantry</h2>
-        <p class="lead">Drawn goal: build a freestanding load frame. Drawn cards: False Horizon + Hazard Duty.</p>
+        <h2>The Broken Span Colonnade</h2>
+        <p class="lead">Drawn goal: build a three-post covered edge. Drawn cards: Broken in Transport + False Horizon.</p>
+        <div class="research-note">
+          <h3>Contrast hint</h3>
+          <p>Should the agent speak from the robot aligning the broken halves, or appear separately at the visible joint that must stay honest?</p>
+          <span class="tag">Tests: material honesty, sequence clarity, trust, responsibility</span>
+        </div>
       </div>
       <div class="timeline">
-        <div class="event"><div class="num">1</div><p>Human lays element 04 as the bottom tie and element 05 as the rear outrigger, making a triangular footprint.</p></div>
-        <div class="event"><div class="num">2</div><p>Robot lifts element 03 as the lintel before the vertical supports are ready.</p></div>
-        <div class="event"><div class="num">3</div><p>Agent blocks release: two post feet alone form a tipping line, not a stable base.</p></div>
-        <div class="event"><div class="num">4</div><p>Human stands elements 01 and 02 as vertical compression posts while the robot pins the no-hand joint.</p></div>
-        <div class="event"><div class="num">5</div><p>Element 06 becomes the diagonal backstay from lintel to outrigger, taking overturning load.</p></div>
-        <div class="event"><div class="num">6</div><p>Agent names the load path: lintel to posts, bottom tie against spread, backstay to the third support point.</p></div>
+        <div class="event"><div class="num">1</div><p>Human stands elements 01, 02, and 03 as three vertical columns before any roof line exists.</p></div>
+        <div class="event"><div class="num">2</div><p>The intended top member arrives broken into two shorter pieces, making the material count and joint visible.</p></div>
+        <div class="event"><div class="num">3</div><p>Robot holds the two broken halves level across the columns while the agent blocks a fake continuous span.</p></div>
+        <div class="event"><div class="num">4</div><p>Robot moves the center column toward the break instead of asking the human to hide it with a patch.</p></div>
+        <div class="event"><div class="num">5</div><p>The broken top becomes two shorter horizontal beams, both landing on the relocated center column.</p></div>
+        <div class="event"><div class="num">6</div><p>Agent names the new load path: three columns, two short spans, one moved support.</p></div>
       </div>
     </div>
   </section>
 
   <section class="slide interactive-slide">
-    <p class="eyebrow">Interactive 3D model</p>
+    <p class="eyebrow">Prototype B 3D</p>
     <div class="viewer-wrap interactive-zone">
       <div class="viewer">
-        <canvas id="thresholdCanvas" width="1280" height="720" aria-label="Rotatable 3D timber gantry model"></canvas>
-        <div class="viewer-badge">Drag to rotate · wheel to zoom · buttons switch gantry stage</div>
+        <canvas id="thresholdCanvas" width="1280" height="720" aria-label="Rotatable 3D broken-span timber model"></canvas>
+        <div class="viewer-badge">Hover glowing pins for cues · drag to rotate · wheel to zoom</div>
       </div>
       <div class="control-panel">
-        <h2>The Braced Gantry 3D</h2>
-        <p>The model uses exactly six timber elements: two vertical posts, one lintel, one bottom tie, one rear outrigger, and one diagonal backstay.</p>
+        <h2>The Broken Span 3D</h2>
+        <p>Each stage asks whether agent location should attach to the robot's alignment work or to the visible material break that must guide redesign.</p>
         <div class="button-row" id="thresholdStageButtons">
-          <button data-stage="lift" class="active">Lift lintel</button>
-          <button data-stage="hazard">Tipping line</button>
-          <button data-stage="lock">Add backstay</button>
-          <button data-stage="final">Final gantry</button>
+          <button data-stage="columns" class="active" title="Start with three vertical columns and one continuous planned top member.">Set columns</button>
+          <button data-stage="broken" title="Broken in Transport: the intended roof beam becomes two shorter pieces.">Broken top</button>
+          <button data-stage="shift" title="Robot moves the center column under the fracture so both shorter beams can land.">Move column</button>
+          <button data-stage="final" title="Final span: the moved center column carries both broken beam halves.">Final span</button>
         </div>
         <div class="model-stat">
-          <div><strong id="thresholdActorRobot">Hold</strong><span>Robot role</span></div>
-          <div><strong id="thresholdActorHuman">Stage</strong><span>Human role</span></div>
+          <div><strong id="thresholdActorRobot">Wait</strong><span>Robot role</span></div>
+          <div><strong id="thresholdActorHuman">Stand columns</strong><span>Human role</span></div>
         </div>
-        <p id="thresholdStageCaption">Robot holds element 03 as the lintel while the human lays the bottom tie and rear outrigger.</p>
+        <p id="thresholdStageCaption">Column start: elements 01, 02, and 03 are already vertical. The next task is not lifting a crown; it is deciding how the planned top line should span across them.</p>
       </div>
     </div>
   </section>
 
   <section class="slide two-col">
-    <p class="eyebrow">Interaction choreography</p>
+    <p class="eyebrow">Prototype intent</p>
     <div class="body">
       <div>
-        <h2>Every uncertainty moment has a script.</h2>
-        <p class="lead">The agent should not say "we have a problem." It should name what must happen next.</p>
+        <h2>Every run asks where the agent should live.</h2>
+        <p class="lead">The prototype is successful when the location choice changes authority, clarity, trust, or responsibility in a way participants can name.</p>
       </div>
-      <div class="panel">
-        <h3>Heavy Crown moment</h3>
-        <ul>
-          <li><strong class="cyan">Robot:</strong> hold the heavy roof at target height.</li>
-          <li><strong class="green">Human:</strong> place and test the sixth beam as a prop.</li>
-          <li><strong class="accent">Agent:</strong> prevent release until a load path exists.</li>
-        </ul>
-        <p style="margin-top:1rem;">Suggested utterance: "Keep the height. Use the sixth beam as the prop, then we test release."</p>
+      <div class="grid-3" style="grid-template-columns:1fr; margin-top:0;">
+        <div class="panel"><h3>Robot-inhabiting</h3><p>The agent speaks from the body doing the hold, refusal, alignment, or release.</p></div>
+        <div class="panel"><h3>Separate AR</h3><p>The agent appears near the weak support, risk zone, load path, or broken joint that must be understood.</p></div>
+        <div class="panel"><h3>Tradeoff</h3><p>Embodied authority may ground action; separate explanation may clarify the situation or reduce robot blame.</p></div>
       </div>
     </div>
   </section>
@@ -898,9 +1049,98 @@
     </div>
   </section>
 
+  <section class="slide">
+    <p class="eyebrow">Workshop control</p>
+    <h2>Freedom needs a stable comparison frame.</h2>
+    <p class="lead">Participants may tune many embodiment cues, but the construction uncertainty and evaluation lens stay stable enough to compare fit and tradeoff.</p>
+    <div class="question-grid">
+      <div class="question-card">
+        <h3>Fixed</h3>
+        <p>Six-beam kit, construction goal, problem cards, robot capabilities, and the same Post-Run Evaluation Questions.</p>
+        <span class="measure">Keeps the comparison grounded.</span>
+      </div>
+      <div class="question-card">
+        <h3>Tunable</h3>
+        <p>Voice, visual position, appearance, mood, confidence, authority style, and whether the agent is treated as robot or collaborator.</p>
+        <span class="measure">Keeps the workshop generative.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <p class="eyebrow">Post-run evaluation questions</p>
+    <h2>Ask what the agent location changed.</h2>
+    <p class="lead">Use the same questions after the robot-inhabiting agent and the separate floating AR avatar, while the uncertainty moment is still fresh.</p>
+    <div class="question-grid">
+      <div class="question-card">
+        <h3>Role attribution</h3>
+        <p>Who did you feel made the key decision at the uncertainty moment: human, robot, agent, or team?</p>
+        <span class="measure">Choose one + name the moment.</span>
+      </div>
+      <div class="question-card">
+        <h3>Agent location fit</h3>
+        <p>At the most uncertain moment, did the agent feel better located in the robot body, or separately near the problem area?</p>
+        <span class="measure">Pick one + name the cue.</span>
+      </div>
+      <div class="question-card">
+        <h3>Spatial clarity</h3>
+        <p>Did the agent make the load path, risk zone, weak support, broken joint, or next action easier to locate?</p>
+        <span class="measure">1 = not at all, 5 = very clearly.</span>
+      </div>
+      <div class="question-card">
+        <h3>Authority</h3>
+        <p>When the agent blocked release or reassigned action, did it feel like a command, warning, suggestion, or negotiation?</p>
+        <span class="measure">Choose one + why.</span>
+      </div>
+      <div class="question-card">
+        <h3>Trust before motion</h3>
+        <p>How confident were you following the agent before the robot moved, held, aligned, or released?</p>
+        <span class="measure">1 = unsure, 5 = fully confident.</span>
+      </div>
+      <div class="question-card wide">
+        <h3>Responsibility</h3>
+        <p>If this moment failed, who would you hold responsible: human, robot, agent, or combined system?</p>
+        <span class="measure">Choose one + explain the tradeoff.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <p class="eyebrow">After both runs</p>
+    <h2>Compare Agent Location Fit.</h2>
+    <p class="lead">The result is not which state wins. It is which location fits which uncertainty, and what each location makes harder.</p>
+    <div class="question-grid">
+      <div class="question-card">
+        <h3>Robot agency</h3>
+        <p>Which location made the robot feel more like an intentional collaborator rather than a controlled tool?</p>
+        <span class="measure">Robot-inhabiting / separate AR / no difference.</span>
+      </div>
+      <div class="question-card">
+        <h3>Problem clarity</h3>
+        <p>Which location made the construction problem easier to understand?</p>
+        <span class="measure">Pick one + describe the cue.</span>
+      </div>
+      <div class="question-card">
+        <h3>Responsibility</h3>
+        <p>Which location made responsibility clearer, and which one concentrated too much blame?</p>
+        <span class="measure">Name both sides of the tradeoff.</span>
+      </div>
+      <div class="question-card">
+        <h3>Coordination cost</h3>
+        <p>Which location created more work for the human to track who should act next?</p>
+        <span class="measure">Clarified / crowded / depended on moment.</span>
+      </div>
+      <div class="question-card wide">
+        <h3>Design implication</h3>
+        <p>For future construction tasks, should the agent live in the robot, beside the robot, or move depending on the uncertainty?</p>
+        <span class="measure">Choose one + explain in one sentence.</span>
+      </div>
+    </div>
+  </section>
+
   <section class="slide quote">
-    <blockquote>The card is successful when nobody can solve it alone.</blockquote>
-    <cite>Design rule for the workshop deck</cite>
+    <blockquote>The card creates uncertainty; the agent location reveals the tradeoff.</blockquote>
+    <cite>Design rule for Agent Location Fit</cite>
   </section>
 </main>
 
@@ -953,7 +1193,7 @@
           <p id="inspectorHuman"></p>
         </div>
         <div class="inspector-block">
-          <h3>Agent</h3>
+          <h3>Agent location stress</h3>
           <p id="inspectorAgent"></p>
         </div>
       </div>
@@ -1004,53 +1244,53 @@
   }
   const cardDetails = {
     "false-horizon": {
-      meta: "Card 01 / Sequence",
+      meta: "Card 01 / Sequence uncertainty",
       title: "False Horizon",
       problem: "A 40-50 cm beam must become a horizontal line before its vertical supports exist.",
-      invalidated: "The robot cannot simply place and release the beam. If it lets go, the line falls or rotates.",
+      invalidated: "The robot cannot place and release the beam. If it lets go, the line falls or rotates.",
       robot: "Holds the beam level as temporary structure.",
       human: "Builds the missing supports under the robot-held line.",
-      agent: "Sequences hold, support, contact test, and slow release.",
+      agent: "Tests whether authority should come from the robot holding the line or from a separate AR guide pointing to the missing supports.",
       consequence: "The artifact becomes scaffold-like because supports are built around a line first held in space."
     },
     "broken-transport": {
-      meta: "Card 02 / Material",
+      meta: "Card 02 / Material truth",
       title: "Broken in Transport",
       problem: "One planned long beam arrives as two half-length pieces.",
       invalidated: "The group cannot use it as a single span, cantilever, or mast without changing the structure.",
       robot: "Holds the two halves aligned during overlap, jointing, or support placement.",
       human: "Chooses whether the break is hidden, supported, or made visible.",
-      agent: "Keeps the material truth explicit: two half-beams do not carry load like one beam.",
+      agent: "Tests whether honesty is clearer when the robot refuses the false span or when a separate AR guide marks the break.",
       consequence: "The artifact becomes doubled, stepped, forked, or visibly split while still serving the act."
     },
     "hazard-duty": {
-      meta: "Card 03 / HRC",
+      meta: "Card 03 / Risk boundary",
       title: "Hazard Duty",
       problem: "A pinch point, splintered end, adhesive area, or overhead hold becomes a no-hand zone.",
       invalidated: "The human cannot hold, press, or guide the dangerous contact point by hand.",
       robot: "Takes the hazardous end, pressing task, or risky hold.",
       human: "Works from the safe side and confirms alignment or design intent.",
-      agent: "Defines the no-hand zone and assigns safe roles before motion resumes.",
+      agent: "Tests whether safety authority feels grounded in the robot body or more legible as a separate collaborator defining the no-hand zone.",
       consequence: "The support sequence changes around safety, making robot risk-taking legible."
     },
-    "unbraced-footing": {
-      meta: "Card 04 / Support",
-      title: "Unbraced Footing",
-      problem: "A post rocks, slides, or tilts when released and cannot carry the next load.",
-      invalidated: "The group cannot continue upward construction on that support until it is fixed to another part.",
-      robot: "Steadies the unstable support at the intended angle.",
-      human: "Adds a brace, wedge, tie, or clamp into the base or neighboring member.",
-      agent: "Names what the support must be fixed to before the build continues.",
-      consequence: "The brace becomes part of the design language instead of a hidden repair."
+    "miss-measured-street-line": {
+      meta: "Card 04 / Final alignment",
+      title: "Miss-Measured / Violated Street-Line",
+      problem: "At the end of structure assembly, an inspector finds one main vertical support outside the allowed street line.",
+      invalidated: "The finished structure cannot pass inspection until that support shifts slightly inward.",
+      robot: "Temporarily holds or braces the built structure while the support is moved.",
+      human: "Loosens the wrong support, shifts it inward, and fixes it again without collapsing the frame.",
+      agent: "Tests whether late correction authority is clearer from the robot acting as replacement support or from an AR guide marking the violated line.",
+      consequence: "The final artifact carries a visible record of inspection-driven rework."
     },
     "heavy-crown": {
-      meta: "Card 05 / Load",
+      meta: "Card 05 / Load path",
       title: "Heavy Crown",
       problem: "The top element can be lifted, but the current supports cannot safely carry it.",
       invalidated: "The robot cannot release the crown onto the existing structure.",
       robot: "Keeps the crown in a safe test position at the intended height.",
       human: "Adds a prop, diagonal strut, buttress, or counter-support.",
-      agent: "Names the load path and blocks release until the new support is tested.",
+      agent: "Tests whether load-path authority should inhabit the robot carrying the crown or appear beside the structure to explain the missing support.",
       consequence: "The top remains ambitious, but the structure visibly gains a load path."
     }
   };
@@ -1147,14 +1387,12 @@
     }
   });
   document.getElementById("deck").addEventListener("click", (e) => {
-    if (e.target.closest(".interactive-zone, button, a, canvas, .play-card, .card-inspector")) return;
     if (document.body.classList.contains("overview")) {
+      if (e.target.closest(".interactive-zone, button, a, canvas, .play-card, .card-inspector")) return;
       const slide = e.target.closest(".slide");
       const i = slides.indexOf(slide);
       if (i >= 0) { document.body.classList.remove("overview"); show(i); }
-      return;
     }
-    if (e.clientX < innerWidth / 2) prev(); else next();
   });
   document.getElementById("help").addEventListener("click", () => toggleHelp(false));
   addEventListener("hashchange", () => {
@@ -1169,26 +1407,26 @@
   if (window.THREE) return;
   const canvas = document.getElementById("modelCanvas");
   const ctx = canvas.getContext("2d");
-  const captions = {
+    const captions = {
     falseHorizon: {
-      robot: "Hold",
-      human: "Build",
-      text: "Robot holds the crown while the human turns one loose column into the second support."
+      robot: "Observe",
+      human: "Stand columns",
+      text: "Vertex columns: elements 01, 02, and 03 stand as 4x4 cm vertical vertices, each two-thirds the horizontal span length."
     },
     unbraced: {
-      robot: "Steady",
-      human: "Brace",
-      text: "In the 3D model, the right-hand column leans because its foot is not tied into the base. The robot steadies the top while the human fixes the blue sixth beam from that column back to the rear base joint."
+      robot: "Hold level",
+      human: "Place shared beams",
+      text: "Shared beams: elements 04 and 05 touch the column tops, share the rear vertex, and span to the two opposing vertices."
     },
     heavyCrown: {
-      robot: "Lift",
-      human: "Prop",
-      text: "Robot keeps the heavy crown at height while the human rotates the sixth beam into a prop."
+      robot: "Check span",
+      human: "Place upper beam",
+      text: "Upper beam: element 06 touches the shared beams and spans the two opposing front vertices."
     },
     final: {
-      robot: "Release",
+      robot: "Withdraw",
       human: "Verify",
-      text: "The artifact stands with six elements and a negotiated load path."
+      text: "Final artifact: three 4x4 cm columns define the triangle, two lower beams touch their tops, and the upper beam closes the opposing span."
     }
   };
   let stage = "falseHorizon";
@@ -1234,53 +1472,40 @@
   function beam(a, b, width, color, label) {
     return { type: "beam", a, b, width, color, label };
   }
-  function robotSeg(a, b, width) {
-    return { type: "robot", a, b, width, color: css("--cyan") };
-  }
-  function point(p, color, radius, label) {
-    return { type: "point", p, color, radius, label };
-  }
   function sceneItems() {
     const timber = css("--timber");
-    const dark = css("--timber-dark");
     const hazard = css("--hazard");
-    const cyan = css("--cyan");
-    const green = css("--green");
-    const red = css("--red");
     const items = [];
-    items.push(beam([-1.2, 0, -0.65], [1.2, 0, -0.65], 0.055, dark, "rear base"));
-    items.push(beam([-1.2, 0, 0.65], [1.2, 0, 0.65], 0.055, dark, "front base"));
-    items.push(beam([-1.0, 0, -0.65], [-1.0, 1.08, -0.65], 0.07, timber, "left post"));
+    const horizontalLength = 1.92;
+    const section = 0.04;
+    const halfSpan = horizontalLength / 2;
+    const triangleDepth = Math.sqrt(3) * horizontalLength / 2;
+    const baseY = 0.04;
+    const topY = baseY + horizontalLength * 2 / 3;
+    const lowerY = topY + section / 2;
+    const upperY = lowerY + section;
+    const rearZ = -triangleDepth / 2;
+    const frontZ = triangleDepth / 2;
+    const sharedBase = [0, baseY, rearZ];
+    const leftBase = [-halfSpan, baseY, frontZ];
+    const rightBase = [halfSpan, baseY, frontZ];
+    const sharedTop = [0, topY, rearZ];
+    const leftTop = [-halfSpan, topY, frontZ];
+    const rightTop = [halfSpan, topY, frontZ];
+    const sharedBeamTop = [0, lowerY, rearZ];
+    const leftBeamTop = [-halfSpan, lowerY, frontZ];
+    const rightBeamTop = [halfSpan, lowerY, frontZ];
+    const leftUpper = [-halfSpan, upperY, frontZ];
+    const rightUpper = [halfSpan, upperY, frontZ];
+    items.push(beam(sharedBase, sharedTop, section, timber, "element 01 shared vertex column"));
+    items.push(beam(leftBase, leftTop, section, timber, "element 02 left vertex column"));
+    items.push(beam(rightBase, rightTop, section, timber, "element 03 right vertex column"));
     if (stage !== "falseHorizon") {
-      items.push(beam([0.96, 0, 0.65], [0.96, 1.08, 0.65], 0.07, timber, "right post"));
-    } else {
-      items.push(beam([0.96, 0, 0.65], [0.96, 0.78, 0.65], 0.07, timber, "support candidate"));
-    }
-    if (stage === "unbraced" || stage === "heavyCrown" || stage === "final") {
-      items.push(beam([0.72, 0.03, 0.65], [0.98, 0.82, 0.65], 0.045, cyan, "brace"));
+      items.push(beam(sharedBeamTop, leftBeamTop, section, stage === "unbraced" ? hazard : timber, "element 04 shared-to-left beam"));
+      items.push(beam(sharedBeamTop, rightBeamTop, section, stage === "unbraced" ? hazard : timber, "element 05 shared-to-right beam"));
     }
     if (stage === "heavyCrown" || stage === "final") {
-      items.push(beam([0.12, 0, 0.05], [0.12, 1.08, 0.05], 0.065, green, "sixth prop"));
-    }
-    if (stage === "final") {
-      items.push(beam([-1.05, 0.1, -0.55], [0.12, 0.8, 0.05], 0.04, cyan, "rear tie"));
-    }
-    const roofY = stage === "falseHorizon" ? 1.18 : 1.1;
-    const roofColor = stage === "heavyCrown" || stage === "final" ? hazard : timber;
-    items.push(beam([-1.22, roofY, -0.75], [1.22, roofY, 0.75], 0.095, roofColor, "crown beam"));
-    if (stage === "falseHorizon") {
-      items.push(robotSeg([1.75, 1.45, 1.25], [1.25, roofY, 0.72], 0.055));
-      items.push(robotSeg([1.95, 0.7, 1.35], [1.75, 1.45, 1.25], 0.065));
-      items.push(point([1.25, roofY, 0.72], cyan, 6, "robot gripper holding"));
-    } else if (stage === "heavyCrown") {
-      items.push(robotSeg([1.7, 1.38, 1.15], [1.05, roofY, 0.62], 0.055));
-      items.push(point([1.05, roofY, 0.62], cyan, 6, "robot holds heavy crown"));
-      items.push(point([0.12, 1.08, 0.05], green, 5, "new support"));
-    } else {
-      items.push(robotSeg([1.65, 0.92, 1.18], [1.38, 0.72, 0.94], 0.045));
-    }
-    if (stage === "unbraced") {
-      items.push(point([0.96, 0.82, 0.65], red, 6, "rocking support"));
+      items.push(beam(leftUpper, rightUpper, section, stage === "heavyCrown" ? hazard : timber, "element 06 upper opposing beam"));
     }
     return items;
   }
@@ -1326,7 +1551,7 @@
     const side = norm(cross(axis, ref));
     const up = norm(cross(side, axis));
     const hw = item.width;
-    const hh = item.width * 0.7;
+    const hh = item.width;
     const s = mul(side, hw);
     const u = mul(up, hh);
     const a = item.a;
@@ -1418,7 +1643,7 @@
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = css("--bg");
     ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = document.documentElement.dataset.theme === "light" ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.08)";
+    ctx.strokeStyle = document.documentElement.dataset.theme === "light" ? "rgba(37,49,45,0.12)" : "rgba(246,241,232,0.09)";
     ctx.lineWidth = 1;
     for (let x = -1.8; x <= 1.8; x += 0.3) {
       const a = project([x, -0.02, -1.2]);
@@ -1491,36 +1716,74 @@
   const THREE = window.THREE;
   const canvas = document.getElementById("modelCanvas");
   const wrapper = canvas.closest(".viewer");
-  const target = new THREE.Vector3(0, 0.58, 0);
+  const target = new THREE.Vector3(0, 0.8, 0);
   const captions = {
     falseHorizon: {
-      robot: "Hold level",
-      human: "Stand post",
-      text: "With only six pieces, the robot holds the crown while the human turns one loose column into the second support."
+      robot: "Observe",
+      human: "Stand columns",
+      text: "Vertex columns: elements 01, 02, and 03 stand as 4x4 cm vertical vertices, each two-thirds the horizontal span length."
     },
     unbraced: {
-      robot: "Pin",
-      human: "Tie",
-      text: "In the 3D model, element 04 is the right-hand column. Its foot rests on the front base rail, but the red dot marks the unbraced top leaning inward. The robot gripper pins that top while the human ties the blue sixth beam back to the rear base joint."
+      robot: "Hold level",
+      human: "Place shared beams",
+      text: "Shared beams: elements 04 and 05 touch the column tops, share the rear vertex, and span to the two opposing vertices."
     },
     heavyCrown: {
-      robot: "Counterload",
-      human: "Prop",
-      text: "The top member is too heavy to release. The robot counterloads it while the human rotates the sixth beam into a diagonal prop."
+      robot: "Check span",
+      human: "Place upper beam",
+      text: "Upper beam: element 06 touches the shared beams and spans the two opposing front vertices."
     },
     final: {
       robot: "Withdraw",
-      human: "Inspect",
-      text: "The artifact uses all six elements: two triangular base rails, two columns, one crown, and one strut that carries load."
+      human: "Verify",
+      text: "Final artifact: three 4x4 cm columns define the triangle, two lower beams touch their tops, and the upper beam closes the opposing span."
     }
   };
   let stage = "falseHorizon";
   let orbitTheta = -0.68;
   let orbitPhi = 0.47;
-  let orbitRadius = 4.45;
+  let orbitRadius = 5.25;
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  const tooltip = document.createElement("div");
+  tooltip.className = "model-tooltip";
+  tooltip.setAttribute("role", "tooltip");
+  wrapper.append(tooltip);
+  const cueLayer = document.createElement("div");
+  cueLayer.className = "hover-cue-layer";
+  cueLayer.setAttribute("aria-hidden", "true");
+  wrapper.append(cueLayer);
+  const hoverCueNames = {
+    falseHorizon: ["element 01 shared vertex column", "element 02 left vertex column", "element 03 right vertex column"],
+    unbraced: ["element 04 shared-to-left beam", "element 05 shared-to-right beam"],
+    heavyCrown: ["element 06 upper opposing beam", "element 04 shared-to-left beam", "element 05 shared-to-right beam"],
+    final: ["element 01 shared vertex column", "element 04 shared-to-left beam", "element 06 upper opposing beam"]
+  };
+  const hoverText = {
+    falseHorizon: {
+      "element 01 shared vertex column": "Shared vertex: this vertical column receives both lower horizontal beams.",
+      "element 02 left vertex column": "Opposing vertex: one endpoint for the upper horizontal beam.",
+      "element 03 right vertex column": "Opposing vertex: the other endpoint for the upper horizontal beam."
+    },
+    unbraced: {
+      "element 04 shared-to-left beam": "Lower span: this beam sits on the columns and runs from the shared vertex to the left vertex.",
+      "element 05 shared-to-right beam": "Lower span: this beam shares the same vertex and reaches the right vertex.",
+      "shared bearing vertex": "Both lower beams meet here before spanning out to the opposing vertices."
+    },
+    heavyCrown: {
+      "element 06 upper opposing beam": "Upper span: the final beam lies above the two shared beams and spans the opposing vertices.",
+      "left opposing bearing": "Left bearing: the upper beam sits over this opposing vertex.",
+      "right opposing bearing": "Right bearing: the upper beam sits over this opposing vertex."
+    },
+    final: {
+      "element 01 shared vertex column": "Final frame: three vertical columns define the triangle vertices.",
+      "element 04 shared-to-left beam": "Final lower pair: two beams share this vertex before spanning outward.",
+      "element 06 upper opposing beam": "Final upper beam: the sixth element spans the opposing vertices above the lower beams."
+    }
+  };
 
   function css(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -1582,16 +1845,16 @@
 
   const woodTexture = makeWoodTexture();
   const materials = {
-    wood: new THREE.MeshStandardMaterial({ color: color("--timber", "#c18a4d"), map: woodTexture, roughness: 0.78, metalness: 0.02 }),
-    woodDark: new THREE.MeshStandardMaterial({ color: color("--timber-dark", "#7a4a25"), map: woodTexture, roughness: 0.82, metalness: 0.02 }),
-    crown: new THREE.MeshStandardMaterial({ color: color("--hazard", "#f5c518"), map: woodTexture, roughness: 0.68, metalness: 0.04 }),
-    brace: new THREE.MeshStandardMaterial({ color: color("--cyan", "#59d5ff"), roughness: 0.54, metalness: 0.08 }),
-    support: new THREE.MeshStandardMaterial({ color: color("--green", "#79dd92"), roughness: 0.58, metalness: 0.05 }),
+    wood: new THREE.MeshStandardMaterial({ color: color("--timber", "#b57a4a"), map: woodTexture, roughness: 0.78, metalness: 0.02 }),
+    woodDark: new THREE.MeshStandardMaterial({ color: color("--timber-dark", "#7a543a"), map: woodTexture, roughness: 0.82, metalness: 0.02 }),
+    crown: new THREE.MeshStandardMaterial({ color: color("--hazard", "#dc8a5a"), map: woodTexture, roughness: 0.68, metalness: 0.04 }),
+    brace: new THREE.MeshStandardMaterial({ color: color("--cyan", "#8ac7bf"), roughness: 0.54, metalness: 0.08 }),
+    support: new THREE.MeshStandardMaterial({ color: color("--green", "#91aa73"), roughness: 0.58, metalness: 0.05 }),
     robot: new THREE.MeshStandardMaterial({ color: "#9ca8ad", roughness: 0.34, metalness: 0.55 }),
-    robotJoint: new THREE.MeshStandardMaterial({ color: color("--cyan", "#59d5ff"), roughness: 0.35, metalness: 0.35 }),
-    red: new THREE.MeshStandardMaterial({ color: color("--red", "#ff6464"), roughness: 0.45, metalness: 0.1 }),
-    ghost: new THREE.MeshStandardMaterial({ color: color("--cyan", "#59d5ff"), roughness: 0.7, transparent: true, opacity: 0.22 }),
-    level: new THREE.MeshStandardMaterial({ color: color("--hazard", "#f5c518"), roughness: 0.5, transparent: true, opacity: 0.55 })
+    robotJoint: new THREE.MeshStandardMaterial({ color: color("--cyan", "#8ac7bf"), roughness: 0.35, metalness: 0.35 }),
+    red: new THREE.MeshStandardMaterial({ color: color("--red", "#d66c64"), roughness: 0.45, metalness: 0.1 }),
+    ghost: new THREE.MeshStandardMaterial({ color: color("--cyan", "#8ac7bf"), roughness: 0.7, transparent: true, opacity: 0.22 }),
+    level: new THREE.MeshStandardMaterial({ color: color("--hazard", "#dc8a5a"), roughness: 0.5, transparent: true, opacity: 0.55 })
   };
 
   const ambient = new THREE.HemisphereLight(0xf8ead0, 0x20241e, 1.2);
@@ -1609,13 +1872,13 @@
   rim.position.set(2.8, 1.9, -2.5);
   scene.add(rim);
 
-  const floorMat = new THREE.MeshStandardMaterial({ color: "#141711", roughness: 0.92, metalness: 0.05 });
+  const floorMat = new THREE.MeshStandardMaterial({ color: "#1d261f", roughness: 0.92, metalness: 0.05 });
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 3.5), floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.018;
   floor.receiveShadow = true;
   scene.add(floor);
-  const grid = new THREE.GridHelper(4.4, 18, 0x4f5147, 0x2a2d25);
+  const grid = new THREE.GridHelper(4.4, 18, 0x5d6860, 0x303a33);
   grid.material.transparent = true;
   grid.material.opacity = 0.62;
   scene.add(grid);
@@ -1658,109 +1921,57 @@
     stageRoot.add(mesh);
     return mesh;
   }
-  function addCylinder(name, start, end, radius, matName, radial = 18) {
-    const a = v(...start);
-    const b = v(...end);
-    const len = a.distanceTo(b);
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, len, radial), materials[matName]);
-    mesh.name = name;
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    orientAlong(mesh, a, b, new THREE.Vector3(0, 1, 0));
-    stageRoot.add(mesh);
-    return mesh;
+  function triangleFramePoints() {
+    const horizontalLength = 1.92;
+    const section = 0.04;
+    const halfSpan = horizontalLength / 2;
+    const triangleDepth = Math.sqrt(3) * horizontalLength / 2;
+    const baseY = 0.08;
+    const topY = baseY + horizontalLength * 2 / 3;
+    const lowerY = topY + section / 2;
+    const upperY = lowerY + section;
+    const rearZ = -triangleDepth / 2;
+    const frontZ = triangleDepth / 2;
+    return {
+      section,
+      sharedBase: [0, baseY, rearZ],
+      leftBase: [-halfSpan, baseY, frontZ],
+      rightBase: [halfSpan, baseY, frontZ],
+      sharedTop: [0, topY, rearZ],
+      leftTop: [-halfSpan, topY, frontZ],
+      rightTop: [halfSpan, topY, frontZ],
+      sharedLower: [0, lowerY, rearZ],
+      leftLower: [-halfSpan, lowerY, frontZ],
+      rightLower: [halfSpan, lowerY, frontZ],
+      leftUpper: [-halfSpan, upperY, frontZ],
+      rightUpper: [halfSpan, upperY, frontZ]
+    };
   }
-  function addSphere(name, position, radius, matName) {
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 16), materials[matName]);
-    mesh.name = name;
-    mesh.position.set(...position);
-    mesh.castShadow = true;
-    stageRoot.add(mesh);
-    return mesh;
-  }
-  function addArrow(name, start, end, matName) {
-    const a = v(...start);
-    const b = v(...end);
-    const dir = new THREE.Vector3().subVectors(b, a);
-    const head = 0.13;
-    const shaftEnd = a.clone().addScaledVector(dir, Math.max(0.05, 1 - head / dir.length()));
-    addCylinder(`${name} shaft`, start, shaftEnd.toArray(), 0.018, matName, 12);
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.07, head, 18), materials[matName]);
-    cone.position.copy(b).addScaledVector(dir.clone().normalize(), -head / 2);
-    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
-    cone.castShadow = true;
-    stageRoot.add(cone);
-  }
-  function addLevelLine(y) {
-    const geometry = new THREE.BufferGeometry().setFromPoints([v(-1.35, y + 0.015, -0.88), v(1.35, y + 0.015, -0.88)]);
-    const material = new THREE.LineBasicMaterial({ color: color("--hazard", "#f5c518"), transparent: true, opacity: 0.72 });
-    const line = new THREE.Line(geometry, material);
-    line.name = "required horizontal datum";
-    stageRoot.add(line);
-    addSphere("level left marker", [-1.35, y + 0.015, -0.88], 0.045, "level");
-    addSphere("level right marker", [1.35, y + 0.015, -0.88], 0.045, "level");
-  }
-  function addRobotArm(grip, parked = false) {
-    const base = parked ? [1.86, 0.22, 1.1] : [1.92, 0.28, 1.15];
-    const elbow = parked ? [1.55, 0.72, 1.0] : [1.63, 1.04, 1.04];
-    const wrist = parked ? [1.24, 0.58, 0.84] : [grip[0] + 0.22, grip[1] + 0.12, grip[2] + 0.18];
-    addCylinder("robot base", [1.98, 0.02, 1.18], base, 0.07, "robot");
-    addSphere("robot shoulder", base, 0.1, "robot");
-    addCylinder("robot upper arm", base, elbow, 0.062, "robot");
-    addSphere("robot elbow", elbow, 0.085, "robot");
-    addCylinder("robot forearm", elbow, wrist, 0.052, "robot");
-    addSphere("robot wrist", wrist, 0.068, "robotJoint");
-    addCylinder("robot tool vector", wrist, grip, 0.024, "robotJoint");
-    addSphere("robot gripper", grip, parked ? 0.04 : 0.055, "robotJoint");
-    if (!parked) {
-      addBeam("gripper jaw a", [grip[0] - 0.04, grip[1], grip[2] - 0.09], [grip[0] - 0.04, grip[1], grip[2] + 0.09], "robot", 0.025, 0.025, false);
-      addBeam("gripper jaw b", [grip[0] + 0.04, grip[1], grip[2] - 0.09], [grip[0] + 0.04, grip[1], grip[2] + 0.09], "robot", 0.025, 0.025, false);
+  function addTriangleFrame({ lower = false, upper = false, activeLower = false, activeUpper = false } = {}) {
+    const p = triangleFramePoints();
+    addBeam("element 01 shared vertex column", p.sharedBase, p.sharedTop, "wood", p.section, p.section);
+    addBeam("element 02 left vertex column", p.leftBase, p.leftTop, "wood", p.section, p.section);
+    addBeam("element 03 right vertex column", p.rightBase, p.rightTop, "wood", p.section, p.section);
+    if (lower) {
+      const lowerMat = activeLower ? "crown" : "wood";
+      addBeam("element 04 shared-to-left beam", p.sharedLower, p.leftLower, lowerMat, p.section, p.section);
+      addBeam("element 05 shared-to-right beam", p.sharedLower, p.rightLower, lowerMat, p.section, p.section);
     }
-  }
-  function addSixElementKit({ right = "vertical", strut = "waiting", crown = "wood", raised = false } = {}) {
-    const frontZ = 0.62;
-    const rearZ = -0.92;
-    const crownY = raised ? 1.2 : 1.12;
-    addBeam("element 01 left base rail", [0, 0.06, rearZ], [-1.24, 0.06, frontZ], "woodDark", 0.12, 0.095);
-    addBeam("element 02 right base rail", [0, 0.06, rearZ], [1.24, 0.06, frontZ], "woodDark", 0.12, 0.095);
-    addBeam("element 03 left column", [-1.12, 0.12, frontZ], [-1.12, 1.02, frontZ], "wood", 0.12, 0.12);
-    if (right === "loose") {
-      addBeam("element 04 loose column", [0.38, 0.13, rearZ + 0.24], [1.28, 0.13, rearZ + 0.24], "wood", 0.12, 0.12);
-    } else if (right === "leaning") {
-      addBeam("element 04 unbraced column", [1.12, 0.12, frontZ], [1.28, 0.98, frontZ - 0.1], "wood", 0.12, 0.12);
-    } else {
-      addBeam("element 04 right column", [1.12, 0.12, frontZ], [1.12, 1.02, frontZ], "wood", 0.12, 0.12);
+    if (upper) {
+      addBeam("element 06 upper opposing beam", p.leftUpper, p.rightUpper, activeUpper ? "crown" : "wood", p.section, p.section);
     }
-    addBeam("element 05 crown beam", [-1.32, crownY, frontZ], [1.32, crownY, frontZ], crown, 0.16, 0.12);
-    if (strut === "waiting") {
-      addBeam("element 06 loose strut", [-0.42, 0.13, rearZ + 0.12], [0.48, 0.13, rearZ + 0.12], "wood", 0.11, 0.09);
-    } else if (strut === "tie") {
-      addBeam("element 06 base tie strut", [0, 0.12, rearZ], [1.18, 0.82, frontZ - 0.04], "brace", 0.075, 0.06);
-    } else {
-      addBeam("element 06 compression strut", [0, 0.12, rearZ], [0.08, crownY - 0.07, frontZ], "support", 0.1, 0.08);
-    }
-    return crownY;
+    return p;
   }
   function buildStage() {
     clearStage();
     if (stage === "falseHorizon") {
-      const crownY = addSixElementKit({ right: "loose", strut: "waiting", crown: "crown", raised: true });
-      addLevelLine(crownY);
-      addRobotArm([1.24, crownY, 0.56]);
-      addArrow("do not release load", [1.24, crownY + 0.42, 0.56], [1.24, crownY + 0.12, 0.56], "red");
+      addTriangleFrame();
     } else if (stage === "unbraced") {
-      const crownY = addSixElementKit({ right: "leaning", strut: "tie", crown: "wood" });
-      addRobotArm([1.18, 0.96, 0.56]);
-      addSphere("wobble marker", [1.18, 0.98, 0.56], 0.06, "red");
-      addArrow("tie action", [0.58, 0.8, 0.56], [0.82, 0.48, 0.56], "brace");
+      addTriangleFrame({ lower: true, activeLower: true });
     } else if (stage === "heavyCrown") {
-      const crownY = addSixElementKit({ right: "vertical", strut: "prop", crown: "crown" });
-      addRobotArm([1.02, crownY, 0.56]);
-      addArrow("heavy load one", [-0.42, crownY + 0.42, 0.56], [-0.42, crownY + 0.12, 0.56], "red");
-      addArrow("heavy load two", [0.52, crownY + 0.42, 0.56], [0.52, crownY + 0.12, 0.56], "red");
+      addTriangleFrame({ lower: true, upper: true, activeUpper: true });
     } else {
-      const crownY = addSixElementKit({ right: "vertical", strut: "prop", crown: "wood" });
-      addRobotArm([1.18, 0.55, 0.84], true);
+      addTriangleFrame({ lower: true, upper: true });
     }
     updateCaption();
     render();
@@ -1773,8 +1984,8 @@
   }
   function applyTheme() {
     const light = document.documentElement.dataset.theme === "light";
-    scene.background = light ? new THREE.Color("#efe4d2") : color("--bg", "#0e100d");
-    floorMat.color.set(light ? "#e7d6bb" : "#141711");
+    scene.background = light ? new THREE.Color("#dfe9e2") : color("--bg", "#202823");
+    floorMat.color.set(light ? "#d2e1d8" : "#1d261f");
     grid.material.opacity = light ? 0.4 : 0.62;
   }
   function resize() {
@@ -1792,11 +2003,76 @@
     camera.position.set(x, y, z);
     camera.lookAt(target);
   }
+  function findStageObject(name) {
+    let found = null;
+    stageRoot.traverse((child) => {
+      if (!found && child.name === name) found = child;
+    });
+    return found;
+  }
+  function updateCuePins() {
+    cueLayer.replaceChildren();
+    const rect = wrapper.getBoundingClientRect();
+    for (const name of hoverCueNames[stage] || []) {
+      const object = findStageObject(name);
+      if (!object) continue;
+      const box = new THREE.Box3().setFromObject(object);
+      if (box.isEmpty()) continue;
+      const center = box.getCenter(new THREE.Vector3()).project(camera);
+      if (center.z < -1 || center.z > 1) continue;
+      const pin = document.createElement("span");
+      pin.className = "hover-cue-pin";
+      pin.style.left = `${(center.x * 0.5 + 0.5) * rect.width}px`;
+      pin.style.top = `${(-center.y * 0.5 + 0.5) * rect.height}px`;
+      cueLayer.append(pin);
+    }
+  }
+  function tooltipFor(object) {
+    let current = object;
+    while (current && current !== stageRoot) {
+      const text = hoverText[stage]?.[current.name];
+      if (text) return text;
+      current = current.parent;
+    }
+    return "";
+  }
+  function positionTooltip(e) {
+    const rect = wrapper.getBoundingClientRect();
+    const x = Math.max(24, Math.min(rect.width - 24, e.clientX - rect.left));
+    const y = Math.max(28, Math.min(rect.height - 16, e.clientY - rect.top));
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
+  }
+  function hideTooltip() {
+    tooltip.classList.remove("visible");
+    canvas.style.cursor = dragging ? "grabbing" : "grab";
+  }
+  function updateHover(e) {
+    if (dragging) {
+      hideTooltip();
+      return;
+    }
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+    raycaster.setFromCamera(pointer, camera);
+    const hit = raycaster.intersectObjects(stageRoot.children, true)
+      .find((entry) => tooltipFor(entry.object));
+    if (!hit) {
+      hideTooltip();
+      return;
+    }
+    tooltip.textContent = tooltipFor(hit.object);
+    positionTooltip(e);
+    tooltip.classList.add("visible");
+    canvas.style.cursor = "help";
+  }
   function render() {
     resize();
     applyTheme();
     updateCamera();
     renderer.render(scene, camera);
+    updateCuePins();
     window.__deckDiagnostics = {
       renderer: "three-webgl-inline",
       stage,
@@ -1817,18 +2093,23 @@
       e.stopPropagation();
       stage = btn.dataset.stage;
       document.querySelectorAll("#stageButtons button").forEach((b) => b.classList.toggle("active", b === btn));
+      hideTooltip();
       buildStage();
     });
   });
   canvas.addEventListener("pointerdown", (e) => {
     dragging = true;
+    hideTooltip();
     lastX = e.clientX;
     lastY = e.clientY;
     canvas.setPointerCapture(e.pointerId);
     e.stopPropagation();
   });
   canvas.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
+    if (!dragging) {
+      updateHover(e);
+      return;
+    }
     orbitTheta -= (e.clientX - lastX) * 0.006;
     orbitPhi += (e.clientY - lastY) * 0.0045;
     orbitPhi = Math.max(0.16, Math.min(0.95, orbitPhi));
@@ -1839,10 +2120,12 @@
   });
   canvas.addEventListener("pointerup", (e) => {
     dragging = false;
+    updateHover(e);
     e.stopPropagation();
   });
+  canvas.addEventListener("pointerleave", hideTooltip);
   canvas.addEventListener("wheel", (e) => {
-    orbitRadius = Math.max(3.2, Math.min(5.8, orbitRadius + e.deltaY * 0.002));
+    orbitRadius = Math.max(3.2, Math.min(6.3, orbitRadius + e.deltaY * 0.002));
     render();
     e.preventDefault();
     e.stopPropagation();
@@ -1865,36 +2148,78 @@
   const canvas = document.getElementById("thresholdCanvas");
   if (!canvas) return;
   const wrapper = canvas.closest(".viewer");
-  const target = new THREE.Vector3(0, 0.64, 0.18);
+  const target = new THREE.Vector3(0, 0.7, 0.2);
   const captions = {
-    lift: {
-      robot: "Hold",
-      human: "Stage",
-      text: "Robot holds element 03 as the lintel while the human lays the bottom tie and rear outrigger."
+    columns: {
+      robot: "Wait",
+      human: "Stand columns",
+      text: "Column start: elements 01, 02, and 03 are already vertical. The next task is not lifting a crown; it is deciding how the planned top line should span across them."
     },
-    hazard: {
-      robot: "Pin",
-      human: "Stand",
-      text: "The two vertical posts carry compression, but their feet still form a tipping line until the rear support is tied in."
+    broken: {
+      robot: "Hold halves",
+      human: "Read break",
+      text: "Broken in Transport: the intended roof line arrives as two shorter pieces. The robot holds them level while the agent blocks pretending they are one continuous member."
     },
-    lock: {
-      robot: "Steady",
-      human: "Brace",
-      text: "Element 06 becomes the diagonal backstay from the lintel to the rear outrigger, taking overturning load."
+    shift: {
+      robot: "Move column",
+      human: "Clear path",
+      text: "Move support: the robot slides the center column under the fracture, turning one failed span into two shorter beams with a shared bearing point."
     },
     final: {
       robot: "Release",
       human: "Inspect",
-      text: "The final gantry uses all six elements: two posts, lintel, bottom tie, rear outrigger, and backstay."
+      text: "Final span: three columns carry compression, the broken top halves become two honest horizontal beams, and the moved center column carries both inner ends."
     }
   };
-  let stage = "lift";
+  let stage = "columns";
   let orbitTheta = -0.78;
   let orbitPhi = 0.46;
   let orbitRadius = 4.7;
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  const tooltip = document.createElement("div");
+  tooltip.className = "model-tooltip";
+  tooltip.setAttribute("role", "tooltip");
+  wrapper.append(tooltip);
+  const cueLayer = document.createElement("div");
+  cueLayer.className = "hover-cue-layer";
+  cueLayer.setAttribute("aria-hidden", "true");
+  wrapper.append(cueLayer);
+  const hoverCueNames = {
+    columns: ["element 01 left column", "element 02 center column", "element 03 right column", "element 04 waiting continuous top", "element 06 waiting column shoe"],
+    broken: ["element 04 left broken top", "element 05 right broken top", "open fracture gap"],
+    shift: ["element 02 moved center column", "element 06 column shoe", "robot gripper"],
+    final: ["element 02 moved center column", "element 04 left broken top", "element 05 right broken top", "element 06 column shoe"]
+  };
+  const hoverText = {
+    columns: {
+      "element 01 left column": "Column first: the build begins from vertical supports, not from a robot-held top member.",
+      "element 02 center column": "Middle support: this column can move if the top beam later refuses the original grid.",
+      "element 03 right column": "Third column: the final artifact reads as a colonnade rather than a two-post shelter.",
+      "element 04 waiting continuous top": "Planned top member: in this first state it is still one continuous beam waiting behind the columns.",
+      "element 06 waiting column shoe": "Reserve element: a shoe or short rail that can lock the moved center column."
+    },
+    broken: {
+      "element 04 left broken top": "Left half: it can reach the center column but cannot pretend to span the full width.",
+      "element 05 right broken top": "Right half: the robot holds this piece level while the group decides where the joint belongs.",
+      "open fracture gap": "Problem signal: the top line is not continuous. The agent should block release until the gap has a named repair.",
+      "robot gripper": "Robot role: hold the loose half in alignment without hiding the material break."
+    },
+    shift: {
+      "element 02 moved center column": "Robot fix: move the support to the break, changing the grid instead of hiding the material failure.",
+      "element 06 column shoe": "Column shoe: element 06 locks the moved foot so the new support position is explicit.",
+      "robot gripper": "Robot role: grip and relocate the column while the human keeps the beam path clear."
+    },
+    final: {
+      "element 02 moved center column": "Shared bearing: the relocated column carries both inner beam ends.",
+      "element 04 left broken top": "Final left beam: the broken member becomes a shorter honest span.",
+      "element 05 right broken top": "Final right beam: the second half becomes the other short span.",
+      "element 06 column shoe": "Final foot: element 06 records the column move at floor level."
+    }
+  };
 
   function css(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -1950,16 +2275,17 @@
 
   const woodTexture = makeWoodTexture();
   const materials = {
-    wood: new THREE.MeshStandardMaterial({ color: color("--timber", "#c18a4d"), map: woodTexture, roughness: 0.78, metalness: 0.02 }),
-    rail: new THREE.MeshStandardMaterial({ color: color("--timber-dark", "#7a4a25"), map: woodTexture, roughness: 0.82, metalness: 0.02 }),
-    lintel: new THREE.MeshStandardMaterial({ color: color("--hazard", "#f5c518"), map: woodTexture, roughness: 0.68, metalness: 0.04 }),
-    lock: new THREE.MeshStandardMaterial({ color: color("--cyan", "#59d5ff"), roughness: 0.55, metalness: 0.08 }),
-    finalLock: new THREE.MeshStandardMaterial({ color: color("--green", "#79dd92"), roughness: 0.58, metalness: 0.05 }),
+    wood: new THREE.MeshStandardMaterial({ color: color("--timber", "#b57a4a"), map: woodTexture, roughness: 0.78, metalness: 0.02 }),
+    rail: new THREE.MeshStandardMaterial({ color: color("--timber-dark", "#7a543a"), map: woodTexture, roughness: 0.82, metalness: 0.02 }),
+    lintel: new THREE.MeshStandardMaterial({ color: color("--hazard", "#dc8a5a"), map: woodTexture, roughness: 0.68, metalness: 0.04 }),
+    lock: new THREE.MeshStandardMaterial({ color: color("--cyan", "#8ac7bf"), roughness: 0.55, metalness: 0.08 }),
+    finalLock: new THREE.MeshStandardMaterial({ color: color("--green", "#91aa73"), roughness: 0.58, metalness: 0.05 }),
     robot: new THREE.MeshStandardMaterial({ color: "#9ca8ad", roughness: 0.34, metalness: 0.55 }),
-    robotJoint: new THREE.MeshStandardMaterial({ color: color("--cyan", "#59d5ff"), roughness: 0.35, metalness: 0.35 }),
-    red: new THREE.MeshStandardMaterial({ color: color("--red", "#ff6464"), roughness: 0.45, metalness: 0.1 }),
-    ghost: new THREE.MeshStandardMaterial({ color: color("--cyan", "#59d5ff"), roughness: 0.7, transparent: true, opacity: 0.22 }),
-    zone: new THREE.MeshStandardMaterial({ color: color("--red", "#ff6464"), roughness: 0.6, transparent: true, opacity: 0.16 })
+    robotJoint: new THREE.MeshStandardMaterial({ color: color("--cyan", "#8ac7bf"), roughness: 0.35, metalness: 0.35 }),
+    red: new THREE.MeshStandardMaterial({ color: color("--red", "#d66c64"), roughness: 0.45, metalness: 0.1 }),
+    seam: new THREE.MeshStandardMaterial({ color: "#1a120b", roughness: 0.9, metalness: 0.02 }),
+    ghost: new THREE.MeshStandardMaterial({ color: color("--cyan", "#8ac7bf"), roughness: 0.7, transparent: true, opacity: 0.22 }),
+    zone: new THREE.MeshStandardMaterial({ color: color("--red", "#d66c64"), roughness: 0.6, transparent: true, opacity: 0.16 })
   };
 
   const ambient = new THREE.HemisphereLight(0xf8ead0, 0x20241e, 1.18);
@@ -1977,13 +2303,13 @@
   rim.position.set(2.8, 1.9, -2.5);
   scene.add(rim);
 
-  const floorMat = new THREE.MeshStandardMaterial({ color: "#141711", roughness: 0.92, metalness: 0.05 });
+  const floorMat = new THREE.MeshStandardMaterial({ color: "#1d261f", roughness: 0.92, metalness: 0.05 });
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(5.0, 3.6), floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.018;
   floor.receiveShadow = true;
   scene.add(floor);
-  const grid = new THREE.GridHelper(4.6, 18, 0x4f5147, 0x2a2d25);
+  const grid = new THREE.GridHelper(4.6, 18, 0x5d6860, 0x303a33);
   grid.material.transparent = true;
   grid.material.opacity = 0.62;
   scene.add(grid);
@@ -2061,13 +2387,14 @@
     cone.castShadow = true;
     stageRoot.add(cone);
   }
-  function addHazardZone() {
-    const zone = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.38, 0.42), materials.zone);
-    zone.position.set(0, 1.31, 0.55);
+  function addFractureGap() {
+    const zone = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.2, 0.34), materials.zone);
+    zone.name = "open fracture gap";
+    zone.position.set(0.52, 1.36, 0.55);
     zone.castShadow = false;
     stageRoot.add(zone);
-    addSphere("no hand marker", [0, 1.31, 0.55], 0.065, "red");
-    addArrow("no hand cue", [0, 1.68, 0.55], [0, 1.42, 0.55], "red");
+    addSphere("open fracture gap", [0.52, 1.36, 0.55], 0.055, "red");
+    addArrow("fracture cue", [0.52, 1.68, 0.55], [0.52, 1.47, 0.55], "red");
   }
   function addRobotArm(grip, parked = false) {
     const base = parked ? [1.9, 0.22, 1.12] : [1.94, 0.28, 1.15];
@@ -2086,43 +2413,58 @@
       addBeam("gripper jaw b", [grip[0] + 0.04, grip[1], grip[2] - 0.09], [grip[0] + 0.04, grip[1], grip[2] + 0.09], "robot", 0.025, 0.025, false);
     }
   }
-  function addThresholdKit({ posts = "loose", backstay = "waiting", lintel = "held" } = {}) {
-    if (posts === "loose") {
-      addBeam("element 01 loose left post", [-1.18, 0.12, -0.78], [-0.38, 0.12, -0.78], "wood", 0.12, 0.11);
-      addBeam("element 02 loose right post", [0.38, 0.12, -0.78], [1.18, 0.12, -0.78], "wood", 0.12, 0.11);
-    } else {
-      addBeam("element 01 vertical left post", [-1.16, 0.12, 0.55], [-1.16, 1.24, 0.55], "wood", 0.12, 0.11);
-      addBeam("element 02 vertical right post", [1.16, 0.12, 0.55], [1.16, 1.24, 0.55], "wood", 0.12, 0.11);
+  function addBrokenSpanKit({ top = "waiting", shifted = false, final = false } = {}) {
+    const columnTop = 1.22;
+    const roofY = 1.34;
+    const centerX = shifted ? 0.52 : 0;
+    const centerName = shifted ? "element 02 moved center column" : "element 02 center column";
+    addBeam("element 01 left column", [-1.16, 0.08, 0.55], [-1.16, columnTop, 0.55], "wood", 0.12, 0.11);
+    addBeam(centerName, [centerX, 0.08, 0.55], [centerX, columnTop, 0.55], "wood", 0.12, 0.11);
+    addBeam("element 03 right column", [1.16, 0.08, 0.55], [1.16, columnTop, 0.55], "wood", 0.12, 0.11);
+    addBeam("left column foot", [-1.38, 0.06, 0.55], [-0.94, 0.06, 0.55], "rail", 0.1, 0.075, false);
+    addBeam("center column foot", [centerX - 0.22, 0.06, 0.55], [centerX + 0.22, 0.06, 0.55], "rail", 0.1, 0.075, false);
+    addBeam("right column foot", [0.94, 0.06, 0.55], [1.38, 0.06, 0.55], "rail", 0.1, 0.075, false);
+    if (shifted && !final) {
+      addBeam("previous center position", [0, 0.08, 0.55], [0, columnTop, 0.55], "ghost", 0.1, 0.09, false);
     }
-    const lintelMat = lintel === "final" ? "wood" : "lintel";
-    addBeam("element 03 held lintel", [-1.36, 1.3, 0.55], [1.36, 1.3, 0.55], lintelMat, 0.16, 0.12);
-    addBeam("element 04 bottom tie", [-1.28, 0.08, 0.55], [1.28, 0.08, 0.55], "rail", 0.11, 0.085);
-    addBeam("element 05 rear outrigger", [0, 0.06, 0.55], [0, 0.06, -1.15], "rail", 0.11, 0.085);
-    if (backstay === "waiting") {
-      addBeam("element 06 loose backstay", [-0.48, 0.12, -1.05], [0.48, 0.12, -1.05], "wood", 0.11, 0.09);
-    } else {
-      const mat = lintel === "final" ? "finalLock" : "lock";
-      addBeam("element 06 diagonal backstay", [0, 0.12, -1.15], [0, 1.24, 0.55], mat, 0.09, 0.07);
+    if (top === "waiting") {
+      addBeam("element 04 waiting continuous top", [-1.22, 0.12, -0.9], [1.22, 0.12, -0.9], "lintel", 0.13, 0.095);
+      addBeam("element 06 waiting column shoe", [0.24, 0.12, -1.12], [0.82, 0.12, -1.12], "lock", 0.1, 0.07);
+      return roofY;
     }
+    if (top === "broken") {
+      addBeam("element 04 left broken top", [-1.34, roofY, 0.55], [0.28, roofY, 0.55], "lintel", 0.15, 0.11);
+      addBeam("element 05 right broken top", [0.76, roofY + 0.08, 0.55], [1.34, roofY + 0.08, 0.55], "lintel", 0.15, 0.11);
+      addBeam("element 06 waiting column shoe", [0.24, 0.12, -1.12], [0.82, 0.12, -1.12], "lock", 0.1, 0.07);
+      addFractureGap();
+      return roofY;
+    }
+    const seamGap = final ? 0.055 : 0.035;
+    addBeam("element 04 left broken top", [-1.34, roofY, 0.55], [centerX - seamGap, roofY, 0.55], final ? "wood" : "lintel", 0.15, 0.11);
+    addBeam("element 05 right broken top", [centerX + seamGap, roofY + (final ? 0 : 0.035), 0.55], [1.34, roofY + (final ? 0 : 0.035), 0.55], final ? "wood" : "lintel", 0.15, 0.11);
+    if (final) {
+      addBeam("visible fracture seam", [centerX, roofY + 0.005, 0.45], [centerX, roofY + 0.005, 0.65], "seam", 0.014, 0.12, false);
+    }
+    addBeam("element 06 column shoe", [centerX - 0.32, 0.065, 0.55], [centerX + 0.32, 0.065, 0.55], final ? "finalLock" : "lock", 0.12, 0.08);
+    return roofY;
   }
   function buildStage() {
     clearStage();
-    if (stage === "lift") {
-      addThresholdKit({ posts: "loose", backstay: "waiting", lintel: "held" });
-      addRobotArm([1.02, 1.3, 0.55]);
-      addArrow("lift force", [1.02, 1.76, 0.55], [1.02, 1.44, 0.55], "red");
-    } else if (stage === "hazard") {
-      addThresholdKit({ posts: "standing", backstay: "waiting", lintel: "held" });
-      addHazardZone();
-      addRobotArm([0, 1.3, 0.55]);
-      addArrow("tipping risk", [0, 1.18, 0.36], [0, 0.42, -0.42], "red");
-    } else if (stage === "lock") {
-      addThresholdKit({ posts: "standing", backstay: "fixed", lintel: "held" });
-      addHazardZone();
-      addRobotArm([0, 1.3, 0.55]);
-      addArrow("backstay direction", [0, 0.52, -0.72], [0, 1.0, 0.18], "lock");
+    if (stage === "columns") {
+      addBrokenSpanKit({ top: "waiting" });
+      addRobotArm([1.18, 0.55, 0.84], true);
+      addArrow("build upward", [0, 0.72, 0.55], [0, 1.12, 0.55], "lock");
+    } else if (stage === "broken") {
+      const roofY = addBrokenSpanKit({ top: "broken" });
+      addRobotArm([0.86, roofY + 0.08, 0.55]);
+      addArrow("do not fake span", [0.52, roofY + 0.48, 0.55], [0.52, roofY + 0.2, 0.55], "red");
+    } else if (stage === "shift") {
+      const roofY = addBrokenSpanKit({ top: "shifted", shifted: true });
+      addRobotArm([0.52, 0.92, 0.55]);
+      addArrow("column move", [0.05, 0.62, 0.55], [0.46, 0.62, 0.55], "lock");
+      addArrow("land beams", [0.52, roofY + 0.38, 0.55], [0.52, roofY + 0.1, 0.55], "red");
     } else {
-      addThresholdKit({ posts: "standing", backstay: "fixed", lintel: "final" });
+      addBrokenSpanKit({ top: "shifted", shifted: true, final: true });
       addRobotArm([1.18, 0.55, 0.84], true);
     }
     updateCaption();
@@ -2136,8 +2478,8 @@
   }
   function applyTheme() {
     const light = document.documentElement.dataset.theme === "light";
-    scene.background = light ? new THREE.Color("#efe4d2") : color("--bg", "#0e100d");
-    floorMat.color.set(light ? "#e7d6bb" : "#141711");
+    scene.background = light ? new THREE.Color("#dfe9e2") : color("--bg", "#202823");
+    floorMat.color.set(light ? "#d2e1d8" : "#1d261f");
     grid.material.opacity = light ? 0.4 : 0.62;
   }
   function resize() {
@@ -2155,11 +2497,76 @@
     camera.position.set(x, y, z);
     camera.lookAt(target);
   }
+  function findStageObject(name) {
+    let found = null;
+    stageRoot.traverse((child) => {
+      if (!found && child.name === name) found = child;
+    });
+    return found;
+  }
+  function updateCuePins() {
+    cueLayer.replaceChildren();
+    const rect = wrapper.getBoundingClientRect();
+    for (const name of hoverCueNames[stage] || []) {
+      const object = findStageObject(name);
+      if (!object) continue;
+      const box = new THREE.Box3().setFromObject(object);
+      if (box.isEmpty()) continue;
+      const center = box.getCenter(new THREE.Vector3()).project(camera);
+      if (center.z < -1 || center.z > 1) continue;
+      const pin = document.createElement("span");
+      pin.className = "hover-cue-pin";
+      pin.style.left = `${(center.x * 0.5 + 0.5) * rect.width}px`;
+      pin.style.top = `${(-center.y * 0.5 + 0.5) * rect.height}px`;
+      cueLayer.append(pin);
+    }
+  }
+  function tooltipFor(object) {
+    let current = object;
+    while (current && current !== stageRoot) {
+      const text = hoverText[stage]?.[current.name];
+      if (text) return text;
+      current = current.parent;
+    }
+    return "";
+  }
+  function positionTooltip(e) {
+    const rect = wrapper.getBoundingClientRect();
+    const x = Math.max(24, Math.min(rect.width - 24, e.clientX - rect.left));
+    const y = Math.max(28, Math.min(rect.height - 16, e.clientY - rect.top));
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
+  }
+  function hideTooltip() {
+    tooltip.classList.remove("visible");
+    canvas.style.cursor = dragging ? "grabbing" : "grab";
+  }
+  function updateHover(e) {
+    if (dragging) {
+      hideTooltip();
+      return;
+    }
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+    raycaster.setFromCamera(pointer, camera);
+    const hit = raycaster.intersectObjects(stageRoot.children, true)
+      .find((entry) => tooltipFor(entry.object));
+    if (!hit) {
+      hideTooltip();
+      return;
+    }
+    tooltip.textContent = tooltipFor(hit.object);
+    positionTooltip(e);
+    tooltip.classList.add("visible");
+    canvas.style.cursor = "help";
+  }
   function render() {
     resize();
     applyTheme();
     updateCamera();
     renderer.render(scene, camera);
+    updateCuePins();
     window.__thresholdDiagnostics = {
       renderer: "three-webgl-inline",
       stage,
@@ -2175,18 +2582,23 @@
       e.stopPropagation();
       stage = btn.dataset.stage;
       document.querySelectorAll("#thresholdStageButtons button").forEach((b) => b.classList.toggle("active", b === btn));
+      hideTooltip();
       buildStage();
     });
   });
   canvas.addEventListener("pointerdown", (e) => {
     dragging = true;
+    hideTooltip();
     lastX = e.clientX;
     lastY = e.clientY;
     canvas.setPointerCapture(e.pointerId);
     e.stopPropagation();
   });
   canvas.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
+    if (!dragging) {
+      updateHover(e);
+      return;
+    }
     orbitTheta -= (e.clientX - lastX) * 0.006;
     orbitPhi += (e.clientY - lastY) * 0.0045;
     orbitPhi = Math.max(0.16, Math.min(0.95, orbitPhi));
@@ -2197,8 +2609,10 @@
   });
   canvas.addEventListener("pointerup", (e) => {
     dragging = false;
+    updateHover(e);
     e.stopPropagation();
   });
+  canvas.addEventListener("pointerleave", hideTooltip);
   canvas.addEventListener("wheel", (e) => {
     orbitRadius = Math.max(3.2, Math.min(5.9, orbitRadius + e.deltaY * 0.002));
     render();

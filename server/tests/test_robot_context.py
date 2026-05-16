@@ -110,13 +110,348 @@ def test_robot_context_remembers_recent_executable_plan_names() -> None:
     now = 200.0
     store = RobotContextStore(time_fn=lambda: now)
 
-    store.remember_executable_plan("plan-1")
+    store.remember_executable_plan(
+        "plan-1",
+        robot_name="UR10",
+        source_tool="moveit_plan_free_motion",
+    )
 
     assert store.has_recent_executable_plan("plan-1", max_age_s=60.0) is True
     assert store.has_recent_executable_plan("missing", max_age_s=60.0) is False
+    pending = store.pending_executable_plan("plan-1", max_age_s=60.0)
+    assert pending is not None
+    assert pending.robot_name == "UR10"
+    assert pending.source_tool == "moveit_plan_free_motion"
+    assert pending.observed_at_s == 200.0
+    assert "pending executable plan: plan-1" in store.render_instruction_block()
 
     now = 261.0
     assert store.has_recent_executable_plan("plan-1", max_age_s=60.0) is False
+    assert store.pending_executable_plan("plan-1", max_age_s=60.0) is None
+
+
+def test_robot_context_returns_latest_recent_pending_plan() -> None:
+    now = 200.0
+    store = RobotContextStore(time_fn=lambda: now)
+
+    store.remember_executable_plan("plan-1", robot_name="UR10")
+    now = 205.0
+    store.remember_executable_plan("plan-2", robot_name="UR10")
+
+    latest = store.latest_pending_executable_plan(max_age_s=60.0)
+
+    assert latest is not None
+    assert latest.plan_name == "plan-2"
+
+    now = 266.0
+    assert store.latest_pending_executable_plan(max_age_s=60.0) is None
+
+
+def test_robot_context_updates_pending_plan_from_planning_tool_output() -> None:
+    store = RobotContextStore(time_fn=lambda: 250.0)
+    output = json.dumps(
+        {
+            "structured_content": {
+                "ok": True,
+                "robot": "UR10",
+                "feedback": {"can_execute": True},
+                "raw": {"plan_name": "plan-2"},
+            }
+        }
+    )
+
+    store.update_from_tool_result("moveit_plan_free_motion", output)
+
+    pending = store.pending_executable_plan("plan-2", max_age_s=10.0)
+    assert pending is not None
+    assert pending.robot_name == "UR10"
+    assert pending.source_tool == "moveit_plan_free_motion"
+
+
+def test_robot_context_updates_pending_plan_from_pick_planning_tool_output() -> None:
+    store = RobotContextStore(time_fn=lambda: 255.0)
+    output = json.dumps(
+        {
+            "structured_content": {
+                "ok": True,
+                "robot": "UR10",
+                "feedback": {"can_execute": True},
+                "raw": {"plan_name": "pick-plan-1"},
+            }
+        }
+    )
+
+    store.update_from_tool_result("moveit_plan_pick", output)
+
+    pending = store.pending_executable_plan("pick-plan-1", max_age_s=10.0)
+    assert pending is not None
+    assert pending.robot_name == "UR10"
+    assert pending.source_tool == "moveit_plan_pick"
+
+
+def test_robot_context_ignores_partial_legacy_pick_diagnostic() -> None:
+    store = RobotContextStore(time_fn=lambda: 255.0)
+    output = json.dumps(
+        {
+            "structured_content": {
+                "ok": False,
+                "error": "pick_segment_planning_failed",
+                "failed_segment": "local_cartesian_pick",
+                "feedback": {"can_execute": False},
+                "raw": {
+                    "partial_plan": {
+                        "kind": "preposition",
+                        "plan_name": "pick_dynamic_5_preposition",
+                    }
+                },
+            }
+        }
+    )
+
+    store.update_from_tool_result("moveit_plan_pick", output)
+
+    assert store.pending_plan is None
+
+
+def test_robot_context_tracks_task_solution_without_pending_plan() -> None:
+    store = RobotContextStore(time_fn=lambda: 260.0)
+    output = json.dumps(
+        {
+            "structured_content": {
+                "ok": True,
+                "robot": "UR10",
+                "feedback": {"can_execute": True, "execution_target": "task_solution"},
+                "raw": {
+                    "task_solution_id": "pick_task_dynamic_5_001",
+                    "task_kind": "pick",
+                    "backend": "emulated",
+                    "object_name": "dynamic_5",
+                    "scene_snapshot_id": "scene_20260515_001",
+                    "waypoints": [
+                        {"position": {"x": 0.4, "y": 0.1, "z": 0.3}},
+                        {"position": {"x": 0.5, "y": 0.1, "z": 0.3}},
+                    ],
+                    "workflow_steps": [
+                        {"kind": "motion", "name": "approach", "waypoint_index": 0},
+                        {"kind": "motion", "name": "pre_grasp", "waypoint_index": 1},
+                    ],
+                    "approval": {
+                        "required": True,
+                        "target_kind": "task_solution",
+                        "task_solution_id": "pick_task_dynamic_5_001",
+                        "source_tool": "moveit_plan_pick_task",
+                        "object_name": "dynamic_5",
+                        "expected_movement": "approach grasp, close gripper, attach object, lift object",
+                        "scene_snapshot_id": "scene_20260515_001",
+                    },
+                },
+            }
+        }
+    )
+
+    store.update_from_tool_result("moveit_plan_pick_task", output)
+
+    assert store.pending_plan is None
+    solution = store.recent_task_solution
+    assert solution is not None
+    assert solution.task_solution_id == "pick_task_dynamic_5_001"
+    assert solution.task_kind == "pick"
+    assert solution.object_name == "dynamic_5"
+    assert solution.backend == "emulated"
+    assert solution.scene_snapshot_id == "scene_20260515_001"
+    assert solution.approval_required is True
+    assert solution.raw is not None
+    assert solution.raw["waypoints"][1]["position"]["x"] == 0.5
+    assert solution.raw["workflow_steps"][0]["name"] == "approach"
+    approval = store.pending_task_solution_approval
+    assert approval is not None
+    assert approval.target_kind == "task_solution"
+    assert approval.task_solution_id == "pick_task_dynamic_5_001"
+    assert approval.source_tool == "moveit_plan_pick_task"
+    assert approval.object_name == "dynamic_5"
+    assert approval.expected_movement == "approach grasp, close gripper, attach object, lift object"
+    assert approval.scene_snapshot_id == "scene_20260515_001"
+    assert approval.approval_turn_id is None
+    assert approval.approved_at is None
+
+
+def test_robot_context_records_task_solution_approval() -> None:
+    store = RobotContextStore(time_fn=lambda: 300.0)
+    store.remember_task_solution_approval_candidate(
+        target_kind="task_solution",
+        task_solution_id="pick_task_dynamic_5_001",
+        source_tool="moveit_plan_pick_task",
+        object_name="dynamic_5",
+        expected_movement="approach grasp, close gripper, attach object, lift object",
+        scene_snapshot_id="scene_20260515_001",
+    )
+
+    assert store.record_task_solution_approval(
+        "pick_task_dynamic_5_001",
+        approval_turn_id="turn-7",
+        approved_at=301.0,
+    ) is True
+
+    approval = store.pending_task_solution_approval
+    assert approval is not None
+    assert approval.approval_turn_id == "turn-7"
+    assert approval.approved_at == 301.0
+
+
+def test_robot_context_rejects_stale_task_solution_approval_after_new_user_intent() -> None:
+    store = RobotContextStore(time_fn=lambda: 400.0)
+    store.remember_task_solution_approval_candidate(
+        target_kind="task_solution",
+        task_solution_id="pick_task_dynamic_5_001",
+        source_tool="moveit_plan_pick_task",
+        object_name="dynamic_5",
+        expected_movement="approach grasp, close gripper, attach object, lift object",
+        scene_snapshot_id="scene_20260515_001",
+    )
+    store.record_task_solution_approval(
+        "pick_task_dynamic_5_001",
+        approval_turn_id="turn-7",
+        approved_at=401.0,
+    )
+
+    assert store.task_solution_execution_approval_status(
+        "pick_task_dynamic_5_001",
+        scene_snapshot_id="scene_20260515_001",
+    ).ok is True
+
+    store.mark_new_user_intent()
+
+    status = store.task_solution_execution_approval_status(
+        "pick_task_dynamic_5_001",
+        scene_snapshot_id="scene_20260515_001",
+    )
+    assert status.ok is False
+    assert status.reason == "approval_stale_after_new_user_intent"
+
+
+def test_robot_context_preserves_pick_follow_up_after_success() -> None:
+    store = RobotContextStore(time_fn=lambda: 256.0)
+    follow_up_args = {
+        "robot_name": "UR10",
+        "object_name": "dynamic_5",
+        "plan_name": "local-pick-plan",
+        "planning_strategy": "cartesian",
+    }
+    output = json.dumps(
+        {
+            "structured_content": {
+                "ok": True,
+                "robot": "UR10",
+                "feedback": {"can_execute": True},
+                "raw": {
+                    "plan_name": "preposition-plan",
+                    "next_action": {
+                        "after_success": {
+                            "tool": "moveit_plan_pick",
+                            "arguments": follow_up_args,
+                        }
+                    },
+                },
+            }
+        }
+    )
+
+    store.update_from_tool_result("moveit_plan_pick", output)
+
+    pending = store.pending_executable_plan("preposition-plan", max_age_s=10.0)
+    assert pending is not None
+    assert pending.after_success == {
+        "tool": "moveit_plan_pick",
+        "arguments": follow_up_args,
+    }
+    assert pending.execute_via_mcp is True
+
+
+def test_robot_context_preserves_place_follow_up_after_success() -> None:
+    store = RobotContextStore(time_fn=lambda: 257.0)
+    follow_up_args = {
+        "robot_name": "UR10",
+        "object_name": "beam_001",
+        "target_position": {"x": 0.75, "y": 0.2, "z": 0.28},
+        "orientation_mode": "horizontal",
+    }
+    output = json.dumps(
+        {
+            "structured_content": {
+                "ok": True,
+                "robot": "UR10",
+                "feedback": {"can_execute": True},
+                "raw": {
+                    "plan_name": "place-preposition-plan",
+                    "next_action": {
+                        "after_success": {
+                            "tool": "moveit_plan_place",
+                            "arguments": follow_up_args,
+                        }
+                    },
+                },
+            }
+        }
+    )
+
+    store.update_from_tool_result("moveit_plan_place", output)
+
+    pending = store.pending_executable_plan("place-preposition-plan", max_age_s=10.0)
+    assert pending is not None
+    assert pending.after_success == {
+        "tool": "moveit_plan_place",
+        "arguments": follow_up_args,
+    }
+
+
+def test_robot_context_marks_pick_workflow_plan_for_mcp_execution() -> None:
+    store = RobotContextStore(time_fn=lambda: 258.0)
+    output = json.dumps(
+        {
+            "structured_content": {
+                "ok": True,
+                "robot": "UR10",
+                "feedback": {"can_execute": True},
+                "raw": {"plan_name": "local-pick-plan", "workflow_kind": "pick"},
+            }
+        }
+    )
+
+    store.update_from_tool_result("moveit_plan_pick", output)
+
+    pending = store.pending_executable_plan("local-pick-plan", max_age_s=10.0)
+    assert pending is not None
+    assert pending.execute_via_mcp is True
+
+
+def test_robot_context_updates_pending_plan_from_place_planning_tool_output() -> None:
+    store = RobotContextStore(time_fn=lambda: 260.0)
+    output = json.dumps(
+        {
+            "structured_content": {
+                "ok": True,
+                "robot": "UR10",
+                "feedback": {"can_execute": True},
+                "raw": {"plan_name": "place-plan-1"},
+            }
+        }
+    )
+
+    store.update_from_tool_result("moveit_plan_place", output)
+
+    pending = store.pending_executable_plan("place-plan-1", max_age_s=10.0)
+    assert pending is not None
+    assert pending.robot_name == "UR10"
+    assert pending.source_tool == "moveit_plan_place"
+
+
+def test_robot_context_consumes_pending_plan_after_execution() -> None:
+    store = RobotContextStore(time_fn=lambda: 300.0)
+    store.remember_executable_plan("plan-1", robot_name="UR10")
+
+    assert store.consume_executable_plan("plan-1") is True
+    assert store.has_recent_executable_plan("plan-1", max_age_s=60.0) is False
+    assert store.consume_executable_plan("plan-1") is False
 
 
 def test_robot_context_tracks_recent_gripper_state_from_gripper_tools() -> None:

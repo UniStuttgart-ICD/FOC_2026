@@ -21,6 +21,7 @@ class FakeLangChainAgentProcessor(FrameProcessor):
         tracer,
         mcp_vizor_url=None,
         user_sensing_max_age_s=2.0,
+        verified_execution_url=None,
     ):
         super().__init__()
         self.mcp_server_url = mcp_server_url
@@ -29,15 +30,36 @@ class FakeLangChainAgentProcessor(FrameProcessor):
         self.tracer = tracer
         self.mcp_vizor_url = mcp_vizor_url
         self.user_sensing_max_age_s = user_sensing_max_age_s
+        self.verified_execution_url = verified_execution_url
 
 
 class FakeAgentTurnProcessor(FrameProcessor):
-    def __init__(self, *, backend, tracer, on_turn_started=None, on_turn_finished=None):
+    def __init__(
+        self,
+        *,
+        backend,
+        tracer,
+        on_turn_started=None,
+        on_turn_finished=None,
+        response_coordinator=None,
+    ):
         super().__init__()
         self._backend = backend
         self.tracer = tracer
         self.on_turn_started = on_turn_started
         self.on_turn_finished = on_turn_finished
+        self.response_coordinator = response_coordinator
+
+
+class FakeResponseCoordinator:
+    async def begin_response(self) -> None:
+        pass
+
+    def finish_response(self) -> None:
+        pass
+
+    def reset_response(self) -> None:
+        pass
 
 
 def _patch_factory_dependencies(monkeypatch):
@@ -149,6 +171,25 @@ def test_passes_vizor_mcp_options_to_langchain_backend(monkeypatch):
     assert processor._backend.user_sensing_max_age_s == 3.5
 
 
+def test_passes_verified_execution_url_to_langchain_backend(monkeypatch):
+    _patch_factory_dependencies(monkeypatch)
+
+    processor = create_agent_processor(
+        AgentConfig(
+            provider="openai_api",
+            model="gpt-5.4-mini",
+            reasoning_effort="low",
+            api_key_env="OPENAI_API_KEY",
+        ),
+        mcp_server_url="http://127.0.0.1:8765/mcp",
+        verified_execution_url="http://127.0.0.1:8770",
+    )
+
+    assert isinstance(processor, FakeAgentTurnProcessor)
+    assert isinstance(processor._backend, FakeLangChainAgentProcessor)
+    assert processor._backend.verified_execution_url == "http://127.0.0.1:8770"
+
+
 def test_factory_real_processors_accept_tracer(monkeypatch):
     tracer = ProcessTracer(MemoryTraceWriter())
     monkeypatch.setattr(
@@ -172,3 +213,22 @@ def test_factory_real_processors_accept_tracer(monkeypatch):
     assert processor._tracer is tracer
     assert isinstance(processor._backend, LangChainAgentProcessor)
     assert processor._backend._tracer is tracer
+
+
+def test_factory_passes_response_coordinator(monkeypatch):
+    _patch_factory_dependencies(monkeypatch)
+    coordinator = FakeResponseCoordinator()
+
+    processor = create_agent_processor(
+        AgentConfig(
+            provider="openai_api",
+            model="gpt-5.4-mini",
+            reasoning_effort="low",
+            api_key_env="OPENAI_API_KEY",
+        ),
+        mcp_server_url="http://127.0.0.1:8765/mcp",
+        response_coordinator=coordinator,
+    )
+
+    assert isinstance(processor, FakeAgentTurnProcessor)
+    assert processor.response_coordinator is coordinator

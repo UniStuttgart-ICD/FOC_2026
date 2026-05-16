@@ -42,6 +42,7 @@ def test_user_sensing_context_updates_from_vizor_sensor_context_output() -> None
                 "user": {
                     "available": True,
                     "position": {"x": 0.34, "y": -0.72, "z": 1.25},
+                    "frame": "base_link",
                     "age_s": 0.3,
                     "stale": False,
                 },
@@ -60,7 +61,7 @@ def test_user_sensing_context_updates_from_vizor_sensor_context_output() -> None
     text = store.render_instruction_block()
     assert "attention target: beam_001 (high confidence, dwell 3.4s)" in text
     assert "gaze target: beam_001" in text
-    assert "user position: x=0.340, y=-0.720, z=1.250" in text
+    assert "user position: x=0.340, y=-0.720, z=1.250, frame=base_link" in text
     assert "manual target: unavailable" in text
     assert "status age: 0.0s" in text
     assert store.summary_attributes() == {
@@ -106,3 +107,31 @@ def test_user_sensing_context_marks_stale_fields() -> None:
 
     assert "gaze target: beam_001 (stale, age 5.2s)" in text
     assert "user position: unavailable" in text
+
+
+def test_user_sensing_context_renders_raw_gaze_object_candidate() -> None:
+    store = UserSensingContextStore(time_fn=lambda: 30.0)
+    store.update_from_tool_result(
+        json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "gaze": {
+                        "available": True,
+                        "target": "5",
+                        "raw_target": "dynamic_5",
+                        "age_s": 0.2,
+                        "stale": False,
+                    },
+                    "user": {"available": False, "position": None, "stale": True},
+                    "manual_target": {"available": False, "position": None, "stale": True},
+                }
+            }
+        )
+    )
+
+    text = store.render_instruction_block()
+
+    assert "gaze target: 5" in text
+    assert "gaze object candidate: dynamic_5" in text
+    assert store.summary_attributes()["gaze.raw_target"] == "dynamic_5"

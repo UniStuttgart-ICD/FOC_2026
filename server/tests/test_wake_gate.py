@@ -121,6 +121,21 @@ def test_openwakeword_exposes_last_vad_score(monkeypatch, tmp_path):
     assert detector.last_vad_score() == 0.7
 
 
+def test_openwakeword_reset_delegates_to_model(monkeypatch, tmp_path):
+    model_path = tmp_path / "mave.onnx"
+    model_path.write_bytes(b"custom wake model")
+    model = Mock()
+    model.vad_threshold = 0.0
+    monkeypatch.setattr("wake.openwakeword_detector._ensure_openwakeword_resources", Mock())
+    monkeypatch.setattr("wake.openwakeword_detector.Model", Mock(return_value=model))
+
+    detector = OpenWakeWordDetector(model_path)
+
+    detector.reset()
+
+    model.reset.assert_called_once_with()
+
+
 @pytest.mark.asyncio
 async def test_blocks_audio_until_wake_detected():
     detector = Mock()

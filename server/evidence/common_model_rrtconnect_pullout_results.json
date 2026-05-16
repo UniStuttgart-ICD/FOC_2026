@@ -1,0 +1,574 @@
+{
+  "planner_id": "RRTConnect",
+  "planning_pipeline": "ompl",
+  "plan_only": true,
+  "objects": [
+    "common_model_element_04",
+    "common_model_element_05",
+    "common_model_element_06"
+  ],
+  "faces": [
+    "top",
+    "back",
+    "front",
+    "left",
+    "right"
+  ],
+  "results": [
+    {
+      "object": "common_model_element_04",
+      "face": "top",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 0.625,
+          "y": 0.279904,
+          "z": 0.37
+        },
+        "orientation": {
+          "x": 1.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.0
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 0.625,
+          "y": 0.279904,
+          "z": 0.47
+        },
+        "orientation": {
+          "x": 1.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.0
+        }
+      },
+      "approach_ok": true,
+      "approach_points": 9,
+      "approach_wall_time_s": 0.101,
+      "pull_ok": true,
+      "pull_points": 2,
+      "pull_wall_time_s": 0.09
+    },
+    {
+      "object": "common_model_element_04",
+      "face": "back",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 0.625,
+          "y": 0.020000166142,
+          "z": 0.23
+        },
+        "orientation": {
+          "x": -0.707106781187,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 0.625,
+          "y": -0.079999833858,
+          "z": 0.31
+        },
+        "orientation": {
+          "x": -0.707106781187,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "approach_ok": true,
+      "approach_points": 8,
+      "approach_wall_time_s": 0.117,
+      "pull_ok": true,
+      "pull_points": 2,
+      "pull_wall_time_s": 0.084
+    },
+    {
+      "object": "common_model_element_04",
+      "face": "front",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 0.625,
+          "y": 0.539807833858,
+          "z": 0.23
+        },
+        "orientation": {
+          "x": 0.707106781187,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 0.625,
+          "y": 0.639807833858,
+          "z": 0.31
+        },
+        "orientation": {
+          "x": 0.707106781187,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "approach_ok": true,
+      "approach_points": 8,
+      "approach_wall_time_s": 0.103,
+      "pull_ok": true,
+      "pull_points": 3,
+      "pull_wall_time_s": 0.1
+    },
+    {
+      "object": "common_model_element_04",
+      "face": "left",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 0.41267954034,
+          "y": 0.279904,
+          "z": 0.23
+        },
+        "orientation": {
+          "x": 0.0,
+          "y": 0.707106781187,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 0.31267954034,
+          "y": 0.279904,
+          "z": 0.31
+        },
+        "orientation": {
+          "x": 0.0,
+          "y": 0.707106781187,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "approach_ok": true,
+      "approach_points": 10,
+      "approach_wall_time_s": 0.097,
+      "pull_ok": true,
+      "pull_points": 3,
+      "pull_wall_time_s": 0.096
+    },
+    {
+      "object": "common_model_element_04",
+      "face": "right",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 0.83732045966,
+          "y": 0.279904,
+          "z": 0.23
+        },
+        "orientation": {
+          "x": 0.0,
+          "y": -0.707106781187,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 0.93732045966,
+          "y": 0.279904,
+          "z": 0.31
+        },
+        "orientation": {
+          "x": 0.0,
+          "y": -0.707106781187,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "approach_ok": false,
+      "approach_points": 0,
+      "approach_wall_time_s": 1.935,
+      "pull_ok": false,
+      "pull_points": 0,
+      "pull_wall_time_s": 0
+    },
+    {
+      "object": "common_model_element_05",
+      "face": "top",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 0.775,
+          "y": 0.279904,
+          "z": 0.37
+        },
+        "orientation": {
+          "x": 1.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.0
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 0.775,
+          "y": 0.279904,
+          "z": 0.47
+        },
+        "orientation": {
+          "x": 1.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.0
+        }
+      },
+      "approach_ok": true,
+      "approach_points": 9,
+      "approach_wall_time_s": 0.064,
+      "pull_ok": true,
+      "pull_points": 2,
+      "pull_wall_time_s": 0.1
+    },
+    {
+      "object": "common_model_element_05",
+      "face": "back",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 0.775,
+          "y": 0.067583513153,
+          "z": 0.23
+        },
+        "orientation": {
+          "x": -0.707106781187,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 0.775,
+          "y": -0.032416486847,
+          "z": 0.31
+        },
+        "orientation": {
+          "x": -0.707106781187,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "approach_ok": true,
+      "approach_points": 9,
+      "approach_wall_time_s": 0.105,
+      "pull_ok": true,
+      "pull_points": 3,
+      "pull_wall_time_s": 0.093
+    },
+    {
+      "object": "common_model_element_05",
+      "face": "front",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 0.775,
+          "y": 0.492224486847,
+          "z": 0.23
+        },
+        "orientation": {
+          "x": 0.707106781187,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 0.775,
+          "y": 0.592224486847,
+          "z": 0.31
+        },
+        "orientation": {
+          "x": 0.707106781187,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "approach_ok": true,
+      "approach_points": 23,
+      "approach_wall_time_s": 0.112,
+      "pull_ok": true,
+      "pull_points": 18,
+      "pull_wall_time_s": 0.105
+    },
+    {
+      "object": "common_model_element_05",
+      "face": "left",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 0.51509617922,
+          "y": 0.279904,
+          "z": 0.23
+        },
+        "orientation": {
+          "x": 0.0,
+          "y": 0.707106781187,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 0.41509617922,
+          "y": 0.279904,
+          "z": 0.31
+        },
+        "orientation": {
+          "x": 0.0,
+          "y": 0.707106781187,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "approach_ok": false,
+      "approach_points": 0,
+      "approach_wall_time_s": 4.068,
+      "pull_ok": false,
+      "pull_points": 0,
+      "pull_wall_time_s": 0
+    },
+    {
+      "object": "common_model_element_05",
+      "face": "right",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 1.03490382078,
+          "y": 0.279904,
+          "z": 0.23
+        },
+        "orientation": {
+          "x": 0.0,
+          "y": -0.707106781187,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 1.13490382078,
+          "y": 0.279904,
+          "z": 0.31
+        },
+        "orientation": {
+          "x": 0.0,
+          "y": -0.707106781187,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "approach_ok": false,
+      "approach_points": 0,
+      "approach_wall_time_s": 4.116,
+      "pull_ok": false,
+      "pull_points": 0,
+      "pull_wall_time_s": 0
+    },
+    {
+      "object": "common_model_element_06",
+      "face": "top",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 0.7,
+          "y": 0.409808,
+          "z": 0.41
+        },
+        "orientation": {
+          "x": 1.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.0
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 0.7,
+          "y": 0.409808,
+          "z": 0.51
+        },
+        "orientation": {
+          "x": 1.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.0
+        }
+      },
+      "approach_ok": true,
+      "approach_points": 11,
+      "approach_wall_time_s": 0.097,
+      "pull_ok": true,
+      "pull_points": 2,
+      "pull_wall_time_s": 0.096
+    },
+    {
+      "object": "common_model_element_06",
+      "face": "back",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 0.7,
+          "y": 0.269808,
+          "z": 0.27
+        },
+        "orientation": {
+          "x": -0.707106781187,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 0.7,
+          "y": 0.169808,
+          "z": 0.35
+        },
+        "orientation": {
+          "x": -0.707106781187,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "approach_ok": false,
+      "approach_points": 0,
+      "approach_wall_time_s": 1.992,
+      "pull_ok": false,
+      "pull_points": 0,
+      "pull_wall_time_s": 0
+    },
+    {
+      "object": "common_model_element_06",
+      "face": "front",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 0.7,
+          "y": 0.549808,
+          "z": 0.27
+        },
+        "orientation": {
+          "x": 0.707106781187,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 0.7,
+          "y": 0.649808,
+          "z": 0.35
+        },
+        "orientation": {
+          "x": 0.707106781187,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "approach_ok": true,
+      "approach_points": 19,
+      "approach_wall_time_s": 0.127,
+      "pull_ok": true,
+      "pull_points": 38,
+      "pull_wall_time_s": 0.105
+    },
+    {
+      "object": "common_model_element_06",
+      "face": "left",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 0.43,
+          "y": 0.409808,
+          "z": 0.27
+        },
+        "orientation": {
+          "x": 0.0,
+          "y": 0.707106781187,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 0.33,
+          "y": 0.409808,
+          "z": 0.35
+        },
+        "orientation": {
+          "x": 0.0,
+          "y": 0.707106781187,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "approach_ok": true,
+      "approach_points": 19,
+      "approach_wall_time_s": 0.087,
+      "pull_ok": true,
+      "pull_points": 4,
+      "pull_wall_time_s": 0.092
+    },
+    {
+      "object": "common_model_element_06",
+      "face": "right",
+      "planner_id": "RRTConnect",
+      "approach_pose": {
+        "position": {
+          "x": 0.97,
+          "y": 0.409808,
+          "z": 0.27
+        },
+        "orientation": {
+          "x": 0.0,
+          "y": -0.707106781187,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "pull_pose": {
+        "position": {
+          "x": 1.07,
+          "y": 0.409808,
+          "z": 0.35
+        },
+        "orientation": {
+          "x": 0.0,
+          "y": -0.707106781187,
+          "z": 0.0,
+          "w": 0.707106781187
+        }
+      },
+      "approach_ok": false,
+      "approach_points": 0,
+      "approach_wall_time_s": 4.105,
+      "pull_ok": false,
+      "pull_points": 0,
+      "pull_wall_time_s": 0
+    }
+  ]
+}

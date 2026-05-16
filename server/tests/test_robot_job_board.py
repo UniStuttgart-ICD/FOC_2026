@@ -14,7 +14,7 @@ async def test_submit_job_records_queued_event_and_returns_job_id() -> None:
 
     job = await board.submit(
         SubmitRobotJob(
-            tool_name="moveit_plan_and_execute_free_motion",
+            tool_name="moveit_plan_free_motion",
             arguments={"robot_name": "UR10", "timeout_s": 10},
             requested_by_turn_id="turn-1",
         )
@@ -22,7 +22,7 @@ async def test_submit_job_records_queued_event_and_returns_job_id() -> None:
 
     assert job.job_id
     assert job.status is RobotJobStatus.QUEUED
-    assert job.tool_name == "moveit_plan_and_execute_free_motion"
+    assert job.tool_name == "moveit_plan_free_motion"
     assert job.arguments == {"robot_name": "UR10", "timeout_s": 10}
     events = board.events_since(0)
     assert [(event.event_type, event.job_id) for event in events] == [

@@ -1,0 +1,657 @@
+{
+  "schema": "pipecat.shared_geometry.common_model.v0.1",
+  "version": "0.1.0",
+  "name": "six_element_b_c_triangular_frame",
+  "description": "Six-element structure using B elements as 20 cm verticals and C elements as 30 cm horizontal beams. All beams have a 4 cm by 4 cm rectangular section.",
+  "units": "meters",
+  "owner_module": "robot_control.shared_geometry",
+  "coordinate_system": {
+    "frame": "rhino_world",
+    "up_axis": "z",
+    "notes": "The axis start/end points define the beam centerline. The two lower C horizontals sit on the B verticals. The third C horizontal is one section height above them, so its bottom face bears on their top faces."
+  },
+  "source": {
+    "visual_template": "pipecat-agent/docs/research/shared-geometry-model-explainer.html",
+    "scenario_reference": "pipecat-agent/.worktrees/six-element-scenario-structure/docs/presentations/slide-deck-robot-agent-act-20260512-six-element-scenario.html#/7"
+  },
+  "catalog": {
+    "A": {
+      "length": 0.1,
+      "section": {
+        "y": 0.04,
+        "z": 0.04
+      }
+    },
+    "B": {
+      "length": 0.2,
+      "section": {
+        "y": 0.04,
+        "z": 0.04
+      }
+    },
+    "C": {
+      "length": 0.3,
+      "section": {
+        "y": 0.04,
+        "z": 0.04
+      }
+    }
+  },
+  "defaults": {
+    "solid": {
+      "type": "box",
+      "origin": "center",
+      "section": {
+        "y": 0.04,
+        "z": 0.04
+      }
+    },
+    "feature_set": [
+      "end_start",
+      "end_end",
+      "end_neg_x",
+      "end_pos_x",
+      "face_top",
+      "face_bottom",
+      "face_side_a",
+      "face_side_b",
+      "axis_x"
+    ]
+  },
+  "bodies": [
+    {
+      "id": "element_01",
+      "label": "B vertical at shared vertex",
+      "family": "B",
+      "group": "vertical",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.2,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "bottom",
+        "end_label": "top",
+        "start_xyz": [
+          0,
+          -0.8,
+          0
+        ],
+        "end_xyz": [
+          0,
+          -0.8,
+          0.2
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0,
+          -0.8,
+          0.1
+        ],
+        "quat_xyzw": [
+          0.5,
+          0.5,
+          -0.5,
+          0.5
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0,
+            -0.8,
+            0
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0,
+            -0.8,
+            0.2
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0,
+            -0.8,
+            0.2
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "status": "built",
+        "alignment": "vertical",
+        "role": "shared_vertex_support"
+      }
+    },
+    {
+      "id": "element_02",
+      "label": "B vertical at left vertex",
+      "family": "B",
+      "group": "vertical",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.2,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "bottom",
+        "end_label": "top",
+        "start_xyz": [
+          0.259808,
+          -0.65,
+          0
+        ],
+        "end_xyz": [
+          0.259808,
+          -0.65,
+          0.2
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0.259808,
+          -0.65,
+          0.1
+        ],
+        "quat_xyzw": [
+          0.5,
+          0.5,
+          -0.5,
+          0.5
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0.259808,
+            -0.65,
+            0
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0.259808,
+            -0.65,
+            0.2
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0.259808,
+            -0.65,
+            0.2
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "status": "built",
+        "alignment": "vertical",
+        "role": "left_vertex_support"
+      }
+    },
+    {
+      "id": "element_03",
+      "label": "B vertical at right vertex",
+      "family": "B",
+      "group": "vertical",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.2,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "bottom",
+        "end_label": "top",
+        "start_xyz": [
+          0.259808,
+          -0.95,
+          0
+        ],
+        "end_xyz": [
+          0.259808,
+          -0.95,
+          0.2
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0.259808,
+          -0.95,
+          0.1
+        ],
+        "quat_xyzw": [
+          0.5,
+          0.5,
+          -0.5,
+          0.5
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0.259808,
+            -0.95,
+            0
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0.259808,
+            -0.95,
+            0.2
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0.259808,
+            -0.95,
+            0.2
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "status": "built",
+        "alignment": "vertical",
+        "role": "right_vertex_support"
+      }
+    },
+    {
+      "id": "element_04",
+      "label": "C horizontal shared-to-left",
+      "family": "C",
+      "group": "horizontal",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.3,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "shared_vertex",
+        "end_label": "left_vertex",
+        "start_xyz": [
+          0,
+          -0.8,
+          0.22
+        ],
+        "end_xyz": [
+          0.259808,
+          -0.65,
+          0.22
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0.129904,
+          -0.725,
+          0.22
+        ],
+        "quat_xyzw": [
+          0,
+          0,
+          -0.258819,
+          0.965926
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0,
+            -0.8,
+            0.22
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0.259808,
+            -0.65,
+            0.22
+          ]
+        },
+        "face_bottom": {
+          "center_xyz": [
+            0.129904,
+            -0.725,
+            0.2
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            -1
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0.129904,
+            -0.725,
+            0.24
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "status": "built",
+        "alignment": "horizontal",
+        "role": "left_lower_span"
+      }
+    },
+    {
+      "id": "element_05",
+      "label": "C horizontal shared-to-right",
+      "family": "C",
+      "group": "horizontal",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.3,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "shared_vertex",
+        "end_label": "right_vertex",
+        "start_xyz": [
+          0,
+          -0.8,
+          0.22
+        ],
+        "end_xyz": [
+          0.259808,
+          -0.95,
+          0.22
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0.129904,
+          -0.875,
+          0.22
+        ],
+        "quat_xyzw": [
+          0,
+          0,
+          -0.5,
+          0.866025
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0,
+            -0.8,
+            0.22
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0.259808,
+            -0.95,
+            0.22
+          ]
+        },
+        "face_bottom": {
+          "center_xyz": [
+            0.129904,
+            -0.875,
+            0.2
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            -1
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0.129904,
+            -0.875,
+            0.24
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "status": "built",
+        "alignment": "horizontal",
+        "role": "right_lower_span"
+      }
+    },
+    {
+      "id": "element_06",
+      "label": "C horizontal left-to-right",
+      "family": "C",
+      "group": "horizontal",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.3,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "left_vertex",
+        "end_label": "right_vertex",
+        "start_xyz": [
+          0.259808,
+          -0.65,
+          0.26
+        ],
+        "end_xyz": [
+          0.259808,
+          -0.95,
+          0.26
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0.259808,
+          -0.8,
+          0.26
+        ],
+        "quat_xyzw": [
+          0,
+          0,
+          -0.707107,
+          0.707107
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0.259808,
+            -0.65,
+            0.26
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0.259808,
+            -0.95,
+            0.26
+          ]
+        },
+        "face_bottom": {
+          "center_xyz": [
+            0.259808,
+            -0.8,
+            0.24
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            -1
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0.259808,
+            -0.8,
+            0.28
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "status": "built",
+        "alignment": "horizontal",
+        "role": "back_span"
+      }
+    }
+  ],
+  "assembly_graph": {
+    "nodes": [
+      {
+        "id": "triangular_frame",
+        "type": "subassembly",
+        "members": [
+          "element_01",
+          "element_02",
+          "element_03",
+          "element_04",
+          "element_05",
+          "element_06"
+        ],
+        "status": "built"
+      }
+    ],
+    "relations": [
+      {
+        "id": "rel_001",
+        "relation_type": "bearing_contact",
+        "a": "element_01.face_top",
+        "b": "element_04.face_bottom",
+        "role": "support",
+        "status": "built"
+      },
+      {
+        "id": "rel_002",
+        "relation_type": "bearing_contact",
+        "a": "element_02.face_top",
+        "b": "element_04.face_bottom",
+        "role": "support",
+        "status": "built"
+      },
+      {
+        "id": "rel_003",
+        "relation_type": "bearing_contact",
+        "a": "element_01.face_top",
+        "b": "element_05.face_bottom",
+        "role": "support",
+        "status": "built"
+      },
+      {
+        "id": "rel_004",
+        "relation_type": "bearing_contact",
+        "a": "element_03.face_top",
+        "b": "element_05.face_bottom",
+        "role": "support",
+        "status": "built"
+      },
+      {
+        "id": "rel_005",
+        "relation_type": "bearing_contact",
+        "a": "element_04.face_top",
+        "b": "element_06.face_bottom",
+        "role": "upper_left_bearing",
+        "status": "built"
+      },
+      {
+        "id": "rel_006",
+        "relation_type": "bearing_contact",
+        "a": "element_05.face_top",
+        "b": "element_06.face_bottom",
+        "role": "upper_right_bearing",
+        "status": "built"
+      },
+      {
+        "id": "rel_007",
+        "relation_type": "shared_endpoint",
+        "a": "element_04.end_start",
+        "b": "element_05.end_start",
+        "role": "shared_front_vertex",
+        "status": "built"
+      }
+    ]
+  },
+  "operation_history": [
+    {
+      "id": "op_001",
+      "op": "initialize_from_explainer_dimensions",
+      "status": "applied",
+      "notes": "B elements are 20 cm verticals, C elements are 30 cm horizontals, and every beam section is 4 cm by 4 cm."
+    }
+  ],
+  "projections": {
+    "grasshopper": {
+      "source_of_truth": "this_file",
+      "adapter": "geometry group Python 3 Script",
+      "output": "Rhino Brep boxes generated from body axis segments and box section dimensions"
+    }
+  }
+}

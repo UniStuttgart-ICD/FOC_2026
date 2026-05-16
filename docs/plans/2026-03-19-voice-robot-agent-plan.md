@@ -1,5 +1,7 @@
 # Voice-Controlled UR Robot Agent Implementation Plan
 
+> Historical note: this early plan predates the current native LangChain Agent Control architecture, the single bundled `hybrid_gemini_live_tts` runtime profile, and the canonical `moveit_*` robot tools. It is kept for provenance, not as implementation guidance.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Replace the scaffolded Pipecat bot with a simulation-only voice-controlled UR robot agent using Claude Agent SDK + MAVE MCP.

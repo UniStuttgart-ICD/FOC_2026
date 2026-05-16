@@ -48,8 +48,8 @@ LIVE_LLM_ROBOT_EVIDENCE_DIR=evidence/live_smoke
 The v1 smoke suite covers:
 
 1. `what is the current position?` — observes pose and does not move.
-2. `move up a bit` — observes pose, executes verified bounded +Z movement.
-3. `move down a bit` — observes pose, executes verified bounded -Z movement.
+2. `move up a bit` — observes pose and plans bounded +Z movement; execution requires explicit confirmation.
+3. `move down a bit` — observes pose and plans bounded -Z movement; execution requires explicit confirmation.
 4. `move there` — asks for clarification and does not move.
 
 Each case writes minimal JSON evidence under `server/evidence/live_smoke/` by default.

@@ -4,9 +4,20 @@ from typing import Any
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 
+import model_eval.simulated_moveit as simulated_moveit
 from agent_control.langchain_agent_processor import LangChainAgentProcessor
 from robot_control.job_board import RobotJobBoard
 from voice_runtime.agent_turn import AgentTurnInput
+
+TASK_TOOL_PICK_SEQUENCE = [
+    "moveit_list_scene_objects",
+    "moveit_get_object_context",
+    "moveit_get_current_pose",
+    "moveit_plan_pick_task",
+    "approval_recorded",
+    "moveit_execute_task_solution",
+    "moveit_verify_attached_object",
+]
 
 
 class ScriptedChatModel:
@@ -75,13 +86,13 @@ class BehaviorBridge:
             },
             {
                 "type": "function",
-                "name": "moveit_plan_and_execute_free_motion",
+                "name": "moveit_explain_motion_failure",
                 "parameters": {"type": "object"},
                 "strict": None,
             },
             {
                 "type": "function",
-                "name": "moveit_plan_and_execute_cartesian_motion",
+                "name": "moveit_verify_attached_object",
                 "parameters": {"type": "object"},
                 "strict": None,
             },
@@ -115,10 +126,6 @@ class BehaviorBridge:
                 }
             )
         if name == "moveit_execute_plan":
-            return json.dumps({"structured_content": {"ok": True, "verification": {"result": "pass"}}})
-        if name == "moveit_plan_and_execute_free_motion":
-            return json.dumps({"structured_content": {"ok": True, "verification": {"result": "pass"}}})
-        if name == "moveit_plan_and_execute_cartesian_motion":
             return json.dumps({"structured_content": {"ok": True, "verification": {"result": "pass"}}})
         return json.dumps({"structured_content": {"ok": True}})
 
@@ -176,6 +183,24 @@ def system_content(chat_model: ScriptedChatModel, request_index: int = 0) -> str
     return str(system.content)
 
 
+def test_pick_task_tool_behavior_contract_sequence() -> None:
+    assert TASK_TOOL_PICK_SEQUENCE == [
+        "moveit_list_scene_objects",
+        "moveit_get_object_context",
+        "moveit_get_current_pose",
+        "moveit_plan_pick_task",
+        "approval_recorded",
+        "moveit_execute_task_solution",
+        "moveit_verify_attached_object",
+    ]
+
+
+def test_pick_task_replay_sequence_matches_behavior_contract() -> None:
+    scenario = simulated_moveit.task_level_pick_replay_scenario()
+
+    assert scenario["expected_tool_sequence"] == TASK_TOOL_PICK_SEQUENCE
+
+
 @pytest.mark.asyncio
 async def test_robot_action_preflight_gets_current_pose_before_model_request():
     processor, chat_model, bridge = make_processor([ai_text("I can wave from the current pose.")])
@@ -203,7 +228,6 @@ async def test_non_robot_action_still_gets_current_pose_in_instructions():
 async def test_relative_movement_behavior_observes_before_answering():
     processor, _, bridge = make_processor(
         [
-            tool_call("moveit_get_current_pose"),
             ai_text("I checked the robot and can plan the relative move."),
         ]
     )
@@ -211,7 +235,6 @@ async def test_relative_movement_behavior_observes_before_answering():
     chunks = await run_processor(processor, "move up a bit")
 
     assert bridge.calls == [
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
     assert chunks == ["I checked the robot and can plan the relative move."]
@@ -223,7 +246,7 @@ async def test_missing_motion_arguments_are_not_repaired_from_user_text():
     incomplete_args = {"robot_name": "UR10", "plan_name": "move_up_50mm", "timeout_s": 10}
     processor, _, bridge = make_processor(
         [
-            tool_call("moveit_plan_and_execute_free_motion", arguments=incomplete_args),
+            tool_call("moveit_plan_free_motion", arguments=incomplete_args),
             ai_text("I need complete motion arguments."),
         ],
         robot_job_board=board,
@@ -233,13 +256,12 @@ async def test_missing_motion_arguments_are_not_repaired_from_user_text():
 
     assert bridge.calls == [
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
     job = await board.claim_next()
     assert job is not None
-    assert job.tool_name == "moveit_plan_and_execute_free_motion"
+    assert job.tool_name == "moveit_plan_free_motion"
     assert job.arguments == incomplete_args
-    assert chunks == ["I need complete motion arguments."]
+    assert chunks == ["Planning now. I will report when a plan is ready."]
 
 
 @pytest.mark.asyncio
@@ -261,10 +283,9 @@ async def test_plan_tool_is_not_auto_executed_once_plan_is_executable():
 
     assert bridge.calls == [
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
     job = await board.claim_next()
     assert job is not None
     assert job.tool_name == "moveit_plan_free_motion"
     assert job.arguments == plan_args
-    assert chunks == ["Moved up 50 mm."]
+    assert chunks == ["Planning now. I will report when a plan is ready."]

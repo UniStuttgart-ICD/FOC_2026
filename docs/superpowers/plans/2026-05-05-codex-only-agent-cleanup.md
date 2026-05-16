@@ -1,5 +1,7 @@
 # Codex-Only Agent Cleanup Implementation Plan
 
+> Superseded note: this plan captured an intermediate Codex-only cleanup. The current Agent Backend target is native LangChain provider APIs; do not use this as current implementation guidance.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Remove Claude agent support and make OpenAI Codex OAuth the only supported agent backend.

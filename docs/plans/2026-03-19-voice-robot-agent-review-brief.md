@@ -1,5 +1,7 @@
 # Voice-Controlled UR Robot Agent — Review Brief
 
+> Historical note: this review brief describes an early Claude SDK direction and stale robot tool names. Current architecture and domain language live in `ARCHITECTURE.md`, `CONTEXT.md`, and `server/runtime_profiles.toml`.
+
 **Date:** 2026-03-19
 **Author:** Samuel (via Claude Code)
 **Status:** Plan complete, awaiting review before implementation

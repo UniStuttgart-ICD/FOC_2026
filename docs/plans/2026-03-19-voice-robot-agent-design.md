@@ -1,5 +1,7 @@
 # Voice-Controlled UR Robot Agent
 
+> Historical note: this early design predates the current native LangChain Agent Control architecture, the single bundled `hybrid_gemini_live_tts` runtime profile, and the canonical `moveit_*` robot tools. Use `ARCHITECTURE.md`, `CONTEXT.md`, and `server/runtime_profiles.toml` for current behavior.
+
 ## Purpose
 
 Replace MAVE's text-based Gradio agent with a voice-controlled agent. Users speak commands, Claude reasons and controls the UR robot via MCP, and responds with voice.

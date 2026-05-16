@@ -11,8 +11,7 @@ MOTION_TOOL_NAMES = frozenset(
     {
         "moveit_plan_free_motion",
         "moveit_plan_cartesian_motion",
-        "moveit_plan_and_execute_free_motion",
-        "moveit_plan_and_execute_cartesian_motion",
+        "moveit_plan_place",
         "moveit_execute_plan",
     }
 )
@@ -45,6 +44,7 @@ def validate_task_step(
     fresh_observation_max_age_s: float = DEFAULT_FRESH_OBSERVATION_MAX_AGE_S,
     executable_plan_max_age_s: float = DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S,
     gripper_state_max_age_s: float = DEFAULT_GRIPPER_STATE_MAX_AGE_S,
+    explicit_execute_requested: bool = False,
 ) -> TaskPolicyDecision:
     if name in MOTION_TOOL_NAMES and not context.has_recent_robot_observation(
         max_age_s=fresh_observation_max_age_s
@@ -67,6 +67,13 @@ def validate_task_step(
                 error="Cannot execute an unknown or stale plan.",
                 correction="Plan first, then execute the returned plan_name.",
                 suggested_next_tool="moveit_plan_free_motion",
+            )
+        if not explicit_execute_requested:
+            return TaskPolicyDecision(
+                ok=False,
+                error="Execution requires an explicit user request.",
+                correction="Ask the user to explicitly confirm execution, then retry moveit_execute_plan.",
+                suggested_next_tool=None,
             )
 
     if name == "moveit_attach_object":

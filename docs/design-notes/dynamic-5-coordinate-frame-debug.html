@@ -1,0 +1,1243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dynamic 5 Pickup Debug</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f4f1e8;
+      --ink: #17201d;
+      --muted: #61706b;
+      --line: #c8c1b0;
+      --line-strong: #968b78;
+      --panel: #fffdf6;
+      --panel-2: #ebe5d6;
+      --robot: #176f68;
+      --source: #7a5b2e;
+      --bad: #c9482f;
+      --good: #2e7d4f;
+      --steel: #6d7880;
+      --blue: #2f6f9f;
+      --yellow: #d39a26;
+      --mono: "Cascadia Mono", "Consolas", monospace;
+      --sans: "Aptos", "Segoe UI", sans-serif;
+      --serif: Georgia, "Times New Roman", serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      overflow-x: hidden;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      background:
+        linear-gradient(rgba(23, 32, 29, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(23, 32, 29, 0.045) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.55;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    code,
+    pre,
+    .mono,
+    .eyebrow,
+    .kicker,
+    .pill,
+    .small-label,
+    th {
+      font-family: var(--mono);
+    }
+
+    code {
+      padding: 1px 5px;
+      border: 1px solid rgba(23, 32, 29, 0.14);
+      border-radius: 5px;
+      background: rgba(255, 253, 246, 0.75);
+      font-size: 0.93em;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 13px 28px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(244, 241, 232, 0.9);
+      backdrop-filter: blur(14px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      font-weight: 800;
+    }
+
+    .brand-mark {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--ink);
+      background:
+        linear-gradient(90deg, transparent 47%, var(--ink) 47%, var(--ink) 53%, transparent 53%),
+        linear-gradient(0deg, transparent 47%, var(--ink) 47%, var(--ink) 53%, transparent 53%),
+        var(--panel);
+      transform: rotate(45deg);
+    }
+
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    nav a,
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 5px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 253, 246, 0.65);
+      color: var(--muted);
+      font-size: 12px;
+      text-decoration: none;
+      text-transform: uppercase;
+    }
+
+    .page {
+      width: min(1160px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 54px 0 92px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.12fr 0.88fr;
+      gap: 34px;
+      align-items: end;
+      padding-bottom: 34px;
+      border-bottom: 2px solid var(--ink);
+    }
+
+    .eyebrow {
+      margin-bottom: 14px;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 860px;
+      font-family: var(--serif);
+      font-size: 56px;
+      font-weight: 700;
+    }
+
+    h2 {
+      font-size: 28px;
+    }
+
+    h3 {
+      font-size: 18px;
+    }
+
+    p {
+      margin: 0;
+    }
+
+    .lead {
+      max-width: 760px;
+      margin-top: 22px;
+      color: #2f3a36;
+      font-size: 19px;
+    }
+
+    .status-panel {
+      border-left: 4px solid var(--ink);
+      padding: 18px 0 18px 20px;
+    }
+
+    .status-row {
+      display: grid;
+      grid-template-columns: 88px 1fr;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .status-row:last-child {
+      border-bottom: 0;
+    }
+
+    .status-key {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    section {
+      padding: 42px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: 190px 1fr;
+      gap: 28px;
+      margin-bottom: 24px;
+    }
+
+    .kicker {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .section-copy {
+      max-width: 780px;
+      color: #2d3834;
+      font-size: 17px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .fact,
+    .callout,
+    .timeline-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 253, 246, 0.72);
+    }
+
+    .fact {
+      min-height: 150px;
+      padding: 18px;
+    }
+
+    .fact strong {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 18px;
+    }
+
+    .fact p,
+    .timeline-item p,
+    .callout p {
+      color: #34413d;
+    }
+
+    .diagram-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 16px 38px rgba(37, 31, 19, 0.08);
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      min-width: 840px;
+      height: auto;
+    }
+
+    .node {
+      fill: #fffdf6;
+      stroke: var(--ink);
+      stroke-width: 1.4;
+      rx: 8;
+    }
+
+    .node-muted {
+      fill: #ebe5d6;
+      stroke: var(--line-strong);
+    }
+
+    .node-bad {
+      fill: #fff2ee;
+      stroke: var(--bad);
+    }
+
+    .node-good {
+      fill: #eef8ef;
+      stroke: var(--good);
+    }
+
+    .arrow {
+      fill: none;
+      stroke: var(--ink);
+      stroke-width: 1.5;
+      marker-end: url(#arrow-dark);
+    }
+
+    .arrow-bad {
+      stroke: var(--bad);
+      marker-end: url(#arrow-bad);
+    }
+
+    .arrow-good {
+      stroke: var(--good);
+      marker-end: url(#arrow-good);
+    }
+
+    .arrow-dashed {
+      stroke-dasharray: 6 5;
+    }
+
+    .svg-title {
+      fill: var(--ink);
+      font: 700 16px var(--sans);
+    }
+
+    .svg-text {
+      fill: #2f3a36;
+      font: 13px var(--sans);
+    }
+
+    .svg-small,
+    .axis-label {
+      fill: var(--muted);
+      font: 11px var(--mono);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .halo {
+      paint-order: stroke;
+      stroke: var(--panel);
+      stroke-width: 5px;
+      stroke-linejoin: round;
+    }
+
+    .formula {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    pre {
+      margin: 0;
+      padding: 18px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #17201d;
+      color: #f8f4e9;
+      line-height: 1.6;
+    }
+
+    .callout {
+      padding: 18px;
+      border-left: 4px solid var(--yellow);
+    }
+
+    .callout.good {
+      border-left-color: var(--good);
+    }
+
+    .callout.bad {
+      border-left-color: var(--bad);
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+    }
+
+    .timeline-item {
+      position: relative;
+      padding: 16px;
+      min-height: 148px;
+    }
+
+    .step {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      margin-bottom: 14px;
+      border: 1px solid var(--ink);
+      border-radius: 50%;
+      background: var(--panel);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 253, 246, 0.72);
+    }
+
+    th,
+    td {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--panel-2);
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .fix-list {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .fix-list li {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 253, 246, 0.72);
+      padding: 16px 18px;
+    }
+
+    .fix-list strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .small-label {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 14px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .swatch {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-right: 6px;
+      border: 1px solid rgba(23, 32, 29, 0.24);
+      vertical-align: -1px;
+    }
+
+    .swatch.bad {
+      background: #fff2ee;
+      border-color: var(--bad);
+    }
+
+    .swatch.good {
+      background: #eef8ef;
+      border-color: var(--good);
+    }
+
+    .swatch.robot {
+      background: var(--robot);
+    }
+
+    @media (max-width: 900px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      nav {
+        justify-content: flex-start;
+      }
+
+      .hero,
+      .section-head,
+      .formula,
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+
+      .grid,
+      .timeline,
+      .fix-list {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      h1 {
+        font-size: 42px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .page {
+        width: min(100% - 24px, 1160px);
+        padding-top: 34px;
+      }
+
+      .grid,
+      .timeline,
+      .fix-list {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+      }
+
+      th,
+      td {
+        min-width: 155px;
+      }
+
+      h1 {
+        font-size: 34px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>Dynamic 5 Pickup Debug</span>
+    </div>
+    <nav aria-label="Page sections">
+      <a href="#short">Short Version</a>
+      <a href="#frames">Frames</a>
+      <a href="#research">Research</a>
+      <a href="#run">Run</a>
+      <a href="#gripper">Gripper</a>
+      <a href="#fixes">Fixes</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="hero" aria-labelledby="title">
+      <div>
+        <div class="eyebrow">Debug note - 2026-05-14</div>
+        <h1 id="title">The robot was not confused. The coordinate frame was.</h1>
+        <p class="lead">
+          The pickup started working once the scene geometry and MoveIt motion targets
+          were expressed in the same robot frame: <code>base_link</code>. The remaining
+          physical problem is different: the gripper closed above <code>dynamic_5</code>.
+          The original run also attached only inside MCP state; the code now publishes
+          a MoveIt/RViz attached collision object for the next live grasp test.
+        </p>
+      </div>
+      <aside class="status-panel" aria-label="Debug status">
+        <div class="status-row">
+          <div class="status-key">Fixed</div>
+          <div>Object coordinates now land in the same frame used by the planner.</div>
+        </div>
+        <div class="status-row">
+          <div class="status-key">Still open</div>
+          <div>Grasp height still needs HITL tuning; attach now publishes a MoveIt scene diff.</div>
+        </div>
+        <div class="status-row">
+          <div class="status-key">Evidence</div>
+          <div>Final TCP pose after retry: <code>x=0.800, y=0.260, z=0.480</code>.</div>
+        </div>
+      </aside>
+    </section>
+
+    <section id="short">
+      <div class="section-head">
+        <div class="kicker">Short version</div>
+        <div>
+          <h2>What actually happened</h2>
+          <p class="section-copy">
+            There were two bugs that looked like one bug. First, the element was being
+            interpreted through the wrong coordinate assumptions, so the robot planned
+            toward the opposite side of the real element. Second, the successful retry
+            closed the gripper at a conservative height and never made RViz carry the
+            element with the tool.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid">
+        <article class="fact">
+          <strong>1. Source geometry</strong>
+          <p><code>common_model.json</code> says the model lives in <code>rhino_world</code>.</p>
+        </article>
+        <article class="fact">
+          <strong>2. Planner frame</strong>
+          <p>MoveIt plans in <code>base_link</code>. The scene objects must be published there.</p>
+        </article>
+        <article class="fact">
+          <strong>3. Coordinate fix</strong>
+          <p>The active mapping now swaps axes and flips signs with zero calibration offset.</p>
+        </article>
+        <article class="fact">
+          <strong>4. Remaining gap</strong>
+          <p>The gripper closed 6 cm above the top face; contact height still needs tuning.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="frames">
+      <div class="section-head">
+        <div class="kicker">Frame mismatch</div>
+        <div>
+          <h2>Why correcting coordinates fixed the opposite-side motion</h2>
+          <p class="section-copy">
+            Coordinates are not universal numbers. <code>x=0.8, y=0.26, z=0.28</code>
+            only means "the top of dynamic_5" if both systems agree what x, y, z, and
+            the origin mean. They did not. The Vizor/Rhino/Unity side uses one world;
+            MoveIt uses the robot base. Without the transform, the planner receives
+            plausible-looking numbers that point to the wrong physical side.
+          </p>
+        </div>
+      </div>
+
+      <div class="diagram-wrap" role="img" aria-label="Frame mismatch and corrected transform flow diagram">
+        <svg viewBox="0 0 1080 430" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arrow-dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#17201d"></path>
+            </marker>
+            <marker id="arrow-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#c9482f"></path>
+            </marker>
+            <marker id="arrow-good" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e7d4f"></path>
+            </marker>
+          </defs>
+
+          <text x="40" y="42" class="svg-title">Same element, two possible interpretations</text>
+
+          <rect x="50" y="80" width="235" height="105" class="node"></rect>
+          <text x="72" y="112" class="svg-title">Source model</text>
+          <text x="72" y="138" class="svg-text">frame: rhino_world</text>
+          <text x="72" y="162" class="svg-small">dynamic_5 center: 0.800, 0.260, 0.260</text>
+
+          <rect x="420" y="80" width="235" height="105" class="node-bad"></rect>
+          <text x="442" y="112" class="svg-title">Raw publish</text>
+          <text x="442" y="138" class="svg-text">numbers copied as-is</text>
+          <text x="442" y="162" class="svg-small">axes/origin are still implicit</text>
+
+          <rect x="795" y="80" width="235" height="105" class="node-bad"></rect>
+          <text x="817" y="112" class="svg-title">Planner result</text>
+          <text x="817" y="138" class="svg-text">object appears mirrored</text>
+          <text x="817" y="162" class="svg-small">robot reaches the opposite side</text>
+
+          <path d="M 285 132 H 420" class="arrow arrow-bad"></path>
+          <text x="326" y="120" class="svg-small halo">skip transform</text>
+          <path d="M 655 132 H 795" class="arrow arrow-bad"></path>
+          <text x="692" y="120" class="svg-small halo">valid plan, wrong place</text>
+
+          <rect x="50" y="270" width="235" height="105" class="node"></rect>
+          <text x="72" y="302" class="svg-title">Source model</text>
+          <text x="72" y="328" class="svg-text">same authored element</text>
+          <text x="72" y="352" class="svg-small">still rhino_world</text>
+
+          <rect x="420" y="270" width="235" height="105" class="node-good"></rect>
+          <text x="442" y="302" class="svg-title">Transform once</text>
+          <text x="442" y="328" class="svg-text">swap axes, flip signs, zero offset</text>
+          <text x="442" y="352" class="svg-small">target frame: base_link</text>
+
+          <rect x="795" y="270" width="235" height="105" class="node-good"></rect>
+          <text x="817" y="302" class="svg-title">Planner result</text>
+          <text x="817" y="328" class="svg-text">object and robot agree</text>
+          <text x="817" y="352" class="svg-small">TCP reaches x=0.800, y=0.260</text>
+
+          <path d="M 285 322 H 420" class="arrow arrow-good"></path>
+          <text x="323" y="310" class="svg-small halo">coordinate bridge</text>
+          <path d="M 655 322 H 795" class="arrow arrow-good"></path>
+          <text x="690" y="310" class="svg-small halo">same physical place</text>
+        </svg>
+        <div class="legend">
+          <span><span class="swatch bad"></span>Bad path: plausible numbers, wrong frame</span>
+          <span><span class="swatch good"></span>Good path: coordinates converted into robot frame</span>
+        </div>
+      </div>
+
+      <div class="formula" style="margin-top: 18px;">
+        <pre><code>active mapping:
+robot_x = -source_y
+robot_y = -source_z
+robot_z =  source_x
+
+archived DF2025 offsets, disabled:
+offset_x = -0.173
+offset_y =  0.051
+offset_z =  0.103</code></pre>
+        <div class="callout good">
+          <h3>What those equations mean</h3>
+          <p>
+            A source-frame "forward" direction was not robot-frame forward. The mapping
+            says: use source y to make robot x, use source z to make robot y, and use
+            source x to make robot z. The minus signs are the mirror/rotation correction.
+            The offsets were from an older calibration pass and are now kept only as
+            archived reference values, not applied by default.
+          </p>
+        </div>
+      </div>
+
+      <div class="callout" style="margin-top: 18px;">
+        <h3>Where the swap likely comes from</h3>
+        <p>
+          This looks like a coordinate-convention bridge between the authoring/display
+          world and ROS, not a measured translation error. In the observed correction,
+          source <code>x</code> behaved like robot height, source <code>y</code> behaved
+          like negative robot <code>x</code>, and source <code>z</code> behaved like
+          negative robot <code>y</code>. That pattern is what you get when two systems
+          disagree about which axis is up/forward and which direction is positive.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div class="kicker">Base vs base_link</div>
+        <div>
+          <h2>The frame name also mattered</h2>
+          <p class="section-copy">
+            The Vizor world pose was being stamped with <code>base</code>, while MoveIt
+            reported its planning frame as <code>base_link</code>. In this Docker stack,
+            those are not harmless aliases. They can differ by a rotation. Publishing
+            world geometry in <code>base_link</code> removes that ambiguity.
+          </p>
+        </div>
+      </div>
+
+      <div class="diagram-wrap" role="img" aria-label="Base and base_link coordinate interpretation diagram">
+        <svg viewBox="0 0 1040 410" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="axis-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#17201d"></path>
+            </marker>
+            <marker id="axis-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#c9482f"></path>
+            </marker>
+          </defs>
+
+          <text x="40" y="42" class="svg-title">Top-down view: what "opposite side" looks like</text>
+
+          <rect x="62" y="80" width="410" height="265" class="node-muted"></rect>
+          <text x="86" y="112" class="svg-title">Wrong interpretation</text>
+          <line x1="266" y1="235" x2="382" y2="235" stroke="#17201d" stroke-width="1.5" marker-end="url(#axis-head)"></line>
+          <line x1="266" y1="235" x2="266" y2="119" stroke="#17201d" stroke-width="1.5" marker-end="url(#axis-head)"></line>
+          <text x="390" y="240" class="axis-label">robot +x</text>
+          <text x="235" y="116" class="axis-label">robot +y</text>
+          <rect x="320" y="170" width="100" height="34" class="node-bad"></rect>
+          <text x="333" y="192" class="svg-small">raw object</text>
+          <rect x="115" y="268" width="100" height="34" class="node-good"></rect>
+          <text x="128" y="290" class="svg-small">real object</text>
+          <path d="M 190 255 C 220 230, 270 204, 318 191" class="arrow arrow-bad"></path>
+          <text x="143" y="246" class="svg-small halo">robot reaches away from real element</text>
+          <circle cx="266" cy="235" r="18" fill="#176f68"></circle>
+          <text x="252" y="240" fill="#fffdf6" font-family="Cascadia Mono, Consolas, monospace" font-size="12">UR</text>
+
+          <rect x="568" y="80" width="410" height="265" class="node-muted"></rect>
+          <text x="592" y="112" class="svg-title">Correct interpretation</text>
+          <line x1="772" y1="235" x2="888" y2="235" stroke="#17201d" stroke-width="1.5" marker-end="url(#axis-head)"></line>
+          <line x1="772" y1="235" x2="772" y2="119" stroke="#17201d" stroke-width="1.5" marker-end="url(#axis-head)"></line>
+          <text x="896" y="240" class="axis-label">base_link +x</text>
+          <text x="741" y="116" class="axis-label">base_link +y</text>
+          <rect x="812" y="170" width="100" height="34" class="node-good"></rect>
+          <text x="826" y="192" class="svg-small">dynamic_5</text>
+          <path d="M 788 224 C 804 205, 821 194, 812 188" class="arrow arrow-good"></path>
+          <text x="615" y="246" class="svg-small halo">robot and scene now use the same map</text>
+          <circle cx="772" cy="235" r="18" fill="#176f68"></circle>
+          <text x="758" y="240" fill="#fffdf6" font-family="Cascadia Mono, Consolas, monospace" font-size="12">UR</text>
+        </svg>
+        <div class="legend">
+          <span><span class="swatch bad"></span>Raw frame path</span>
+          <span><span class="swatch good"></span><code>base_link</code> path</span>
+          <span><span class="swatch robot"></span>Robot base</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="research">
+      <div class="section-head">
+        <div class="kicker">Orientation research</div>
+        <div>
+          <h2>Where the remaining mismatch can enter</h2>
+          <p class="section-copy">
+            The online docs and code scouts point to the same answer: the position bug
+            was a source-frame to <code>base_link</code> conversion problem, while the
+            orientation bug is a TCP-frame problem. MoveIt does not infer "grab this
+            element"; it receives a pose for the configured end-effector link and treats
+            the quaternion literally.
+          </p>
+        </div>
+      </div>
+
+      <div class="diagram-wrap" role="img" aria-label="Orientation mismatch chain from source pose to MoveIt TCP pose">
+        <svg viewBox="0 0 1120 470" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="research-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#17201d"></path>
+            </marker>
+            <marker id="research-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#c9482f"></path>
+            </marker>
+            <marker id="research-good" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e7d4f"></path>
+            </marker>
+          </defs>
+
+          <text x="40" y="42" class="svg-title">Orientation has two separate paths</text>
+
+          <rect x="48" y="86" width="210" height="104" class="node"></rect>
+          <text x="70" y="118" class="svg-title">Vizor / source pose</text>
+          <text x="70" y="145" class="svg-text">position + quaternion</text>
+          <text x="70" y="168" class="svg-small">Unity/Rhino conventions</text>
+
+          <rect x="335" y="86" width="210" height="104" class="node-good"></rect>
+          <text x="357" y="118" class="svg-title">Position path</text>
+          <text x="357" y="145" class="svg-text">axis swap and sign flip</text>
+          <text x="357" y="168" class="svg-small">now lands in base_link</text>
+
+          <rect x="622" y="86" width="210" height="104" class="node-bad"></rect>
+          <text x="644" y="118" class="svg-title">Manual orientation</text>
+          <text x="644" y="145" class="svg-text">quaternion passes through</text>
+          <text x="644" y="168" class="svg-small">not a safe base_link pose</text>
+
+          <rect x="622" y="260" width="210" height="104" class="node-bad"></rect>
+          <text x="644" y="292" class="svg-title">Scene grasp faces</text>
+          <text x="644" y="319" class="svg-text">AABB gives normals only</text>
+          <text x="644" y="342" class="svg-small">object yaw is lost</text>
+
+          <rect x="907" y="260" width="170" height="104" class="node"></rect>
+          <text x="929" y="292" class="svg-title">MoveIt TCP pose</text>
+          <text x="929" y="319" class="svg-text">target link: tcp</text>
+          <text x="929" y="342" class="svg-small">quaternion is literal</text>
+
+          <path d="M 258 138 H 335" class="arrow" marker-end="url(#research-arrow)"></path>
+          <path d="M 545 138 H 622" class="arrow arrow-bad" marker-end="url(#research-bad)"></path>
+          <path d="M 153 190 V 312 H 622" class="arrow" marker-end="url(#research-arrow)"></path>
+          <path d="M 832 312 H 907" class="arrow arrow-bad" marker-end="url(#research-bad)"></path>
+
+          <text x="366" y="62" class="svg-small halo">fixed for position</text>
+          <text x="646" y="218" class="svg-small halo">still risky for orientation</text>
+          <text x="872" y="404" class="svg-small halo">needs approach axis + jaw yaw</text>
+
+          <g transform="translate(348 242)">
+            <rect x="0" y="0" width="150" height="62" fill="#d39a26" stroke="#17201d" stroke-width="1.5" rx="4"></rect>
+            <line x1="75" y1="0" x2="75" y2="-48" stroke="#2e7d4f" stroke-width="2" marker-end="url(#research-good)"></line>
+            <line x1="75" y1="31" x2="130" y2="31" stroke="#17201d" stroke-width="1.5" marker-end="url(#research-arrow)"></line>
+            <text x="10" y="38" class="svg-small">dynamic_5</text>
+            <text x="88" y="-26" class="svg-small">face normal</text>
+            <text x="90" y="50" class="svg-small">beam yaw</text>
+          </g>
+
+          <g transform="translate(944 94)">
+            <line x1="44" y1="0" x2="44" y2="62" stroke="#176f68" stroke-width="10" stroke-linecap="round"></line>
+            <rect x="8" y="62" width="28" height="40" fill="#176f68" rx="4"></rect>
+            <rect x="52" y="62" width="28" height="40" fill="#176f68" rx="4"></rect>
+            <line x1="0" y1="62" x2="88" y2="62" stroke="#176f68" stroke-width="10" stroke-linecap="round"></line>
+            <line x1="44" y1="0" x2="44" y2="-44" stroke="#c9482f" stroke-width="2" marker-end="url(#research-bad)"></line>
+            <line x1="44" y1="0" x2="44" y2="44" stroke="#2e7d4f" stroke-width="2" marker-end="url(#research-good)"></line>
+            <text x="-5" y="-56" class="svg-small">identity can point up</text>
+            <text x="-5" y="125" class="svg-small">gripper-down points to object</text>
+          </g>
+        </svg>
+        <div class="legend">
+          <span><span class="swatch good"></span>Confirmed fix</span>
+          <span><span class="swatch bad"></span>Remaining orientation risk</span>
+          <span><span class="swatch robot"></span>TCP / gripper frame</span>
+        </div>
+      </div>
+
+      <div style="margin-top: 18px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Evidence</th>
+              <th>Finding</th>
+              <th>What it means here</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><a href="https://www.ros.org/reps/rep-0103.html">ROS REP-103</a></td>
+              <td>ROS standard frames are right-handed; body axes are x forward, y left, z up.</td>
+              <td>The robot planning frame expects ROS-style axes, not authoring-tool axes.</td>
+            </tr>
+            <tr>
+              <td><a href="https://docs.unity.cn/2022.3/Documentation/Manual/QuaternionAndEulerRotationsInUnity.html">Unity manual</a></td>
+              <td>Unity uses a left-handed frame: x right, y up, z forward.</td>
+              <td>Position and orientation need a basis conversion. A copied quaternion is suspicious.</td>
+            </tr>
+            <tr>
+              <td><a href="https://docs.mcneel.com/rhino/5/usersguide/en-us/html/ch-05_accuratemodeling.htm">Rhino guide</a></td>
+              <td>Rhino separates fixed world coordinates from per-viewport construction planes.</td>
+              <td><code>rhino_world</code> should stay a named source frame until converted once.</td>
+            </tr>
+            <tr>
+              <td><a href="https://docs.ros.org/en/jazzy/p/ur_description/doc/robot_frames.html">UR frame docs</a></td>
+              <td><code>base</code> has the same origin as <code>base_link</code>, but is rotated 180 degrees about Z.</td>
+              <td>The earlier <code>base</code> stamp can produce the exact opposite-side symptom.</td>
+            </tr>
+            <tr>
+              <td><a href="https://docs.ros.org/en/noetic/api/moveit_commander/html/classmoveit__commander_1_1move__group_1_1MoveGroupCommander.html">MoveIt commander</a></td>
+              <td>Pose targets are end-effector poses; 7-float targets are x, y, z, qx, qy, qz, qw.</td>
+              <td>The quaternion controls the TCP frame. MoveIt does not know which way the jaws should face.</td>
+            </tr>
+            <tr>
+              <td>Local SRDF/URDF</td>
+              <td><code>ur10_with_gripper.srdf</code> uses <code>base_link -> tcp</code>; the patched TCP is 0.138 m past the Robotiq base.</td>
+              <td>Height and orientation must be reasoned about at <code>tcp</code>, while attach currently uses <code>tool0</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="two-col" style="margin-top: 18px;">
+        <div class="callout bad">
+          <h3>Likely source of the orientation bug</h3>
+          <p>
+            For manual Vizor targets, <code>vizor_mcp/tools.py</code> converts position
+            but passes orientation through unchanged. That is not a valid Unity/Rhino to
+            ROS quaternion conversion. For pick targets, the code is safer because it
+            derives orientation from grasp context instead of copying the source quaternion.
+          </p>
+        </div>
+        <div class="callout bad">
+          <h3>Remaining pick-orientation risk</h3>
+          <p>
+            <code>moveit_mcp/scene.py</code> derives grasp faces from axis-aligned bounds.
+            That gives top/front/side normals, but loses true object-local yaw. The gripper
+            can approach from the correct side while its jaws are still rotated wrong for
+            the beam.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="run">
+      <div class="section-head">
+        <div class="kicker">The retry</div>
+        <div>
+          <h2>What the successful dynamic_5 run did</h2>
+          <p class="section-copy">
+            After Docker restarted, the planning scene only had the ground plane. The
+            six elements were republished from <code>common_model.json</code>. MoveIt
+            then saw <code>dynamic_0</code> through <code>dynamic_5</code> plus
+            <code>ground_plane</code>.
+          </p>
+        </div>
+      </div>
+
+      <div class="timeline">
+        <article class="timeline-item">
+          <span class="step">1</span>
+          <h3>Scene restored</h3>
+          <p>Republished six dynamic objects. Object count became 7 including ground.</p>
+        </article>
+        <article class="timeline-item">
+          <span class="step">2</span>
+          <h3>Frame verified</h3>
+          <p>Planner frame was <code>base_link</code>; physical mode was <code>false</code>.</p>
+        </article>
+        <article class="timeline-item">
+          <span class="step">3</span>
+          <h3>First lower failed</h3>
+          <p>Current gripper orientation could move above the object, but lowering returned 0 points.</p>
+        </article>
+        <article class="timeline-item">
+          <span class="step">4</span>
+          <h3>DF orientation worked</h3>
+          <p>Using gripper-down quaternion <code>x=1,y=0,z=0,w=0</code> planned and executed.</p>
+        </article>
+        <article class="timeline-item">
+          <span class="step">5</span>
+          <h3>Lift verified</h3>
+          <p>Final TCP pose read back at <code>x=0.800,y=0.260,z=0.480</code>.</p>
+        </article>
+      </div>
+
+      <div style="margin-top: 18px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Observed value</th>
+              <th>Meaning</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>dynamic_5 bounds: z=0.24..0.28</code></td>
+              <td>The element top face is at <code>z=0.28 m</code>.</td>
+            </tr>
+            <tr>
+              <td><code>close pose: z=0.34</code></td>
+              <td>The gripper closed about <code>0.06 m</code>, or 6 cm, above the top face.</td>
+            </tr>
+            <tr>
+              <td><code>attach_object: ok=true</code></td>
+              <td>MCP simulated gripper state accepted the object as attached.</td>
+            </tr>
+            <tr>
+              <td><code>RViz/object state: free</code></td>
+              <td>The visible planning scene did not become an attached collision object.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="gripper">
+      <div class="section-head">
+        <div class="kicker">Gripper gap</div>
+        <div>
+          <h2>Why it closed above the element</h2>
+          <p class="section-copy">
+            This one is on the debug run, not the coordinate fix. After the first lower
+            plan failed, the retry used a conservative low target: <code>top_z + 0.06</code>.
+            Since <code>dynamic_5</code> top is <code>z=0.28</code>, the gripper closed
+            at <code>z=0.34</code>. That is exactly the "few centimeters above" you saw.
+          </p>
+        </div>
+      </div>
+
+      <div class="diagram-wrap" role="img" aria-label="Vertical gripper height diagram">
+        <svg viewBox="0 0 1060 480" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="height-head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 5 L 10 0 L 10 10 z" fill="#17201d"></path>
+            </marker>
+          </defs>
+
+          <text x="40" y="42" class="svg-title">Vertical section through dynamic_5</text>
+          <line x1="105" y1="405" x2="965" y2="405" stroke="#17201d" stroke-width="1.5"></line>
+          <text x="108" y="430" class="svg-small">ground / table reference</text>
+
+          <rect x="390" y="286" width="280" height="44" fill="#d39a26" stroke="#17201d" stroke-width="1.5" rx="4"></rect>
+          <text x="448" y="313" fill="#17201d" font-family="Aptos, Segoe UI, sans-serif" font-size="16" font-weight="700">dynamic_5 beam</text>
+
+          <line x1="702" y1="286" x2="830" y2="286" stroke="#2e7d4f" stroke-width="2"></line>
+          <text x="840" y="291" class="svg-small">top face z=0.28</text>
+
+          <g>
+            <line x1="530" y1="207" x2="530" y2="252" stroke="#176f68" stroke-width="10" stroke-linecap="round"></line>
+            <rect x="486" y="252" width="34" height="40" fill="#176f68" rx="4"></rect>
+            <rect x="540" y="252" width="34" height="40" fill="#176f68" rx="4"></rect>
+            <line x1="470" y1="252" x2="590" y2="252" stroke="#176f68" stroke-width="12" stroke-linecap="round"></line>
+          </g>
+          <line x1="610" y1="252" x2="830" y2="252" stroke="#c9482f" stroke-width="2"></line>
+          <text x="840" y="257" class="svg-small">debug close z=0.34</text>
+
+          <line x1="720" y1="252" x2="720" y2="286" stroke="#c9482f" stroke-width="1.5" marker-start="url(#height-head)" marker-end="url(#height-head)"></line>
+          <text x="735" y="273" class="svg-small halo">0.06 m gap</text>
+
+          <line x1="700" y1="182" x2="830" y2="182" stroke="#2f6f9f" stroke-width="2"></line>
+          <text x="840" y="187" class="svg-small">lift z=0.48</text>
+
+          <rect x="86" y="105" width="260" height="120" class="node-good"></rect>
+          <text x="108" y="137" class="svg-title">What worked</text>
+          <text x="108" y="164" class="svg-text">The robot reached the corrected x/y.</text>
+          <text x="108" y="190" class="svg-text">The gripper-down orientation planned.</text>
+
+          <rect x="86" y="248" width="260" height="120" class="node-bad"></rect>
+          <text x="108" y="280" class="svg-title">What did not prove grasp</text>
+          <text x="108" y="307" class="svg-text">The close height was too high.</text>
+          <text x="108" y="333" class="svg-text">RViz did not attach the object.</text>
+        </svg>
+      </div>
+
+      <div class="two-col" style="margin-top: 18px;">
+        <div class="callout bad">
+          <h3>Why you did not see it hold the element</h3>
+          <p>
+            During the original run, <code>attach_object</code> only updated MCP simulated
+            gripper state. It did not publish a MoveIt attached collision object, so RViz
+            still saw <code>dynamic_5</code> as <code>free</code>.
+          </p>
+        </div>
+        <div class="callout">
+          <h3>What changed after this note</h3>
+          <p>
+            <code>moveit_attach_object</code> now reads the free object from the planning
+            scene and publishes a <code>/planning_scene</code> diff that attaches it to
+            <code>tool0</code> with gripper touch links. That is the RViz-visible path;
+            the next live run should verify that the mesh follows the TCP.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="fixes">
+      <div class="section-head">
+        <div class="kicker">Next fixes</div>
+        <div>
+          <h2>What should change next</h2>
+          <p class="section-copy">
+            The coordinate correction tells us the main frame problem is solved. The code
+            now keeps the old offsets disabled, derives pick orientation from the selected
+            face, and publishes attached collision objects for RViz. The remaining work is
+            contact-height proof plus one orientation refinement: preserve object-local jaw yaw.
+          </p>
+        </div>
+      </div>
+
+      <ul class="fix-list">
+        <li>
+          <strong>Transform exactly once</strong>
+          Keep <code>rhino_world</code> / Vizor inputs distinct from <code>base_link</code>
+          robot targets. Current default uses axis swap/sign flip with no offset.
+        </li>
+        <li>
+          <strong>Face-aware pick orientation</strong>
+          <code>moveit_plan_pick</code> now maps the selected grasp-face normal into a
+          gripper orientation. The top face uses the working gripper-down quaternion.
+        </li>
+        <li>
+          <strong>Add object-local jaw yaw</strong>
+          Current grasp faces come from axis-aligned bounds. Next, carry the element's
+          local long/short axis into the grasp context so the jaws rotate with the beam.
+        </li>
+        <li>
+          <strong>Do not copy source quaternions</strong>
+          Manual Vizor targets currently convert position only. If we use their
+          orientation, convert it through the same source-to-ROS basis first.
+        </li>
+        <li>
+          <strong>Tune contact height</strong>
+          Move from <code>top_z + 0.06</code> to a measured contact offset. For top grasp,
+          that is likely near <code>top_z + 0.01</code> to <code>top_z + 0.02</code>, depending
+          on the gripper TCP definition.
+        </li>
+        <li>
+          <strong>Visible attach</strong>
+          <code>moveit_attach_object</code> now publishes a MoveIt attached collision
+          object on <code>/planning_scene</code>. Live RViz proof should confirm it moves;
+          if it appears offset, compare <code>tool0</code> attach with <code>tcp</code>.
+        </li>
+        <li>
+          <strong>Separate planning from grasp proof</strong>
+          A plan reaching the right x/y proves the frame fix. A grasp requires contact
+          height, gripper closure, attachment, and post-lift object motion evidence.
+        </li>
+        <li>
+          <strong>Run HITL slow approach</strong>
+          Use a human-watched slow descent for <code>dynamic_5</code>: stop at 6 cm, 3 cm,
+          2 cm, 1 cm above the top face, then choose the first safe visible contact height.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div class="kicker">Debug checklist</div>
+        <div>
+          <h2>How to read the next run</h2>
+          <p class="section-copy">
+            If the robot reaches the correct side, the coordinate frame is behaving. If it
+            hovers, tune grasp height. If it lifts but the object stays behind, fix attach.
+            Those are three different failures now, which is good news: they can be tested
+            independently.
+          </p>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Pass condition</th>
+            <th>If it fails</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Is <code>dynamic_5</code> in <code>base_link</code>?</td>
+            <td>Object context reports <code>planning_frame: base_link</code>.</td>
+            <td>Republish scene with the corrected frame path.</td>
+          </tr>
+          <tr>
+            <td>Does TCP reach the correct x/y?</td>
+            <td>Final pose has <code>x=0.800, y=0.260</code> near the element center.</td>
+            <td>Recheck transform direction and offsets.</td>
+          </tr>
+          <tr>
+            <td>Does gripper close at contact?</td>
+            <td>Close pose is near measured contact height, not <code>top_z + 0.06</code>.</td>
+            <td>Tune TCP/gripper offset and approach height.</td>
+          </tr>
+          <tr>
+            <td>Are the jaws aligned with the beam?</td>
+            <td>The TCP approach axis points into the selected face and the gripper jaw axis follows the element's local yaw.</td>
+            <td>Carry object-local axes into <code>grasp_faces</code>; face normal alone is not enough.</td>
+          </tr>
+          <tr>
+            <td>Did a manual Vizor orientation get used?</td>
+            <td>Any source quaternion is transformed into <code>base_link</code> before it becomes a MoveIt target.</td>
+            <td>Ignore source orientation for pick, or implement a real quaternion basis conversion.</td>
+          </tr>
+          <tr>
+            <td>Does RViz show the element moving?</td>
+            <td>The object becomes attached to <code>tool0</code> and follows the TCP during lift.</td>
+            <td>Inspect the <code>/planning_scene</code> diff and attached object link/touch links.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

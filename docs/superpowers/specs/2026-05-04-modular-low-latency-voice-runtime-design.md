@@ -1,5 +1,7 @@
 # Modular Low-Latency Voice Runtime Design
 
+> Superseded note: this design captured an earlier profile matrix and Codex OAuth workstream. The current bundled app profile is `hybrid_gemini_live_tts`, and the current Agent Backend target is native LangChain provider APIs. Use `ARCHITECTURE.md`, `CONTEXT.md`, and `server/runtime_profiles.toml` for current behavior.
+
 ## Goal
 
 Add a modular, profile-driven voice runtime to `pipecat-agent` for low-latency robot control.

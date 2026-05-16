@@ -35,8 +35,13 @@ from voice_modulation.processor import VoiceModulationProcessor
 from voice_modulation.settings import VoiceModulationSettings
 from voice_runtime.assembly import VoiceRuntimeParts, ordered_voice_runtime_processors
 from voice_runtime.providers import create_stt_service, create_tts_service
+from voice_runtime.response_coordination import (
+    BotResponseCoordinator,
+    BotSpeechOutputCoordinator,
+)
 from voice_runtime.rtvi import GeminiLiveConversationRTVIProcessor
 from voice_runtime.wake_command import build_mave_voice_command_processors
+from voice_runtime.wake_tone import WakeToneProcessor
 from wake.openwakeword_detector import OpenWakeWordDetector
 
 
@@ -66,8 +71,12 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
 
     voice_command_audio = None
     voice_command_transcript = None
+    wake_tone = None
+    bot_speech_output = None
+    response_coordinator = None
     if config.wake.provider == "openwakeword":
         assert config.wake.model_path is not None
+        response_coordinator = BotResponseCoordinator()
         detector = OpenWakeWordDetector(
             config.wake.model_path,
             threshold=config.wake.threshold,
@@ -86,6 +95,12 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
         )
         voice_command_audio = voice_command_processors.audio_gate
         voice_command_transcript = voice_command_processors.transcript_adapter
+        wake_tone = WakeToneProcessor()
+        bot_speech_output = BotSpeechOutputCoordinator(
+            coordinator=response_coordinator,
+            on_response_started=voice_command_audio.suppress,
+            on_response_finished=voice_command_audio.unsuppress,
+        )
         logger.info(
             "Wake config detector={} threshold={} vad_threshold={} candidate_log_threshold={} "
             "required_hits={} min_wake_rms={} min_wake_peak={} rearm_delay_s={}",
@@ -103,7 +118,7 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
     if voice_command_audio is not None:
         agent_kwargs = {
             "on_turn_started": voice_command_audio.suppress,
-            "on_turn_finished": voice_command_audio.unsuppress,
+            "response_coordinator": response_coordinator,
         }
     mcp_vizor_url, user_sensing_max_age_s = _user_sensing_options_from_env()
     agent_processor = create_agent_processor(
@@ -111,6 +126,7 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
         mcp_server_url=config.mcp_robot_url,
         mcp_vizor_url=mcp_vizor_url,
         user_sensing_max_age_s=user_sensing_max_age_s,
+        verified_execution_url=_verified_execution_url(config),
         tracer=process_tracer,
         **agent_kwargs,
     )
@@ -133,6 +149,8 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
                 agent_turn=agent_processor,
                 tts=tts,
                 voice_modulation=voice_modulation,
+                bot_speech_output=bot_speech_output,
+                wake_tone=wake_tone,
                 transport_output=transport.output(),
                 assistant_aggregator=assistant_aggregator,
             )
@@ -220,6 +238,36 @@ def _user_sensing_max_age_from_env() -> float:
         logger.warning("Invalid USER_SENSING_MAX_AGE_S={!r}; using 2.0", raw)
         return 2.0
     return max(value, 0.0)
+
+
+def _verified_execution_url(config: RuntimeConfig) -> str | None:
+    simulation_only = _robot_execution_simulation_only(config.robot_execution.simulation_only)
+    if simulation_only:
+        return None
+
+    raw = os.getenv("VERIFIED_EXECUTION_URL")
+    if raw is not None:
+        value = raw.strip()
+        return value or None
+
+    configured = config.robot_execution.verified_execution_url
+    if configured is None:
+        return None
+    value = configured.strip()
+    return value or None
+
+
+def _robot_execution_simulation_only(default: bool) -> bool:
+    raw = os.getenv("ROBOT_EXECUTION_SIMULATION_ONLY")
+    if raw is None or not raw.strip():
+        return default
+    value = raw.strip().casefold()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    logger.warning("Invalid ROBOT_EXECUTION_SIMULATION_ONLY={!r}; using {}", raw, default)
+    return default
 
 
 def _utc_now() -> datetime:
