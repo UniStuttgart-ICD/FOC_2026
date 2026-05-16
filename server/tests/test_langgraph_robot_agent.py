@@ -894,7 +894,7 @@ async def test_explicit_execute_request_queues_latest_pending_plan_with_worker()
 
     text = await fixture.graph.run_turn(turn("execute it"))
 
-    assert text == "Queued execution for plan plan-1."
+    assert text == "Execution queued."
     assert fixture.model.requests == []
     assert fixture.bridge.calls == [("moveit_get_current_pose", {"robot_name": "UR10"})]
     job = await board.claim_next()
@@ -2239,14 +2239,12 @@ async def test_graph_uses_verified_execution_client_for_explicit_execute_plan() 
 
     text = await fixture.graph.run_turn(turn("please execute plan-1 now"))
 
-    assert text == "Executed plan-1."
+    assert text == "Execution complete."
     assert verified_client.calls == [("UR10", "plan-1", 5.0)]
     assert fixture.bridge.calls == [
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
     ]
-    output = json.loads(last_tool_content(fixture.model))
-    assert output["structured_content"]["verification"] == {"result": "pass"}
+    assert len(fixture.model.requests) == 1
     assert context.has_recent_executable_plan("plan-1", max_age_s=60.0) is False
     span = records_named(writer, "robot.verified_execution.execute_plan")[-1]
     assert span["module"] == "robot_control"
@@ -2338,8 +2336,9 @@ async def test_verified_preposition_execute_continues_with_after_success_pick_pl
 
     text = await fixture.graph.run_turn(turn("please execute the preposition plan now"))
 
-    assert text == "Pick plan ready."
+    assert text == "Execution complete."
     assert verified_client.calls == [("UR10", "pick-preposition-plan", 5.0)]
+    assert len(fixture.model.requests) == 1
     assert ("moveit_plan_pick", {
         "robot_name": "UR10",
         "object_name": "beam_001",
@@ -2367,8 +2366,9 @@ async def test_graph_treats_proceed_as_explicit_execute_confirmation() -> None:
 
     text = await fixture.graph.run_turn(turn("yes proceed"))
 
-    assert text == "Executed plan-1."
+    assert text == "Execution complete."
     assert verified_client.calls == [("UR10", "plan-1", 5.0)]
+    assert len(fixture.model.requests) == 1
 
 
 @pytest.mark.asyncio

@@ -3,9 +3,15 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any
+
+from process_trace import NoopProcessTracer, ProcessTracer
+
+ProcessTracerLike = ProcessTracer | NoopProcessTracer
+SALIENT_JOB_ARGUMENTS = ("robot_name", "plan_name", "task_solution_id", "object_name")
 
 
 class RobotJobStatus(str, Enum):
@@ -64,16 +70,23 @@ class RobotJobEvent:
 
 
 class RobotJobBoard:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        tracer: ProcessTracerLike | None = None,
+        time_fn: Callable[[], float] = time.monotonic,
+    ) -> None:
         self._condition = asyncio.Condition()
         self._jobs: dict[str, RobotJob] = {}
         self._queue: list[str] = []
         self._events: list[RobotJobEvent] = []
         self._next_sequence = 1
+        self._tracer = tracer or NoopProcessTracer()
+        self._time_fn = time_fn
 
     async def submit(self, job: SubmitRobotJob, *, front: bool = False) -> RobotJob:
         async with self._condition:
-            now = time.monotonic()
+            now = self._time_fn()
             stored = RobotJob(
                 job_id=uuid.uuid4().hex,
                 tool_name=job.tool_name,
@@ -106,7 +119,7 @@ class RobotJobBoard:
                 return None
             job_id = self._queue.pop(0)
             job = self._jobs[job_id]
-            running = replace(job, status=RobotJobStatus.RUNNING, updated_at=time.monotonic())
+            running = replace(job, status=RobotJobStatus.RUNNING, updated_at=self._time_fn())
             self._jobs[job_id] = running
             self._record_locked(RobotJobEventType.STARTED, running, {})
             self._condition.notify_all()
@@ -120,7 +133,7 @@ class RobotJobBoard:
             completed = replace(
                 job,
                 status=RobotJobStatus.COMPLETED,
-                updated_at=time.monotonic(),
+                updated_at=self._time_fn(),
                 result=result,
                 error=None,
             )
@@ -136,7 +149,7 @@ class RobotJobBoard:
             failed = replace(
                 job,
                 status=RobotJobStatus.FAILED,
-                updated_at=time.monotonic(),
+                updated_at=self._time_fn(),
                 result=result,
                 error=error,
             )
@@ -169,7 +182,7 @@ class RobotJobBoard:
                     cancelled_job = replace(
                         job,
                         status=RobotJobStatus.CANCELLED,
-                        updated_at=time.monotonic(),
+                        updated_at=self._time_fn(),
                         error=reason,
                     )
                     self._jobs[job_id] = cancelled_job
@@ -192,6 +205,42 @@ class RobotJobBoard:
     def events_since(self, sequence: int) -> list[RobotJobEvent]:
         return [event for event in self._events if event.sequence > sequence]
 
+    def render_instruction_block(
+        self,
+        *,
+        max_age_s: float = 120.0,
+        max_jobs: int = 5,
+        context_recorded_sequences: set[int] | None = None,
+    ) -> str | None:
+        now = self._time_fn()
+        recent_jobs = [
+            job for job in self._jobs.values() if now - job.updated_at <= max_age_s
+        ]
+        if not recent_jobs:
+            return None
+
+        recorded = context_recorded_sequences or set()
+        lines = ["Robot Job Blackboard:"]
+        for job in sorted(recent_jobs, key=lambda item: item.updated_at, reverse=True)[:max_jobs]:
+            parts = [
+                f"- {job.tool_name}: {job.status.value} ({now - job.updated_at:.1f}s old)"
+            ]
+            args = _format_salient_arguments(job.arguments)
+            if args:
+                parts.append(args)
+            terminal_sequence = self._terminal_event_sequence(job.job_id)
+            if job.status is RobotJobStatus.COMPLETED:
+                if terminal_sequence in recorded:
+                    parts.append("result recorded in Robot Context")
+                else:
+                    parts.append("result not yet recorded in Robot Context")
+            elif job.status is RobotJobStatus.FAILED and job.error:
+                parts.append(f"error={job.error}")
+            elif job.status is RobotJobStatus.CANCELLED and job.error:
+                parts.append(f"reason={job.error}")
+            lines.append("; ".join(parts) + ".")
+        return "\n".join(lines)
+
     def _record_locked(
         self, event_type: RobotJobEventType, job: RobotJob, payload: dict[str, Any]
     ) -> None:
@@ -201,11 +250,58 @@ class RobotJobBoard:
             job_id=job.job_id,
             tool_name=job.tool_name,
             status=job.status,
-            created_at=time.monotonic(),
+            created_at=self._time_fn(),
             payload=dict(payload),
         )
         self._next_sequence += 1
         self._events.append(event)
+        self._tracer.event(
+            _trace_event_name(event_type),
+            "robot_control",
+            attributes=robot_job_trace_attributes(job, payload),
+        )
+
+    def _terminal_event_sequence(self, job_id: str) -> int | None:
+        for event in reversed(self._events):
+            if event.job_id == job_id and event.status in _TERMINAL_STATUSES:
+                return event.sequence
+        return None
+
+
+def robot_job_trace_attributes(job: RobotJob, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    attributes: dict[str, Any] = {
+        "job.id": job.job_id,
+        "job.tool_name": job.tool_name,
+        "job.status": job.status.value,
+        "job.requested_by_turn_id": job.requested_by_turn_id,
+    }
+    for key, value in salient_job_arguments(job.arguments).items():
+        attributes[f"job.arg.{key}"] = value
+    payload = payload or {}
+    if isinstance(payload.get("error"), str):
+        attributes["job.error"] = payload["error"]
+    if "result" in payload or job.result is not None:
+        attributes["job.result_present"] = True
+    return attributes
+
+
+def salient_job_arguments(arguments: dict[str, Any]) -> dict[str, str]:
+    salient: dict[str, str] = {}
+    for key in SALIENT_JOB_ARGUMENTS:
+        value = arguments.get(key)
+        if isinstance(value, str) and value.strip():
+            salient[key] = value.strip()
+    return salient
+
+
+def _format_salient_arguments(arguments: dict[str, Any]) -> str:
+    return ", ".join(
+        f"{key}={value}" for key, value in salient_job_arguments(arguments).items()
+    )
+
+
+def _trace_event_name(event_type: RobotJobEventType) -> str:
+    return f"robot.job.{event_type.value.removeprefix('robot_job_')}"
 
 
 _TERMINAL_STATUSES = {

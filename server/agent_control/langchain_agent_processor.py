@@ -49,8 +49,9 @@ class LangChainAgentProcessor:
         self._mcp_vizor_url = mcp_vizor_url
         self._chat_model = chat_model
         self._model_label = model_label
+        self._tracer = tracer or NoopProcessTracer()
         self._tool_bridge = tool_bridge
-        self._robot_job_board = robot_job_board or RobotJobBoard()
+        self._robot_job_board = robot_job_board or RobotJobBoard(tracer=self._tracer)
         self._robot_job_submitter = RobotJobSubmitter(self._robot_job_board)
         self._robot_job_worker = robot_job_worker
         self._user_sensing_bridge = user_sensing_bridge
@@ -61,7 +62,6 @@ class LangChainAgentProcessor:
             if verified_execution_client is not None
             else _verified_execution_client(verified_execution_url)
         )
-        self._tracer = tracer or NoopProcessTracer()
         self._owns_tool_bridge = tool_bridge is None
         self._owns_user_sensing_bridge = user_sensing_bridge is None
         self._connected = False
@@ -194,6 +194,7 @@ class LangChainAgentProcessor:
                 "model": chat_model,
                 "tool_bridge": tool_bridge,
                 "robot_context": self._robot_context,
+                "robot_job_blackboard_summary": self._robot_job_blackboard_summary,
                 "thread_id": self._thread_id,
                 "job_submitter": self._robot_job_submitter,
                 "verified_execution_client": self._verified_execution_client,
@@ -248,6 +249,11 @@ class LangChainAgentProcessor:
             if event.event_type is RobotJobEventType.COMPLETED:
                 self._record_completed_job_in_context(event)
 
+    def _robot_job_blackboard_summary(self) -> str | None:
+        return self._robot_job_board.render_instruction_block(
+            context_recorded_sequences=self._recorded_job_context_sequences,
+        )
+
 
 def _robot_mcp_bridge(mcp_server_url: str, *, tracer: ProcessTracerLike) -> Any:
     if _accepts_tracer_keyword(RobotMCPBridge):
@@ -269,14 +275,13 @@ def _verified_execution_client(base_url: str | None) -> VerifiedExecutionClient 
 
 def _completed_job_notification(tool_name: str) -> str:
     if tool_name in PLAN_JOB_TOOLS:
-        return "Plan ready for execution."
-    return "Job complete."
+        return "Plan ready."
+    if tool_name == "moveit_execute_plan":
+        return "Execution complete."
+    return "Action complete."
 
 
 def _failed_execute_job_notification(job: RobotJob, error: str) -> str:
-    plan_name = job.arguments.get("plan_name")
-    if isinstance(plan_name, str) and plan_name.strip():
-        return f"Execution for plan {plan_name} did not verify: {error}"
     return f"Execution did not verify: {error}"
 
 

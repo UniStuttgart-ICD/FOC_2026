@@ -228,6 +228,7 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
             user_sensing_max_age_s: float = 2.0,
             thread_id: str,
             job_submitter: Any | None = None,
+            robot_job_blackboard_summary: Any | None = None,
             verified_execution_client: Any | None = None,
             tracer: ProcessTracer,
         ):
@@ -239,6 +240,7 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
             self.user_sensing_max_age_s = user_sensing_max_age_s
             self.thread_id = thread_id
             self.job_submitter = job_submitter
+            self.robot_job_blackboard_summary = robot_job_blackboard_summary
             self.verified_execution_client = verified_execution_client
             self.tracer = tracer
             created_graphs.append(self)
@@ -263,6 +265,7 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
     assert created_bridges[0].tracer is tracer
     assert created_graphs[0].tracer is tracer
     assert created_graphs[0].job_submitter is processor._robot_job_submitter
+    assert created_graphs[0].robot_job_blackboard_summary() is None
     assert created_graphs[0].verified_execution_client is None
     assert created_graphs[0].user_sensing_bridge is None
     backend_span = records_named(writer, "agent.backend_turn")[-1]
@@ -288,6 +291,7 @@ async def test_backend_turn_span_is_recorded_before_yielded_chunk_is_closed(
             robot_context: Any,
             thread_id: str,
             job_submitter: Any | None = None,
+            robot_job_blackboard_summary: Any | None = None,
             verified_execution_client: Any | None = None,
             tracer: ProcessTracer,
         ):
@@ -422,8 +426,37 @@ async def test_langchain_processor_notifications_report_terminal_job_events() ->
 
     text = await asyncio.wait_for(stream.__anext__(), timeout=1)
 
-    assert text == "Job complete."
+    assert text == "Action complete."
     assert job.job_id not in text
+
+
+@pytest.mark.asyncio
+async def test_langchain_processor_notifications_report_execute_completion_without_plan_name() -> None:
+    from robot_control.job_board import RobotJobBoard, SubmitRobotJob
+
+    board = RobotJobBoard()
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=FakeChatModel([]),
+        model_label="fake",
+        tool_bridge=FakeBridge(),
+        robot_job_board=board,
+    )
+    stream = processor.notifications()
+    job = await board.submit(
+        SubmitRobotJob(
+            "moveit_execute_plan",
+            {"robot_name": "UR10", "plan_name": "plan-1"},
+            "turn-1",
+        )
+    )
+    await board.claim_next()
+    await board.complete(job.job_id, '{"structured_content": {"ok": true}}')
+
+    text = await asyncio.wait_for(stream.__anext__(), timeout=1)
+
+    assert text == "Execution complete."
+    assert "plan-1" not in text
 
 
 @pytest.mark.asyncio
@@ -463,7 +496,7 @@ async def test_langchain_processor_notifications_record_pending_plan_from_job_re
 
     text = await asyncio.wait_for(stream.__anext__(), timeout=1)
 
-    assert text == "Plan ready for execution."
+    assert text == "Plan ready."
     pending = processor._robot_context.pending_executable_plan("plan-1", max_age_s=60.0)
     assert pending is not None
     assert pending.robot_name == "UR10"
@@ -526,6 +559,51 @@ async def test_processor_records_terminal_job_results_before_next_turn(
 
 
 @pytest.mark.asyncio
+async def test_processor_adds_job_blackboard_summary_to_model_context() -> None:
+    from robot_control.job_board import RobotJobBoard, SubmitRobotJob
+
+    board = RobotJobBoard()
+    job = await board.submit(
+        SubmitRobotJob(
+            "moveit_execute_plan",
+            {"robot_name": "UR10", "plan_name": "plan-1"},
+            "turn-1",
+        )
+    )
+    await board.claim_next()
+    await board.complete(
+        job.job_id,
+        json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "verification": {"result": "pass"},
+                    "raw": {"plan_name": "plan-1"},
+                }
+            }
+        ),
+    )
+    model = FakeChatModel([ai_text("ready")])
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=model,
+        model_label="fake",
+        tool_bridge=FakeBridge(),
+        robot_job_board=board,
+    )
+
+    result = await _run_turn(processor, "status")
+
+    assert result.chunks == ["ready"]
+    system = model.requests[0][0]
+    assert isinstance(system.content, str)
+    assert "Robot Job Blackboard:" in system.content
+    assert "moveit_execute_plan: completed" in system.content
+    assert "plan_name=plan-1" in system.content
+    assert "result recorded in Robot Context" in system.content
+
+
+@pytest.mark.asyncio
 async def test_langchain_processor_passes_verified_execution_client_to_graph(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -541,6 +619,7 @@ async def test_langchain_processor_passes_verified_execution_client_to_graph(
             robot_context: Any,
             thread_id: str,
             job_submitter: Any | None = None,
+            robot_job_blackboard_summary: Any | None = None,
             verified_execution_client: Any | None = None,
             tracer: ProcessTracer,
         ):
@@ -582,6 +661,7 @@ async def test_failed_job_notification_sends_planner_data_to_recovery_turn(
             robot_context: Any,
             thread_id: str,
             job_submitter: Any | None = None,
+            robot_job_blackboard_summary: Any | None = None,
             verified_execution_client: Any | None = None,
             tracer: ProcessTracer,
         ):
@@ -703,7 +783,7 @@ async def test_failed_execute_job_notification_reports_blocker_without_recovery_
     text = await asyncio.wait_for(stream.__anext__(), timeout=1)
 
     assert text == (
-        "Execution for plan plan-1 did not verify: "
+        "Execution did not verify: "
         "Execution could not be verified against fake controller joint state feedback "
         "Check fake controller joint-state feedback."
     )

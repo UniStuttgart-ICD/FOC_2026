@@ -7,6 +7,7 @@ import inspect
 import json
 import operator
 import uuid
+from collections.abc import Callable
 from typing import Annotated, Any, Literal, TypedDict
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
@@ -130,6 +131,7 @@ class LangGraphRobotAgent:
         user_sensing_max_age_s: float = 2.0,
         thread_id: str | None = None,
         job_submitter: RobotJobSubmitter | None = None,
+        robot_job_blackboard_summary: Callable[[], str | None] | None = None,
         verified_execution_client: VerifiedExecutionClient | None = None,
         tracer: ProcessTracerLike | None = None,
     ) -> None:
@@ -141,6 +143,7 @@ class LangGraphRobotAgent:
         self._user_sensing_max_age_s = user_sensing_max_age_s
         self._thread_id = thread_id or f"robot-agent-{uuid.uuid4()}"
         self._job_submitter = job_submitter
+        self._robot_job_blackboard_summary = robot_job_blackboard_summary
         self._verified_execution_client = verified_execution_client
         self._tracer = tracer or NoopProcessTracer()
         self._latest_state: dict[str, Any] | None = None
@@ -450,6 +453,11 @@ class LangGraphRobotAgent:
                     allow_execution=state["allow_pending_plan_execution"],
                 )
                 action_tool_ran = True
+                if _execution_succeeded(output):
+                    final_text = _execution_result_text(
+                        output,
+                        str(args.get("plan_name") or ""),
+                    )
                 observed_this_turn = False
             elif self._job_submitter is not None and name in QUEUEABLE_ROBOT_ACTION_TOOLS:
                 job_user_text = state["user_text"] if state["allow_pending_plan_execution"] else None
@@ -525,6 +533,10 @@ class LangGraphRobotAgent:
 
     def _instructions(self) -> str:
         parts = [SYSTEM_PROMPT, self._robot_context.render_instruction_block()]
+        if self._robot_job_blackboard_summary is not None:
+            job_blackboard_summary = self._robot_job_blackboard_summary()
+            if job_blackboard_summary:
+                parts.append(job_blackboard_summary)
         if self._user_sensing_bridge is not None:
             parts.append(self._user_sensing_context.render_instruction_block())
         return "\n\n".join(parts)
@@ -1169,10 +1181,10 @@ def _execution_result_text(output: str, plan_name: str) -> str:
                 return value.strip()
         return NO_TEXT_RESPONSE
     if result.get("status") == "queued":
-        return f"Queued execution for plan {plan_name}."
+        return "Execution queued."
     verification = result.get("verification")
     if isinstance(verification, dict) and verification.get("result") == "pass":
-        return f"Executed plan {plan_name}."
+        return "Execution complete."
     return NO_TEXT_RESPONSE
 
 
@@ -1193,10 +1205,7 @@ def _queued_job_result_text(name: str, arguments: dict[str, Any], user_text: str
             return "Planning now. I will execute the first successful plan."
         return "Planning now. I will report when a plan is ready."
     if name == "moveit_execute_plan":
-        plan_name = arguments.get("plan_name")
-        if isinstance(plan_name, str) and plan_name:
-            return f"Queued execution for plan {plan_name}."
-        return "Queued execution."
+        return "Execution queued."
     return "Queued robot action."
 
 
