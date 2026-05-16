@@ -1,0 +1,1451 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vizor Docker Stack Comparison</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      --ink: #1a1d1b;
+      --muted: #646b67;
+      --paper: #f7f3ea;
+      --panel: #fffaf0;
+      --line: #c9c1b2;
+      --strong: #12493f;
+      --strong-2: #0d6658;
+      --accent: #b8422f;
+      --amber: #c68924;
+      --blue: #246a8f;
+      --code: #26251f;
+      --shadow: rgba(42, 35, 24, 0.11);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      overflow-x: hidden;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      overflow-x: hidden;
+      background:
+        linear-gradient(90deg, rgba(18, 73, 63, 0.06) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(18, 73, 63, 0.045) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      font-family: Cambria, "Palatino Linotype", Palatino, Georgia, serif;
+      line-height: 1.5;
+    }
+
+    a {
+      color: var(--strong-2);
+      text-decoration-color: rgba(13, 102, 88, 0.35);
+      text-underline-offset: 3px;
+    }
+
+    code {
+      color: var(--code);
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(201, 193, 178, 0.75);
+      border-radius: 4px;
+      padding: 0.05rem 0.28rem;
+      font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9em;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .shell {
+      display: block;
+      overflow-x: auto;
+      white-space: pre;
+      margin: 0;
+      padding: 1rem;
+      color: #e9eadf;
+      background: #1f2522;
+      border-radius: 6px;
+      border: 1px solid #111815;
+      font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
+
+    header {
+      min-height: 86vh;
+      display: grid;
+      align-items: end;
+      border-bottom: 1px solid var(--line);
+      background:
+        radial-gradient(circle at 78% 24%, rgba(184, 66, 47, 0.16), transparent 26rem),
+        linear-gradient(115deg, rgba(255, 250, 240, 0.96), rgba(247, 243, 234, 0.78)),
+        repeating-linear-gradient(135deg, rgba(18, 73, 63, 0.08) 0 2px, transparent 2px 15px);
+    }
+
+    .hero {
+      width: min(1180px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 7rem 0 4rem;
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+      gap: 3rem;
+    }
+
+    .eyebrow {
+      margin: 0 0 1rem;
+      color: var(--accent);
+      font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 13ch;
+      color: var(--strong);
+      font-size: clamp(3rem, 8vw, 7.2rem);
+      font-weight: 800;
+    }
+
+    h2 {
+      color: var(--strong);
+      font-size: clamp(2rem, 4vw, 3.6rem);
+    }
+
+    h3 {
+      color: var(--ink);
+      font-size: 1.15rem;
+    }
+
+    .lead {
+      max-width: 68ch;
+      margin: 1.6rem 0 0;
+      color: #343934;
+      font-size: clamp(1.06rem, 2vw, 1.35rem);
+    }
+
+    .hero-note {
+      align-self: end;
+      padding: 1.2rem;
+      background: rgba(255, 250, 240, 0.78);
+      border: 1px solid var(--line);
+      box-shadow: 0 18px 60px var(--shadow);
+    }
+
+    .hero-note strong {
+      display: block;
+      margin-bottom: 0.45rem;
+      color: var(--strong);
+      font-size: 1.1rem;
+    }
+
+    .hero-note p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      border-bottom: 1px solid var(--line);
+      background: rgba(247, 243, 234, 0.94);
+      backdrop-filter: blur(10px);
+    }
+
+    nav .bar {
+      width: min(1180px, calc(100% - 2rem));
+      margin: 0 auto;
+      display: flex;
+      gap: 0.5rem;
+      overflow-x: auto;
+      padding: 0.7rem 0;
+    }
+
+    nav a {
+      flex: 0 0 auto;
+      padding: 0.42rem 0.7rem;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: var(--ink);
+      font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 0.82rem;
+      text-decoration: none;
+    }
+
+    nav a:hover,
+    nav a:focus {
+      border-color: var(--line);
+      background: var(--panel);
+      outline: none;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 3rem 0 5rem;
+    }
+
+    section {
+      padding: 3rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    section:last-child {
+      border-bottom: 0;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.8fr) minmax(280px, 1.2fr);
+      gap: 2rem;
+      margin-bottom: 1.5rem;
+      align-items: end;
+    }
+
+    .section-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .summary-grid,
+    .metric-grid,
+    .source-grid,
+    .evidence-grid {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .summary-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .metric-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .source-grid,
+    .evidence-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .tile,
+    .source,
+    .evidence {
+      min-width: 0;
+      background: rgba(255, 250, 240, 0.82);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1rem;
+      box-shadow: 0 12px 36px rgba(42, 35, 24, 0.06);
+    }
+
+    .tile b,
+    .source b,
+    .evidence b {
+      display: block;
+      margin-bottom: 0.4rem;
+      color: var(--strong);
+      font-size: 1rem;
+    }
+
+    .tile .num {
+      display: block;
+      margin-bottom: 0.35rem;
+      color: var(--accent);
+      font-size: 2.3rem;
+      line-height: 1;
+      font-weight: 800;
+    }
+
+    .tile p,
+    .source p,
+    .evidence p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .lane {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(255, 250, 240, 0.72);
+      overflow: hidden;
+    }
+
+    .lane h3 {
+      padding: 1rem;
+      color: #fff;
+      background: var(--strong);
+    }
+
+    .lane.original h3 {
+      background: #5f4732;
+    }
+
+    .lane.current h3 {
+      background: var(--strong-2);
+    }
+
+    .lane ul {
+      margin: 0;
+      padding: 1rem 1.2rem 1.1rem 2rem;
+    }
+
+    .lane li + li {
+      margin-top: 0.5rem;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin-top: 1.2rem;
+    }
+
+    .step {
+      position: relative;
+      min-width: 0;
+      min-height: 9rem;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+    }
+
+    .step::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -0.9rem;
+      width: 1rem;
+      height: 1px;
+      background: var(--line);
+    }
+
+    .step:last-child::after {
+      display: none;
+    }
+
+    .step small {
+      display: block;
+      margin-bottom: 0.7rem;
+      color: var(--accent);
+      font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .step p {
+      margin: 0.55rem 0 0;
+      color: var(--muted);
+    }
+
+    .diagram-panel {
+      min-width: 0;
+      margin-top: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background:
+        linear-gradient(180deg, rgba(255, 250, 240, 0.94), rgba(255, 255, 255, 0.58)),
+        repeating-linear-gradient(90deg, rgba(18, 73, 63, 0.035) 0 1px, transparent 1px 24px);
+      box-shadow: 0 18px 54px rgba(42, 35, 24, 0.075);
+      overflow-x: auto;
+    }
+
+    .diagram-panel figcaption {
+      padding: 0.75rem 1rem 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .diagram {
+      display: block;
+      width: 100%;
+      min-width: 880px;
+      height: auto;
+    }
+
+    .diagram.compact {
+      min-width: 760px;
+    }
+
+    .diagram text {
+      fill: var(--ink);
+      font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      letter-spacing: 0;
+    }
+
+    .diagram .title {
+      fill: var(--strong);
+      font-family: Cambria, "Palatino Linotype", Palatino, Georgia, serif;
+      font-size: 25px;
+      font-weight: 800;
+    }
+
+    .diagram .label {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .diagram .sub {
+      fill: var(--muted);
+      font-size: 12px;
+    }
+
+    .diagram .tiny {
+      fill: var(--muted);
+      font-size: 10px;
+    }
+
+    .diagram .node {
+      fill: rgba(255, 250, 240, 0.98);
+      stroke: var(--line);
+      stroke-width: 1.2;
+    }
+
+    .diagram .node-old {
+      fill: rgba(95, 71, 50, 0.09);
+      stroke: #5f4732;
+    }
+
+    .diagram .node-new {
+      fill: rgba(13, 102, 88, 0.09);
+      stroke: var(--strong-2);
+    }
+
+    .diagram .node-accent {
+      fill: rgba(184, 66, 47, 0.09);
+      stroke: var(--accent);
+    }
+
+    .diagram .node-warn {
+      fill: rgba(198, 137, 36, 0.12);
+      stroke: var(--amber);
+    }
+
+    .diagram .group {
+      fill: rgba(255, 250, 240, 0.38);
+      stroke: rgba(18, 73, 63, 0.25);
+      stroke-width: 1;
+      stroke-dasharray: 5 5;
+    }
+
+    .diagram .arrow {
+      fill: none;
+      stroke: var(--strong);
+      stroke-width: 1.5;
+    }
+
+    .diagram .arrow-new {
+      stroke: var(--strong-2);
+    }
+
+    .diagram .arrow-accent {
+      stroke: var(--accent);
+    }
+
+    .diagram .arrow-dashed {
+      stroke-dasharray: 6 5;
+    }
+
+    .diagram .arrow-muted {
+      stroke: rgba(26, 29, 27, 0.36);
+    }
+
+    .diagram .halo {
+      paint-order: stroke;
+      stroke: var(--paper);
+      stroke-width: 5px;
+      stroke-linejoin: round;
+    }
+
+    .visual-key {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      padding: 0 1rem 1rem;
+    }
+
+    .visual-key span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: var(--muted);
+      font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 0.75rem;
+    }
+
+    .visual-key i {
+      width: 1.3rem;
+      height: 0.2rem;
+      display: inline-block;
+      background: var(--strong-2);
+    }
+
+    .visual-key .old i {
+      background: #5f4732;
+    }
+
+    .visual-key .accent i {
+      background: var(--accent);
+    }
+
+    .visual-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .visual-strip .tile {
+      border-top: 5px solid var(--strong-2);
+    }
+
+    .visual-strip .tile:nth-child(2) {
+      border-top-color: var(--blue);
+    }
+
+    .visual-strip .tile:nth-child(3) {
+      border-top-color: var(--accent);
+    }
+
+    .visual-strip .tile:nth-child(4) {
+      border-top-color: var(--amber);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      overflow: hidden;
+      background: rgba(255, 250, 240, 0.86);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      box-shadow: 0 14px 42px rgba(42, 35, 24, 0.055);
+    }
+
+    th,
+    td {
+      padding: 0.8rem 0.9rem;
+      border-bottom: 1px solid rgba(201, 193, 178, 0.75);
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+
+    th {
+      color: #fff;
+      background: var(--strong);
+      font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    tbody tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.36);
+    }
+
+    .tag {
+      display: inline-block;
+      margin: 0.1rem 0.2rem 0.1rem 0;
+      padding: 0.18rem 0.45rem;
+      border: 1px solid rgba(18, 73, 63, 0.22);
+      border-radius: 999px;
+      color: var(--strong);
+      background: rgba(18, 73, 63, 0.08);
+      font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 0.76rem;
+      white-space: nowrap;
+    }
+
+    .tag.new {
+      color: var(--accent);
+      background: rgba(184, 66, 47, 0.08);
+      border-color: rgba(184, 66, 47, 0.25);
+    }
+
+    .tag.warn {
+      color: #7b520e;
+      background: rgba(198, 137, 36, 0.13);
+      border-color: rgba(198, 137, 36, 0.32);
+    }
+
+    .callout {
+      margin-top: 1rem;
+      padding: 1rem;
+      border-left: 6px solid var(--amber);
+      background: rgba(255, 250, 240, 0.92);
+      box-shadow: 0 10px 28px rgba(42, 35, 24, 0.055);
+    }
+
+    .callout strong {
+      color: #7b520e;
+    }
+
+    .callout p {
+      margin: 0.4rem 0 0;
+      color: var(--muted);
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 1rem;
+    }
+
+    .list {
+      margin: 0;
+      padding-left: 1.2rem;
+    }
+
+    .list li + li {
+      margin-top: 0.45rem;
+    }
+
+    footer {
+      padding: 2rem 0;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .section-head,
+      .compare,
+      .split,
+      .source-grid,
+      .evidence-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-grid,
+      .metric-grid,
+      .flow,
+      .visual-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .step::after {
+        display: none;
+      }
+    }
+
+    @media (max-width: 620px) {
+      header {
+        min-height: 78vh;
+      }
+
+      .hero {
+        padding-top: 4rem;
+      }
+
+      .summary-grid,
+      .metric-grid,
+      .flow,
+      .visual-strip {
+        grid-template-columns: 1fr;
+      }
+
+      th,
+      td {
+        padding: 0.7rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="hero">
+      <div>
+        <p class="eyebrow">Docker stack comparison - inspected 2026-05-16</p>
+        <h1>Vizor RViz stack delta</h1>
+        <p class="lead">
+          This page compares the original two-container Vizor ROS compose setup in
+          <code>01_Docker</code> with the current RViz, MoveIt MCP, Vizor MCP, and
+          MTC-proof-capable stack now running on this machine.
+        </p>
+      </div>
+      <aside class="hero-note">
+        <strong>Interpretation used for "original"</strong>
+        <p>
+          The original baseline is <code>vizor_config_two_worker.yml</code>, because
+          it is the older direct <code>cxy201/noetic-vizor</code> compose file in
+          the supplied <code>01_Docker</code> folder. The active current stack is
+          <code>vizor_config.yml</code>, which Docker confirms launched the running
+          containers.
+        </p>
+      </aside>
+    </div>
+  </header>
+
+  <nav aria-label="Page sections">
+    <div class="bar">
+      <a href="#sources">Sources</a>
+      <a href="#headline">Headline</a>
+      <a href="#visual-map">Visual Map</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#compose">Compose</a>
+      <a href="#image">Image</a>
+      <a href="#rviz-mtc">RViz and MTC</a>
+      <a href="#runtime">Runtime Evidence</a>
+      <a href="#new">What Is New</a>
+    </div>
+  </nav>
+
+  <main>
+    <section id="sources">
+      <div class="section-head">
+        <h2>Compared Inputs</h2>
+        <p>
+          The original folder contains only compose YAML files. The current RViz image
+          and MCP image source live in <code>Multi-Actor-Interface-Library</code>, so
+          this comparison covers both compose-level changes and image-source changes.
+        </p>
+      </div>
+
+      <div class="source-grid">
+        <div class="source">
+          <b>Original baseline</b>
+          <p><code>C:\Users\Samuel\Documents\github\BehFab2025_VizorHRC\BehFab2025_VizorHRC\01_Docker\vizor_config_two_worker.yml</code></p>
+        </div>
+        <div class="source">
+          <b>Current active compose file</b>
+          <p><code>C:\Users\Samuel\Documents\github\BehFab2025_VizorHRC\BehFab2025_VizorHRC\01_Docker\vizor_config.yml</code></p>
+        </div>
+        <div class="source">
+          <b>Current RViz/Vizor image source</b>
+          <p><code>C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\docker\vizor-rviz</code></p>
+        </div>
+        <div class="source">
+          <b>Current MCP image source</b>
+          <p><code>C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\docker\mcp\Dockerfile</code></p>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>Scope note</strong>
+        <p>
+          The original compose file used the prebuilt <code>cxy201/noetic-vizor</code>
+          image directly. There is no original Dockerfile, RViz config, or MTC source
+          in <code>01_Docker</code> to diff against.
+        </p>
+      </div>
+    </section>
+
+    <section id="headline">
+      <div class="section-head">
+        <h2>Headline Delta</h2>
+        <p>
+          The stack changed from a headless ROS/Vizor launch into an operator-visible
+          robot simulation and agent-control boundary.
+        </p>
+      </div>
+
+      <div class="summary-grid">
+        <div class="tile">
+          <span class="num">2</span>
+          <b>Original services</b>
+          <p><code>ros-core</code> and <code>vizor-demo</code>.</p>
+        </div>
+        <div class="tile">
+          <span class="num">4</span>
+          <b>Current services</b>
+          <p>Adds <code>vizor-mcp</code> and <code>moveit-mcp</code>.</p>
+        </div>
+        <div class="tile">
+          <span class="num">5</span>
+          <b>New host ports</b>
+          <p><code>6080</code>, <code>5901</code>, <code>8001</code>, <code>8765</code>, plus retained Vizor ports.</p>
+        </div>
+        <div class="tile">
+          <span class="num">8</span>
+          <b>New RViz image files</b>
+          <p>Dockerfile, launch/config, startup script, patches, pose service, and MTC proof node.</p>
+        </div>
+      </div>
+
+      <div class="compare" style="margin-top: 1rem;">
+        <article class="lane original">
+          <h3>Original: direct Vizor ROS stack</h3>
+          <ul>
+            <li>Runs <code>cxy201/noetic-vizor</code> directly.</li>
+            <li>Starts <code>vizor2ros.launch</code> from the compose command.</li>
+            <li>Exposes rosbridge and Vizor TCP ports only.</li>
+            <li>No desktop, RViz, noVNC, MCP servers, or MTC packages are declared.</li>
+            <li>Uses <code>active:=HOLO1,HOLO2</code>.</li>
+          </ul>
+        </article>
+        <article class="lane current">
+          <h3>Current: RViz plus MCP stack</h3>
+          <ul>
+            <li>Builds <code>local/noetic-vizor-rviz:latest</code> from a local Dockerfile.</li>
+            <li>Starts Vizor through an entrypoint that also launches desktop and helper ROS nodes.</li>
+            <li>Adds browser-visible noVNC at <code>http://127.0.0.1:6080</code>.</li>
+            <li>Adds agent-facing <code>moveit-mcp</code> and advisory <code>vizor-mcp</code>.</li>
+            <li>Installs RViz, MoveIt visualization, Robotiq, and MTC packages.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section id="visual-map">
+      <div class="section-head">
+        <h2>Visual Map</h2>
+        <p>
+          The old stack was a ROS launch target. The current stack is a small
+          operator-and-agent system: ROS stays inside Docker, RViz is visible in a
+          browser, and MCP services expose narrow HTTP control surfaces.
+        </p>
+      </div>
+
+      <figure class="diagram-panel">
+        <figcaption>Topology shift from direct Vizor ROS compose to the current RViz/MCP stack.</figcaption>
+        <svg class="diagram" viewBox="0 0 1120 560" role="img" aria-labelledby="topology-title topology-desc">
+          <title id="topology-title">Original and current Vizor Docker topology</title>
+          <desc id="topology-desc">The original stack has ros-core and vizor-demo only. The current stack keeps ros-core and vizor-demo, then adds RViz through noVNC plus MoveIt MCP and Vizor MCP services.</desc>
+          <defs>
+            <marker id="topology-old" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f4732"></path>
+            </marker>
+            <marker id="topology-new" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#0d6658"></path>
+            </marker>
+            <marker id="topology-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#b8422f"></path>
+            </marker>
+            <marker id="topology-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(26, 29, 27, 0.36)"></path>
+            </marker>
+          </defs>
+
+          <rect class="group" x="36" y="76" width="386" height="394" rx="12"></rect>
+          <rect class="group" x="468" y="54" width="616" height="438" rx="12"></rect>
+
+          <text class="title" x="62" y="120">Original</text>
+          <text class="sub" x="62" y="145">01_Docker/vizor_config_two_worker.yml</text>
+          <text class="title" x="492" y="98">Current</text>
+          <text class="sub" x="492" y="123">01_Docker/vizor_config.yml plus local image sources</text>
+
+          <rect class="node node-old" x="76" y="190" width="132" height="78" rx="8"></rect>
+          <text class="label" x="142" y="222" text-anchor="middle">ros-core</text>
+          <text class="sub" x="142" y="244" text-anchor="middle">roscore :11311</text>
+
+          <rect class="node node-old" x="254" y="190" width="132" height="78" rx="8"></rect>
+          <text class="label" x="320" y="222" text-anchor="middle">vizor-demo</text>
+          <text class="sub" x="320" y="244" text-anchor="middle">cxy201 image</text>
+
+          <rect class="node node-old" x="143" y="348" width="182" height="72" rx="8"></rect>
+          <text class="label" x="234" y="378" text-anchor="middle">host access</text>
+          <text class="sub" x="234" y="400" text-anchor="middle">9090, 10000-10003</text>
+
+          <path class="arrow arrow-muted" marker-end="url(#topology-old)" d="M 208 229 H 254"></path>
+          <text class="tiny halo" x="231" y="218" text-anchor="middle">ROS master</text>
+          <path class="arrow arrow-muted" marker-end="url(#topology-old)" d="M 320 268 V 314 H 234 V 348"></path>
+          <text class="tiny halo" x="292" y="312">rosbridge + Vizor TCP</text>
+
+          <rect class="node node-new" x="516" y="156" width="132" height="78" rx="8"></rect>
+          <text class="label" x="582" y="188" text-anchor="middle">ros-core</text>
+          <text class="sub" x="582" y="210" text-anchor="middle">same ROS master</text>
+
+          <rect class="node node-new" x="718" y="136" width="174" height="118" rx="8"></rect>
+          <text class="label" x="805" y="170" text-anchor="middle">vizor-demo</text>
+          <text class="sub" x="805" y="194" text-anchor="middle">local/noetic-vizor-rviz</text>
+          <text class="sub" x="805" y="216" text-anchor="middle">MoveIt, rosbridge, helpers</text>
+
+          <rect class="node node-accent" x="930" y="148" width="120" height="96" rx="8"></rect>
+          <text class="label" x="990" y="180" text-anchor="middle">RViz</text>
+          <text class="sub" x="990" y="202" text-anchor="middle">noVNC</text>
+          <text class="sub" x="990" y="224" text-anchor="middle">6080 / 5901</text>
+
+          <rect class="node node-new" x="584" y="326" width="164" height="92" rx="8"></rect>
+          <text class="label" x="666" y="360" text-anchor="middle">moveit-mcp</text>
+          <text class="sub" x="666" y="382" text-anchor="middle">HTTP MCP :8765</text>
+          <text class="sub" x="666" y="402" text-anchor="middle">robot tools</text>
+
+          <rect class="node node-new" x="810" y="326" width="164" height="92" rx="8"></rect>
+          <text class="label" x="892" y="360" text-anchor="middle">vizor-mcp</text>
+          <text class="sub" x="892" y="382" text-anchor="middle">HTTP MCP :8001</text>
+          <text class="sub" x="892" y="402" text-anchor="middle">user sensing</text>
+
+          <rect class="node" x="548" y="452" width="200" height="58" rx="8"></rect>
+          <text class="label" x="648" y="477" text-anchor="middle">Pipecat / operator</text>
+          <text class="sub" x="648" y="497" text-anchor="middle">host clients</text>
+
+          <rect class="node node-warn" x="830" y="452" width="174" height="58" rx="8"></rect>
+          <text class="label" x="917" y="477" text-anchor="middle">MTC proof path</text>
+          <text class="sub" x="917" y="497" text-anchor="middle">installed, opt-in</text>
+
+          <path class="arrow arrow-new" marker-end="url(#topology-new)" d="M 648 195 H 718"></path>
+          <text class="tiny halo" x="683" y="183" text-anchor="middle">ROS_MASTER_URI</text>
+          <path class="arrow arrow-accent" marker-end="url(#topology-accent)" d="M 892 195 H 930"></path>
+          <text class="tiny halo" x="911" y="183" text-anchor="middle">desktop</text>
+
+          <path class="arrow arrow-new" marker-end="url(#topology-new)" d="M 666 326 V 286 H 776 V 254"></path>
+          <text class="tiny halo" x="692" y="283">rosbridge :9090</text>
+          <path class="arrow arrow-new" marker-end="url(#topology-new)" d="M 892 326 V 286 H 834 V 254"></path>
+          <text class="tiny halo" x="840" y="303">Vizor topics</text>
+
+          <path class="arrow arrow-new" marker-end="url(#topology-new)" d="M 626 452 V 424 H 666 V 418"></path>
+          <path class="arrow arrow-new" marker-end="url(#topology-new)" d="M 706 452 V 434 H 892 V 418"></path>
+          <text class="tiny halo" x="763" y="437" text-anchor="middle">MCP HTTP</text>
+
+          <path class="arrow arrow-accent arrow-dashed" marker-end="url(#topology-accent)" d="M 917 452 V 432 H 990 V 244"></path>
+          <text class="tiny halo" x="976" y="432" text-anchor="end">/solution only when backend publishes</text>
+        </svg>
+        <div class="visual-key" aria-label="Diagram legend">
+          <span class="old"><i></i>original path</span>
+          <span><i></i>current control path</span>
+          <span class="accent"><i></i>visual/operator path</span>
+          <span>Dashed line means configured but gated or idle.</span>
+        </div>
+      </figure>
+
+      <div class="visual-strip">
+        <div class="tile">
+          <b>Boundary added</b>
+          <p>MCP now separates agent-facing tools from raw ROS internals.</p>
+        </div>
+        <div class="tile">
+          <b>Operator view added</b>
+          <p>RViz is available through noVNC instead of requiring a local ROS desktop.</p>
+        </div>
+        <div class="tile">
+          <b>Image source added</b>
+          <p>The Vizor container is now reproducibly extended by a local Dockerfile.</p>
+        </div>
+        <div class="tile">
+          <b>MTC remains gated</b>
+          <p>Packages and panel exist; a real publishing backend is not default.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="architecture">
+      <div class="section-head">
+        <h2>Architecture Shape</h2>
+        <p>
+          The main change is ownership. The old stack only hosted ROS and Vizor.
+          The current stack also exposes a controlled HTTP MCP surface for the voice
+          agent while keeping ROS and MoveIt inside Docker.
+        </p>
+      </div>
+
+      <div class="flow" aria-label="Current runtime flow">
+        <div class="step">
+          <small>01</small>
+          <h3>ros-core</h3>
+          <p>Still the ROS master on <code>11311</code>, still based on <code>cxy201/noetic-vizor</code>.</p>
+        </div>
+        <div class="step">
+          <small>02</small>
+          <h3>vizor-demo</h3>
+          <p>Now a locally built image with Vizor, MoveIt, RViz, noVNC, rosapi, pose service, and optional MTC proof node.</p>
+        </div>
+        <div class="step">
+          <small>03</small>
+          <h3>moveit-mcp</h3>
+          <p>Python MCP server on <code>8765</code>; talks to rosbridge at <code>vizor-demo:9090</code>.</p>
+        </div>
+        <div class="step">
+          <small>04</small>
+          <h3>vizor-mcp</h3>
+          <p>Python MCP server on <code>8001</code>; exposes advisory HoloLens/Vizor sensing context.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="compose">
+      <div class="section-head">
+        <h2>Compose-Level Changes</h2>
+        <p>
+          Docker labels on the running containers confirm that the active stack was
+          launched from <code>01_Docker\vizor_config.yml</code>.
+        </p>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th>Original <code>vizor_config_two_worker.yml</code></th>
+            <th>Current <code>vizor_config.yml</code></th>
+            <th>Impact</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Services</td>
+            <td><code>ros-core</code>, <code>vizor-demo</code></td>
+            <td><code>ros-core</code>, <code>vizor-demo</code>, <code>vizor-mcp</code>, <code>moveit-mcp</code></td>
+            <td>Robot execution and user sensing gained explicit MCP boundaries.</td>
+          </tr>
+          <tr>
+            <td><code>vizor-demo</code> image</td>
+            <td>Pulls/uses <code>cxy201/noetic-vizor</code>.</td>
+            <td>Builds <code>local/noetic-vizor-rviz:latest</code> from <code>docker/vizor-rviz</code>.</td>
+            <td>Persistent modifications now belong to a local image source instead of runtime-only compose commands.</td>
+          </tr>
+          <tr>
+            <td><code>vizor-demo</code> command</td>
+            <td>Compose command directly runs <code>roslaunch --wait vizor_package vizor2ros.launch ...</code>.</td>
+            <td>No compose command. Image entrypoint runs <code>start-vizor-desktop.sh</code>, then launches Vizor.</td>
+            <td>Startup can bring up desktop, RViz, rosapi, pose service, and optional MTC before the main Vizor launch.</td>
+          </tr>
+          <tr>
+            <td>Host ports</td>
+            <td><span class="tag">11311</span><span class="tag">9090</span><span class="tag">10000-10003</span></td>
+            <td><span class="tag">11311</span><span class="tag">9090</span><span class="tag">10000-10003</span><span class="tag new">6080</span><span class="tag new">5901</span><span class="tag new">8001</span><span class="tag new">8765</span></td>
+            <td>Adds browser desktop, VNC, Vizor MCP, and MoveIt MCP access.</td>
+          </tr>
+          <tr>
+            <td>Environment</td>
+            <td><code>ROS_HOSTNAME</code>, <code>ROS_MASTER_URI</code>.</td>
+            <td>Adds <code>DISPLAY=:1</code>; image defaults also include <code>NOVNC_PORT=6080</code> and <code>VNC_PORT=5901</code>.</td>
+            <td>Container now owns a virtual display for RViz.</td>
+          </tr>
+          <tr>
+            <td>Active devices</td>
+            <td><code>active:=HOLO1,HOLO2</code>.</td>
+            <td><code>active:=HOLO1</code> inside <code>start-vizor-desktop.sh</code>.</td>
+            <td>Current runtime narrows the default Vizor launch to one HoloLens participant.</td>
+          </tr>
+          <tr>
+            <td>Restart policy</td>
+            <td>No restart policy declared.</td>
+            <td>MCP services use <code>restart: unless-stopped</code>.</td>
+            <td>Agent-facing HTTP services are made more persistent than the original ROS-only stack.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="image">
+      <div class="section-head">
+        <h2>Image-Source Changes</h2>
+        <p>
+          The current <code>vizor-demo</code> image is not just the old image plus a
+          different command. It extends the image with desktop, visualization, task
+          constructor proof material, gripper packages, and ROS helper scripts.
+        </p>
+      </div>
+
+      <figure class="diagram-panel">
+        <figcaption>The current stack has two new local build products: an extended Vizor/RViz image and a shared MCP image.</figcaption>
+        <svg class="diagram compact" viewBox="0 0 1000 430" role="img" aria-labelledby="image-layer-title image-layer-desc">
+          <title id="image-layer-title">Current Docker image layers</title>
+          <desc id="image-layer-desc">The Vizor image extends cxy201/noetic-vizor with Robotiq, MTC, RViz, noVNC, patches, and helper services. The MCP image extends python 3.12 slim with MCP dependencies and the moveit_mcp and vizor_mcp packages.</desc>
+          <defs>
+            <marker id="image-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#0d6658"></path>
+            </marker>
+          </defs>
+
+          <text class="title" x="70" y="48">local/noetic-vizor-rviz:latest</text>
+          <text class="title" x="608" y="48">local/multi-actor-mcp:latest</text>
+
+          <rect class="node node-old" x="88" y="330" width="360" height="52" rx="8"></rect>
+          <text class="label" x="268" y="362" text-anchor="middle">base: cxy201/noetic-vizor</text>
+
+          <rect class="node node-new" x="110" y="278" width="316" height="52" rx="8"></rect>
+          <text class="label" x="268" y="310" text-anchor="middle">Robotiq packages + catkin rebuild</text>
+
+          <rect class="node node-new" x="132" y="226" width="272" height="52" rx="8"></rect>
+          <text class="label" x="268" y="258" text-anchor="middle">RViz + MoveIt visualization + MTC</text>
+
+          <rect class="node node-accent" x="154" y="174" width="228" height="52" rx="8"></rect>
+          <text class="label" x="268" y="206" text-anchor="middle">noVNC desktop stack</text>
+
+          <rect class="node node-warn" x="176" y="122" width="184" height="52" rx="8"></rect>
+          <text class="label" x="268" y="154" text-anchor="middle">patches + helper ROS nodes</text>
+
+          <rect class="node node-accent" x="198" y="70" width="140" height="52" rx="8"></rect>
+          <text class="label" x="268" y="102" text-anchor="middle">entrypoint</text>
+
+          <path class="arrow arrow-new" marker-end="url(#image-arrow)" d="M 268 70 V 48 H 532"></path>
+          <text class="tiny halo" x="388" y="58" text-anchor="middle">compose builds and runs</text>
+
+          <rect class="node node-old" x="636" y="300" width="284" height="54" rx="8"></rect>
+          <text class="label" x="778" y="333" text-anchor="middle">base: python:3.12-slim</text>
+
+          <rect class="node node-new" x="658" y="238" width="240" height="54" rx="8"></rect>
+          <text class="label" x="778" y="270" text-anchor="middle">mcp + pydantic + roslibpy</text>
+
+          <rect class="node node-new" x="680" y="176" width="196" height="54" rx="8"></rect>
+          <text class="label" x="778" y="208" text-anchor="middle">moveit_mcp package</text>
+
+          <rect class="node node-new" x="680" y="114" width="196" height="54" rx="8"></rect>
+          <text class="label" x="778" y="146" text-anchor="middle">vizor_mcp package</text>
+
+          <rect class="node node-accent" x="642" y="70" width="104" height="34" rx="8"></rect>
+          <text class="sub" x="694" y="92" text-anchor="middle">:8001</text>
+          <rect class="node node-accent" x="810" y="70" width="104" height="34" rx="8"></rect>
+          <text class="sub" x="862" y="92" text-anchor="middle">:8765</text>
+
+          <path class="arrow arrow-new" marker-end="url(#image-arrow)" d="M 778 114 V 104 H 694"></path>
+          <path class="arrow arrow-new" marker-end="url(#image-arrow)" d="M 778 176 V 104 H 862"></path>
+          <text class="tiny halo" x="778" y="392" text-anchor="middle">same image, different commands in compose</text>
+        </svg>
+      </figure>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Current file or package</th>
+            <th>Baseline status</th>
+            <th>Current role</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>docker/vizor-rviz/Dockerfile</code></td>
+            <td><span class="tag new">New</span></td>
+            <td>Extends <code>cxy201/noetic-vizor</code>; installs RViz/noVNC/MTC/Robotiq dependencies; copies launch and helper scripts; runs catkin build.</td>
+          </tr>
+          <tr>
+            <td><code>start-vizor-desktop.sh</code></td>
+            <td><span class="tag new">New</span></td>
+            <td>Starts <code>Xvfb</code>, <code>fluxbox</code>, <code>x11vnc</code>, <code>websockify</code>, <code>rosapi</code>, current-pose service, optional MTC proof service, RViz, then Vizor.</td>
+          </tr>
+          <tr>
+            <td><code>ur10_robot.rviz</code> and <code>rviz_ur10.launch</code></td>
+            <td><span class="tag new">New</span></td>
+            <td>Defines the RViz operator view for UR10 RobotModel, MoveIt MotionPlanning, planning-scene stream, planned path, and MTC task panel.</td>
+          </tr>
+          <tr>
+            <td><code>vizor_current_pose_service.py</code></td>
+            <td><span class="tag new">New</span></td>
+            <td>Exposes read-only <code>/UR10/get_current_pose</code> over ROS so MoveIt MCP can ground motion requests.</td>
+          </tr>
+          <tr>
+            <td><code>vizor_mtc_pick_server.py</code></td>
+            <td><span class="tag new">New</span></td>
+            <td>Opt-in proof service at <code>/vizor_mtc/plan_pick_task</code>; checks MTC packages and reports that real task construction is deferred.</td>
+          </tr>
+          <tr>
+            <td><code>patch-vizor-robot.py</code></td>
+            <td><span class="tag new">New</span></td>
+            <td>Patches inherited Vizor robot code for ROS Noetic Cartesian planning compatibility and Robotiq/gripper integration, then regenerates UR10 with gripper URDF.</td>
+          </tr>
+          <tr>
+            <td>MTC ROS packages</td>
+            <td><span class="tag new">New</span></td>
+            <td>Installs <code>moveit_task_constructor_core</code>, <code>moveit_task_constructor_msgs</code>, <code>moveit_task_constructor_visualization</code>, and capabilities packages.</td>
+          </tr>
+          <tr>
+            <td><code>docker/mcp/Dockerfile</code></td>
+            <td><span class="tag new">New</span></td>
+            <td>Builds shared Python image <code>local/multi-actor-mcp:latest</code> with <code>mcp</code>, <code>pydantic</code>, <code>roslibpy</code>, <code>moveit_mcp</code>, and <code>vizor_mcp</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="rviz-mtc">
+      <div class="section-head">
+        <h2>RViz, MoveIt, and MTC</h2>
+        <p>
+          The current image adds a visible planning scene and MTC-aware RViz panel,
+          but the real MTC backend is still not the default execution backend.
+        </p>
+      </div>
+
+      <div class="metric-grid">
+        <div class="tile">
+          <b>RViz display path</b>
+          <p><code>roslaunch vizor_package rviz_ur10.launch</code> opens <code>ur10_robot.rviz</code> in the virtual desktop.</p>
+        </div>
+        <div class="tile">
+          <b>MoveIt scene stream</b>
+          <p>RViz subscribes to <code>/UR10/move_group/monitored_planning_scene</code> and planned path topic <code>/UR10/move_group/display_planned_path</code>.</p>
+        </div>
+        <div class="tile">
+          <b>MTC panel</b>
+          <p>The config includes <code>moveit_task_constructor/Motion Planning Tasks</code> with task-solution topic <code>/solution</code>.</p>
+        </div>
+      </div>
+
+      <figure class="diagram-panel">
+        <figcaption>MTC readiness: the visual pieces are installed, but publishing real task solutions is still behind an implementation gate.</figcaption>
+        <svg class="diagram compact" viewBox="0 0 1000 310" role="img" aria-labelledby="mtc-gate-title mtc-gate-desc">
+          <title id="mtc-gate-title">MTC readiness gate</title>
+          <desc id="mtc-gate-desc">MTC packages and RViz panel are present. The optional proof node can be enabled with an environment variable, but a real MTC backend that publishes solutions is deferred.</desc>
+          <defs>
+            <marker id="mtc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#0d6658"></path>
+            </marker>
+            <marker id="mtc-warn-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#c68924"></path>
+            </marker>
+          </defs>
+
+          <rect class="node node-new" x="46" y="96" width="180" height="92" rx="8"></rect>
+          <text class="label" x="136" y="130" text-anchor="middle">MTC packages</text>
+          <text class="sub" x="136" y="153" text-anchor="middle">core, msgs,</text>
+          <text class="sub" x="136" y="173" text-anchor="middle">visualization</text>
+
+          <rect class="node node-accent" x="286" y="96" width="180" height="92" rx="8"></rect>
+          <text class="label" x="376" y="130" text-anchor="middle">RViz MTC panel</text>
+          <text class="sub" x="376" y="153" text-anchor="middle">Motion Planning</text>
+          <text class="sub" x="376" y="173" text-anchor="middle">Tasks display</text>
+
+          <rect class="node node-warn" x="526" y="96" width="180" height="92" rx="8"></rect>
+          <text class="label" x="616" y="130" text-anchor="middle">/solution topic</text>
+          <text class="sub" x="616" y="153" text-anchor="middle">configured in RViz</text>
+          <text class="sub" x="616" y="173" text-anchor="middle">not observed live</text>
+
+          <rect class="node node-warn" x="766" y="96" width="180" height="92" rx="8"></rect>
+          <text class="label" x="856" y="130" text-anchor="middle">real MTC backend</text>
+          <text class="sub" x="856" y="153" text-anchor="middle">deferred pending</text>
+          <text class="sub" x="856" y="173" text-anchor="middle">task semantics</text>
+
+          <path class="arrow arrow-new" marker-end="url(#mtc-arrow)" d="M 226 142 H 286"></path>
+          <path class="arrow arrow-new" marker-end="url(#mtc-arrow)" d="M 466 142 H 526"></path>
+          <path class="arrow arrow-dashed" marker-end="url(#mtc-warn-arrow)" d="M 706 142 H 766"></path>
+          <text class="tiny halo" x="736" y="130" text-anchor="middle">gate</text>
+
+          <rect class="node node-accent" x="320" y="230" width="280" height="50" rx="8"></rect>
+          <text class="label" x="460" y="260" text-anchor="middle">VIZOR_ENABLE_MTC_PROOF=1</text>
+          <path class="arrow arrow-accent arrow-dashed" marker-end="url(#mtc-warn-arrow)" d="M 460 230 V 206 H 616 V 188"></path>
+
+          <text class="sub" x="496" y="44" text-anchor="middle">Installed -> visible -> waiting for publisher -> real backend deferred</text>
+        </svg>
+      </figure>
+
+      <div class="callout">
+        <strong>MTC is present but gated.</strong>
+        <p>
+          The image has MTC packages installed and an opt-in proof node, but the runtime
+          default is <code>VIZOR_ENABLE_MTC_PROOF=0</code>. The inspected ROS topics did
+          not include a plain <code>/solution</code> topic, so the MTC RViz panel is
+          expected to stay idle unless a backend publishes MTC solutions.
+        </p>
+      </div>
+
+      <table style="margin-top: 1rem;">
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>Original</th>
+            <th>Current</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Browser-visible robot desktop</td>
+            <td>Absent.</td>
+            <td><code>noVNC</code> on <code>6080</code>, backed by <code>Xvfb</code>, <code>fluxbox</code>, <code>x11vnc</code>, and <code>websockify</code>.</td>
+          </tr>
+          <tr>
+            <td>MoveIt visualization</td>
+            <td>No RViz config in the original folder.</td>
+            <td>RViz shows UR10 RobotModel, planning scene geometry, and planned paths.</td>
+          </tr>
+          <tr>
+            <td>MTC visualization</td>
+            <td>Absent.</td>
+            <td>MTC RViz display is configured and packages are installed, but solution publishing is not active by default.</td>
+          </tr>
+          <tr>
+            <td>Task-level planning API</td>
+            <td>Absent from Docker compose.</td>
+            <td><code>moveit-mcp</code> exposes task-solution-shaped planning and execution tools through HTTP MCP.</td>
+          </tr>
+          <tr>
+            <td>Current pose grounding</td>
+            <td>No dedicated helper service in compose.</td>
+            <td><code>/UR10/get_current_pose</code> service is running in <code>vizor-demo</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="runtime">
+      <div class="section-head">
+        <h2>Runtime Evidence</h2>
+        <p>
+          These checks were collected from Docker and the running <code>vizor-demo</code>
+          container during this comparison.
+        </p>
+      </div>
+
+      <div class="evidence-grid">
+        <div class="evidence">
+          <b>Running containers</b>
+          <p><span class="tag">ros-core</span><span class="tag">vizor-demo</span><span class="tag new">vizor-mcp</span><span class="tag new">moveit-mcp</span></p>
+        </div>
+        <div class="evidence">
+          <b>Active compose source</b>
+          <p>Docker label <code>com.docker.compose.project.config_files</code> points at <code>01_Docker\vizor_config.yml</code>.</p>
+        </div>
+        <div class="evidence">
+          <b>Current image</b>
+          <p><code>local/noetic-vizor-rviz:latest</code>, image created <code>2026-05-15T19:21:54Z</code>.</p>
+        </div>
+        <div class="evidence">
+          <b>MTC packages found</b>
+          <p><code>rospack find</code> resolved <code>moveit_task_constructor_core</code>, <code>msgs</code>, and <code>visualization</code>.</p>
+        </div>
+      </div>
+
+      <div class="split" style="margin-top: 1rem;">
+        <div>
+          <h3 style="margin-bottom: 0.75rem;">Container status</h3>
+          <pre class="shell">moveit-mcp  local/multi-actor-mcp:latest   Up   8765-&gt;8765
+vizor-mcp   local/multi-actor-mcp:latest   Up   8001-&gt;8001
+vizor-demo  local/noetic-vizor-rviz:latest Up   5901, 6080, 9090, 10000-10003
+ros-core    cxy201/noetic-vizor            Up   11311</pre>
+        </div>
+        <div>
+          <h3 style="margin-bottom: 0.75rem;">Key processes inside <code>vizor-demo</code></h3>
+          <pre class="shell">roslaunch vizor2ros.launch active:=HOLO1 physical:=false
+Xvfb :1 -screen 0 1600x1000x24
+x11vnc -display :1 -rfbport 5901
+websockify --web=/usr/share/novnc/ 6080 localhost:5901
+rosapi_node
+vizor_current_pose_service.py
+/UR10/move_group
+rosbridge_websocket
+rviz -d ur10_robot.rviz</pre>
+        </div>
+      </div>
+
+      <table style="margin-top: 1rem;">
+        <thead>
+          <tr>
+            <th>ROS evidence</th>
+            <th>Observed current state</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Nodes</td>
+            <td><code>/UR10/move_group</code>, <code>/rosapi_node</code>, <code>/rosbridge_websocket</code>, <code>/rviz_ur10</code>, <code>/vizor_current_pose_service</code>, <code>/vizor_robot_control</code>.</td>
+          </tr>
+          <tr>
+            <td>MoveIt topics</td>
+            <td><code>/UR10/move_group/display_planned_path</code>, <code>/UR10/move_group/monitored_planning_scene</code>, <code>/UR10/joint_states</code>, <code>/UR10/gripper_joint_states</code>.</td>
+          </tr>
+          <tr>
+            <td>Task-solution action topics</td>
+            <td><code>/UR10/execute_task_solution/*</code> and <code>/execute_task_solution/*</code> are present.</td>
+          </tr>
+          <tr>
+            <td>MTC solution topic</td>
+            <td><span class="tag warn">Not observed</span> Plain <code>/solution</code> was not present in the inspected topic list.</td>
+          </tr>
+          <tr>
+            <td>Robot description aliasing</td>
+            <td>Both namespaced <code>/UR10/robot_description*</code> and global <code>/robot_description*</code> params were present for RViz/MTC compatibility.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="new">
+      <div class="section-head">
+        <h2>What Changed and What Is New</h2>
+        <p>
+          This is the compact checklist version of the comparison.
+        </p>
+      </div>
+
+      <div class="split">
+        <div class="tile">
+          <b>New capabilities</b>
+          <ul class="list">
+            <li>Browser-accessible noVNC desktop for RViz.</li>
+            <li>RViz config for UR10 RobotModel, MoveIt planning scene, and planned paths.</li>
+            <li>MTC RViz panel and installed MTC ROS packages.</li>
+            <li>MoveIt MCP HTTP service at <code>127.0.0.1:8765/mcp</code>.</li>
+            <li>Vizor MCP HTTP service at <code>127.0.0.1:8001/mcp</code>.</li>
+            <li>Read-only current pose service for MCP grounding.</li>
+            <li>Robotiq 2F-85 packages integrated into the catkin workspace.</li>
+            <li>Patch step for inherited Vizor robot code and generated UR10-with-gripper URDF.</li>
+          </ul>
+        </div>
+        <div class="tile">
+          <b>Behavioral changes</b>
+          <ul class="list">
+            <li><code>vizor-demo</code> is now built locally instead of using only the upstream image.</li>
+            <li>Startup moved from compose command to image entrypoint.</li>
+            <li>Default active Vizor device changed from <code>HOLO1,HOLO2</code> to <code>HOLO1</code>.</li>
+            <li>MCP servers restart unless stopped; original services did not declare restart policy.</li>
+            <li>Agent integration now uses MCP services rather than direct ROS-only access from outside Docker.</li>
+            <li>MTC proof support is installed but opt-in; real MTC pick construction remains deferred.</li>
+          </ul>
+        </div>
+      </div>
+
+      <table style="margin-top: 1rem;">
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Answer</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Is the current stack still based on the original Vizor image?</td>
+            <td>Yes. <code>local/noetic-vizor-rviz:latest</code> extends <code>cxy201/noetic-vizor</code>; <code>ros-core</code> still runs <code>cxy201/noetic-vizor</code> directly.</td>
+          </tr>
+          <tr>
+            <td>Is RViz new?</td>
+            <td>Yes. The original compose did not declare a desktop or RViz. The current image starts RViz in a virtual display and exposes it through noVNC.</td>
+          </tr>
+          <tr>
+            <td>Is MTC fully active?</td>
+            <td>No. MTC packages and the RViz panel are present. The proof service is disabled by default, and a real MTC backend remains deferred.</td>
+          </tr>
+          <tr>
+            <td>What is the largest architectural addition?</td>
+            <td>The MCP layer: <code>moveit-mcp</code> for robot planning/execution tools and <code>vizor-mcp</code> for advisory Vizor user-sensing context.</td>
+          </tr>
+          <tr>
+            <td>What should be watched?</td>
+            <td>The active compose file still lives in the original <code>01_Docker</code> folder but points to image sources in <code>Multi-Actor-Interface-Library</code>. Keep those paths synchronized when moving machines or repositories.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer>
+      <p>
+        Generated from local file inspection, Docker metadata, and live ROS checks.
+        Related project context: <code>ARCHITECTURE.md</code> sections on MoveIt MCP,
+        RViz/MTC, and Vizor MCP; <code>CONTEXT.md</code> entries for Task Solution,
+        MTC Backend, and Simulation-Only Robot Execution. Visual format follows
+        <code>docs/AGENTS.md</code> and the self-contained HTML examples in
+        <a href="https://thariqs.github.io/html-effectiveness/">The unreasonable effectiveness of HTML</a>.
+      </p>
+    </footer>
+  </main>
+</body>
+</html>
