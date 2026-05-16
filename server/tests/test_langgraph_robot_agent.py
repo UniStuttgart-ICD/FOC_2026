@@ -714,6 +714,42 @@ async def test_policy_blocked_call_emits_task_policy_and_does_not_call_mcp() -> 
 
 
 @pytest.mark.asyncio
+async def test_graph_rejects_cartesian_for_compound_release_request() -> None:
+    cartesian_args = {
+        "robot_name": "UR10",
+        "waypoints": [
+            {"position": {"x": 0.1, "y": 0.5, "z": 0.3}},
+        ],
+    }
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_get_current_pose", {"robot_name": "UR10"}, call_id="pose-1"),
+            ai_tool_call("moveit_plan_cartesian_motion", cartesian_args, call_id="plan-1"),
+            ai_text("I need to use the place task for that compound action."),
+        ]
+    )
+
+    text = await fixture.graph.run_turn(
+        turn("move it 30cm in robot left side and then release the gripper")
+    )
+
+    assert text == "I need to use the place task for that compound action."
+    assert ("moveit_plan_cartesian_motion", cartesian_args) not in fixture.bridge.calls
+    assert all(name == "moveit_get_current_pose" for name, _args in fixture.bridge.calls)
+    output = json.loads(last_tool_content(fixture.model))
+    assert output == {
+        "ok": False,
+        "error": "Compound manipulation tasks must use task planning tools.",
+        "correction": (
+            "Use moveit_plan_pick_task or moveit_plan_place_task for requests that combine "
+            "motion with gripper, attach, detach, pick, place, or release actions."
+        ),
+        "retryable": True,
+        "suggested_next_tool": "moveit_plan_place_task",
+    }
+
+
+@pytest.mark.asyncio
 async def test_successful_tool_call_emits_context_update() -> None:
     from agent_control.langgraph_robot_agent import LangGraphRobotAgent
 
@@ -991,6 +1027,39 @@ async def test_explicit_execute_request_queues_latest_pending_plan_with_worker()
         "planning_strategy": "cartesian",
     }
     assert job.execute_via_mcp is True
+
+
+@pytest.mark.asyncio
+async def test_verified_execute_runs_gripper_release_after_success() -> None:
+    context = RobotContextStore()
+    context.remember_executable_plan(
+        "place-plan-1",
+        robot_name="UR10",
+        source_tool="moveit_plan_place",
+        after_success_tool="moveit_open_gripper",
+        after_success_arguments={"robot_name": "UR10", "timeout_s": 5.0},
+    )
+    verified_client = FakeVerifiedExecutionClient()
+    fixture = make_graph(
+        [
+            ai_tool_call(
+                "moveit_execute_plan",
+                {"robot_name": "UR10", "plan_name": "place-plan-1", "timeout_s": 30.0},
+            ),
+        ],
+        robot_context=context,
+        verified_execution_client=verified_client,
+    )
+
+    text = await fixture.graph.run_turn(turn("execute plan"))
+
+    assert text == "Execution complete."
+    assert fixture.model.requests
+    assert verified_client.calls == [("UR10", "place-plan-1", 30.0)]
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_open_gripper", {"robot_name": "UR10", "timeout_s": 5.0}),
+    ]
 
 
 @pytest.mark.asyncio

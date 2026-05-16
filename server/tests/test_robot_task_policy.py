@@ -74,6 +74,46 @@ def test_policy_allows_motion_after_recent_pose_observation() -> None:
     assert decision == TaskPolicyDecision(ok=True)
 
 
+def test_policy_rejects_cartesian_for_move_then_release_compound_task() -> None:
+    decision = validate_task_step(
+        "moveit_plan_cartesian_motion",
+        {"robot_name": "UR10", "waypoints": [VALID_TARGET_POSE]},
+        FakeTaskPolicyContext(recent_pose=True),
+        user_text="move it 30cm in robot left side and then release the gripper",
+    )
+
+    assert decision.ok is False
+    assert decision.error == "Compound manipulation tasks must use task planning tools."
+    assert decision.correction == (
+        "Use moveit_plan_pick_task or moveit_plan_place_task for requests that combine "
+        "motion with gripper, attach, detach, pick, place, or release actions."
+    )
+    assert decision.suggested_next_tool == "moveit_plan_place_task"
+
+
+def test_policy_rejects_free_motion_for_pick_compound_task() -> None:
+    decision = validate_task_step(
+        "moveit_plan_free_motion",
+        {"robot_name": "UR10", "target_pose": VALID_TARGET_POSE},
+        FakeTaskPolicyContext(recent_pose=True),
+        user_text="pick up dynamic_5",
+    )
+
+    assert decision.ok is False
+    assert decision.suggested_next_tool == "moveit_plan_pick_task"
+
+
+def test_policy_allows_cartesian_for_non_manipulation_multi_point_motion() -> None:
+    decision = validate_task_step(
+        "moveit_plan_cartesian_motion",
+        {"robot_name": "UR10", "waypoints": [VALID_TARGET_POSE]},
+        FakeTaskPolicyContext(recent_pose=True),
+        user_text="draw a square and wave",
+    )
+
+    assert decision == TaskPolicyDecision(ok=True)
+
+
 def test_policy_treats_place_planning_as_motion() -> None:
     decision = validate_task_step(
         "moveit_plan_place",

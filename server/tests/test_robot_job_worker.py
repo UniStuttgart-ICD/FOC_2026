@@ -490,3 +490,52 @@ async def test_worker_queues_pick_after_success_continuation_after_preposition_e
         ),
     ]
     assert verified_client.calls == []
+
+
+@pytest.mark.asyncio
+async def test_worker_queues_gripper_release_after_successful_execute_plan() -> None:
+    board = RobotJobBoard()
+    bridge = MappingToolBridge(
+        {
+            "moveit_execute_plan": json.dumps(
+                {
+                    "structured_content": {
+                        "ok": True,
+                        "verification": {"result": "pass"},
+                        "raw": {"plan_name": "place-plan-1"},
+                    }
+                }
+            ),
+            "moveit_open_gripper": json.dumps(
+                {
+                    "structured_content": {
+                        "ok": True,
+                        "verification": {"result": "pass"},
+                    }
+                }
+            ),
+        }
+    )
+    worker = RobotJobWorker(board=board, tool_bridge=bridge)
+    await board.submit(
+        SubmitRobotJob(
+            "moveit_execute_plan",
+            {"robot_name": "UR10", "plan_name": "place-plan-1", "timeout_s": 10.0},
+            "turn-1",
+            user_text="execute the place plan",
+            after_success_tool="moveit_open_gripper",
+            after_success_arguments={"robot_name": "UR10", "timeout_s": 5.0},
+        )
+    )
+
+    assert await worker.run_once() is True
+    assert await worker.run_once() is True
+    assert await worker.run_once() is False
+
+    assert bridge.calls == [
+        (
+            "moveit_execute_plan",
+            {"robot_name": "UR10", "plan_name": "place-plan-1", "timeout_s": 10.0},
+        ),
+        ("moveit_open_gripper", {"robot_name": "UR10", "timeout_s": 5.0}),
+    ]

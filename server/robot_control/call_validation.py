@@ -86,16 +86,18 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "gripper actions."
     ),
     "moveit_plan_pick_task": (
-        "Primary tool for ordinary pick requests. Plan a task solution for picking one "
-        "MoveIt planning-scene object. Use after "
+        "Primary tool for ordinary pick requests and compound manipulation tasks that "
+        "require multiple robot actions starting with picking one MoveIt planning-scene "
+        "object. Plan a task solution after "
         "moveit_list_scene_objects, moveit_get_object_context, and moveit_get_current_pose. "
         "It returns a task_solution_id, stage evidence, scene snapshot evidence, and approval "
         "payload. It does not execute motion or gripper actions."
     ),
     "moveit_plan_place_task": (
-        "Primary tool for ordinary place requests. Plan a task solution for placing one "
-        "attached MoveIt planning-scene object. Use a target_pose or target_position plus "
-        "orientation_mode. It returns a task_solution_id, "
+        "Primary tool for ordinary place requests and compound manipulation tasks involving "
+        "a held or attached object, including move-then-release, let-go, drop, or place "
+        "requests. Plan a task solution for placing one attached MoveIt planning-scene "
+        "object. Use a target_pose or target_position plus orientation_mode. It returns a task_solution_id, "
         "stage evidence, scene snapshot evidence, and approval payload. It does not execute "
         "motion or gripper actions."
     ),
@@ -133,7 +135,9 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "Use for waving, tracing, drawing simple shapes, sweeping, multi-point motion, "
         "straight-line motion, or waypoint-following from a fresh current pose. Preserve "
         "orientation unless the task asks to rotate; when preserving orientation, copy the current raw.pose.orientation "
-        "into every waypoint."
+        "into every waypoint. Do not use for compound manipulation tasks involving pick, "
+        "place, held objects, gripper, attach, detach, or release; use "
+        "moveit_plan_pick_task or moveit_plan_place_task."
     ),
     "moveit_execute_plan": (
         "Execute a returned plan_name from a successful free/cartesian or legacy pick/place "

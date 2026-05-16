@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -15,6 +16,19 @@ MOTION_TOOL_NAMES = frozenset(
         "moveit_execute_plan",
     }
 )
+NON_TASK_MANIPULATION_PLANNING_TOOLS = frozenset(
+    {
+        "moveit_plan_free_motion",
+        "moveit_plan_cartesian_motion",
+        "moveit_plan_pick",
+        "moveit_plan_place",
+    }
+)
+PICK_INTENT_TERMS = ("pick", "pick up", "grab", "grasp")
+PLACE_INTENT_TERMS = ("place", "release", "let go", "drop")
+GRIPPER_INTENT_TERMS = ("gripper", "attach", "detach")
+MOTION_INTENT_TERMS = ("move", "carry", "bring", "take", "put")
+COMPOUND_CONNECTOR_TERMS = ("and", "then", "after", "before", "followed by")
 
 
 class TaskPolicyContext(Protocol):
@@ -41,6 +55,7 @@ def validate_task_step(
     arguments: dict[str, Any],
     context: TaskPolicyContext,
     *,
+    user_text: str | None = None,
     fresh_observation_max_age_s: float = DEFAULT_FRESH_OBSERVATION_MAX_AGE_S,
     executable_plan_max_age_s: float = DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S,
     gripper_state_max_age_s: float = DEFAULT_GRIPPER_STATE_MAX_AGE_S,
@@ -54,6 +69,18 @@ def validate_task_step(
             error="Fresh robot pose is required before motion.",
             correction="Call moveit_get_current_pose, then retry the motion.",
             suggested_next_tool="moveit_get_current_pose",
+        )
+
+    suggested_task_tool = _suggested_task_tool_for_compound_intent(name, user_text)
+    if suggested_task_tool is not None:
+        return TaskPolicyDecision(
+            ok=False,
+            error="Compound manipulation tasks must use task planning tools.",
+            correction=(
+                "Use moveit_plan_pick_task or moveit_plan_place_task for requests that combine "
+                "motion with gripper, attach, detach, pick, place, or release actions."
+            ),
+            suggested_next_tool=suggested_task_tool,
         )
 
     if name == "moveit_execute_plan":
@@ -94,6 +121,34 @@ def validate_task_step(
             )
 
     return TaskPolicyDecision(ok=True)
+
+
+def _suggested_task_tool_for_compound_intent(name: str, user_text: str | None) -> str | None:
+    if name not in NON_TASK_MANIPULATION_PLANNING_TOOLS or not user_text:
+        return None
+    text = _normalized_text(user_text)
+    if any(_contains_phrase(text, term) for term in PICK_INTENT_TERMS):
+        return "moveit_plan_pick_task"
+    has_place_intent = any(_contains_phrase(text, term) for term in PLACE_INTENT_TERMS)
+    has_gripper_intent = any(_contains_phrase(text, term) for term in GRIPPER_INTENT_TERMS)
+    has_motion_intent = any(_contains_phrase(text, term) for term in MOTION_INTENT_TERMS)
+    has_compound_connector = any(
+        _contains_phrase(text, term) for term in COMPOUND_CONNECTOR_TERMS
+    )
+    if has_place_intent and (has_motion_intent or has_gripper_intent or has_compound_connector):
+        return "moveit_plan_place_task"
+    if has_gripper_intent and has_motion_intent and has_compound_connector:
+        return "moveit_plan_place_task"
+    return None
+
+
+def _normalized_text(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def _contains_phrase(text: str, phrase: str) -> bool:
+    pattern = rf"(?<![a-z0-9]){re.escape(phrase)}(?![a-z0-9])"
+    return re.search(pattern, text) is not None
 
 
 def structured_task_policy_error(decision: TaskPolicyDecision) -> dict[str, Any]:

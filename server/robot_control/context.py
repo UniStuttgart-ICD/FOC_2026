@@ -68,6 +68,7 @@ class RobotContextSnapshot:
     tcp_pose: dict[str, Any] | None = None
     gripper_state: str | None = None
     gripper_observed_at_s: float | None = None
+    held_object_name: str | None = None
     last_execution_result: str | None = None
     executable_plan_observed_at_s: dict[str, float] = field(default_factory=dict)
     pending_executable_plans: dict[str, PendingExecutablePlan] = field(default_factory=dict)
@@ -282,6 +283,8 @@ class RobotContextStore:
         pending_lines = self._pending_plan_instruction_lines(max_age_s=120.0)
         if self._snapshot.robot_name is None:
             lines.append("- No robot status has been observed yet.")
+            if self._snapshot.held_object_name:
+                lines.append(f"- held object: {self._snapshot.held_object_name}")
             lines.extend(pending_lines)
             return "\n".join(lines)
 
@@ -291,6 +294,8 @@ class RobotContextStore:
             lines.append(f"- tcp pose: {pose_text}")
         if self._snapshot.gripper_state:
             lines.append(f"- gripper: {self._snapshot.gripper_state}")
+        if self._snapshot.held_object_name:
+            lines.append(f"- held object: {self._snapshot.held_object_name}")
         if self._snapshot.last_execution_result:
             lines.append(f"- last execution: {self._snapshot.last_execution_result}")
         lines.extend(pending_lines)
@@ -313,6 +318,12 @@ class RobotContextStore:
         if tool_name == "moveit_open_gripper":
             self._snapshot.gripper_state = "open"
             self._snapshot.gripper_observed_at_s = self._time_fn()
+            self._snapshot.held_object_name = None
+            return
+        if tool_name in {"moveit_attach_object", "moveit_verify_attached_object"}:
+            held_object = _held_object_name(structured_content)
+            if held_object is not None:
+                self._snapshot.held_object_name = held_object
             return
         plan = parse_executable_plan_result(tool_name, output)
         task_solution = parse_task_solution_result(tool_name, output)
@@ -449,6 +460,21 @@ def _structured_content(output: str) -> Any:
     if not isinstance(payload, dict):
         return None
     return payload.get("structured_content")
+
+
+def _held_object_name(structured_content: dict[str, Any]) -> str | None:
+    raw = structured_content.get("raw")
+    if not isinstance(raw, dict):
+        return None
+    holds_object = raw.get("mcp_gripper_holds_object")
+    planning_state = raw.get("planning_scene_state")
+    if holds_object is False or planning_state == "free":
+        return None
+    for key in ("attached_object", "mcp_attached_object", "object_name"):
+        value = raw.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
 
 
 def _requires_mcp_execution(raw: dict[str, Any]) -> bool:

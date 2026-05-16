@@ -472,3 +472,33 @@ def test_robot_context_tracks_recent_gripper_state_from_gripper_tools() -> None:
     store.update_from_tool_result("moveit_open_gripper", ok_output)
     assert store.gripper_state() == "open"
     assert store.has_recent_gripper_state("open", max_age_s=30.0) is True
+
+
+def test_robot_context_tracks_held_object_and_clears_it_on_open_gripper() -> None:
+    store = RobotContextStore()
+
+    store.update_from_tool_result(
+        "moveit_verify_attached_object",
+        json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "raw": {
+                        "object_name": "dynamic_5",
+                        "mcp_attached_object": "dynamic_5",
+                        "mcp_gripper_holds_object": True,
+                        "planning_scene_state": "attached",
+                    },
+                }
+            }
+        ),
+    )
+
+    assert "held object: dynamic_5" in store.render_instruction_block()
+
+    store.update_from_tool_result(
+        "moveit_open_gripper",
+        json.dumps({"structured_content": {"ok": True}}),
+    )
+
+    assert "held object: dynamic_5" not in store.render_instruction_block()

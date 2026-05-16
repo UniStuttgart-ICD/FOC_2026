@@ -131,6 +131,20 @@ def test_accepts_task_solution_place_planning_arguments() -> None:
     assert "task solution" in description
 
 
+def test_task_tool_descriptions_route_compound_manipulation_tasks() -> None:
+    pick_task = agent_tool_description("moveit_plan_pick_task").lower()
+    place_task = agent_tool_description("moveit_plan_place_task").lower()
+    cartesian = agent_tool_description("moveit_plan_cartesian_motion").lower()
+
+    assert "compound manipulation" in pick_task
+    assert "multiple robot actions" in pick_task
+    assert "compound manipulation" in place_task
+    assert "held or attached object" in place_task
+    assert "release" in place_task
+    assert "do not use for compound manipulation tasks" in cartesian
+    assert "moveit_plan_pick_task or moveit_plan_place_task" in cartesian
+
+
 def test_accepts_task_solution_execution_arguments() -> None:
     validate_robot_tool_call(
         "moveit_execute_task_solution",

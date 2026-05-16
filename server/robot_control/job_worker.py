@@ -4,6 +4,7 @@ import asyncio
 import json
 from typing import Any, Protocol
 
+from robot_control.call_validation import RobotCallValidationError, validate_robot_tool_call
 from robot_control.execution_intent import should_auto_execute_successful_plan
 from robot_control.job_board import RobotJob, RobotJobBoard, SubmitRobotJob
 from robot_control.manipulation_plans import parse_executable_plan_result
@@ -21,6 +22,7 @@ PLAN_JOB_TOOLS = frozenset(
         "moveit_plan_place",
     }
 )
+AFTER_SUCCESS_JOB_TOOLS = PLAN_JOB_TOOLS | frozenset({"moveit_open_gripper"})
 
 
 class RobotToolBridgeLike(Protocol):
@@ -142,9 +144,13 @@ class RobotJobWorker:
     async def _queue_after_success_continuation(self, job: RobotJob) -> None:
         if job.tool_name != "moveit_execute_plan":
             return
-        if job.after_success_tool not in PLAN_JOB_TOOLS:
+        if job.after_success_tool not in AFTER_SUCCESS_JOB_TOOLS:
             return
         if not isinstance(job.after_success_arguments, dict):
+            return
+        try:
+            validate_robot_tool_call(job.after_success_tool, job.after_success_arguments)
+        except RobotCallValidationError:
             return
         await self._board.submit(
             SubmitRobotJob(

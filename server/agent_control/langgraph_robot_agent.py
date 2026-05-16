@@ -86,6 +86,7 @@ ACTION_TOOL_NAMES = {
     "moveit_close_gripper",
     "moveit_attach_object",
 }
+AFTER_SUCCESS_ACTION_TOOL_NAMES = PLAN_TOOL_NAMES | {"moveit_open_gripper"}
 OBSERVE_TOOL_NAMES = ("moveit_get_current_pose",)
 NO_TEXT_RESPONSE = "I could not confirm that the action completed."
 MAX_MISSING_ACTION_REPAIRS = 1
@@ -632,6 +633,7 @@ class LangGraphRobotAgent:
                 name,
                 arguments,
                 self._robot_context,
+                user_text=user_text,
                 explicit_execute_requested=allow_execution
                 and _explicit_execute_requested(user_text),
             )
@@ -900,7 +902,7 @@ class LangGraphRobotAgent:
                     plan_output = await self._execute_tool(
                         planning_tool,
                         planning_args,
-                        user_text=user_text,
+                        user_text=None,
                         allow_execution=allow_execution,
                     )
                     if not _tool_ok(plan_output):
@@ -1093,7 +1095,7 @@ class LangGraphRobotAgent:
             return
         if not isinstance(name, str) or not isinstance(arguments, dict):
             return
-        if not name.startswith("moveit_plan_"):
+        if name not in AFTER_SUCCESS_ACTION_TOOL_NAMES:
             return
         try:
             validate_robot_tool_call(name, arguments)

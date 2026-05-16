@@ -181,6 +181,19 @@ def test_prompt_describes_semantic_place_planning_gate() -> None:
     assert "moveit_execute_task_solution" in prompt
 
 
+def test_prompt_routes_held_object_release_to_place_planning() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "compound manipulation tasks" in prompt
+    assert "multiple robot actions" in prompt
+    assert "moveit_plan_pick_task or moveit_plan_place_task" in prompt
+    assert "held or attached object" in prompt
+    assert "release" in prompt
+    assert "moveit_plan_place_task" in prompt
+    assert "not moveit_plan_cartesian_motion" in prompt
+    assert "use moveit_plan_place when a concrete executable release workflow is needed" not in prompt
+
+
 def test_prompt_describes_failure_explanation_tool() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
