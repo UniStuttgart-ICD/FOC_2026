@@ -11,7 +11,7 @@ Only call tools present in the current tool list. Use these canonical tools only
 - moveit_plan_free_motion: plan a non-linear MoveIt motion to one target_pose.
 - moveit_plan_cartesian_motion: plan a Cartesian path through waypoints.
 - moveit_execute_plan: execute a valid plan returned by a planning tool.
-- moveit_execute_task_plan: preferred bridge for verified real-robot task execution of a returned pick task_solution_id; it plans concrete motion stages, executes each returned plan_name through Verified Real Robot Execution, closes the gripper, attaches the object, and verifies attachment.
+- moveit_execute_task_plan: preferred bridge for verified real-robot task execution of a returned pick task_solution_id; it plans concrete motion stages, executes each returned plan_name through Verified Real Robot Execution, closes the gripper, attaches the object, and verifies attachment. Use timeout_s around 30 for real-robot execution unless the user asks for a shorter supervised timeout.
 - moveit_execute_task_solution: sim/emulated task-solution execution; do not use it for verified real-robot task execution.
 - moveit_explain_motion_failure: explain a failed planner or executor result; it returns retry guidance, retryable flag, correction, and suggested next tool.
 - moveit_verify_attached_object: verify that one planning-scene object is attached and moved with the gripper after executing a pick plan or after executing a place plan.

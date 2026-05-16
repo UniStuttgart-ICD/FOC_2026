@@ -7,6 +7,11 @@ from typing import Any, Protocol
 from robot_control.execution_intent import should_auto_execute_successful_plan
 from robot_control.job_board import RobotJob, RobotJobBoard, SubmitRobotJob
 from robot_control.manipulation_plans import parse_executable_plan_result
+from robot_control.verified_execution_client import (
+    VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S,
+    VerifiedExecutionOutput,
+    verified_execution_output_to_json,
+)
 
 PLAN_JOB_TOOLS = frozenset(
     {
@@ -29,7 +34,7 @@ class VerifiedExecutionClientLike(Protocol):
         robot_name: str,
         plan_name: str,
         timeout_s: float,
-    ) -> str: ...
+    ) -> VerifiedExecutionOutput: ...
 
 
 class RobotJobWorker:
@@ -83,10 +88,15 @@ class RobotJobWorker:
             and self._verified_execution_client is not None
             and not job.execute_via_mcp
         ):
-            return await self._verified_execution_client.execute_plan(
-                robot_name=str(job.arguments.get("robot_name") or "UR10"),
-                plan_name=str(job.arguments.get("plan_name") or ""),
-                timeout_s=float(job.arguments.get("timeout_s") or 10.0),
+            return verified_execution_output_to_json(
+                await self._verified_execution_client.execute_plan(
+                    robot_name=str(job.arguments.get("robot_name") or "UR10"),
+                    plan_name=str(job.arguments.get("plan_name") or ""),
+                    timeout_s=float(
+                        job.arguments.get("timeout_s")
+                        or VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S
+                    ),
+                )
             )
         return await self._tool_bridge.call_tool(job.tool_name, job.arguments)
 

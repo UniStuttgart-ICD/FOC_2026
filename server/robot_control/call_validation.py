@@ -108,7 +108,8 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "Execute a returned pick task_solution_id through Verified Real Robot Execution by "
         "planning concrete motion stages, executing each returned plan_name, closing the gripper, "
         "attaching the object, and verifying attachment. Use only after explicit user intent is "
-        "bound to that exact task_solution_id."
+        "bound to that exact task_solution_id. Use timeout_s around 30 for real-robot execution "
+        "unless the user asks for a shorter supervised timeout."
     ),
     "moveit_explain_motion_failure": (
         "Explain one failed planner or executor result for the UR10. Use after a MoveIt tool "

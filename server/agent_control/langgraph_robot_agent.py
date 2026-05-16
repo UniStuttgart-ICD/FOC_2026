@@ -44,7 +44,11 @@ from robot_control.task_policy import (
     structured_task_policy_error,
     validate_task_step,
 )
-from robot_control.verified_execution_client import VerifiedExecutionClient
+from robot_control.verified_execution_client import (
+    VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S,
+    VerifiedExecutionClient,
+    verified_execution_output_to_json,
+)
 from user_sensing.context import UserSensingContextStore
 from voice_runtime.agent_turn import AgentTurnInput
 from voice_runtime.timing import elapsed_ms_since, monotonic_s
@@ -268,7 +272,7 @@ class LangGraphRobotAgent:
         arguments = {
             "robot_name": pending.robot_name or VIZOR_ROBOT_NAME,
             "plan_name": pending.plan_name,
-            "timeout_s": 10.0,
+            "timeout_s": VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S,
         }
         if self._job_submitter is not None:
             output = await self._submit_policy_checked_robot_job(
@@ -794,7 +798,7 @@ class LangGraphRobotAgent:
 
         task_solution_id = str(arguments["task_solution_id"]).strip()
         robot_name = str(arguments.get("robot_name") or VIZOR_ROBOT_NAME)
-        timeout_s = float(arguments.get("timeout_s") or 10.0)
+        timeout_s = float(arguments.get("timeout_s") or VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S)
         recent = self._robot_context.recent_task_solution
         if recent is None or recent.task_solution_id != task_solution_id:
             return _task_plan_error(
@@ -994,25 +998,55 @@ class LangGraphRobotAgent:
         assert self._verified_execution_client is not None
         robot_name = str(arguments.get("robot_name") or VIZOR_ROBOT_NAME)
         plan_name = str(arguments.get("plan_name") or "")
-        timeout_s = float(arguments.get("timeout_s") or 10.0)
-        output = await self._verified_execution_client.execute_plan(
-            robot_name=robot_name,
-            plan_name=plan_name,
-            timeout_s=timeout_s,
-        )
+        timeout_s = float(arguments.get("timeout_s") or VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S)
+        trace_attributes: dict[str, Any] = {
+            "plan_name": plan_name,
+            "robot_name": robot_name,
+            "timeout_s": timeout_s,
+        }
+        async with self._tracer.span(
+            "robot.verified_execution.execute_plan",
+            "robot_control",
+            attributes=trace_attributes,
+        ):
+            output = await self._verified_execution_client.execute_plan(
+                robot_name=robot_name,
+                plan_name=plan_name,
+                timeout_s=timeout_s,
+            )
+            output_json = verified_execution_output_to_json(output)
+            try:
+                output_payload = json.loads(output_json)
+            except json.JSONDecodeError:
+                output_payload = None
+            structured_content = (
+                output_payload.get("structured_content")
+                if isinstance(output_payload, dict)
+                else None
+            )
+            if isinstance(structured_content, dict):
+                trace_attributes["execute.status"] = structured_content.get("status")
+                trace_attributes["execute.ok"] = structured_content.get("ok")
+                feedback = structured_content.get("feedback")
+                if isinstance(feedback, dict) and isinstance(
+                    feedback.get("state_sync_published"), bool
+                ):
+                    trace_attributes["state_sync_published"] = feedback[
+                        "state_sync_published"
+                    ]
         pending = self._robot_context.pending_executable_plan(
             plan_name,
             max_age_s=DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S,
         )
-        self._robot_context.update_from_tool_result("moveit_execute_plan", output)
-        if _execution_succeeded(output):
+        self._robot_context.update_from_tool_result("moveit_execute_plan", output_json)
+        if _execution_succeeded(output_json):
             await self._execute_after_success_action(
                 pending.after_success_tool if pending is not None else None,
                 pending.after_success_arguments if pending is not None else None,
                 user_text=user_text,
                 allow_execution=allow_execution,
             )
-        return output
+        return output_json
 
     async def _execute_after_success_action(
         self,

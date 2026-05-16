@@ -6,6 +6,9 @@ import urllib.error
 import urllib.request
 from typing import Any, Protocol
 
+VerifiedExecutionOutput = dict[str, Any] | str
+VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S = 30.0
+
 
 class VerifiedExecutionClient(Protocol):
     async def execute_plan(
@@ -14,13 +17,20 @@ class VerifiedExecutionClient(Protocol):
         robot_name: str,
         plan_name: str,
         timeout_s: float,
-    ) -> str: ...
+    ) -> VerifiedExecutionOutput: ...
 
 
 class HttpVerifiedExecutionClient:
-    def __init__(self, base_url: str, *, request_timeout_s: float = 10.0) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        request_timeout_s: float = 10.0,
+        timeout_margin_s: float = 2.0,
+    ) -> None:
         self._base_url = base_url.rstrip("/")
         self._request_timeout_s = request_timeout_s
+        self._timeout_margin_s = timeout_margin_s
 
     async def execute_plan(
         self,
@@ -29,16 +39,16 @@ class HttpVerifiedExecutionClient:
         plan_name: str,
         timeout_s: float,
     ) -> str:
+        request_timeout_s = max(self._request_timeout_s, timeout_s + self._timeout_margin_s)
         try:
-            response = await asyncio.to_thread(
-                _post_json,
-                f"{self._base_url}/execute",
+            response = await self._post_json(
+                "/execute",
                 {
                     "robot_name": robot_name,
                     "plan_name": plan_name,
                     "timeout_s": timeout_s,
                 },
-                self._request_timeout_s,
+                timeout_s=request_timeout_s,
             )
         except OSError:
             return _tool_output(
@@ -64,6 +74,29 @@ class HttpVerifiedExecutionClient:
                 if isinstance(response.get("correction"), str)
                 else None
             ),
+            target_joint_positions=_float_list(response.get("target_joint_positions")),
+            final_joint_positions=_float_list(response.get("final_joint_positions")),
+            max_joint_error=_float_or_none(response.get("max_joint_error")),
+            joint_tolerance_rad=_float_or_none(response.get("joint_tolerance_rad")),
+            state_sync_published=(
+                response.get("state_sync_published")
+                if isinstance(response.get("state_sync_published"), bool)
+                else None
+            ),
+        )
+
+    async def _post_json(
+        self,
+        path: str,
+        payload: dict[str, Any],
+        *,
+        timeout_s: float | None = None,
+    ) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            _post_json,
+            f"{self._base_url}{path}",
+            payload,
+            timeout_s if timeout_s is not None else self._request_timeout_s,
         )
 
 
@@ -96,18 +129,48 @@ def _tool_output(
     verification_result: str,
     error: str | None = None,
     correction: str | None = None,
+    target_joint_positions: list[float] | None = None,
+    final_joint_positions: list[float] | None = None,
+    max_joint_error: float | None = None,
+    joint_tolerance_rad: float | None = None,
+    state_sync_published: bool | None = None,
 ) -> str:
+    metadata: dict[str, Any] = {}
+    if target_joint_positions is not None:
+        metadata["target_joint_positions"] = target_joint_positions
+    if final_joint_positions is not None:
+        metadata["final_joint_positions"] = final_joint_positions
+    if max_joint_error is not None:
+        metadata["max_joint_error"] = max_joint_error
+    if joint_tolerance_rad is not None:
+        metadata["joint_tolerance_rad"] = joint_tolerance_rad
+    if state_sync_published is not None:
+        metadata["state_sync_published"] = state_sync_published
+    feedback = {
+        "phase": "executed" if ok else "pre_execute",
+        "status": status,
+        "message": _content_text(ok=ok, status=status, error=error),
+        "can_execute": False,
+        **metadata,
+    }
     structured: dict[str, Any] = {
         "ok": ok,
         "robot": robot_name,
-        "tool": "execute_plan",
+        "tool": "moveit_execute_plan",
         "phase": "executed" if ok else "pre_execute",
         "status": status,
-        "feedback": {
+        "feedback": feedback,
+        "verification": {"result": verification_result},
+        "execution": {
+            "ok": ok,
+            "status": status,
+            "verification_result": verification_result,
+            **metadata,
+        },
+        "raw": {
             "plan_name": plan_name,
             "trajectory_points": trajectory_points,
         },
-        "verification": {"result": verification_result},
     }
     if error is not None:
         structured["error"] = error
@@ -127,3 +190,27 @@ def _content_text(*, ok: bool, status: str, error: str | None) -> str:
     if ok:
         return "Verified execution completed."
     return error or f"Verified execution failed: {status}"
+
+
+def _float_list(value: Any) -> list[float] | None:
+    if not isinstance(value, list):
+        return None
+    try:
+        return [float(item) for item in value]
+    except (TypeError, ValueError):
+        return None
+
+
+def _float_or_none(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def verified_execution_output_to_json(output: VerifiedExecutionOutput) -> str:
+    if isinstance(output, str):
+        return output
+    return json.dumps(output, ensure_ascii=False)

@@ -903,7 +903,7 @@ async def test_explicit_execute_request_queues_latest_pending_plan_with_worker()
     assert job.arguments == {
         "robot_name": "UR10",
         "plan_name": "plan-1",
-        "timeout_s": 10.0,
+        "timeout_s": 30.0,
     }
     assert job.after_success_tool == "moveit_plan_pick"
     assert job.after_success_arguments == {
@@ -2223,6 +2223,7 @@ async def test_graph_uses_verified_execution_client_for_explicit_execute_plan() 
     context = RobotContextStore(time_fn=lambda: 100.0)
     context.remember_executable_plan("plan-1", robot_name="UR10")
     verified_client = FakeVerifiedExecutionClient()
+    writer = MemoryTraceWriter()
     fixture = make_graph(
         [
             ai_tool_call(
@@ -2233,6 +2234,7 @@ async def test_graph_uses_verified_execution_client_for_explicit_execute_plan() 
         ],
         robot_context=context,
         verified_execution_client=verified_client,
+        tracer=ProcessTracer(writer),
     )
 
     text = await fixture.graph.run_turn(turn("please execute plan-1 now"))
@@ -2246,6 +2248,17 @@ async def test_graph_uses_verified_execution_client_for_explicit_execute_plan() 
     output = json.loads(last_tool_content(fixture.model))
     assert output["structured_content"]["verification"] == {"result": "pass"}
     assert context.has_recent_executable_plan("plan-1", max_age_s=60.0) is False
+    span = records_named(writer, "robot.verified_execution.execute_plan")[-1]
+    assert span["module"] == "robot_control"
+    assert span["status"] == "ok"
+    assert span["duration_ms"] >= 0
+    assert span["attributes"] == {
+        "plan_name": "plan-1",
+        "robot_name": "UR10",
+        "timeout_s": 5.0,
+        "execute.status": "executed",
+        "execute.ok": True,
+    }
 
 
 @pytest.mark.asyncio
