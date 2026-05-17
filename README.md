@@ -208,10 +208,14 @@ Wake tuning:
 
 ```powershell
 cd server
-uv run python -m wake_tuning.app
+$logDir = "logs/wake_tuning"
+New-Item -ItemType Directory -Force $logDir | Out-Null
+uv run python -m wake_tuning.app 1> "$logDir/wake_tuning_server.out.log" 2> "$logDir/wake_tuning_server.err.log"
 ```
 
 Open `http://127.0.0.1:9010`.
+
+Saved wake tuning values are a local override under `server/state/wake_tuning_settings.json`; saving from the lab does not edit `server/runtime_profiles.toml`.
 
 Voice modulation lab:
 
