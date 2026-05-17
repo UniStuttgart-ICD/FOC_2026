@@ -41,6 +41,7 @@ from robot_control.execution_intent import (
 from robot_control.execution_intent import (
     should_auto_execute_successful_plan,
 )
+from robot_control.manipulation_plans import parse_task_solution_result
 from robot_control.mcp_bridge import RobotMCPError
 from robot_control.shared_geometry.pose_update import update_physical_model_pose
 from robot_control.shared_geometry.role_update import update_dynamic_role
@@ -117,14 +118,10 @@ TASK_PLAN_STAGE_REQUIRED_PROOF_BY_HANDLER = {
     "verify_attached_object": "attachment_check",
     "verify_released_object": "release_check",
 }
-REAL_ROBOT_TASK_EXECUTION_INSTRUCTION = (
-    "Use moveit_execute_task_plan for returned task_solution_id values with a supported "
-    "execution_contract; "
-    "moveit_execute_task_solution is not available in real-robot mode."
-)
-SIM_TASK_EXECUTION_INSTRUCTION = (
-    "Use moveit_execute_task_solution for task_solution_id values; "
-    "moveit_execute_task_plan is not available without Verified Real Robot Execution."
+TASK_EXECUTION_INSTRUCTION = (
+    "Use moveit_execute_task for returned task_solution_id values. It executes in RViz/simulation "
+    "first and also attempts real robot execution when connected; simulation success counts as "
+    "execution success with real robot status reported separately."
 )
 PLAN_TOOL_NAMES = {
     "moveit_plan_free_motion",
@@ -141,6 +138,7 @@ ACTION_TOOL_NAMES = {
     "moveit_plan_place",
     "moveit_plan_compound_task",
     "moveit_plan_manipulation_task",
+    "moveit_execute_task",
     "moveit_execute_plan",
     "moveit_execute_task_solution",
     "moveit_execute_task_plan",
@@ -190,6 +188,7 @@ class RobotAgentState(TypedDict):
     action_tool_ran: bool
     queued_robot_job: bool
     missing_action_repairs: int
+    manipulation_planner_repairs: int
     final_text: str
     error_text: str | None
 
@@ -240,6 +239,7 @@ class LangGraphRobotAgent:
             "action_tool_ran": False,
             "queued_robot_job": False,
             "missing_action_repairs": 0,
+            "manipulation_planner_repairs": 0,
             "final_text": "",
             "error_text": None,
         }
@@ -495,6 +495,7 @@ class LangGraphRobotAgent:
         observed_this_turn = state["observed_this_turn"]
         action_tool_ran = state["action_tool_ran"]
         queued_robot_job = state["queued_robot_job"]
+        manipulation_planner_repairs = state["manipulation_planner_repairs"]
         final_text = state["final_text"]
         for index, tool_call in enumerate(last.tool_calls):
             name = str(tool_call.get("name") or "")
@@ -530,6 +531,22 @@ class LangGraphRobotAgent:
                     allow_execution=state["allow_pending_plan_execution"],
                 )
                 action_tool_ran = True
+                (
+                    final_text,
+                    manipulation_planner_repairs,
+                ) = _task_planning_result_text(
+                    output,
+                    repair_attempts=manipulation_planner_repairs,
+                )
+                observed_this_turn = False
+            elif name == "moveit_execute_task":
+                output = await self._execute_task_tool(
+                    dict(args),
+                    user_text=state["user_text"],
+                    allow_execution=state["allow_pending_plan_execution"],
+                )
+                action_tool_ran = True
+                final_text = _task_execution_result_text(output)
                 observed_this_turn = False
             elif name == "moveit_execute_task_plan":
                 output = await self._execute_verified_task_plan_tool(
@@ -600,6 +617,7 @@ class LangGraphRobotAgent:
             "observed_this_turn": observed_this_turn,
             "action_tool_ran": action_tool_ran,
             "queued_robot_job": queued_robot_job,
+            "manipulation_planner_repairs": manipulation_planner_repairs,
             "final_text": final_text,
         }
 
@@ -652,25 +670,18 @@ class LangGraphRobotAgent:
         return "\n\n".join(parts)
 
     def _model_visible_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        hidden_tool = (
-            "moveit_execute_task_solution"
-            if self._verified_execution_client is not None
-            else "moveit_execute_task_plan"
-        )
         visible_names = {
             "moveit_get_current_pose",
             "moveit_get_robot_state",
             "moveit_list_scene_objects",
             "moveit_get_object_context",
             "moveit_explain_motion_failure",
-            "moveit_execute_task_solution",
-            "moveit_execute_task_plan",
+            "moveit_execute_task",
         }
         visible = [
             tool
             for tool in tools
             if tool.get("name") in visible_names
-            and tool.get("name") != hidden_tool
         ]
         task_planner_tool = _model_visible_task_planner_tool(tools)
         if task_planner_tool is not None:
@@ -679,9 +690,7 @@ class LangGraphRobotAgent:
         return visible
 
     def _task_execution_mode_instruction(self) -> str:
-        if self._verified_execution_client is not None:
-            return REAL_ROBOT_TASK_EXECUTION_INSTRUCTION
-        return SIM_TASK_EXECUTION_INSTRUCTION
+        return TASK_EXECUTION_INSTRUCTION
 
     async def _refresh_user_sensing_context(self) -> None:
         if self._user_sensing_bridge is None:
@@ -825,6 +834,115 @@ class LangGraphRobotAgent:
             "robot.context_update",
             "robot_control",
             attributes={"tool.name": name},
+        )
+        return output
+
+    async def _execute_task_tool(
+        self,
+        arguments: dict[str, Any],
+        *,
+        user_text: str | None,
+        allow_execution: bool = True,
+    ) -> str:
+        try:
+            validate_robot_tool_call("moveit_execute_task", arguments)
+        except RobotCallValidationError as exc:
+            return json.dumps(structured_robot_call_error(exc), ensure_ascii=False)
+
+        simulation_output = await self._execute_simulation_task_solution_tool(
+            arguments,
+            user_text=user_text,
+            allow_execution=allow_execution,
+        )
+        simulation_result = _task_execution_target_result(
+            simulation_output,
+            tool_name="moveit_execute_task_solution",
+        )
+        task_solution_id = str(arguments.get("task_solution_id") or "").strip()
+        robot_name = str(arguments.get("robot_name") or VIZOR_ROBOT_NAME)
+        real_robot_result: dict[str, Any]
+        if simulation_result.get("ok") is not True:
+            real_robot_result = {
+                "ok": False,
+                "status": "not_attempted",
+                "message": "Simulation execution failed, so real robot execution was not attempted.",
+            }
+        elif self._verified_execution_client is None:
+            real_robot_result = {
+                "ok": False,
+                "status": "unavailable",
+                "message": "Verified real robot execution is not connected.",
+            }
+        else:
+            real_robot_output = await self._execute_verified_task_plan_tool(
+                arguments,
+                user_text=user_text,
+                allow_execution=allow_execution,
+            )
+            real_robot_result = _task_execution_target_result(
+                real_robot_output,
+                tool_name="moveit_execute_task_plan",
+            )
+
+        simulation_ok = simulation_result.get("ok") is True
+        structured_content: dict[str, Any] = {
+            "ok": simulation_ok,
+            "tool": "moveit_execute_task",
+            "robot_name": robot_name,
+            "task_solution_id": task_solution_id,
+            "simulation": simulation_result,
+            "real_robot": real_robot_result,
+        }
+        if simulation_ok:
+            structured_content["verification"] = {"result": "pass"}
+        output = json.dumps(
+            {
+                "content": [
+                    "Task execution completed in RViz."
+                    if simulation_ok
+                    else "Task execution failed in RViz."
+                ],
+                "structured_content": structured_content,
+                "is_error": not simulation_ok,
+            },
+            ensure_ascii=False,
+        )
+        self._robot_context.update_from_tool_result("moveit_execute_task", output)
+        return output
+
+    async def _execute_simulation_task_solution_tool(
+        self,
+        arguments: dict[str, Any],
+        *,
+        user_text: str | None,
+        allow_execution: bool,
+    ) -> str:
+        try:
+            validate_robot_tool_call("moveit_execute_task_solution", arguments)
+        except RobotCallValidationError as exc:
+            return json.dumps(structured_robot_call_error(exc), ensure_ascii=False)
+        self._record_task_solution_approval_if_explicit(
+            arguments,
+            user_text=user_text,
+            allow_execution=allow_execution,
+        )
+        try:
+            ensure_task_solution_execution_allowed(self._robot_context, arguments)
+        except RobotCallValidationError as exc:
+            return json.dumps(structured_robot_call_error(exc), ensure_ascii=False)
+        try:
+            output = await self._tool_bridge.call_tool("moveit_execute_task_solution", arguments)
+        except RobotMCPError as exc:
+            validation_error = RobotCallValidationError(
+                str(exc),
+                correction="Check the robot control server, then retry the robot action.",
+            )
+            return json.dumps(structured_robot_call_error(validation_error), ensure_ascii=False)
+        self._robot_context.update_from_tool_result("moveit_execute_task_solution", output)
+        self._tracer.event(
+            "robot.context_update",
+            "robot_control",
+            attributes={"tool.name": "moveit_execute_task_solution"},
         )
         return output
 
@@ -1964,11 +2082,124 @@ def _execution_result_text(output: str, plan_name: str) -> str:
     return NO_TEXT_RESPONSE
 
 
+def _task_planning_result_text(output: str, *, repair_attempts: int) -> tuple[str, int]:
+    result = parse_task_solution_result(MODEL_VISIBLE_TASK_PLANNER_TOOL_NAME, output)
+    if result is not None:
+        return "Plan ready.", repair_attempts
+
+    structured = _structured_result_payload(output)
+    if structured is None:
+        return "Planning finished without a readable task solution result.", repair_attempts
+
+    if _manipulation_planner_timed_out(structured):
+        return "Planning timed out before a complete task solution was returned.", repair_attempts
+
+    if structured.get("ok") is False or structured.get("is_error") is True:
+        if _repairable_manipulation_planner_schema_error(structured) and repair_attempts < 1:
+            return "", repair_attempts + 1
+        return (
+            _structured_feedback_text(structured)
+            or "Planning failed before a complete task solution was returned.",
+            repair_attempts,
+        )
+
+    return "Planning finished without a complete task solution.", repair_attempts
+
+
 def _task_plan_execution_result_text(output: str) -> str:
     result = _structured_result_payload(output)
     if result is not None and _task_plan_failure_needs_model_feedback(result):
         return ""
     return _execution_result_text(output, "moveit_execute_task_plan")
+
+
+def _task_execution_result_text(output: str) -> str:
+    result = _structured_result_payload(output)
+    if result is not None:
+        simulation = result.get("simulation")
+        real_robot = result.get("real_robot")
+        if (
+            result.get("ok") is True
+            and isinstance(simulation, dict)
+            and simulation.get("ok") is True
+            and isinstance(real_robot, dict)
+            and real_robot.get("status") == "unavailable"
+        ):
+            return "Execution complete in RViz; real robot not connected."
+    return _execution_result_text(output, "moveit_execute_task")
+
+
+def _manipulation_planner_timed_out(result: dict[str, Any]) -> bool:
+    return any("timed out" in value.lower() for value in _structured_text_values(result))
+
+
+def _repairable_manipulation_planner_schema_error(result: dict[str, Any]) -> bool:
+    text = " ".join(_structured_text_values(result)).lower()
+    return (
+        "unexpected argument for moveit_plan_manipulation_task: backend" in text
+        or "remove backend" in text
+    )
+
+
+def _structured_feedback_text(result: dict[str, Any]) -> str:
+    for key in ("correction", "error"):
+        value = result.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    feedback = result.get("feedback")
+    if isinstance(feedback, dict):
+        for key in ("correction", "message", "error"):
+            value = feedback.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return ""
+
+
+def _structured_text_values(result: dict[str, Any]) -> list[str]:
+    values: list[str] = []
+    for key in ("error", "correction", "message", "code", "suggested_next_tool"):
+        value = result.get(key)
+        if isinstance(value, str) and value.strip():
+            values.append(value.strip())
+    feedback = result.get("feedback")
+    if isinstance(feedback, dict):
+        for key in ("error", "correction", "message"):
+            value = feedback.get(key)
+            if isinstance(value, str) and value.strip():
+                values.append(value.strip())
+    return values
+
+
+def _task_execution_target_result(output: str, *, tool_name: str) -> dict[str, Any]:
+    result = _structured_result_payload(output)
+    if result is None:
+        return {
+            "ok": False,
+            "tool": tool_name,
+            "status": "failed",
+            "error": "Tool returned an unreadable result.",
+        }
+    ok = result.get("ok") is True
+    status = result.get("status")
+    if not isinstance(status, str) or not status.strip():
+        status = "executed" if ok else "failed"
+    summary: dict[str, Any] = {
+        "ok": ok,
+        "tool": tool_name,
+        "status": status,
+    }
+    for key in (
+        "error",
+        "correction",
+        "retryable",
+        "suggested_next_tool",
+        "verification",
+        "verified_plan_names",
+    ):
+        value = result.get(key)
+        if value is not None:
+            summary[key] = value
+    return summary
 
 
 def _execute_geometry_update_dynamic_role(arguments: dict[str, Any]) -> str:
@@ -2505,7 +2736,7 @@ def _task_plan_motion_call(
     timeout_s: float,
 ) -> tuple[str, dict[str, Any]]:
     normalized_step = _task_plan_step_label(step_name).lower()
-    use_free_motion = normalized_step in {"approach", "connect_to_pre_grasp"} or (
+    use_free_motion = normalized_step in {"approach", "connect_to_pre_grasp", "connect_to_place"} or (
         normalized_step in {"pre_grasp", "approach_grasp"} and attempt_index > 1
     )
     if use_free_motion:

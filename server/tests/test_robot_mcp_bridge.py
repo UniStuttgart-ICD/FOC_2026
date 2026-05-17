@@ -4,7 +4,7 @@ import pytest
 from mcp.types import CallToolResult, TextContent, Tool
 
 from process_trace import MemoryTraceWriter, ProcessTracer, TraceOptions
-from robot_control.call_validation import agent_tool_description
+from robot_control.call_validation import WORKSPACE_ABS_LIMIT_M, agent_tool_description
 from robot_control.mcp_bridge import RobotMCPBridge, RobotMCPError
 
 
@@ -230,20 +230,80 @@ TASK_PLAN_EXECUTION_PARAMETERS = {
     "required": ["robot_name", "task_solution_id"],
     "additionalProperties": False,
 }
+UNIFIED_TASK_EXECUTION_PARAMETERS = {
+    "type": "object",
+    "properties": {
+        "robot_name": {"type": "string"},
+        "task_solution_id": {"type": "string"},
+        "timeout_s": {"type": "number"},
+    },
+    "required": ["robot_name", "task_solution_id"],
+    "additionalProperties": False,
+}
+COORDINATE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "x": {"type": "number", "minimum": -WORKSPACE_ABS_LIMIT_M, "maximum": WORKSPACE_ABS_LIMIT_M},
+        "y": {"type": "number", "minimum": -WORKSPACE_ABS_LIMIT_M, "maximum": WORKSPACE_ABS_LIMIT_M},
+        "z": {"type": "number", "minimum": -WORKSPACE_ABS_LIMIT_M, "maximum": WORKSPACE_ABS_LIMIT_M},
+    },
+    "required": ["x", "y", "z"],
+    "additionalProperties": False,
+}
+QUATERNION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "z": {"type": "number"},
+        "w": {"type": "number"},
+    },
+    "required": ["x", "y", "z", "w"],
+    "additionalProperties": False,
+}
+TARGET_POSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "position": COORDINATE_SCHEMA,
+        "orientation": QUATERNION_SCHEMA,
+    },
+    "required": ["position"],
+    "additionalProperties": False,
+}
+MANIPULATION_PREFERENCES_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "grasp_face": {
+            "type": "string",
+            "description": "Optional grasp face hint for task planning.",
+        }
+    },
+    "additionalProperties": True,
+}
 MANIPULATION_TASK_PLANNING_PARAMETERS = {
     "type": "object",
     "properties": {
+        "robot_name": {"type": "string"},
         "requirements": {
             "type": "object",
             "properties": {
+                "object_name": {"type": "string"},
+                "target_pose": TARGET_POSE_SCHEMA,
+                "target_position": COORDINATE_SCHEMA,
                 "goal": {
                     "type": "string",
                     "enum": ["hold", "place", "release", "move_and_release", "pick_place"],
                 },
                 "lift_distance_m": {"type": "number", "minimum": 0.03, "maximum": 0.2},
             },
-        }
+            "required": ["goal"],
+            "additionalProperties": False,
+        },
+        "preferences": MANIPULATION_PREFERENCES_SCHEMA,
+        "timeout_s": {"type": "number"},
     },
+    "required": ["robot_name", "requirements"],
+    "additionalProperties": False,
 }
 
 
@@ -431,7 +491,7 @@ async def test_calls_canonical_listed_tool_by_advertised_name():
         "moveit_list_scene_objects",
         "moveit_get_object_context",
         "moveit_plan_manipulation_task",
-        "moveit_execute_task_plan",
+        "moveit_execute_task",
         "moveit_explain_motion_failure",
     ]
     assert tools["moveit_plan_manipulation_task"] == {
@@ -554,7 +614,10 @@ async def test_task_solution_execution_schema_hides_upstream_scene_snapshot_id()
 
     tools = {tool["name"]: tool for tool in bridge.function_tools()}
 
+    assert "moveit_execute_task" in tools
     assert "moveit_execute_task_solution" not in tools
+    assert "moveit_execute_task_plan" not in tools
+    assert "moveit_execute_plan" not in tools
 
 
 @pytest.mark.asyncio
@@ -563,11 +626,21 @@ async def test_manipulation_task_schema_overrides_goal_enum_from_upstream_schema
     await bridge.connect()
 
     tools = {tool["name"]: tool for tool in bridge.function_tools()}
-    requirement_properties = tools["moveit_plan_manipulation_task"]["parameters"]["properties"][
-        "requirements"
-    ]["properties"]
+    tool = tools["moveit_plan_manipulation_task"]
+    parameters = tool["parameters"]
+    requirements = parameters["properties"]["requirements"]
+    requirement_properties = requirements["properties"]
     goal = requirement_properties["goal"]
 
+    assert tool["strict"] is None
+    assert parameters["additionalProperties"] is False
+    assert parameters["required"] == ["robot_name", "requirements"]
+    assert "backend" not in parameters["properties"]
+    assert requirements["additionalProperties"] is False
+    assert requirements["required"] == ["goal"]
+    assert requirement_properties["target_pose"] == TARGET_POSE_SCHEMA
+    assert "orientation" not in TARGET_POSE_SCHEMA["required"]
+    assert requirement_properties["target_position"] == COORDINATE_SCHEMA
     assert goal["enum"] == ["hold", "place", "release", "move_and_release", "pick_place"]
     assert "slide" not in goal["enum"]
     assert requirement_properties["lift_distance_m"] == {
@@ -575,39 +648,43 @@ async def test_manipulation_task_schema_overrides_goal_enum_from_upstream_schema
         "minimum": 0.03,
         "maximum": 0.2,
     }
+    preferences = parameters["properties"]["preferences"]
+    assert preferences["additionalProperties"] is True
+    assert preferences["properties"]["grasp_face"]["type"] == "string"
+    assert "grasp face hint" in preferences["properties"]["grasp_face"]["description"]
 
 
 @pytest.mark.asyncio
-async def test_bridge_advertises_synthetic_task_plan_execution_tool():
+async def test_bridge_advertises_synthetic_unified_task_execution_tool():
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeCanonicalServer())
     await bridge.connect()
 
     tools = {tool["name"]: tool for tool in bridge.function_tools()}
 
-    assert tools["moveit_execute_task_plan"] == {
+    assert tools["moveit_execute_task"] == {
         "type": "function",
-        "name": "moveit_execute_task_plan",
-        "description": agent_tool_description("moveit_execute_task_plan"),
-        "parameters": TASK_PLAN_EXECUTION_PARAMETERS,
+        "name": "moveit_execute_task",
+        "description": agent_tool_description("moveit_execute_task"),
+        "parameters": UNIFIED_TASK_EXECUTION_PARAMETERS,
         "strict": None,
     }
 
 
 @pytest.mark.asyncio
-async def test_bridge_returns_structured_error_for_direct_synthetic_task_plan_execution():
+async def test_bridge_returns_structured_error_for_direct_synthetic_task_execution():
     server = FakeCanonicalServer()
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
     await bridge.connect()
 
     output = await bridge.call_tool(
-        "moveit_execute_task_plan",
+        "moveit_execute_task",
         {"robot_name": "UR10", "task_solution_id": "compound_task_dynamic_5_001"},
     )
 
     assert json.loads(output) == {
         "ok": False,
-        "error": "moveit_execute_task_plan is executed by Agent Control, not the MCP bridge",
-        "correction": "Route this task_solution_id through Agent Control's task-plan executor.",
+        "error": "moveit_execute_task is executed by Agent Control, not the MCP bridge",
+        "correction": "Route this task_solution_id through Agent Control's unified task executor.",
         "retryable": False,
         "code": "agent_control_execution_required",
     }

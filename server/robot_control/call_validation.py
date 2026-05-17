@@ -105,6 +105,7 @@ CANONICAL_ONLY_MCP_TOOL_NAMES: frozenset[str] = frozenset(
         "moveit_plan_place_task",
         "moveit_plan_manipulation_task",
         "moveit_plan_compound_task",
+        "moveit_execute_task",
         "moveit_execute_task_solution",
         "moveit_execute_task_plan",
         "moveit_go_home",
@@ -208,6 +209,11 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "Execute a returned task_solution_id from moveit_plan_pick_task or moveit_plan_place_task. "
         "Use only for sim/emulated task-solution execution after explicit user intent is bound "
         "to that exact task solution."
+    ),
+    "moveit_execute_task": (
+        "Execute an approved task_solution_id in RViz/simulation first, then also attempt "
+        "real robot execution when connected. Use only after explicit user intent is bound "
+        "to that exact task_solution_id. Returns separate simulation and real robot status."
     ),
     "moveit_execute_task_plan": (
         "Execute a returned supported task_solution_id with a supported execution_contract "
@@ -341,6 +347,7 @@ _ALLOWED_ARGUMENTS: dict[str, set[str]] = {
         "preferences",
         "timeout_s",
     },
+    "moveit_execute_task": {"robot_name", "task_solution_id", "timeout_s"},
     "moveit_execute_task_solution": {"robot_name", "task_solution_id", "timeout_s"},
     "moveit_execute_task_plan": {"robot_name", "task_solution_id", "timeout_s"},
     "moveit_go_home": {"robot_name", "timeout_s"},
@@ -471,12 +478,12 @@ def validate_robot_tool_call(
         raise RobotCallValidationError(
             f"{name} is reserved for cached execution_contract steps",
             correction=(
-                "Run moveit_execute_task_plan for the cached execution_contract; "
+                "Run moveit_execute_task for the cached execution_contract; "
                 "do not call this tool directly."
             ),
             code="contract_internal_tool",
             retryable=False,
-            suggested_next_tool="moveit_execute_task_plan",
+            suggested_next_tool="moveit_execute_task",
         )
 
     allowed = _ALLOWED_ARGUMENTS[name]
@@ -859,7 +866,7 @@ def validate_robot_tool_call(
         _validate_timeout(arguments.get("timeout_s"))
         return
 
-    if name in {"moveit_execute_task_solution", "moveit_execute_task_plan"}:
+    if name in {"moveit_execute_task", "moveit_execute_task_solution", "moveit_execute_task_plan"}:
         task_solution_id = arguments.get("task_solution_id")
         if not isinstance(task_solution_id, str) or not task_solution_id.strip():
             raise RobotCallValidationError(

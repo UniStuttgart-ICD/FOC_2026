@@ -16,12 +16,20 @@ from robot_control.call_validation import (
     ALLOWED_ROBOT_TOOLS,
     CONTRACT_INTERNAL_TOOL_NAMES,
     MANIPULATION_TASK_GOAL_VALUES,
+    WORKSPACE_ABS_LIMIT_M,
     RobotCallValidationError,
     agent_tool_description,
     structured_robot_call_error,
     validate_robot_tool_call,
 )
 
+AGENT_CONTROL_TASK_EXECUTION_REQUIRED = {
+    "ok": False,
+    "error": "moveit_execute_task is executed by Agent Control, not the MCP bridge",
+    "correction": "Route this task_solution_id through Agent Control's unified task executor.",
+    "retryable": False,
+    "code": "agent_control_execution_required",
+}
 AGENT_CONTROL_TASK_PLAN_EXECUTION_REQUIRED = {
     "ok": False,
     "error": "moveit_execute_task_plan is executed by Agent Control, not the MCP bridge",
@@ -50,6 +58,46 @@ TASK_PLAN_EXECUTION_SCHEMA: dict[str, Any] = {
     "required": ["robot_name", "task_solution_id"],
     "additionalProperties": False,
 }
+_COORDINATE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "x": {"type": "number", "minimum": -WORKSPACE_ABS_LIMIT_M, "maximum": WORKSPACE_ABS_LIMIT_M},
+        "y": {"type": "number", "minimum": -WORKSPACE_ABS_LIMIT_M, "maximum": WORKSPACE_ABS_LIMIT_M},
+        "z": {"type": "number", "minimum": -WORKSPACE_ABS_LIMIT_M, "maximum": WORKSPACE_ABS_LIMIT_M},
+    },
+    "required": ["x", "y", "z"],
+    "additionalProperties": False,
+}
+_QUATERNION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "z": {"type": "number"},
+        "w": {"type": "number"},
+    },
+    "required": ["x", "y", "z", "w"],
+    "additionalProperties": False,
+}
+_TARGET_POSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "position": _COORDINATE_SCHEMA,
+        "orientation": _QUATERNION_SCHEMA,
+    },
+    "required": ["position"],
+    "additionalProperties": False,
+}
+_MANIPULATION_PREFERENCES_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "grasp_face": {
+            "type": "string",
+            "description": "Optional grasp face hint for task planning.",
+        }
+    },
+    "additionalProperties": True,
+}
 AGENT_TOOL_ORDER = {
     name: index
     for index, name in enumerate(
@@ -62,6 +110,7 @@ AGENT_TOOL_ORDER = {
             "moveit_plan_pick_task",
             "moveit_plan_place_task",
             "moveit_plan_compound_task",
+            "moveit_execute_task",
             "moveit_execute_task_plan",
             "moveit_execute_task_solution",
             "moveit_plan_pick",
@@ -93,6 +142,7 @@ MODEL_HIDDEN_TOOL_NAMES = (
             "moveit_plan_place_task",
             "moveit_plan_compound_task",
             "moveit_execute_plan",
+            "moveit_execute_task_plan",
             "moveit_execute_task_solution",
             "moveit_open_gripper",
             "moveit_close_gripper",
@@ -227,14 +277,14 @@ class RobotMCPBridge:
                     "strict": None,
                 }
             )
-        if self._should_advertise_task_plan_execution():
+        if self._should_advertise_task_execution():
             tools.append(
                 {
                     "type": "function",
-                    "name": "moveit_execute_task_plan",
-                    "description": agent_tool_description("moveit_execute_task_plan"),
+                    "name": "moveit_execute_task",
+                    "description": agent_tool_description("moveit_execute_task"),
                     "parameters": _agent_tool_schema(
-                        "moveit_execute_task_plan",
+                        "moveit_execute_task",
                         TASK_PLAN_EXECUTION_SCHEMA,
                     ),
                     "strict": None,
@@ -286,6 +336,8 @@ class RobotMCPBridge:
                 )
                 return _serialize_validation_failure(exc)
 
+        if name == "moveit_execute_task":
+            return json.dumps(AGENT_CONTROL_TASK_EXECUTION_REQUIRED, ensure_ascii=False)
         if name == "moveit_execute_task_plan":
             return json.dumps(AGENT_CONTROL_TASK_PLAN_EXECUTION_REQUIRED, ensure_ascii=False)
 
@@ -341,7 +393,7 @@ class RobotMCPBridge:
             attributes["tool.arguments"] = arguments
         return attributes
 
-    def _should_advertise_task_plan_execution(self) -> bool:
+    def _should_advertise_task_execution(self) -> bool:
         return "moveit_plan_manipulation_task" in self._backing_tool_names
 
 
@@ -367,7 +419,7 @@ def _mcp_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
 def _agent_tool_schema(name: str, input_schema: dict[str, Any]) -> dict[str, Any]:
     if name == "moveit_plan_manipulation_task":
         return _manipulation_task_planning_schema(input_schema)
-    if name == "moveit_execute_task_solution":
+    if name in {"moveit_execute_task", "moveit_execute_task_solution"}:
         return {
             "type": "object",
             "properties": dict(TASK_SOLUTION_EXECUTION_SCHEMA["properties"]),
@@ -398,23 +450,28 @@ def _manipulation_task_planning_schema(input_schema: dict[str, Any]) -> dict[str
         requirements = {}
         properties["requirements"] = requirements
     requirements.setdefault("type", "object")
-    requirement_properties = requirements.get("properties")
-    if not isinstance(requirement_properties, dict):
-        requirement_properties = {}
-        requirements["properties"] = requirement_properties
-    goal = requirement_properties.get("goal")
-    if not isinstance(goal, dict):
-        goal = {}
-        requirement_properties["goal"] = goal
-    goal["type"] = "string"
-    goal["enum"] = list(MANIPULATION_TASK_GOAL_VALUES)
-    lift_distance = requirement_properties.get("lift_distance_m")
-    if not isinstance(lift_distance, dict):
-        lift_distance = {}
-        requirement_properties["lift_distance_m"] = lift_distance
-    lift_distance["type"] = "number"
-    lift_distance["minimum"] = 0.03
-    lift_distance["maximum"] = 0.20
+    requirements["properties"] = {
+        "object_name": {"type": "string"},
+        "target_pose": deepcopy(_TARGET_POSE_SCHEMA),
+        "target_position": deepcopy(_COORDINATE_SCHEMA),
+        "goal": {
+            "type": "string",
+            "enum": list(MANIPULATION_TASK_GOAL_VALUES),
+        },
+        "lift_distance_m": {"type": "number", "minimum": 0.03, "maximum": 0.20},
+    }
+    requirements["required"] = ["goal"]
+    requirements["additionalProperties"] = False
+    properties["robot_name"] = {"type": "string"}
+    properties["requirements"] = requirements
+    properties["preferences"] = deepcopy(_MANIPULATION_PREFERENCES_SCHEMA)
+    properties["timeout_s"] = {"type": "number"}
+    schema["properties"] = {
+        key: properties[key]
+        for key in ("robot_name", "requirements", "preferences", "timeout_s")
+    }
+    schema["required"] = ["robot_name", "requirements"]
+    schema["additionalProperties"] = False
     return schema
 
 

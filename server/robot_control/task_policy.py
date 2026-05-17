@@ -80,11 +80,11 @@ def validate_task_step(
             ok=False,
             error=f"{name} is reserved for cached execution_contract steps.",
             correction=(
-                "Run moveit_execute_task_plan for the cached execution_contract; "
+                "Run moveit_execute_task for the cached execution_contract; "
                 "do not call this tool directly."
             ),
             retryable=False,
-            suggested_next_tool="moveit_execute_task_plan",
+            suggested_next_tool="moveit_execute_task",
             code="contract_internal_tool",
         )
 
@@ -227,6 +227,8 @@ def _validate_compound_release_preconditions(
             suggested_next_tool="moveit_verify_attached_object",
             code="stale_held_object",
         )
+    if name == TASK_MANIPULATION_PLANNER:
+        return None
     if not context.has_recent_robot_observation(max_age_s=fresh_observation_max_age_s):
         return TaskPolicyDecision(
             ok=False,
@@ -244,7 +246,7 @@ def _validate_compound_motion_preconditions(
     *,
     fresh_observation_max_age_s: float,
 ) -> TaskPolicyDecision | None:
-    if name not in {"moveit_plan_compound_task", TASK_MANIPULATION_PLANNER}:
+    if name != "moveit_plan_compound_task":
         return None
     requirements = arguments.get("requirements")
     if not isinstance(requirements, dict):

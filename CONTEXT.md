@@ -211,6 +211,12 @@ The workshop migration rule that brings only the UR10/Robotiq verified execution
 **Simulation-Only Robot Execution**:
 The runtime profile mode where robot execution stays inside MoveIt MCP/RViz/noVNC and Pipecat does not create a Verified Real Robot Execution client.
 
+**Simulation-First Dual Execution**:
+The robot execution mode where approved task execution always targets MoveIt MCP/RViz first and also attempts **Verified Real Robot Execution** when connected, with RViz success counting as execution success and real-robot status reported separately.
+
+**Unified Task Execution Tool**:
+The single model-visible task execution tool, `moveit_execute_task`, that executes an approved **Task Solution** through **Simulation-First Dual Execution** while older execution tools remain internal compatibility paths.
+
 **Workshop Monorepo**:
 The single repository students clone for the workshop runtime, including the voice agent, operator dashboard, Vizor/MoveIt Docker stack wiring, MCP services, and verified execution server.
 
@@ -239,7 +245,7 @@ The root-level Windows `.cmd` entrypoint that verifies `uv`, performs first-run 
 The repo-local versioned Docker Compose configuration in the **Workshop Monorepo** that owns the Vizor/MoveIt Docker stack. It owns development image tags, service wiring, and MTC enablement; local operator configuration is limited to machine-specific environment and secret overrides, which must not be committed.
 
 **Verified Task Plan Execution Bridge**:
-The `moveit_execute_task_plan` Robot Control bridge that consumes a recent approved **Task Solution** with a supported `execution_contract`, retries task motion stages when needed, executes returned plan names through **Verified Real Robot Execution**, interleaves verified gripper actions with MCP attach/release tools, and verifies attachment or release before success.
+The internal Robot Control bridge used by **Simulation-First Dual Execution** for the real-robot branch. It consumes a recent approved **Task Solution** with a supported `execution_contract`, retries task motion stages when needed, executes returned plan names through **Verified Real Robot Execution**, interleaves verified gripper actions with MCP attach/release tools, and verifies attachment or release before real-robot success.
 
 **Task-Level Pick**:
 A MoveIt MCP pick workflow that plans observe, approach, gripper, attach, lift, and attachment-verification stages as one **Task Solution**.
@@ -269,7 +275,7 @@ The staged manipulation planning strategy where "more attempts" means trying dif
 The staged manipulation motion policy where far approach to pick pre-grasp, far approach to place pre-pose, and held-object travel use free-motion planning, while contact-sensitive final approach, lift, descent, and extraction use Cartesian planning. Preview playback speed is separate from planner choice.
 
 **Beam Grasp Strategy**:
-The staged manipulation grasp policy for construction beams aligned to X or Y. Horizontal beams try top grasp first, then side grasps when top fails. Vertical beams try side grasps first and may try all four side faces within the candidate budget.
+The staged manipulation grasp policy for construction beams aligned to X or Y. Horizontal beams use the robot-frame top face as the normal grasp and do not automatically try side grasps unless the user explicitly asks for or approves side-grasp recovery. Vertical beams use side grasps, not the robot-frame top cap; the preferred "outer side" is a ranked side-face choice based on planning-scene clearance and facing away from the assembly center or nearest neighboring beam, while still allowing all valid side faces within the candidate budget.
 
 **Manipulation Planning Observation**:
 The fresh backend-side object and robot-state evidence fetched by the **Task-Level Manipulation Planner** before planning. Agent Orchestration may observe first for dialogue or disambiguation, but the planner must not rely on stale model-supplied object context as authoritative planning input.
@@ -293,7 +299,7 @@ The `requirements.goal="release"` **Compound Task Plan** for releasing the curre
 An MTC-only MoveIt MCP workflow planned by `moveit_plan_compound_task` from hard `requirements` and optional `preferences`. `requirements.goal` is limited to `hold`, `release`, `move_and_release`, or `pick_place`; there is no separate `pick` goal. `requirements.goal`, `requirements.object_name`, and goal-specific requirements such as `lift_distance_m` define the public task; `preferences` may bias grasp selection but do not command the grasp algorithm. Unsupported hints such as `slide`, `push`, raw code, or raw waypoints fail at planning with no task solution id.
 
 **Execution Contract**:
-A proof-backed ordered contract inside a **Task Solution**. Each step names a supported handler, source stage, required proof, object, and scene snapshot context. Planning returns no `task_solution_id` when a solved MTC stage lacks a typed handler or proof requirement. `moveit_execute_task_plan` rejects unknown handlers, unsupported task kinds, raw waypoint-only recipes, stale approval, materially stale scene snapshots, and missing proof fields.
+A proof-backed ordered contract inside a **Task Solution**. Each step names a supported handler, source stage, required proof, object, and scene snapshot context. Planning returns no `task_solution_id` when a solved MTC stage lacks a typed handler or proof requirement. `moveit_execute_task` rejects unknown handlers, unsupported task kinds, raw waypoint-only recipes, stale approval, materially stale scene snapshots, and missing proof fields.
 
 **MTC Failure Code**:
 A stable machine-readable reason for failed compound planning or execution readiness, such as `object_not_found`, `not_holding_object`, `unsupported_grasp_orientation`, `no_ik_solution`, `collision`, `preview_publish_failed`, or `stale_scene`, paired with `retryable`, `correction`, and `suggested_next_tool` when applicable.
@@ -468,12 +474,12 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - An **Executable Plan** may be auto-executed only through a MoveIt execution workflow.
 - **Simulation-Only Robot Execution** is selected by `robot_execution.simulation_only = true` and is the default mode for RViz/noVNC testing.
 - **Canonical Development Compose** owns repeatable Vizor/MoveIt development stack wiring; local operator configuration must not hide MTC enablement or image-tag choices.
-- A **Task Solution** may be executed through `moveit_execute_task_solution` only for sim/emulated task-solution execution; verified real-robot task execution uses the **Verified Task Plan Execution Bridge** after a matching **Execution Approval Payload**.
+- A **Task Solution** is executed through `moveit_execute_task`, which runs the sim/RViz task-solution path first and then uses the **Verified Task Plan Execution Bridge** for the real-robot branch when connected.
 - The **Task-Level Manipulation Planner** may use the **Staged MoveIt Manipulation Backend** now and an **MTC Backend** later, but Agent Orchestration should still see `moveit_plan_manipulation_task` rather than competing pick, place, compound, and low-level motion tools.
 - The **Verified Task Plan Execution Bridge** supports typed, proof-backed contracts for pick, place, hold, move-and-release, approach-hold-adjust-release, and pick-place task kinds.
-- Verified task execution keeps the agent path semantic: task planner, explicit approval, then `moveit_execute_task_plan`.
+- Verified task execution keeps the agent path semantic: task planner, explicit approval, then `moveit_execute_task`.
 - **Task Solution Cache** owns immutable solved task payloads; approved execution reads the cached execution contract and bound scene evidence instead of trusting a model-restated contract.
-- `moveit_execute_task_plan` recomputes **Scene Snapshot Evidence** through Robot Control/MCP at execution time; Agent Orchestration never computes or supplies the scene hash.
+- `moveit_execute_task` recomputes **Scene Snapshot Evidence** through Robot Control/MCP at execution time; Agent Orchestration never computes or supplies the scene hash.
 - A live solved **MTC Backend** result must publish an **MTC Task Preview** when preview is part of the workflow; execution success still requires later attachment or release proof.
 - Every motion-bearing manipulation task should produce or verify an **AR Planned Trajectory Preview** before execution through the `/vizor_robot_control` publisher authority. The primary AR path name is `AgentPath` and represents the whole goal; staged details may use ordered names such as `AgentPath:01_approach`, `AgentPath:02_pre_grasp`, and `AgentPath:03_lift`. Publication failure blocks planning, and lack of an AR subscriber is reported clearly but is not a v1 planning blocker.
 - A plain **Release Compound Goal** is not motion-bearing and reports no-motion preview evidence rather than publishing an **AR Planned Trajectory Preview**.
@@ -527,7 +533,7 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - Hybrid timeout scope is resolved: v1 keeps the same per-stage timeout while changing planner choice; timeout tuning waits for measurement after the planner split.
 - Candidate budget is resolved: v1 staged manipulation may try up to 8 grasp candidates and up to 4 motion attempts per candidate.
 - Manipulation goals are resolved: `moveit_plan_manipulation_task` supports `hold`, `place`, `release`, `move_and_release`, and `pick_place`; natural "pick up" maps to `hold`.
-- Beam grasp strategy is resolved: horizontal beams try top first then sides; vertical beams try side grasps first and may try all four side faces within budget.
+- Beam grasp strategy is resolved: horizontal beams use top grasp only unless the user explicitly asks for or approves side recovery; vertical beams use side grasps and may try all four side faces within budget.
 - Manipulation sync is resolved: execution must verify relevant held/attached state against current MCP/MoveIt evidence, not trust stale **Robot Context** alone.
 - Manipulation failures are resolved: failures return **Manipulation Failure Feedback** with exact stage, code, tried candidates, proven facts, uncertainty, suggested next action, and a human-facing message.
 - Recovery questions are resolved: after all clearly allowed automatic candidates are exhausted, Agent Orchestration asks a **Manipulation Recovery Question** instead of silently trying a riskier or semantically different option.
@@ -542,7 +548,7 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - Hold lift ownership is resolved: Agent Orchestration supplies `lift_distance_m`; prompt default is `0.10` m, v1 bounds are `0.03`-`0.20` m, and Robot Control rejects out-of-bounds values.
 - AR preview shape is resolved: composed **AR Planned Trajectory Preview** is preferred, explicit staged preview publishes one ordered `PlannedTrajectory` per motion stage when composition is unavailable.
 - AR preview publication failure is resolved: publication failure for a motion-bearing task fails planning, while zero AR subscribers remain advisory.
-- Grasp control is resolved: Agent Orchestration may pass grasp preferences, but the MTC backend selects the grasp family and reports candidate evidence.
+- Grasp control is resolved: Agent Orchestration may pass grasp-face preferences when fresh object context makes the choice clear; the staged backend still filters impossible beam faces, ranks candidates from scene evidence, and reports selected-candidate evidence.
 - Task solution cache ownership is resolved: MCP owns immutable cached **Task Solution** payloads keyed by `task_solution_id`.
 - Task solution freshness is resolved: executing a **Task Solution** requires matching normalized relevant-scene **Scene Snapshot Evidence**, Robot Control/MCP execution-time hash recomputation, and approval within 60 seconds or the current spoken approval turn.
 - Failure taxonomy is resolved: compound-task failures use stable **MTC Failure Code** values with structured correction fields.

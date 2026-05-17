@@ -8,8 +8,7 @@ CANONICAL_TOOLS = {
     "moveit_list_scene_objects",
     "moveit_get_object_context",
     "moveit_plan_manipulation_task",
-    "moveit_execute_task_solution",
-    "moveit_execute_task_plan",
+    "moveit_execute_task",
     "moveit_explain_motion_failure",
     "geometry_update_dynamic_role",
 }
@@ -21,6 +20,8 @@ HIDDEN_INTERNAL_TOOLS = {
     "moveit_plan_free_motion",
     "moveit_plan_cartesian_motion",
     "moveit_execute_plan",
+    "moveit_execute_task_solution",
+    "moveit_execute_task_plan",
     "moveit_verify_attached_object",
     "moveit_open_gripper",
     "moveit_close_gripper",
@@ -134,18 +135,20 @@ def test_prompt_describes_manipulation_planning_gate() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
     assert "moveit_plan_manipulation_task" in prompt
-    assert 'backend="staged_moveit"' in prompt
+    assert 'backend="staged_moveit"' not in prompt
+    assert "do not pass backend" in prompt
     assert "requirements.goal" in prompt
     assert "requirements.object_name" in prompt
     assert "object context" in prompt
     assert "does not move" in prompt
     assert "explicit" in prompt
-    assert "moveit_execute_task_solution" in prompt
-    assert "moveit_execute_task_plan" in prompt
+    assert "moveit_execute_task" in prompt
+    assert "moveit_execute_task_solution" not in prompt
+    assert "moveit_execute_task_plan" not in prompt
     assert "task_solution_id" in prompt
     assert "explicit user intent bound to that task solution" in prompt
-    assert "verified real-robot task execution" in prompt
-    assert "sim/emulated task-solution execution" in prompt
+    assert "simulation/rviz" in prompt
+    assert "real robot when connected" in prompt
 
 
 def test_prompt_routes_pick_place_to_manipulation_task() -> None:
@@ -168,7 +171,7 @@ def test_prompt_describes_semantic_place_planning_gate() -> None:
     assert "geometry world context" in prompt
     assert "do not invent a release tcp pose" in prompt
     assert "does not move" in prompt
-    assert "moveit_execute_task_solution" in prompt
+    assert "moveit_execute_task" in prompt
 
 
 def test_prompt_routes_held_object_release_to_staged_manipulation_planning() -> None:
@@ -183,7 +186,7 @@ def test_prompt_routes_held_object_release_to_staged_manipulation_planning() -> 
     assert 'requirements.goal="move_and_release"' in prompt
     assert "requirements" in prompt
     assert "preferences" in prompt
-    assert "staged_moveit" in prompt
+    assert "staged moveit" in prompt
 
 
 def test_prompt_maps_pick_up_and_drop_language_to_manipulation_requirements() -> None:
@@ -206,11 +209,10 @@ def test_prompt_bounds_verified_manipulation_task_execution_contract() -> None:
 
     assert "requirements" in prompt
     assert "preferences" in prompt
-    assert "stage_intents" in prompt
-    assert "optional" in prompt
+    assert "stage_intents" not in prompt
     assert "hints" in prompt
     assert "non-executable" in prompt
-    assert "backend-issued task_solution_id" in prompt
+    assert "task_solution_id" in prompt
     assert "execution_contract" in prompt
     assert "supported verified staged manipulation goals in v1" in prompt
     assert "hold" in prompt
@@ -220,24 +222,34 @@ def test_prompt_bounds_verified_manipulation_task_execution_contract() -> None:
     assert "approach_hold_adjust_release" not in prompt
     assert "slide/contact manipulation is unsupported in v1" in prompt
     assert "do not advertise arbitrary manipulation task support" in prompt
-    assert "stage_intents are semantic-only hints" in prompt
+    assert "preferences are non-executable hints" in prompt
 
 
 def test_prompt_routes_manipulation_tasks_through_requirements_preferences_planning() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
     assert "moveit_plan_manipulation_task" in prompt
-    assert 'backend="staged_moveit"' in prompt
+    assert 'backend="staged_moveit"' not in prompt
     assert "requirements.goal" in prompt
     assert "requirements.object_name" in prompt
     assert "preferences" in prompt
-    assert "optional stage_intents" in prompt
+    assert "stage_intents" not in prompt
     assert "non-executable" in prompt
     assert "hints" in prompt
-    assert "staged_moveit backend must compile and solve" in prompt
+    assert "the backend must compile and solve" in prompt
     assert "explicit user intent bound to that task solution" in prompt
-    assert "moveit_execute_task_plan" in prompt
+    assert "moveit_execute_task" in prompt
     assert "supported execution_contract" in prompt
+
+
+def test_prompt_guides_beam_grasp_face_preferences() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "horizontal beams use preferences.grasp_face=\"top\"" in prompt
+    assert "vertical beams use an outer side face" in prompt
+    assert "beam_side_preference=\"outer\"" in prompt
+    assert "scene_clearance_m" in prompt
+    assert "do not choose the vertical top cap or an inner side face" in prompt
 
 
 def test_prompt_describes_geometry_grounded_pick_place_context() -> None:

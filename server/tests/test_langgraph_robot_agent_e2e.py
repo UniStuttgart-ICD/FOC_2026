@@ -47,6 +47,7 @@ class PickTaskE2EBridge:
         return [
             _function_tool("moveit_get_current_pose"),
             _function_tool("moveit_plan_manipulation_task"),
+            _function_tool("moveit_execute_task"),
             _function_tool("moveit_execute_task_plan"),
             _function_tool("moveit_execute_task_solution"),
             _function_tool("moveit_plan_free_motion"),
@@ -429,7 +430,7 @@ def _live_agent_profile_from_env() -> AgentProfile:
 
 
 @pytest.mark.asyncio
-async def test_dynamic_5_manipulation_hold_plans_then_executes_verified_task_plan() -> None:
+async def test_dynamic_5_manipulation_hold_plans_then_executes_unified_task() -> None:
     fixture = make_graph(
         [
             _ai_tool_call(
@@ -446,23 +447,21 @@ async def test_dynamic_5_manipulation_hold_plans_then_executes_verified_task_pla
                 },
                 "plan-manipulation-task",
             ),
-            _ai_text("Manipulation hold task planned for dynamic_5."),
             _ai_tool_call(
-                "moveit_execute_task_plan",
+                "moveit_execute_task",
                 {
                     "robot_name": "UR10",
                     "task_solution_id": "manipulation_hold_dynamic_5_001",
                     "timeout_s": 9.0,
                 },
-                "execute-task-plan",
+                "execute-task",
             ),
-            _ai_text("Verified manipulation task executed."),
         ]
     )
 
     planned_text = await fixture.graph.run_turn(_turn("pick up dynamic_5"))
 
-    assert planned_text == "Manipulation hold task planned for dynamic_5."
+    assert planned_text == "Plan ready."
     assert fixture.verified_execution_client.calls == []
     assert fixture.robot_context.pending_plan is None
 
@@ -476,7 +475,7 @@ async def test_dynamic_5_manipulation_hold_plans_then_executes_verified_task_pla
     assert "moveit_plan_compound_task" not in tool_names
     assert "moveit_plan_pick_task" not in tool_names
     assert "moveit_execute_task_plan" not in tool_names
-    assert "moveit_execute_task_solution" not in tool_names
+    assert "moveit_execute_task_solution" in tool_names
     assert "moveit_execute_plan" not in tool_names
     manipulation_calls = [
         args for name, args in fixture.bridge.calls if name == "moveit_plan_manipulation_task"
@@ -503,7 +502,7 @@ async def test_dynamic_5_manipulation_hold_plans_then_executes_verified_task_pla
         for names in bound_tool_name_batches
     )
     assert any(
-        "moveit_execute_task_plan" in names
+        "moveit_execute_task" in names
         for names in bound_tool_name_batches
     )
     assert all(
@@ -546,9 +545,10 @@ async def test_dynamic_5_manipulation_hold_plans_then_executes_verified_task_pla
     assert fixture.robot_context.pending_plan is None
 
     output = _latest_state_tool_output(fixture)
-    assert output["structured_content"]["tool"] == "moveit_execute_task_plan"
-    assert output["structured_content"]["object_name"] == "dynamic_5"
-    assert output["structured_content"]["verified_plan_names"] == verified_plan_names
+    assert output["structured_content"]["tool"] == "moveit_execute_task"
+    assert output["structured_content"]["simulation"]["ok"] is True
+    assert output["structured_content"]["real_robot"]["ok"] is True
+    assert output["structured_content"]["real_robot"]["verified_plan_names"] == verified_plan_names
     assert "held object: dynamic_5" in fixture.robot_context.render_instruction_block()
 
 
@@ -590,7 +590,7 @@ async def test_live_llm_dynamic_5_manipulation_hold_uses_dummy_verified_executio
         "lift_distance_m": 0.10,
     }
     assert "moveit_plan_pick_task" not in tool_names
-    assert "moveit_execute_task_solution" not in tool_names
+    assert "moveit_execute_task_solution" in tool_names
     assert "moveit_execute_plan" not in tool_names
     assert "moveit_close_gripper" not in tool_names
     assert verified_client.gripper_calls

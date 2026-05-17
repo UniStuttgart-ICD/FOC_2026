@@ -184,6 +184,12 @@ class TaskExecutionBridge(FakeBridge):
             *super().function_tools(),
             {
                 "type": "function",
+                "name": "moveit_execute_task",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+            {
+                "type": "function",
                 "name": "moveit_execute_task_plan",
                 "parameters": {"type": "object"},
                 "strict": None,
@@ -282,6 +288,10 @@ class TaskPlannerSurfaceBridge(TaskExecutionBridge):
                 {
                     "structured_content": {
                         "ok": True,
+                        "feedback": {
+                            "can_execute": True,
+                            "execution_target": "task_solution",
+                        },
                         "task_solution_id": "manipulation_hold_dynamic_5_001",
                         "task_kind": "hold",
                         "object_name": "dynamic_5",
@@ -295,6 +305,34 @@ class TaskPlannerSurfaceBridge(TaskExecutionBridge):
                             "scene_snapshot_id": "scene_20260515_001",
                         },
                     }
+                }
+            )
+        return await super().call_tool(name, arguments)
+
+
+class TimeoutTaskPlannerBridge(TaskPlannerSurfaceBridge):
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        if name == "moveit_plan_manipulation_task":
+            from robot_control.mcp_bridge import RobotMCPError
+
+            self.calls.append((name, arguments))
+            raise RobotMCPError(
+                "Robot MCP tool moveit_plan_manipulation_task timed out: TimeoutError: read timed out"
+            )
+        return await super().call_tool(name, arguments)
+
+
+class SchemaRejectingTaskPlannerBridge(TaskPlannerSurfaceBridge):
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        if name == "moveit_plan_manipulation_task":
+            self.calls.append((name, arguments))
+            return json.dumps(
+                {
+                    "ok": False,
+                    "error": "Unexpected argument for moveit_plan_manipulation_task: backend",
+                    "correction": "Remove backend; Robot Control selects the planner backend.",
+                    "retryable": True,
+                    "suggested_next_tool": "moveit_plan_manipulation_task",
                 }
             )
         return await super().call_tool(name, arguments)
@@ -591,6 +629,7 @@ def model_state() -> Any:
         "action_tool_ran": False,
         "queued_robot_job": False,
         "missing_action_repairs": 0,
+        "manipulation_planner_repairs": 0,
         "final_text": "",
         "error_text": None,
     }
@@ -1146,7 +1185,7 @@ async def test_graph_dynamic_role_tool_returns_structured_failure_for_invalid_ro
 
 
 @pytest.mark.asyncio
-async def test_graph_hides_sim_task_solution_tool_in_verified_execution_mode() -> None:
+async def test_graph_uses_unified_task_execution_tool_in_verified_execution_mode() -> None:
     fixture = make_graph(
         [ai_text("ready")],
         bridge=TaskPlannerSurfaceBridge(),
@@ -1156,7 +1195,8 @@ async def test_graph_hides_sim_task_solution_tool_in_verified_execution_mode() -
     await fixture.graph.run_turn(turn("pick up dynamic_5"))
 
     tool_names = {tool["function"]["name"] for tool in fixture.model.bound_tools}
-    assert "moveit_execute_task_plan" in tool_names
+    assert "moveit_execute_task" in tool_names
+    assert "moveit_execute_task_plan" not in tool_names
     assert "moveit_execute_task_solution" not in tool_names
     assert "moveit_plan_manipulation_task" in tool_names
     assert "moveit_plan_compound_task" not in tool_names
@@ -1176,9 +1216,8 @@ async def test_graph_hides_sim_task_solution_tool_in_verified_execution_mode() -
     first_request = fixture.model.requests[0]
     assert isinstance(first_request[0], SystemMessage)
     assert (
-        "Use moveit_execute_task_plan for returned task_solution_id values with a supported "
-        "execution_contract; "
-        "moveit_execute_task_solution is not available in real-robot mode."
+        "Use moveit_execute_task for returned task_solution_id values. It executes in RViz/simulation "
+        "first and also attempts real robot execution when connected"
     ) in str(first_request[0].content)
 
 
@@ -1186,7 +1225,6 @@ async def test_graph_hides_sim_task_solution_tool_in_verified_execution_mode() -
 async def test_graph_routes_model_visible_manipulation_planner_to_native_backend() -> None:
     args = {
         "robot_name": "UR10",
-        "backend": "staged_moveit",
         "requirements": {
             "goal": "hold",
             "object_name": "dynamic_5",
@@ -1204,12 +1242,75 @@ async def test_graph_routes_model_visible_manipulation_planner_to_native_backend
 
     text = await fixture.graph.run_turn(turn("pick up dynamic_5"))
 
-    assert text == "Task planned."
+    assert text == "Plan ready."
     assert ("moveit_plan_manipulation_task", args) in fixture.bridge.calls
+    assert len(fixture.model.requests) == 1
     assert all(name != "moveit_plan_compound_task" for name, _ in fixture.bridge.calls)
     output = json.loads(latest_state_tool_content(fixture))
     assert output["structured_content"]["ok"] is True
     assert output["structured_content"]["task_solution_id"] == "manipulation_hold_dynamic_5_001"
+
+
+@pytest.mark.asyncio
+async def test_graph_stops_after_manipulation_planner_timeout() -> None:
+    args = {
+        "robot_name": "UR10",
+        "requirements": {
+            "goal": "hold",
+            "object_name": "dynamic_5",
+            "lift_distance_m": 0.10,
+        },
+        "timeout_s": 9.0,
+    }
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_plan_manipulation_task", args),
+            ai_text("I should not be asked to replan."),
+        ],
+        bridge=TimeoutTaskPlannerBridge(),
+    )
+
+    text = await fixture.graph.run_turn(turn("pick up dynamic_5"))
+
+    assert text == "Planning timed out before a complete task solution was returned."
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_plan_manipulation_task", args),
+    ]
+    assert len(fixture.model.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_graph_stops_after_repeated_manipulation_schema_error() -> None:
+    args = {
+        "robot_name": "UR10",
+        "backend": "staged_moveit",
+        "requirements": {
+            "goal": "hold",
+            "object_name": "dynamic_5",
+            "lift_distance_m": 0.10,
+        },
+        "timeout_s": 9.0,
+    }
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_plan_manipulation_task", args, call_id="plan-1"),
+            ai_tool_call("moveit_plan_manipulation_task", args, call_id="plan-2"),
+            ai_text("I should not be asked again."),
+        ],
+        bridge=SchemaRejectingTaskPlannerBridge(),
+    )
+
+    text = await fixture.graph.run_turn(turn("pick up dynamic_5"))
+
+    assert text == "Remove backend; Robot Control selects the planner backend."
+    assert fixture.bridge.calls == [
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_plan_manipulation_task", args),
+        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_plan_manipulation_task", args),
+    ]
+    assert len(fixture.model.requests) == 2
 
 
 @pytest.mark.asyncio
@@ -1265,13 +1366,14 @@ async def test_graph_routes_sync_real_robot_state_to_verified_execution_client()
 
 
 @pytest.mark.asyncio
-async def test_graph_hides_verified_task_plan_tool_in_simulation_mode() -> None:
+async def test_graph_uses_unified_task_execution_tool_in_simulation_mode() -> None:
     fixture = make_graph([ai_text("ready")], bridge=TaskPlannerSurfaceBridge())
 
     await fixture.graph.run_turn(turn("pick up dynamic_5"))
 
     tool_names = {tool["function"]["name"] for tool in fixture.model.bound_tools}
-    assert "moveit_execute_task_solution" in tool_names
+    assert "moveit_execute_task" in tool_names
+    assert "moveit_execute_task_solution" not in tool_names
     assert "moveit_execute_task_plan" not in tool_names
     assert "moveit_plan_manipulation_task" in tool_names
     assert "moveit_plan_compound_task" not in tool_names
@@ -1280,8 +1382,8 @@ async def test_graph_hides_verified_task_plan_tool_in_simulation_mode() -> None:
     first_request = fixture.model.requests[0]
     assert isinstance(first_request[0], SystemMessage)
     assert (
-        "Use moveit_execute_task_solution for task_solution_id values; "
-        "moveit_execute_task_plan is not available without Verified Real Robot Execution."
+        "Use moveit_execute_task for returned task_solution_id values. It executes in RViz/simulation "
+        "first and also attempts real robot execution when connected"
     ) in str(first_request[0].content)
 
 
@@ -2402,6 +2504,73 @@ async def test_graph_records_explicit_task_solution_approval_before_execution() 
     assert approval.approved_at == 100.0
     output = json.loads(last_tool_content(fixture.model))
     assert output == {"structured_content": {"ok": True}}
+
+
+@pytest.mark.asyncio
+async def test_graph_execute_task_runs_simulation_when_real_robot_unavailable() -> None:
+    execute_args = {
+        "robot_name": "UR10",
+        "task_solution_id": "pick_task_dynamic_5_001",
+        "timeout_s": 10.0,
+    }
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_execute_task", execute_args),
+            ai_text("Executed in RViz."),
+        ],
+        bridge=TaskExecutionBridge(),
+        robot_context=approved_pick_task_context(),
+    )
+
+    text = await fixture.graph.run_turn(turn("yes, execute the pick task"))
+
+    assert text == "Execution complete in RViz; real robot not connected."
+    assert ("moveit_execute_task_solution", execute_args) in fixture.bridge.calls
+    output = json.loads(latest_state_tool_content(fixture))
+    assert output["structured_content"]["ok"] is True
+    assert output["structured_content"]["tool"] == "moveit_execute_task"
+    assert output["structured_content"]["simulation"] == {
+        "ok": True,
+        "tool": "moveit_execute_task_solution",
+        "status": "executed",
+    }
+    assert output["structured_content"]["real_robot"] == {
+        "ok": False,
+        "status": "unavailable",
+        "message": "Verified real robot execution is not connected.",
+    }
+
+
+@pytest.mark.asyncio
+async def test_graph_execute_task_keeps_ok_when_real_robot_attempt_fails() -> None:
+    execute_args = {
+        "robot_name": "UR10",
+        "task_solution_id": "pick_task_dynamic_5_001",
+        "timeout_s": 9.0,
+    }
+    verified_client = FakeFailingVerifiedExecutionClient()
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_execute_task", execute_args),
+            ai_text("Executed in RViz, but real robot execution failed."),
+        ],
+        bridge=TaskExecutionBridge(),
+        robot_context=approved_pick_task_context(),
+        verified_execution_client=verified_client,
+    )
+
+    text = await fixture.graph.run_turn(turn("yes, execute the pick task"))
+
+    assert text == "Execution complete."
+    assert ("moveit_execute_task_solution", execute_args) in fixture.bridge.calls
+    assert verified_client.calls
+    output = json.loads(latest_state_tool_content(fixture))
+    structured = output["structured_content"]
+    assert structured["ok"] is True
+    assert structured["tool"] == "moveit_execute_task"
+    assert structured["simulation"]["ok"] is True
+    assert structured["real_robot"]["ok"] is False
+    assert structured["real_robot"]["status"] == "failed"
 
 
 @pytest.mark.asyncio
@@ -3668,7 +3837,7 @@ async def test_graph_executes_long_hybrid_contract_from_cached_task_plan() -> No
         "moveit_plan_free_motion",
         "moveit_plan_cartesian_motion",
         "moveit_plan_cartesian_motion",
-        "moveit_plan_cartesian_motion",
+        "moveit_plan_free_motion",
         "moveit_plan_cartesian_motion",
         "moveit_plan_cartesian_motion",
     ]

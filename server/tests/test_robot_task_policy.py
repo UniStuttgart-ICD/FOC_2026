@@ -71,7 +71,7 @@ def test_policy_rejects_contract_internal_scene_tools_as_standalone_calls() -> N
 
     assert decision.ok is False
     assert decision.code == "contract_internal_tool"
-    assert decision.suggested_next_tool == "moveit_execute_task_plan"
+    assert decision.suggested_next_tool == "moveit_execute_task"
     assert structured_task_policy_error(decision)["code"] == "contract_internal_tool"
 
 
@@ -177,7 +177,7 @@ def test_policy_rejects_release_goal_with_stale_held_object_evidence() -> None:
     assert decision.suggested_next_tool == "moveit_verify_attached_object"
 
 
-def test_policy_rejects_hold_goal_without_recent_robot_state() -> None:
+def test_policy_allows_manipulation_hold_goal_without_prior_robot_state() -> None:
     context = FakeTaskPolicyContext()
 
     decision = validate_task_step(
@@ -189,13 +189,11 @@ def test_policy_rejects_hold_goal_without_recent_robot_state() -> None:
         context,
     )
 
-    assert decision.ok is False
-    assert decision.error == "Fresh robot pose is required before compound task planning."
-    assert decision.suggested_next_tool == "moveit_get_current_pose"
-    assert context.seen_pose_max_age_s == DEFAULT_FRESH_OBSERVATION_MAX_AGE_S
+    assert decision == TaskPolicyDecision(ok=True)
+    assert context.seen_pose_max_age_s is None
 
 
-def test_policy_rejects_pick_place_goal_without_recent_robot_state() -> None:
+def test_policy_allows_manipulation_pick_place_goal_without_prior_robot_state() -> None:
     decision = validate_task_step(
         "moveit_plan_manipulation_task",
         {
@@ -209,12 +207,10 @@ def test_policy_rejects_pick_place_goal_without_recent_robot_state() -> None:
         FakeTaskPolicyContext(),
     )
 
-    assert decision.ok is False
-    assert decision.error == "Fresh robot pose is required before compound task planning."
-    assert decision.suggested_next_tool == "moveit_get_current_pose"
+    assert decision == TaskPolicyDecision(ok=True)
 
 
-def test_policy_rejects_release_goal_without_recent_robot_state() -> None:
+def test_policy_allows_manipulation_release_goal_without_prior_robot_state() -> None:
     decision = validate_task_step(
         "moveit_plan_manipulation_task",
         {
@@ -224,9 +220,7 @@ def test_policy_rejects_release_goal_without_recent_robot_state() -> None:
         FakeTaskPolicyContext(held_object="dynamic_5"),
     )
 
-    assert decision.ok is False
-    assert decision.error == "Fresh robot pose is required before release."
-    assert decision.suggested_next_tool == "moveit_get_current_pose"
+    assert decision == TaskPolicyDecision(ok=True)
 
 
 def test_policy_allows_cartesian_for_non_manipulation_multi_point_motion() -> None:

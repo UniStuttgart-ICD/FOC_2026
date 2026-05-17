@@ -509,6 +509,37 @@ def test_accepts_task_solution_execution_arguments() -> None:
     assert "task_solution_id" in agent_tool_description("moveit_execute_task_solution")
 
 
+def test_accepts_unified_task_execution_arguments() -> None:
+    validate_robot_tool_call(
+        "moveit_execute_task",
+        {
+            "robot_name": "UR10",
+            "task_solution_id": "pick_task_dynamic_5_001",
+            "timeout_s": 30.0,
+        },
+    )
+
+    assert canonical_mcp_tool_name("moveit_execute_task") == "moveit_execute_task"
+    description = agent_tool_description("moveit_execute_task")
+    assert "RViz" in description
+    assert "real robot" in description
+    assert "task_solution_id" in description
+
+
+def test_rejects_unified_task_execution_plan_name_argument() -> None:
+    with pytest.raises(RobotCallValidationError) as exc:
+        validate_robot_tool_call(
+            "moveit_execute_task",
+            {
+                "robot_name": "UR10",
+                "task_solution_id": "pick_task_dynamic_5_001",
+                "plan_name": "pick-plan-1",
+            },
+        )
+
+    assert str(exc.value) == "Unexpected argument for moveit_execute_task: plan_name"
+
+
 def test_accepts_task_plan_execution_arguments() -> None:
     validate_robot_tool_call(
         "moveit_execute_task_plan",
