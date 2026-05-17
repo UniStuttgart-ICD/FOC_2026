@@ -14,8 +14,8 @@ from process_trace import NoopProcessTracer, ProcessTracer
 from robot_control.call_validation import (
     AGENT_TO_LEGACY_MCP_TOOL_NAMES,
     ALLOWED_ROBOT_TOOLS,
-    COMPOUND_TASK_GOAL_VALUES,
     CONTRACT_INTERNAL_TOOL_NAMES,
+    MANIPULATION_TASK_GOAL_VALUES,
     RobotCallValidationError,
     agent_tool_description,
     structured_robot_call_error,
@@ -58,9 +58,10 @@ AGENT_TOOL_ORDER = {
             "moveit_get_robot_state",
             "moveit_list_scene_objects",
             "moveit_get_object_context",
-            "moveit_plan_compound_task",
+            "moveit_plan_manipulation_task",
             "moveit_plan_pick_task",
             "moveit_plan_place_task",
+            "moveit_plan_compound_task",
             "moveit_execute_task_plan",
             "moveit_execute_task_solution",
             "moveit_plan_pick",
@@ -82,7 +83,23 @@ AGENT_TOOL_ORDER = {
     )
 }
 MODEL_HIDDEN_TOOL_NAMES = (
-    frozenset({"moveit_plan_pick_task", "moveit_plan_place_task"})
+    frozenset(
+        {
+            "moveit_plan_free_motion",
+            "moveit_plan_cartesian_motion",
+            "moveit_plan_pick",
+            "moveit_plan_place",
+            "moveit_plan_pick_task",
+            "moveit_plan_place_task",
+            "moveit_plan_compound_task",
+            "moveit_execute_plan",
+            "moveit_execute_task_solution",
+            "moveit_open_gripper",
+            "moveit_close_gripper",
+            "moveit_attach_object",
+            "moveit_verify_attached_object",
+        }
+    )
     | CONTRACT_INTERNAL_TOOL_NAMES
 )
 
@@ -275,6 +292,7 @@ class RobotMCPBridge:
         backing_tool_name = self._backing_tool_names.get(name)
         if backing_tool_name is None:
             raise RobotMCPError(f"Tool is not allowed: {name}")
+        mcp_arguments = _mcp_arguments(name, normalized_arguments)
         call_attributes = self._tool_attributes(name, normalized_arguments)
         call_attributes["mcp.tool.name"] = backing_tool_name
         async with self._tracer.span(
@@ -283,7 +301,7 @@ class RobotMCPBridge:
             attributes=call_attributes,
         ) as span:
             try:
-                result = await self._server.call_tool(backing_tool_name, normalized_arguments)
+                result = await self._server.call_tool(backing_tool_name, mcp_arguments)
             except RobotMCPError:
                 raise
             except TimeoutError as exc:
@@ -324,7 +342,7 @@ class RobotMCPBridge:
         return attributes
 
     def _should_advertise_task_plan_execution(self) -> bool:
-        return "moveit_plan_compound_task" in self._backing_tool_names
+        return "moveit_plan_manipulation_task" in self._backing_tool_names
 
 
 def _normalize_agent_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -340,9 +358,15 @@ def _normalize_agent_arguments(name: str, arguments: dict[str, Any]) -> dict[str
     return normalized
 
 
+def _mcp_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    if name == "moveit_plan_manipulation_task" and "backend" not in arguments:
+        return {**arguments, "backend": "staged_moveit"}
+    return arguments
+
+
 def _agent_tool_schema(name: str, input_schema: dict[str, Any]) -> dict[str, Any]:
-    if name == "moveit_plan_compound_task":
-        return _compound_task_planning_schema(input_schema)
+    if name == "moveit_plan_manipulation_task":
+        return _manipulation_task_planning_schema(input_schema)
     if name == "moveit_execute_task_solution":
         return {
             "type": "object",
@@ -360,7 +384,7 @@ def _agent_tool_schema(name: str, input_schema: dict[str, Any]) -> dict[str, Any
     return input_schema
 
 
-def _compound_task_planning_schema(input_schema: dict[str, Any]) -> dict[str, Any]:
+def _manipulation_task_planning_schema(input_schema: dict[str, Any]) -> dict[str, Any]:
     schema = deepcopy(input_schema)
     if not isinstance(schema, dict):
         schema = {}
@@ -383,7 +407,14 @@ def _compound_task_planning_schema(input_schema: dict[str, Any]) -> dict[str, An
         goal = {}
         requirement_properties["goal"] = goal
     goal["type"] = "string"
-    goal["enum"] = list(COMPOUND_TASK_GOAL_VALUES)
+    goal["enum"] = list(MANIPULATION_TASK_GOAL_VALUES)
+    lift_distance = requirement_properties.get("lift_distance_m")
+    if not isinstance(lift_distance, dict):
+        lift_distance = {}
+        requirement_properties["lift_distance_m"] = lift_distance
+    lift_distance["type"] = "number"
+    lift_distance["minimum"] = 0.03
+    lift_distance["maximum"] = 0.20
     return schema
 
 

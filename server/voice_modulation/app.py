@@ -229,7 +229,14 @@ def create_app(
         voice_id = _optional_string(payload.get("voice_id"), "voice_id")
         try:
             profile = load_runtime_profile(server_dir=root, profile_name=profile_name)
-            clean_audio = synthesize(tts_for_preview(profile.tts, voice_id), text)
+            clean_audio = synthesize(
+                tts_for_preview(
+                    profile.tts,
+                    voice_id,
+                    speech_delivery_style=_speech_delivery_style(root, profile.tts.provider),
+                ),
+                text,
+            )
         except ProfileError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except VoicePreviewError as exc:
@@ -246,7 +253,14 @@ def create_app(
         voice_id = _optional_string(payload.get("voice_id"), "voice_id")
         try:
             profile = load_runtime_profile(server_dir=root, profile_name=profile_name)
-            clean_audio = synthesize(tts_for_preview(profile.tts, voice_id), text)
+            clean_audio = synthesize(
+                tts_for_preview(
+                    profile.tts,
+                    voice_id,
+                    speech_delivery_style=_speech_delivery_style(root, profile.tts.provider),
+                ),
+                text,
+            )
             settings = load_profile_settings(
                 profile_name,
                 server_dir=root,
@@ -277,6 +291,19 @@ def _profiles_path(root: Path) -> Path:
 
 def _prompt_parts_dir(root: Path) -> Path:
     return root / "agent_control" / "prompt_parts"
+
+
+def _speech_delivery_style(root: Path, tts_provider: str) -> str:
+    if tts_provider != "gemini_live":
+        return ""
+    path = _prompt_parts_dir(root) / "speech_delivery_style.md"
+    try:
+        content = path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise VoicePreviewError(f"Speech delivery prompt is not readable: {path}") from exc
+    if not content:
+        raise VoicePreviewError("Speech delivery prompt must not be empty")
+    return content
 
 
 def _profile_names(server_dir: Path) -> list[str]:

@@ -627,6 +627,33 @@ def test_robot_context_tracks_held_object_until_verified_release_proof() -> None
     assert store.held_object_name() is None
 
 
+def test_robot_context_requires_recent_held_object_evidence() -> None:
+    now = 100.0
+    store = RobotContextStore(time_fn=lambda: now)
+
+    store.update_from_tool_result(
+        "moveit_verify_attached_object",
+        json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "raw": {
+                        "object_name": "dynamic_5",
+                        "planning_scene_state": "attached",
+                        "mcp_gripper_holds_object": True,
+                    },
+                }
+            }
+        ),
+    )
+
+    assert store.has_recent_held_object("dynamic_5", max_age_s=30.0) is True
+
+    now = 131.0
+
+    assert store.has_recent_held_object("dynamic_5", max_age_s=30.0) is False
+
+
 def test_robot_context_keeps_held_object_when_release_proof_still_names_attached_object() -> None:
     store = RobotContextStore()
     _mark_dynamic_5_held(store)

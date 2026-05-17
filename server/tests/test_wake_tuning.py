@@ -197,11 +197,11 @@ def test_main_profile_contains_promoted_wake_tuning_values(
 
     config = load_runtime_config(profile_name="hybrid_gemini_live_tts")
 
-    assert config.wake.threshold == 0.85
+    assert config.wake.threshold == 0.7
     assert config.wake.vad_threshold == 0.0
     assert config.wake.candidate_log_threshold == 0.3
     assert config.wake.required_hits == 1
-    assert config.wake.min_wake_rms == 4.0
+    assert config.wake.min_wake_rms == 0.01
     assert config.wake.min_wake_peak == 12
     assert config.wake.rearm_delay_s == 0.75
     assert config.wake.pre_buffer_s == 0.35

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from pipecat.processors.frame_processor import FrameProcessor
 from pipecat.services.cartesia.tts import CartesiaTTSService
@@ -64,7 +65,7 @@ def create_tts_service(config: TTSProfile) -> FrameProcessor:
             ),
         )
     if config.provider == "openai":
-        settings = {
+        settings: dict[str, Any] = {
             "model": config.model or "gpt-4o-mini-tts",
             "voice": config.voice or "coral",
         }

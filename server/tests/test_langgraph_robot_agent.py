@@ -221,7 +221,43 @@ class TaskPlannerSurfaceBridge(TaskExecutionBridge):
             },
             {
                 "type": "function",
+                "name": "moveit_plan_manipulation_task",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+            {
+                "type": "function",
+                "name": "moveit_plan_pick",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+            {
+                "type": "function",
+                "name": "moveit_plan_place",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+            {
+                "type": "function",
                 "name": "moveit_release_object",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+            {
+                "type": "function",
+                "name": "moveit_open_gripper",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+            {
+                "type": "function",
+                "name": "moveit_close_gripper",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+            {
+                "type": "function",
+                "name": "moveit_attach_object",
                 "parameters": {"type": "object"},
                 "strict": None,
             },
@@ -238,6 +274,30 @@ class TaskPlannerSurfaceBridge(TaskExecutionBridge):
                 "strict": None,
             },
         ]
+
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        if name == "moveit_plan_manipulation_task":
+            self.calls.append((name, arguments))
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": True,
+                        "task_solution_id": "manipulation_hold_dynamic_5_001",
+                        "task_kind": "hold",
+                        "object_name": "dynamic_5",
+                        "raw": {
+                            "task_solution_id": "manipulation_hold_dynamic_5_001",
+                            "task_kind": "hold",
+                            "backend": "staged_moveit",
+                            "object_name": "dynamic_5",
+                            "robot_name": "UR10",
+                            "created_from_tool": "moveit_plan_manipulation_task",
+                            "scene_snapshot_id": "scene_20260515_001",
+                        },
+                    }
+                }
+            )
+        return await super().call_tool(name, arguments)
 
 
 class FakeUserSensingBridge:
@@ -1098,14 +1158,21 @@ async def test_graph_hides_sim_task_solution_tool_in_verified_execution_mode() -
     tool_names = {tool["function"]["name"] for tool in fixture.model.bound_tools}
     assert "moveit_execute_task_plan" in tool_names
     assert "moveit_execute_task_solution" not in tool_names
-    assert "moveit_plan_compound_task" in tool_names
+    assert "moveit_plan_manipulation_task" in tool_names
+    assert "moveit_plan_compound_task" not in tool_names
+    assert "moveit_plan_free_motion" not in tool_names
+    assert "moveit_plan_cartesian_motion" not in tool_names
+    assert "moveit_plan_pick" not in tool_names
+    assert "moveit_plan_place" not in tool_names
     assert "moveit_plan_pick_task" not in tool_names
     assert "moveit_plan_place_task" not in tool_names
+    assert "moveit_open_gripper" not in tool_names
+    assert "moveit_close_gripper" not in tool_names
+    assert "moveit_attach_object" not in tool_names
+    assert "moveit_verify_attached_object" not in tool_names
     assert "moveit_release_object" not in tool_names
     assert "moveit_verify_released_object" not in tool_names
     assert "moveit_remove_scene_object" not in tool_names
-    assert "moveit_go_home" in tool_names
-    assert "moveit_sync_real_robot_state" in tool_names
     first_request = fixture.model.requests[0]
     assert isinstance(first_request[0], SystemMessage)
     assert (
@@ -1113,6 +1180,36 @@ async def test_graph_hides_sim_task_solution_tool_in_verified_execution_mode() -
         "execution_contract; "
         "moveit_execute_task_solution is not available in real-robot mode."
     ) in str(first_request[0].content)
+
+
+@pytest.mark.asyncio
+async def test_graph_routes_model_visible_manipulation_planner_to_native_backend() -> None:
+    args = {
+        "robot_name": "UR10",
+        "backend": "staged_moveit",
+        "requirements": {
+            "goal": "hold",
+            "object_name": "dynamic_5",
+            "lift_distance_m": 0.10,
+        },
+        "timeout_s": 9.0,
+    }
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_plan_manipulation_task", args),
+            ai_text("Task planned."),
+        ],
+        bridge=TaskPlannerSurfaceBridge(),
+    )
+
+    text = await fixture.graph.run_turn(turn("pick up dynamic_5"))
+
+    assert text == "Task planned."
+    assert ("moveit_plan_manipulation_task", args) in fixture.bridge.calls
+    assert all(name != "moveit_plan_compound_task" for name, _ in fixture.bridge.calls)
+    output = json.loads(latest_state_tool_content(fixture))
+    assert output["structured_content"]["ok"] is True
+    assert output["structured_content"]["task_solution_id"] == "manipulation_hold_dynamic_5_001"
 
 
 @pytest.mark.asyncio
@@ -1176,7 +1273,8 @@ async def test_graph_hides_verified_task_plan_tool_in_simulation_mode() -> None:
     tool_names = {tool["function"]["name"] for tool in fixture.model.bound_tools}
     assert "moveit_execute_task_solution" in tool_names
     assert "moveit_execute_task_plan" not in tool_names
-    assert "moveit_plan_compound_task" in tool_names
+    assert "moveit_plan_manipulation_task" in tool_names
+    assert "moveit_plan_compound_task" not in tool_names
     assert "moveit_plan_pick_task" not in tool_names
     assert "moveit_plan_place_task" not in tool_names
     first_request = fixture.model.requests[0]
@@ -1290,12 +1388,12 @@ async def test_call_model_emits_model_call_span() -> None:
     assert model_span["module"] == "agent_control"
     assert model_span["status"] == "ok"
     assert model_span["attributes"] == {
-        "tool_turns": 0,
-        "message_count": 2,
-        "tool_count": 7,
-        "tool_call_count": 0,
-        "tool_call_names": [],
-        "text_length": len("response"),
+            "tool_turns": 0,
+            "message_count": 2,
+            "tool_count": 3,
+            "tool_call_count": 0,
+            "tool_call_names": [],
+            "text_length": len("response"),
     }
 
 
@@ -1359,8 +1457,8 @@ async def test_graph_rejects_cartesian_for_compound_release_request() -> None:
     assert output["ok"] is False
     assert output["error"] == "Compound manipulation tasks must use task planning tools."
     assert output["retryable"] is True
-    assert output["suggested_next_tool"] == "moveit_plan_compound_task"
-    assert "moveit_plan_compound_task" in output["correction"]
+    assert output["suggested_next_tool"] == "moveit_plan_manipulation_task"
+    assert "moveit_plan_manipulation_task" in output["correction"]
 
 
 @pytest.mark.asyncio
@@ -3051,7 +3149,7 @@ async def test_graph_rejects_task_plan_when_recent_solution_raw_is_missing() -> 
             "that task_solution_id."
         ),
         "retryable": True,
-        "suggested_next_tool": "moveit_plan_compound_task",
+            "suggested_next_tool": "moveit_plan_manipulation_task",
     }
 
 
@@ -3128,12 +3226,25 @@ async def test_graph_executes_typed_place_release_contract() -> None:
         ],
         "execution_contract": contract_with_proof({
             "steps": [
-                {"handler": "motion", "name": "place", "waypoint_index": 0},
-                {"handler": "open_gripper", "name": "open_gripper"},
+                {
+                    "handler": "motion",
+                    "name": "place",
+                    "waypoint_index": 0,
+                    "source_stage": "place",
+                    "required_proof": "emulated_motion_plan",
+                },
+                {
+                    "handler": "open_gripper",
+                    "name": "open_gripper",
+                    "source_stage": "open_gripper",
+                    "required_proof": "verified_gripper_open",
+                },
                 {
                     "handler": "release_object",
                     "name": "release_object",
                     "tool": "moveit_release_object",
+                    "source_stage": "release_object",
+                    "required_proof": "planning_scene_update",
                     "arguments": {
                         "object_name": "dynamic_5",
                         "object_pose": {
@@ -3146,6 +3257,8 @@ async def test_graph_executes_typed_place_release_contract() -> None:
                     "handler": "verify_released_object",
                     "name": "verify_released_object",
                     "tool": "moveit_verify_released_object",
+                    "source_stage": "verify_released_object",
+                    "required_proof": "release_check",
                     "arguments": {"object_name": "dynamic_5"},
                 },
             ],
@@ -3353,6 +3466,242 @@ async def test_graph_execute_task_plan_executes_logged_place_contract_shape() ->
     assert output["structured_content"]["tool"] == "moveit_execute_task_plan"
     assert output["structured_content"]["task_solution_id"] == task_solution_id
     assert output["structured_content"]["verified_plan_names"] == verified_plan_names
+    assert output["structured_content"]["release_verification"] == {"result": "pass"}
+
+
+@pytest.mark.asyncio
+async def test_graph_executes_long_hybrid_contract_from_cached_task_plan() -> None:
+    class HybridTaskPlanBridge(CompoundTaskPlanBridge):
+        def function_tools(self) -> list[dict[str, Any]]:
+            return [
+                *super().function_tools(),
+                {
+                    "type": "function",
+                    "name": "moveit_plan_manipulation_task",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                },
+            ]
+
+    task_solution_id = "hybrid_pick_place_dynamic_5_001"
+    scene_snapshot_id = "scene_20260515_001"
+    release_object_pose = {
+        "position": {"x": 0.68, "y": 0.18, "z": 0.30},
+        "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+    }
+    waypoints = [
+        {
+            "position": {"x": 0.40, "y": 0.10, "z": 0.36},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+        {
+            "position": {"x": 0.46, "y": 0.10, "z": 0.32},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+        {
+            "position": {"x": 0.46, "y": 0.10, "z": 0.44},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+        {
+            "position": {"x": 0.62, "y": 0.18, "z": 0.44},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+        {
+            "position": {"x": 0.68, "y": 0.18, "z": 0.30},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+        {
+            "position": {"x": 0.62, "y": 0.18, "z": 0.46},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+    ]
+    raw = {
+        "task_solution_id": task_solution_id,
+        "task_kind": "pick_place",
+        "backend": "staged_moveit",
+        "object_name": "dynamic_5",
+        "robot_name": "UR10",
+        "created_from_tool": "moveit_plan_manipulation_task",
+        "scene_snapshot_id": scene_snapshot_id,
+        "waypoints": waypoints,
+        "execution_contract": {
+            "steps": [
+                {
+                    "handler": "motion",
+                    "name": "connect_to_pre_grasp",
+                    "waypoint_index": 0,
+                    "source_stage": "connect_to_pre_grasp",
+                    "object_name": "dynamic_5",
+                    "scene_snapshot_id": scene_snapshot_id,
+                    "required_proof": "emulated_motion_plan",
+                },
+                {
+                    "handler": "motion",
+                    "name": "approach_to_pre_grasp",
+                    "waypoint_index": 1,
+                    "source_stage": "approach_to_pre_grasp",
+                    "object_name": "dynamic_5",
+                    "scene_snapshot_id": scene_snapshot_id,
+                    "required_proof": "emulated_motion_plan",
+                },
+                {
+                    "handler": "close_gripper",
+                    "name": "close_gripper",
+                    "source_stage": "close_gripper",
+                    "object_name": "dynamic_5",
+                    "scene_snapshot_id": scene_snapshot_id,
+                    "required_proof": "verified_gripper_closed",
+                },
+                {
+                    "handler": "attach_object",
+                    "name": "attach_object",
+                    "source_stage": "attach_object",
+                    "object_name": "dynamic_5",
+                    "scene_snapshot_id": scene_snapshot_id,
+                    "required_proof": "planning_scene_attached",
+                },
+                {
+                    "handler": "motion",
+                    "name": "post_grasp_lift",
+                    "waypoint_index": 2,
+                    "source_stage": "post_grasp_lift",
+                    "object_name": "dynamic_5",
+                    "scene_snapshot_id": scene_snapshot_id,
+                    "required_proof": "emulated_motion_plan",
+                },
+                {
+                    "handler": "motion",
+                    "name": "connect_to_place",
+                    "waypoint_index": 3,
+                    "source_stage": "connect_to_place",
+                    "object_name": "dynamic_5",
+                    "scene_snapshot_id": scene_snapshot_id,
+                    "required_proof": "emulated_motion_plan",
+                },
+                {
+                    "handler": "motion",
+                    "name": "approach_place",
+                    "waypoint_index": 4,
+                    "source_stage": "approach_place",
+                    "object_name": "dynamic_5",
+                    "scene_snapshot_id": scene_snapshot_id,
+                    "required_proof": "emulated_motion_plan",
+                },
+                {
+                    "handler": "open_gripper",
+                    "name": "open_gripper",
+                    "source_stage": "open_gripper",
+                    "object_name": "dynamic_5",
+                    "scene_snapshot_id": scene_snapshot_id,
+                    "required_proof": "verified_gripper_open",
+                },
+                {
+                    "handler": "release_object",
+                    "name": "release_object",
+                    "tool": "moveit_release_object",
+                    "source_stage": "release_object",
+                    "object_name": "dynamic_5",
+                    "scene_snapshot_id": scene_snapshot_id,
+                    "required_proof": "planning_scene_update",
+                    "arguments": {"object_name": "dynamic_5", "object_pose": release_object_pose},
+                },
+                {
+                    "handler": "motion",
+                    "name": "retreat",
+                    "waypoint_index": 5,
+                    "source_stage": "retreat",
+                    "object_name": "dynamic_5",
+                    "scene_snapshot_id": scene_snapshot_id,
+                    "required_proof": "emulated_motion_plan",
+                },
+                {
+                    "handler": "verify_released_object",
+                    "name": "verify_released_object",
+                    "tool": "moveit_verify_released_object",
+                    "source_stage": "verify_released_object",
+                    "object_name": "dynamic_5",
+                    "scene_snapshot_id": scene_snapshot_id,
+                    "required_proof": "release_check",
+                    "arguments": {"object_name": "dynamic_5"},
+                },
+            ]
+        },
+    }
+    execute_args = {
+        "robot_name": "UR10",
+        "task_solution_id": task_solution_id,
+        "timeout_s": 9.0,
+    }
+    bridge = HybridTaskPlanBridge(release_proof=True)
+    verified_client = FakeVerifiedExecutionClient()
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_execute_task_plan", execute_args),
+            ai_text("Verified hybrid task executed."),
+        ],
+        bridge=bridge,
+        robot_context=approved_contract_task_context(
+            task_solution_id=task_solution_id,
+            task_kind="pick_place",
+            object_name="dynamic_5",
+            raw=raw,
+        ),
+        verified_execution_client=verified_client,
+    )
+
+    text = await fixture.graph.run_turn(turn("yes, execute the cached hybrid task"))
+
+    assert text == "Execution complete."
+    tool_names = {tool["function"]["name"] for tool in fixture.model.bound_tools}
+    assert "moveit_plan_manipulation_task" in tool_names
+    assert "moveit_plan_free_motion" not in tool_names
+    assert "moveit_plan_cartesian_motion" not in tool_names
+    assert "moveit_plan_pick" not in tool_names
+    assert "moveit_plan_place" not in tool_names
+    assert all(name != "moveit_plan_manipulation_task" for name, _ in bridge.calls)
+    planning_calls = [
+        call
+        for call in bridge.calls
+        if call[0] in {"moveit_plan_free_motion", "moveit_plan_cartesian_motion"}
+    ]
+    assert [call[0] for call in planning_calls] == [
+        "moveit_plan_free_motion",
+        "moveit_plan_cartesian_motion",
+        "moveit_plan_cartesian_motion",
+        "moveit_plan_cartesian_motion",
+        "moveit_plan_cartesian_motion",
+        "moveit_plan_cartesian_motion",
+    ]
+    expected_motion_stages = [
+        "connect_to_pre_grasp",
+        "approach_to_pre_grasp",
+        "post_grasp_lift",
+        "connect_to_place",
+        "approach_place",
+        "retreat",
+    ]
+    assert [
+        str(arguments["plan_name"]).startswith(f"{task_solution_id}_{stage}_")
+        for (_tool_name, arguments), stage in zip(planning_calls, expected_motion_stages)
+    ] == [True, True, True, True, True, True]
+    assert [call[1] for call in verified_client.calls] == [
+        arguments["plan_name"] for _tool_name, arguments in planning_calls
+    ]
+    assert verified_client.gripper_calls == [("UR10", "close", 9.0), ("UR10", "open", 9.0)]
+    assert ("moveit_release_object", {
+        "robot_name": "UR10",
+        "object_name": "dynamic_5",
+        "object_pose": release_object_pose,
+        "verified_gripper_open": True,
+    }) in bridge.calls
+    assert ("moveit_verify_released_object", {
+        "robot_name": "UR10",
+        "object_name": "dynamic_5",
+        "timeout_s": 9.0,
+    }) in bridge.calls
+    output = json.loads(latest_state_tool_content(fixture))
+    assert output["structured_content"]["ok"] is True
+    assert output["structured_content"]["task_solution_id"] == task_solution_id
     assert output["structured_content"]["release_verification"] == {"result": "pass"}
 
 

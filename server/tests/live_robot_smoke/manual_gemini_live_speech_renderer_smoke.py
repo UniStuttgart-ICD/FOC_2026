@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import os
-from time import perf_counter
 import wave
 from pathlib import Path
+from time import perf_counter
 
 from voice_runtime.gemini_live_speech import GeminiLiveSpeechRendererService
 

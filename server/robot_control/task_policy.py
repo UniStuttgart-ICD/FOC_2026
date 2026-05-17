@@ -29,7 +29,8 @@ PLACE_INTENT_TERMS = ("place", "release", "let go", "drop")
 GRIPPER_INTENT_TERMS = ("gripper", "attach", "detach")
 MOTION_INTENT_TERMS = ("move", "carry", "bring", "take", "put")
 COMPOUND_CONNECTOR_TERMS = ("and", "then", "after", "before", "followed by")
-COMPOUND_GOALS_REQUIRING_FRESH_POSE = frozenset({"hold", "move_and_release", "pick_place"})
+TASK_MANIPULATION_PLANNER = "moveit_plan_manipulation_task"
+COMPOUND_GOALS_REQUIRING_FRESH_POSE = frozenset({"hold", "place", "move_and_release", "pick_place"})
 CONTRACT_INTERNAL_TOOL_NAMES = frozenset(
     {
         "moveit_release_object",
@@ -49,6 +50,8 @@ class TaskPolicyContext(Protocol):
     def has_recent_gripper_state(self, state: str, *, max_age_s: float) -> bool: ...
 
     def held_object_name(self) -> str | None: ...
+
+    def has_recent_held_object(self, object_name: str, *, max_age_s: float) -> bool: ...
 
 
 @dataclass(frozen=True)
@@ -101,7 +104,7 @@ def validate_task_step(
             ok=False,
             error="Compound manipulation tasks must use task planning tools.",
             correction=(
-                "Use moveit_plan_compound_task for pick, hold, place, release, or other "
+                "Use moveit_plan_manipulation_task for pick, hold, place, release, or other "
                 "multi-stage manipulation tasks."
             ),
             suggested_next_tool=suggested_task_tool,
@@ -112,6 +115,7 @@ def validate_task_step(
         arguments,
         context,
         fresh_observation_max_age_s=fresh_observation_max_age_s,
+        held_object_max_age_s=gripper_state_max_age_s,
     )
     if release_decision is not None:
         return release_decision
@@ -177,11 +181,11 @@ def _suggested_task_tool_for_compound_intent(name: str, user_text: str | None) -
         _contains_phrase(text, term) for term in COMPOUND_CONNECTOR_TERMS
     )
     if has_pick_intent:
-        return "moveit_plan_compound_task"
+        return TASK_MANIPULATION_PLANNER
     if has_place_intent:
-        return "moveit_plan_compound_task"
+        return TASK_MANIPULATION_PLANNER
     if has_gripper_intent and has_motion_intent and has_compound_connector:
-        return "moveit_plan_compound_task"
+        return TASK_MANIPULATION_PLANNER
     return None
 
 
@@ -191,8 +195,9 @@ def _validate_compound_release_preconditions(
     context: TaskPolicyContext,
     *,
     fresh_observation_max_age_s: float,
+    held_object_max_age_s: float,
 ) -> TaskPolicyDecision | None:
-    if name != "moveit_plan_compound_task":
+    if name not in {"moveit_plan_compound_task", TASK_MANIPULATION_PLANNER}:
         return None
     requirements = arguments.get("requirements")
     if not isinstance(requirements, dict):
@@ -214,6 +219,14 @@ def _validate_compound_release_preconditions(
             suggested_next_tool="moveit_verify_attached_object",
             code="not_holding_object",
         )
+    if not context.has_recent_held_object(object_name.strip(), max_age_s=held_object_max_age_s):
+        return TaskPolicyDecision(
+            ok=False,
+            error="Cannot release an object without recent held-object evidence.",
+            correction="Verify the held object before planning release.",
+            suggested_next_tool="moveit_verify_attached_object",
+            code="stale_held_object",
+        )
     if not context.has_recent_robot_observation(max_age_s=fresh_observation_max_age_s):
         return TaskPolicyDecision(
             ok=False,
@@ -231,7 +244,7 @@ def _validate_compound_motion_preconditions(
     *,
     fresh_observation_max_age_s: float,
 ) -> TaskPolicyDecision | None:
-    if name != "moveit_plan_compound_task":
+    if name not in {"moveit_plan_compound_task", TASK_MANIPULATION_PLANNER}:
         return None
     requirements = arguments.get("requirements")
     if not isinstance(requirements, dict):

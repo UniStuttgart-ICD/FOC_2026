@@ -51,7 +51,7 @@ The target module for API-key-backed LangChain intent handling and Agent Orchest
 The workshop research contrast between a **Robot-Inhabiting Agent** and a **Separate Floating AR Avatar**, where embodiment, voice source, visual position, visual appearance, persona, and authority cues are intentionally tunable by participants.
 
 **Robot-Inhabiting Agent**:
-A workshop agent state where participants design the agent as perceived through, or as part of, the robot body.
+A workshop agent state where participants design the agent as perceived through, or as part of, the robot body. The agent may use participant-facing body language such as "my hand" while operational instructions still ground planning in the UR10, MoveIt, and TCP/end-effector terms.
 
 **Separate Floating AR Avatar**:
 A workshop agent state where participants design the agent as a distinct AR participant beside the robot rather than as the robot.
@@ -67,6 +67,9 @@ A workshop card deck of initial agent concepts that participants adapt into pair
 
 **MAVE Starter Persona**:
 A robot-oriented starter persona where the agent feels like a self-directed machine-body collaborator, with expressive movement cues and a little independent judgment, while still respecting robot-control limits and human material judgment.
+
+**Kibbitz Persona**:
+The current agent character used across embodiment setups; workshop contrasts should first vary embodiment framing, not replace the character.
 
 **Robot Nonverbal Cues**:
 Small bounded robot movements that communicate turn-taking, attention, excitement, hesitation, refusal, or confirmation without changing the construction state.
@@ -84,10 +87,10 @@ The concise behavior prompt aligned with Agent Orchestration, robot tool feedbac
 A versioned prompt part that tunes agent identity, embodiment, speech delivery, response style, or behavior examples without changing the robot tool contract.
 
 **Agent Embodiment Setup**:
-A selectable prompt-part setup for presenting the agent as either a **Separate Floating AR Avatar** or a **Robot-Inhabiting Agent**.
+A selectable **Persona Template** setup for presenting the agent as either a **Separate Floating AR Avatar** or a **Robot-Inhabiting Agent**.
 
 **Persona Template**:
-A versioned source template for loading a coherent set of **Persona Prompt Parts** into the editable prompt files.
+A versioned source template for loading a coherent set of **Persona Prompt Parts** into the editable prompt files. A template is self-contained even when some files are unchanged from another template.
 
 **Canonical Motion Examples**:
 Required robot-behavior examples that keep **Agent Orchestration** aligned with current MoveIt tool workflows.
@@ -214,6 +217,42 @@ A MoveIt MCP pick workflow that plans observe, approach, gripper, attach, lift, 
 **Task-Level Place**:
 A MoveIt MCP place workflow that plans object placement stages as one **Task Solution** and still requires execution plus release or placed-object evidence before a success claim.
 
+**Task-Level Manipulation Planner**:
+The one model-visible planner, `moveit_plan_manipulation_task`, for manipulation requests such as hold, pick-place, move-and-release, place, and release. It accepts the desired object, goal, and target pose requirements, then returns a **Task Solution** only when the selected backend can produce previewable, executable, proof-backed stages.
+
+**Manipulation Goal**:
+The `requirements.goal` value for `moveit_plan_manipulation_task`. Supported goals are `hold`, `place`, `release`, `move_and_release`, and `pick_place`; natural "pick up" maps to `hold`, not to a separate `pick` goal.
+
+**Staged MoveIt Manipulation Backend**:
+The explicit v1 backend for the **Task-Level Manipulation Planner**. It composes existing MoveIt/Vizor free-motion, Cartesian-motion, gripper, attach, release, and verification steps into one **Task Solution**. It is not an MTC backend and is not a silent fallback.
+
+**Recovery-Oriented Manipulation**:
+The staged backend design goal that planning should try multiple valid grasp, approach, distance, and orientation candidates before failing, and should return clear failed-stage feedback when no candidate works.
+
+**Manipulation Recovery Boundary**:
+The rule that broad candidate search belongs before physical execution. After execution starts, retries are limited to the same approved task stage shape and must not invent a new semantic task after gripper close, attach, or object motion without a new approved **Task Solution**.
+
+**Structured Candidate Search**:
+The staged manipulation planning strategy where "more attempts" means trying different bounded grasp faces, approach distances, standoff distances, beam-orientation strategies, and motion planners, not blindly repeating the same failed request. Candidate search has a fixed v1 budget of up to 8 grasp candidates and up to 4 motion attempts per candidate, and reports all tried candidates when planning fails.
+
+**Hybrid Manipulation Stage Planning**:
+The staged manipulation motion policy where far approach to pick pre-grasp, far approach to place pre-pose, and held-object travel use free-motion planning, while contact-sensitive final approach, lift, descent, and extraction use Cartesian planning. Preview playback speed is separate from planner choice.
+
+**Beam Grasp Strategy**:
+The staged manipulation grasp policy for construction beams aligned to X or Y. Horizontal beams try top grasp first, then side grasps when top fails. Vertical beams try side grasps first and may try all four side faces within the candidate budget.
+
+**Manipulation Planning Observation**:
+The fresh backend-side object and robot-state evidence fetched by the **Task-Level Manipulation Planner** before planning. Agent Orchestration may observe first for dialogue or disambiguation, but the planner must not rely on stale model-supplied object context as authoritative planning input.
+
+**Manipulation Failure Feedback**:
+Structured failed-planning or failed-execution feedback containing `failed_stage`, `failure_code`, `tried_candidates`, `what_was_proven`, `what_is_uncertain`, `suggested_next_action`, and a concise human-facing message.
+
+**Manipulation Recovery Question**:
+A plain user-facing question asked by Agent Orchestration after the staged backend exhausts clearly allowed automatic candidates and the next recovery option changes the intended grasp, risk, object setup, or requires human judgment.
+
+**Manipulation Plan Success**:
+A manipulation plan succeeds only when required motion stages are planned with non-empty trajectories, `AgentPath` preview evidence exists, the execution contract is complete, scene snapshot evidence exists, and approval evidence is prepared. Advisory integration facts such as AR subscriber absence or optional physical-model pose-update evidence do not block planning success.
+
 **Release Intent**:
 Agent Orchestration's semantic interpretation of requests such as "drop it" or "let go" as releasing the currently held or attached object through a verified release workflow. It is not an uncontrolled physical drop or raw gripper command.
 
@@ -236,13 +275,22 @@ An optional MoveIt Task Constructor implementation backend for task-level tools.
 The operator-visible RViz/Vizor preview of a solved MTC task solution, published by the MTC backend on `/solution` for the RViz Motion Planning Tasks display. It is planning/preview evidence, not physical execution proof.
 
 **AR Planned Trajectory Preview**:
-The Vizor AR planned-motion preview carried on `/UR10/request/planned_path` as `vizor_package/PlannedTrajectory`, with `name`, `platform_name`, and `trajectory_msgs/JointTrajectory joint_trajectory`. A composed trajectory for the whole motion is preferred; explicit staged preview is acceptable when a composed trajectory cannot be exported, using one message per motion stage with ordered names such as `<task_solution_id>:01_approach`. The system must not synthesize a fake composed trajectory. The publisher authority is `/vizor_robot_control`; the MTC backend, MCP, and Pipecat must not become competing AR preview publishers. Publication failure for a motion-bearing task is a planning blocker, while subscriber absence is advisory integration evidence.
+The Vizor AR planned-motion preview carried on `/UR10/request/planned_path` as `vizor_package/PlannedTrajectory`, with `name`, `platform_name`, and `trajectory_msgs/JointTrajectory joint_trajectory`. The public AR path name for agent-planned manipulation is `AgentPath`. A composed trajectory for the whole motion is preferred; explicit staged preview is acceptable when a composed trajectory cannot be exported, using ordered stage names such as `AgentPath:01_approach`. The system must not synthesize a fake composed trajectory. The publisher authority is `/vizor_robot_control`; the MTC backend, MCP, and Pipecat must not become competing AR preview publishers. Publication failure for a motion-bearing task is a planning blocker, while subscriber absence is advisory integration evidence.
+
+**AR AgentPath Execution**:
+The AR execution surface where a human presses the AR execute button and Vizor publishes `std_msgs/String` with payload `AgentPath` on `/UR10/command/execute`. For manipulation tasks, `AgentPath` means the whole approved goal, not one internal stage. Stop and gripper buttons remain operator controls and do not replace task-solution proof.
+
+**AR AgentPath Stop**:
+The AR stop surface where Vizor publishes `std_msgs/String` with payload `AgentPath` on `/UR10/command/stop`. It cancels the active AgentPath task, invalidates the cached task execution, and requires Robot Control to re-observe the robot, gripper, attached object, and planning scene before replanning.
+
+**AR Manual Gripper Control**:
+The AR gripper debug surface where Vizor publishes `std_msgs/Bool` on `/Robot/gripper`, with `true` and `false` representing operator gripper commands. It is for debugging, not normal manipulation execution or HITL task recovery, and it is not attachment proof or release proof.
 
 **Partial Pick Diagnostic**:
 A failed legacy pick planning result where only a preposition or earlier segment solved. It is diagnostic evidence, not an executable pick.
 
 **Execution Approval Payload**:
-Structured approval evidence bound to the exact plan or **Task Solution**, source tool, object, expected movement, scene snapshot, approval turn, and approval time. Task-solution approval expires after 60 seconds or the current spoken approval turn, whichever is stricter.
+Structured approval evidence bound to the exact plan or **Task Solution**, source tool, object, expected movement, scene snapshot, approval source, approval turn, and approval time. Task-solution approval expires after 60 seconds or the current spoken approval turn, whichever is stricter. Approval may come from spoken confirmation or an explicit AR execute action bound to the current `AgentPath`.
 
 **Scene Snapshot Evidence**:
 Compact evidence that binds a planning result to the grounded scene object, planning frame, pose age, `scene_snapshot_id`, and a normalized relevant-scene hash. The hash includes robot joint state, attached objects, target object pose and shape, relevant collision objects, and planning frame; it excludes unrelated metadata, preview publication status, and subscriber counts.
@@ -327,7 +375,10 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - **Agent Orchestration** happens behind **Agent Turn** and does not reorder **Voice Runtime Assembly**.
 - **Agent Control Module** satisfies the **Agent Turn** backend seam and may use **Robot Control Module**.
 - **Persona Prompt Parts** are versioned source prompts; saving them through a local lab UI changes future bot starts, not the already-running prompt constants.
-- **Agent Embodiment Setup** may switch between the current **Separate Floating AR Avatar** setup and a future **Robot-Inhabiting Agent** setup.
+- **Agent Embodiment Setup** switches through full **Persona Template** folders, not one-off prompt-part patches.
+- **Robot-Inhabiting Agent** and **Separate Floating AR Avatar** presets may share the same **Kibbitz Persona** so the workshop contrast isolates embodiment framing.
+- **Robot-Inhabiting Agent** prompts may support embodied spoken wording, but robot tool use remains grounded in UR10, MoveIt, and TCP/end-effector terminology.
+- **Robot-Inhabiting Agent** prompt templates should align embodiment setup, speech delivery, and behavior examples while preserving the shared character persona unless the workshop explicitly tests character changes.
 - **Persona Template** loading copies versioned template content into the editable **Persona Prompt Parts**; it does not create an untracked runtime mode.
 - **Canonical Motion Examples** stay separate from editable **Behavior Examples** so persona tuning cannot silently weaken required robot workflow examples.
 - **Behavior Examples** are included after **Canonical Motion Examples** so required robot workflow examples keep priority.
@@ -347,6 +398,7 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - Agent Orchestration must ask the human when structural/contact role semantics are uncertain.
 - **Dynamic Role Update Tool** returns structured feedback with `ok`, `object_name`, `role`, and `physical_model_updated` on success, or `ok=false`, `error`, `correction`, and `retryable` on failure.
 - `geometry_update_dynamic_role` appends compact `dynamic_role_update` operation history.
+- **Dynamic Role Update Tool** stays model-visible alongside manipulation tools, but it records semantic assembly meaning only; it is not robot motion, execution approval, attachment proof, release proof, or physical placement proof.
 - A **Physical Model Pose Update** uses **Full Object Pose Evidence** as the primary object-pose evidence.
 - UR RTDE TCP pose may support **Physical Model Pose Update** only as execution evidence or when deriving an object pose from a known attached-object grasp transform.
 - A **Physical Model Pose Update** is deterministic bookkeeping after verified release/place proof or an explicit **Physical Model Sync**; passive object observations remain read-only.
@@ -372,11 +424,12 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - Agent Orchestration maps natural "pick up" requests to the **Hold Compound Goal**; it must not call or invent a separate `pick` compound goal.
 - Agent Orchestration chooses the **Hold Compound Goal** lift distance through bounded `requirements.lift_distance_m`; prompt default is `0.10` m, and Robot Control validates the v1 `0.03`-`0.20` m bounds before planning.
 - Missing or invalid **Hologram Target Pose** data blocks **Geometry-Grounded Pick-Place** with structured feedback; it must not fall back to the physical model or current object pose.
-- **Geometry-Grounded Pick-Place** is planned as one **Compound Task Plan**, not as separate pick and place task plans.
+- **Geometry-Grounded Pick-Place** is planned through the **Task-Level Manipulation Planner**, not by exposing separate pick and place task planners to the model.
 - **Task Policy Layer** runs before **Robot Call Validation**.
 - **Robot Call Validation** may reject malformed tool calls, but it does not validate task-level intent and is not the source of movement safety.
 - **Robot Tool Adapter** routes movement through the **MoveIt Safety Boundary** and normalizes MCP transport failures into structured robot feedback.
 - **Robot Context** records held objects only from attach or attached-object verification evidence, and clears held state only from release proof.
+- Before executing or continuing a manipulation task, Robot Control must verify held/attached state against current MCP/MoveIt evidence when that state matters; stale **Robot Context** alone is not enough.
 - Agent Orchestration may infer **Release Intent** from natural language such as "drop it", but execution still requires the held-object context and verified release proof.
 - **Release Intent** maps to the **Release Compound Goal** when no relocation target is requested, and to `move_and_release` when the user asks to move the held object before release.
 - The **Release Compound Goal** requires fresh robot state plus **Robot Context** evidence that the named object is currently held or attached; it must not plan a release from object name alone.
@@ -386,12 +439,13 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - **Simulation-Only Robot Execution** is selected by `robot_execution.simulation_only = true` and is the default mode for RViz/noVNC testing.
 - **Canonical Development Compose** owns repeatable Vizor/MoveIt development stack wiring; local operator configuration must not hide MTC enablement or image-tag choices.
 - A **Task Solution** may be executed through `moveit_execute_task_solution` only for sim/emulated task-solution execution; verified real-robot task execution uses the **Verified Task Plan Execution Bridge** after a matching **Execution Approval Payload**.
+- The **Task-Level Manipulation Planner** may use the **Staged MoveIt Manipulation Backend** now and an **MTC Backend** later, but Agent Orchestration should still see `moveit_plan_manipulation_task` rather than competing pick, place, compound, and low-level motion tools.
 - The **Verified Task Plan Execution Bridge** supports typed, proof-backed contracts for pick, place, hold, move-and-release, approach-hold-adjust-release, and pick-place task kinds.
 - Verified task execution keeps the agent path semantic: task planner, explicit approval, then `moveit_execute_task_plan`.
 - **Task Solution Cache** owns immutable solved task payloads; approved execution reads the cached execution contract and bound scene evidence instead of trusting a model-restated contract.
 - `moveit_execute_task_plan` recomputes **Scene Snapshot Evidence** through Robot Control/MCP at execution time; Agent Orchestration never computes or supplies the scene hash.
 - A live solved **MTC Backend** result must publish an **MTC Task Preview** when preview is part of the workflow; execution success still requires later attachment or release proof.
-- Every motion-bearing **Compound Task Plan** should produce or verify an **AR Planned Trajectory Preview** before execution through the `/vizor_robot_control` publisher authority; composed preview is preferred, staged preview publishes one ordered message per motion stage when needed, publication failure blocks planning, and lack of an AR subscriber is reported clearly but is not a v1 planning blocker.
+- Every motion-bearing manipulation task should produce or verify an **AR Planned Trajectory Preview** before execution through the `/vizor_robot_control` publisher authority. The primary AR path name is `AgentPath` and represents the whole goal; staged details may use ordered names such as `AgentPath:01_approach`, `AgentPath:02_pre_grasp`, and `AgentPath:03_lift`. Publication failure blocks planning, and lack of an AR subscriber is reported clearly but is not a v1 planning blocker.
 - A plain **Release Compound Goal** is not motion-bearing and reports no-motion preview evidence rather than publishing an **AR Planned Trajectory Preview**.
 - **Task Solution** execution requires the current planning scene to still match the bound **Scene Snapshot Evidence**; the normalized hash covers only planning-relevant scene facts, and **Material Scene Change** requires replanning.
 - A **Partial Pick Diagnostic** must not be stored as an **Executable Plan** or **Task Solution**.
@@ -427,6 +481,34 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - "TCP coordinates from the hologram" is ambiguous; resolved: the hologram provides a desired object pose, while the planner derives the TCP/release pose.
 - "Pick then place" is ambiguous for hologram-guided relocation; resolved: use one **Geometry-Grounded Pick-Place** compound task rather than a two-part sequence.
 - "Pick up" is resolved as **Hold Compound Goal** with a post-grasp lift, not as a separate `pick` compound goal.
+- Near-term manipulation backend is resolved: the **Staged MoveIt Manipulation Backend** is a first-class explicit backend for the **Task-Level Manipulation Planner**, not an MTC implementation and not a hidden fallback.
+- Model-visible manipulation tool name is resolved: use `moveit_plan_manipulation_task`; keep `moveit_plan_compound_task` only as a migration/internal compatibility name until removed.
+- Robustness goal is resolved: staged manipulation should be **Recovery-Oriented Manipulation**, meaning the planner tries multiple valid candidates before returning failure and reports the exact failed stage and tried candidates.
+- Recovery boundary is resolved: broad recovery happens during planning; execution may retry the same approved stage shape, but semantic replanning after gripper close, attach, or object motion requires a new approved **Task Solution**.
+- Attempt semantics are resolved: "more attempts" means **Structured Candidate Search** with a bounded candidate budget, not blind repetition of the same failed grasp or motion request.
+- Motion planner choice is resolved: use **Hybrid Manipulation Stage Planning** by default; v1 uses `free_motion` for far approach/travel and reserves Cartesian planning for contact-sensitive local motion.
+- Sampled motion scope is resolved: `sampled_motion` is not part of the first hybrid manipulation optimization because it is not yet a complete task-stage planner.
+- Hybrid candidate failure is resolved: failure in either the `free_motion` far approach or a following Cartesian local stage counts as a normal candidate failure before the backend asks a **Manipulation Recovery Question**.
+- Hybrid preview evidence is resolved: both free-motion and Cartesian motion stages must publish or verify `AgentPath` preview evidence for motion-bearing manipulation success.
+- Hybrid failure diagnostics are resolved: failed-candidate summaries include the planner used for each stage so the agent can distinguish far-approach failures from contact-sensitive Cartesian failures.
+- Hybrid task-solution strictness is resolved: a hybrid manipulation plan returns a `task_solution_id` only after all required free-motion and Cartesian stages plan successfully.
+- Hybrid geometry scope is resolved: the first optimization keeps existing grasp and place candidate geometry and changes only planner choice per stage.
+- Hybrid goal scope is resolved: the stage policy applies to `hold`, `place`, `move_and_release`, and `pick_place` wherever those goals include far approach or held-object travel stages.
+- Hybrid timeout scope is resolved: v1 keeps the same per-stage timeout while changing planner choice; timeout tuning waits for measurement after the planner split.
+- Candidate budget is resolved: v1 staged manipulation may try up to 8 grasp candidates and up to 4 motion attempts per candidate.
+- Manipulation goals are resolved: `moveit_plan_manipulation_task` supports `hold`, `place`, `release`, `move_and_release`, and `pick_place`; natural "pick up" maps to `hold`.
+- Beam grasp strategy is resolved: horizontal beams try top first then sides; vertical beams try side grasps first and may try all four side faces within budget.
+- Manipulation sync is resolved: execution must verify relevant held/attached state against current MCP/MoveIt evidence, not trust stale **Robot Context** alone.
+- Manipulation failures are resolved: failures return **Manipulation Failure Feedback** with exact stage, code, tried candidates, proven facts, uncertainty, suggested next action, and a human-facing message.
+- Recovery questions are resolved: after all clearly allowed automatic candidates are exhausted, Agent Orchestration asks a **Manipulation Recovery Question** instead of silently trying a riskier or semantically different option.
+- Manipulation plan success is resolved: required execution evidence is strict, but advisory integration facts and optional pose-update proof must not make an otherwise executable plan fail.
+- Manipulation planning observation is resolved: `moveit_plan_manipulation_task` fetches fresh object context and robot-state evidence itself; earlier agent observations are advisory only.
+- AR preview naming is resolved: the primary planned manipulation path is named `AgentPath`, with ordered stage names available for debugging.
+- AR execution naming is resolved: AR execute publishes payload `AgentPath` to `/UR10/command/execute`; for manipulation this means execute the whole approved goal, not a single staged segment.
+- AR stop is resolved: `/UR10/command/stop` with payload `AgentPath` cancels the active AgentPath task, invalidates cached execution, and requires fresh observation plus a new plan before continuation.
+- AR gripper control is resolved: `/Robot/gripper` is a debug-only operator surface for this workflow; it is not normal task execution, HITL recovery, attachment proof, or release proof.
+- Preview/approval boundary is resolved: visible preview is required before `ok=true`, but physical execution still requires explicit spoken approval or an explicit AR execute action bound to the current `AgentPath` and cached **Task Solution**.
+- Partial planning is resolved: if any required task stage cannot be planned or previewed, planning returns `ok=false` with no `task_solution_id`; partial stages are diagnostics only.
 - Hold lift ownership is resolved: Agent Orchestration supplies `lift_distance_m`; prompt default is `0.10` m, v1 bounds are `0.03`-`0.20` m, and Robot Control rejects out-of-bounds values.
 - AR preview shape is resolved: composed **AR Planned Trajectory Preview** is preferred, explicit staged preview publishes one ordered `PlannedTrajectory` per motion stage when composition is unavailable.
 - AR preview publication failure is resolved: publication failure for a motion-bearing task fails planning, while zero AR subscribers remain advisory.

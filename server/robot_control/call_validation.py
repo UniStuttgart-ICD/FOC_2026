@@ -13,6 +13,19 @@ DEFAULT_TIMEOUT_MAX_S = 60.0
 PLANNING_STRATEGIES = {"auto", "cartesian", "sampled_approach"}
 HOLD_LIFT_DISTANCE_MIN_M = 0.03
 HOLD_LIFT_DISTANCE_MAX_M = 0.20
+MANIPULATION_TASK_GOAL_VALUES = (
+    "hold",
+    "place",
+    "release",
+    "move_and_release",
+    "pick_place",
+)
+MANIPULATION_TASK_GOALS = set(MANIPULATION_TASK_GOAL_VALUES)
+MANIPULATION_TASK_GOALS_REQUIRING_TARGET = {
+    "place",
+    "move_and_release",
+    "pick_place",
+}
 COMPOUND_TASK_GOAL_VALUES = (
     "hold",
     "release",
@@ -24,7 +37,7 @@ COMPOUND_TASK_GOALS_REQUIRING_TARGET = {
     "move_and_release",
     "pick_place",
 }
-COMPOUND_TASK_KINDS_REQUIRING_EXECUTION_CONTRACT = COMPOUND_TASK_GOALS
+COMPOUND_TASK_KINDS_REQUIRING_EXECUTION_CONTRACT = MANIPULATION_TASK_GOALS | COMPOUND_TASK_GOALS
 SUPPORTED_TASK_PLAN_HANDLERS = {
     "motion",
     "close_gripper",
@@ -43,6 +56,7 @@ SUPPORTED_TASK_PLAN_REQUIRED_PROOFS = {
     "planning_scene_attached",
     "planning_scene_update",
     "attachment_check",
+    "attachment_verified",
     "attached_object",
     "release_check",
 }
@@ -89,6 +103,7 @@ CANONICAL_ONLY_MCP_TOOL_NAMES: frozenset[str] = frozenset(
         "moveit_plan_place",
         "moveit_plan_pick_task",
         "moveit_plan_place_task",
+        "moveit_plan_manipulation_task",
         "moveit_plan_compound_task",
         "moveit_execute_task_solution",
         "moveit_execute_task_plan",
@@ -180,6 +195,15 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "evidence, scene snapshot evidence, and approval payload. It does not execute motion "
         "or gripper actions."
     ),
+    "moveit_plan_manipulation_task": (
+        "Plan a staged MoveIt manipulation task from requirements. Use requirements.goal "
+        "hold, place, release, move_and_release, or pick_place with requirements.object_name "
+        "unless release can use the current held object. Use requirements.target_pose or "
+        "requirements.target_position for place, move_and_release, and pick_place. "
+        "Optional preferences are non-executable planner hints. It returns task_solution_id, "
+        "execution_contract, preview evidence, scene snapshot evidence, and approval payload. "
+        "It does not execute motion or gripper actions."
+    ),
     "moveit_execute_task_solution": (
         "Execute a returned task_solution_id from moveit_plan_pick_task or moveit_plan_place_task. "
         "Use only for sim/emulated task-solution execution after explicit user intent is bound "
@@ -241,7 +265,7 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "orientation unless the task asks to rotate; when preserving orientation, copy the current raw.pose.orientation "
         "into every waypoint. Do not use for compound manipulation tasks involving pick, "
         "place, held objects, gripper, attach, detach, or release; use "
-        "moveit_plan_compound_task, moveit_plan_pick_task, or moveit_plan_place_task."
+        "moveit_plan_manipulation_task."
     ),
     "moveit_execute_plan": (
         "Execute a returned plan_name from a successful free/cartesian or legacy pick/place "
@@ -309,6 +333,12 @@ _ALLOWED_ARGUMENTS: dict[str, set[str]] = {
         "target_pose",
         "target_position",
         "backend",
+        "timeout_s",
+    },
+    "moveit_plan_manipulation_task": {
+        "robot_name",
+        "requirements",
+        "preferences",
         "timeout_s",
     },
     "moveit_execute_task_solution": {"robot_name", "task_solution_id", "timeout_s"},
@@ -618,7 +648,7 @@ def validate_robot_tool_call(
                 ),
             )
         object_name = requirements.get("object_name")
-        if not isinstance(object_name, str) or not object_name.strip():
+        if goal != "release" and (not isinstance(object_name, str) or not object_name.strip()):
             raise RobotCallValidationError(
                 "Expected requirements.object_name",
                 correction="Call moveit_list_scene_objects, then retry with one returned object_name in requirements.object_name.",
@@ -675,6 +705,63 @@ def validate_robot_tool_call(
                     raise RobotCallValidationError(
                         f"Unsupported compound stage intent: {normalized_intent}",
                         correction="Use supported stage-intent hints; slide/push/code/raw waypoints are unsupported.",
+                    )
+        _validate_timeout(arguments.get("timeout_s"))
+        return
+
+    if name == "moveit_plan_manipulation_task":
+        requirements = arguments.get("requirements")
+        if not isinstance(requirements, dict):
+            raise RobotCallValidationError(
+                "Expected requirements object",
+                correction=(
+                    "Retry with requirements.goal and requirements.object_name; use preferences "
+                    "only as optional planner hints."
+                ),
+            )
+        goal = requirements.get("goal")
+        if goal not in MANIPULATION_TASK_GOALS:
+            raise RobotCallValidationError(
+                "Unsupported manipulation requirements.goal",
+                correction=(
+                    "Use requirements.goal hold, place, release, move_and_release, or pick_place."
+                ),
+            )
+        object_name = requirements.get("object_name")
+        if goal != "release" and (not isinstance(object_name, str) or not object_name.strip()):
+            raise RobotCallValidationError(
+                "Expected requirements.object_name",
+                correction="Call moveit_list_scene_objects, then retry with one returned object_name in requirements.object_name.",
+                code="object_not_found",
+                suggested_next_tool="moveit_list_scene_objects",
+            )
+        _validate_manipulation_lift_distance(requirements.get("lift_distance_m"))
+        target = requirements.get("target_pose", requirements.get("target_position"))
+        if goal in MANIPULATION_TASK_GOALS_REQUIRING_TARGET and target is None:
+            raise RobotCallValidationError(
+                "Expected requirements.target_pose or requirements.target_position",
+                correction="Retry with the manipulation task target inside requirements.",
+            )
+        if target is not None:
+            _validate_pose(target)
+        preferences = arguments.get("preferences")
+        if preferences is not None:
+            if not isinstance(preferences, dict):
+                raise RobotCallValidationError(
+                    "Expected preferences object",
+                    correction="Omit preferences or retry with non-executable planner hints.",
+                )
+            for key in preferences:
+                if not isinstance(key, str):
+                    raise RobotCallValidationError(
+                        "Expected preference hint names",
+                        correction="Use string preference hint names only.",
+                    )
+                normalized_key = _normalize_compound_hint_name(key)
+                if normalized_key in COMPOUND_UNSAFE_STAGE_HINTS:
+                    raise RobotCallValidationError(
+                        f"Unsupported manipulation preference hint: {normalized_key}",
+                        correction="Preferences are non-executable planner hints; slide/push/code/raw waypoints are unsupported.",
                     )
         _validate_timeout(arguments.get("timeout_s"))
         return
@@ -1036,6 +1123,23 @@ def _validate_hold_lift_distance(value: Any) -> None:
             "requirements.lift_distance_m is outside supported hold range",
             correction=(
                 "Retry hold with requirements.lift_distance_m between "
+                f"{HOLD_LIFT_DISTANCE_MIN_M:.2f} m and {HOLD_LIFT_DISTANCE_MAX_M:.2f} m."
+            ),
+        )
+
+
+def _validate_manipulation_lift_distance(value: Any) -> None:
+    if value is None:
+        return
+    if (
+        not _finite_number(value)
+        or float(value) < HOLD_LIFT_DISTANCE_MIN_M
+        or float(value) > HOLD_LIFT_DISTANCE_MAX_M
+    ):
+        raise RobotCallValidationError(
+            "requirements.lift_distance_m is outside supported manipulation range",
+            correction=(
+                "Retry with requirements.lift_distance_m between "
                 f"{HOLD_LIFT_DISTANCE_MIN_M:.2f} m and {HOLD_LIFT_DISTANCE_MAX_M:.2f} m."
             ),
         )

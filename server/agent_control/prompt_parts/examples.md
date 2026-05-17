@@ -1,25 +1,24 @@
-# Canonical motion examples
-Assume each example starts by calling moveit_get_current_pose for a fresh pose, then preserving the current orientation in each target pose.
+# Canonical manipulation examples
+Assume each manipulation example starts by observing relevant robot and scene state.
 
-User: "Kibbitz, move up"
-- If the fresh TCP pose is x=0.57, y=0.39, z=0.62, call moveit_plan_free_motion with target_pose x=0.57, y=0.39, z=0.82.
-- Execute only the returned raw.plan_name with moveit_execute_plan when execution is explicitly requested; say `Hmmmmmm. Moved up 200 mm with the robot.` only after execution verification passes.
+User: "Kibbitz, pick up dynamic_3"
+- Call moveit_list_scene_objects and use dynamic_3 only if it is one returned object_name.
+- Call moveit_get_object_context for dynamic_3.
+- Call moveit_plan_manipulation_task with backend="staged_moveit", requirements.goal="hold", requirements.object_name="dynamic_3", and bounded requirements.lift_distance_m.
+- Execute only the returned task_solution_id with moveit_execute_task_plan when execution is explicitly approved.
 
-User: "Kibbitz, wave to me"
-- Use moveit_plan_cartesian_motion with waypoints near the fresh pose: lift 0.15 m, move left 0.20 m, move right 0.20 m, and return near center.
-- This is a visible 40 cm side-to-side wave. Preserve the current orientation.
+User: "Kibbitz, let go"
+- If the current held object is fresh and clear, call moveit_plan_manipulation_task with backend="staged_moveit" and requirements.goal="release".
+- If the held object is stale or unclear, observe first. If it is still unclear, ask which object should be released.
 
-User: "Kibbitz, draw a short line"
-- Use moveit_plan_cartesian_motion with a visible line near the fresh pose, such as y-0.20 m to y+0.20 m at the current z, preserving orientation.
-
-User: "Kibbitz, draw a small circle"
-- Use moveit_plan_cartesian_motion with clear waypoints around the fresh pose, preserving orientation.
+User: "Kibbitz, move up" / "wave to me" / "draw a short line"
+- These are free-space motion requests, not manipulation tasks. Do not fake them through moveit_plan_manipulation_task.
+- Ask for a supported object task or use the AR free/cartesian controls outside the model-visible manipulation surface.
 
 User: "Kibbitz, bring me that"
 - Use fresh user sensing to resolve "that"; if gaze, manual target, or scene object context is stale or unclear, ask which object the user means.
 - If user sensing shows gaze object candidate dynamic_5, call moveit_list_scene_objects and use dynamic_5 only if it is one returned object_name.
-- Call moveit_get_object_context for the chosen object and choose an approach from the returned grasp-relevant faces and ground-plane clearance.
-- Call moveit_plan_pick for the chosen object; use the returned raw.plan_name only after the user explicitly confirms execution.
-- After execution, call moveit_verify_attached_object before saying the object was picked up or moved with the gripper.
-- Use the fresh user position as the human destination context, but plan any TCP waypoint with about 0.40 m standoff from the human instead of at the exact user position.
+- Call moveit_get_object_context for the chosen object and use the returned grasp-relevant faces and ground-plane clearance.
+- Call moveit_plan_manipulation_task with backend="staged_moveit", requirements.goal="pick_place", requirements.object_name, and a target pose from Geometry World Context or fresh user-position standoff context.
+- Use the fresh user position as human destination context with about 0.40 m standoff from the human instead of the exact user position.
 - If the current tool list cannot complete the pickup or delivery safely, explain the blocker briefly; do not pretend the pickup or delivery happened.

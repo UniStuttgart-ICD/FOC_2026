@@ -91,6 +91,7 @@ class RobotContextSnapshot:
     gripper_state: str | None = None
     gripper_observed_at_s: float | None = None
     held_object_name: str | None = None
+    held_object_observed_at_s: float | None = None
     last_execution_result: str | None = None
     executable_plan_observed_at_s: dict[str, float] = field(default_factory=dict)
     pending_executable_plans: dict[str, PendingExecutablePlan] = field(default_factory=dict)
@@ -130,6 +131,13 @@ class RobotContextStore:
 
     def held_object_name(self) -> str | None:
         return self._snapshot.held_object_name
+
+    def has_recent_held_object(self, object_name: str, *, max_age_s: float) -> bool:
+        observed_at_s = self._snapshot.held_object_observed_at_s
+        if observed_at_s is None:
+            return False
+        held_object_name = self._snapshot.held_object_name
+        return held_object_name == object_name and self._time_fn() - observed_at_s <= max_age_s
 
     def remember_executable_plan(
         self,
@@ -410,16 +418,23 @@ class RobotContextStore:
                 or self._snapshot.held_object_name == released_object
             ):
                 self._snapshot.held_object_name = None
+                self._snapshot.held_object_observed_at_s = None
                 return
             held_object = _held_object_name(structured_content)
             if held_object is not None:
                 self._snapshot.held_object_name = held_object
+                self._snapshot.held_object_observed_at_s = self._time_fn()
             return
         plan = parse_executable_plan_result(tool_name, output)
         task_solution = parse_task_solution_result(tool_name, output)
         if (
             tool_name
-            in {"moveit_plan_pick_task", "moveit_plan_place_task", "moveit_plan_compound_task"}
+            in {
+                "moveit_plan_pick_task",
+                "moveit_plan_place_task",
+                "moveit_plan_compound_task",
+                "moveit_plan_manipulation_task",
+            }
             and task_solution is not None
         ):
             self.remember_task_solution(

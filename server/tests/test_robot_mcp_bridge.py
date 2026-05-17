@@ -84,6 +84,11 @@ class FakeCanonicalServer(FakeServer):
             Tool(name="moveit_plan_pick_task", description="Plan pick task", inputSchema={"type": "object"}),
             Tool(name="moveit_plan_place_task", description="Plan place task", inputSchema={"type": "object"}),
             Tool(
+                name="moveit_plan_manipulation_task",
+                description="Plan manipulation task",
+                inputSchema={"type": "object"},
+            ),
+            Tool(
                 name="moveit_plan_compound_task",
                 description="Plan compound task",
                 inputSchema={"type": "object"},
@@ -136,12 +141,12 @@ class FakeContractInternalServer(FakeServer):
         ]
 
 
-class FakeHostileCompoundSchemaServer(FakeServer):
+class FakeHostileManipulationSchemaServer(FakeServer):
     async def list_tools(self):
         return [
             Tool(
-                name="moveit_plan_compound_task",
-                description="Plan compound task",
+                name="moveit_plan_manipulation_task",
+                description="Plan manipulation task",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -225,7 +230,7 @@ TASK_PLAN_EXECUTION_PARAMETERS = {
     "required": ["robot_name", "task_solution_id"],
     "additionalProperties": False,
 }
-COMPOUND_TASK_PLANNING_PARAMETERS = {
+MANIPULATION_TASK_PLANNING_PARAMETERS = {
     "type": "object",
     "properties": {
         "requirements": {
@@ -233,8 +238,9 @@ COMPOUND_TASK_PLANNING_PARAMETERS = {
             "properties": {
                 "goal": {
                     "type": "string",
-                    "enum": ["hold", "release", "move_and_release", "pick_place"],
-                }
+                    "enum": ["hold", "place", "release", "move_and_release", "pick_place"],
+                },
+                "lift_distance_m": {"type": "number", "minimum": 0.03, "maximum": 0.2},
             },
         }
     },
@@ -381,13 +387,6 @@ async def test_lists_only_allowed_tools_as_langchain_function_tools_with_canonic
             "parameters": {"type": "object"},
             "strict": None,
         },
-        {
-            "type": "function",
-            "name": "moveit_plan_free_motion",
-            "description": agent_tool_description("moveit_plan_free_motion"),
-            "parameters": {"type": "object"},
-            "strict": None,
-        },
     ]
 
 
@@ -400,8 +399,6 @@ async def test_deduplicates_legacy_aliases_and_prefers_canonical_mcp_tools():
 
     assert [tool["name"] for tool in bridge.function_tools()] == [
         "moveit_get_current_pose",
-        "moveit_plan_free_motion",
-        "moveit_execute_plan",
     ]
 
     await bridge.call_tool("moveit_get_current_pose", {"robot_name": "UR10"})
@@ -427,85 +424,23 @@ async def test_calls_canonical_listed_tool_by_advertised_name():
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
     await bridge.connect()
 
-    assert bridge.function_tools() == [
-        {
-            "type": "function",
-            "name": "moveit_get_current_pose",
-            "description": agent_tool_description("moveit_get_current_pose"),
-            "parameters": {"type": "object"},
-            "strict": None,
-        },
-        {
-            "type": "function",
-            "name": "moveit_get_robot_state",
-            "description": agent_tool_description("moveit_get_robot_state"),
-            "parameters": {"type": "object"},
-            "strict": None,
-        },
-        {
-            "type": "function",
-            "name": "moveit_list_scene_objects",
-            "description": agent_tool_description("moveit_list_scene_objects"),
-            "parameters": {"type": "object"},
-            "strict": None,
-        },
-        {
-            "type": "function",
-            "name": "moveit_get_object_context",
-            "description": agent_tool_description("moveit_get_object_context"),
-            "parameters": {"type": "object"},
-            "strict": None,
-        },
-        {
-            "type": "function",
-            "name": "moveit_plan_compound_task",
-            "description": agent_tool_description("moveit_plan_compound_task"),
-            "parameters": COMPOUND_TASK_PLANNING_PARAMETERS,
-            "strict": None,
-        },
-        {
-            "type": "function",
-            "name": "moveit_execute_task_plan",
-            "description": agent_tool_description("moveit_execute_task_plan"),
-            "parameters": TASK_PLAN_EXECUTION_PARAMETERS,
-            "strict": None,
-        },
-        {
-            "type": "function",
-            "name": "moveit_execute_task_solution",
-            "description": agent_tool_description("moveit_execute_task_solution"),
-            "parameters": TASK_SOLUTION_EXECUTION_PARAMETERS,
-            "strict": None,
-        },
-        {
-            "type": "function",
-            "name": "moveit_plan_pick",
-            "description": agent_tool_description("moveit_plan_pick"),
-            "parameters": {"type": "object"},
-            "strict": None,
-        },
-        {
-            "type": "function",
-            "name": "moveit_plan_place",
-            "description": agent_tool_description("moveit_plan_place"),
-            "parameters": {"type": "object"},
-            "strict": None,
-        },
-        {
-            "type": "function",
-            "name": "moveit_explain_motion_failure",
-            "description": agent_tool_description("moveit_explain_motion_failure"),
-            "parameters": {"type": "object"},
-            "strict": None,
-        },
-        {
-            "type": "function",
-            "name": "moveit_verify_attached_object",
-            "description": agent_tool_description("moveit_verify_attached_object"),
-            "parameters": {"type": "object"},
-            "strict": None,
-        },
+    tools = {tool["name"]: tool for tool in bridge.function_tools()}
+    assert list(tools) == [
+        "moveit_get_current_pose",
+        "moveit_get_robot_state",
+        "moveit_list_scene_objects",
+        "moveit_get_object_context",
+        "moveit_plan_manipulation_task",
+        "moveit_execute_task_plan",
+        "moveit_explain_motion_failure",
     ]
+    assert tools["moveit_plan_manipulation_task"] == {
+        "type": "function",
+        "name": "moveit_plan_manipulation_task",
+        "description": agent_tool_description("moveit_plan_manipulation_task"),
+        "parameters": MANIPULATION_TASK_PLANNING_PARAMETERS,
+        "strict": None,
+    }
 
     output = await bridge.call_tool("moveit_get_current_pose", {"robot_name": "UR10"})
 
@@ -619,22 +554,27 @@ async def test_task_solution_execution_schema_hides_upstream_scene_snapshot_id()
 
     tools = {tool["name"]: tool for tool in bridge.function_tools()}
 
-    parameters = tools["moveit_execute_task_solution"]["parameters"]
-    assert parameters == TASK_SOLUTION_EXECUTION_PARAMETERS
-    assert "scene_snapshot_id" not in parameters["properties"]
-    assert "scene_snapshot_id" not in parameters["required"]
+    assert "moveit_execute_task_solution" not in tools
 
 
 @pytest.mark.asyncio
-async def test_compound_task_schema_overrides_goal_enum_from_upstream_schema():
-    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeHostileCompoundSchemaServer())
+async def test_manipulation_task_schema_overrides_goal_enum_from_upstream_schema():
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeHostileManipulationSchemaServer())
     await bridge.connect()
 
     tools = {tool["name"]: tool for tool in bridge.function_tools()}
-    goal = tools["moveit_plan_compound_task"]["parameters"]["properties"]["requirements"]["properties"]["goal"]
+    requirement_properties = tools["moveit_plan_manipulation_task"]["parameters"]["properties"][
+        "requirements"
+    ]["properties"]
+    goal = requirement_properties["goal"]
 
-    assert goal["enum"] == ["hold", "release", "move_and_release", "pick_place"]
+    assert goal["enum"] == ["hold", "place", "release", "move_and_release", "pick_place"]
     assert "slide" not in goal["enum"]
+    assert requirement_properties["lift_distance_m"] == {
+        "type": "number",
+        "minimum": 0.03,
+        "maximum": 0.2,
+    }
 
 
 @pytest.mark.asyncio
@@ -681,7 +621,12 @@ async def test_model_visible_tools_hide_internal_pick_and_place_task_planners():
 
     names = {tool["name"] for tool in bridge.function_tools()}
 
-    assert "moveit_plan_compound_task" in names
+    assert "moveit_plan_manipulation_task" in names
+    assert "moveit_plan_compound_task" not in names
+    assert "moveit_plan_pick" not in names
+    assert "moveit_plan_place" not in names
+    assert "moveit_plan_free_motion" not in names
+    assert "moveit_plan_cartesian_motion" not in names
     assert "moveit_plan_pick_task" not in names
     assert "moveit_plan_place_task" not in names
 
@@ -731,6 +676,44 @@ async def test_normalizes_cartesian_points_alias_before_mcp_call():
         (
             "moveit_plan_cartesian_motion",
             {"robot_name": "UR10", "waypoints": points, "timeout_s": 10.0},
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_adds_staged_moveit_backend_for_manipulation_mcp_call():
+    server = FakeCanonicalServer()
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
+    await bridge.connect()
+
+    await bridge.call_tool(
+        "moveit_plan_manipulation_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {
+                "goal": "hold",
+                "object_name": "dynamic_2",
+                "lift_distance_m": 0.1,
+            },
+            "preferences": {},
+            "timeout_s": 10.0,
+        },
+    )
+
+    assert server.called == [
+        (
+            "moveit_plan_manipulation_task",
+            {
+                "robot_name": "UR10",
+                "requirements": {
+                    "goal": "hold",
+                    "object_name": "dynamic_2",
+                    "lift_distance_m": 0.1,
+                },
+                "preferences": {},
+                "timeout_s": 10.0,
+                "backend": "staged_moveit",
+            },
         )
     ]
 
@@ -869,5 +852,5 @@ async def test_bridge_advertises_agent_friendly_descriptions():
 
     tools = {tool["name"]: tool for tool in bridge.function_tools()}
     assert "current end-effector pose" in tools["moveit_get_current_pose"]["description"]
-    assert "target pose" in tools["moveit_plan_free_motion"]["description"]
-    assert "returned plan" in tools["moveit_execute_plan"]["description"]
+    assert "moveit_plan_free_motion" not in tools
+    assert "moveit_execute_plan" not in tools

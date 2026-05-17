@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pipecat.frames.frames import LLMFullResponseEndFrame, LLMFullResponseStartFrame, LLMTextFrame
@@ -24,7 +24,7 @@ class CapturingRTVI:
 @pytest.mark.asyncio
 async def test_gemini_live_observer_emits_bot_output_from_llm_text() -> None:
     rtvi = CapturingRTVI()
-    observer = GeminiLiveConversationRTVIObserver(rtvi)
+    observer = GeminiLiveConversationRTVIObserver(cast(Any, rtvi))
 
     await observer.on_push_frame(_pushed(LLMFullResponseStartFrame()))
     await observer.on_push_frame(_pushed(LLMTextFrame("Hmmmmmm. ")))
@@ -49,7 +49,7 @@ async def test_gemini_live_observer_emits_bot_output_from_llm_text() -> None:
 @pytest.mark.asyncio
 async def test_gemini_live_observer_ignores_empty_bot_output() -> None:
     rtvi = CapturingRTVI()
-    observer = GeminiLiveConversationRTVIObserver(rtvi)
+    observer = GeminiLiveConversationRTVIObserver(cast(Any, rtvi))
 
     await observer.on_push_frame(_pushed(LLMFullResponseStartFrame()))
     await observer.on_push_frame(_pushed(LLMTextFrame("   ")))

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Agent Persona Lab</title>
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='14'%20fill='%23242726'/%3E%3Cpath%20d='M12%2035c6-24%2012%2024%2018%200s12-24%2018%200'%20fill='none'%20stroke='%23188b86'%20stroke-width='6'%20stroke-linecap='round'/%3E%3Ccircle%20cx='18'%20cy='18'%20r='7'%20fill='%23df6b58'/%3E%3Cpath%20d='M43%2013l7%2010h-6l4%2013-13-18h7z'%20fill='%23c08a22'/%3E%3C/svg%3E">
   <style>
     :root {
       --graphite: #242726;
@@ -204,7 +204,7 @@
     }
 
     .gemini-voice-fields {
-      grid-template-columns: minmax(160px, 1fr) auto auto;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .voice-fields label,
@@ -215,6 +215,10 @@
       font-size: 12px;
       font-weight: 800;
       text-transform: uppercase;
+    }
+
+    .gemini-voice-fields label {
+      grid-column: 1 / -1;
     }
 
     .voice-fields select,
@@ -230,6 +234,7 @@
       outline-color: var(--teal);
     }
 
+    .speech-panel,
     .persona-panel,
     .persona-editor {
       margin-bottom: 16px;
@@ -294,12 +299,34 @@
       min-height: 180px;
       font-family: "Cascadia Mono", "Consolas", monospace;
       font-size: 12px;
-      white-space: pre;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
 
     .persona-editor textarea[readonly] {
       color: #4d4943;
       background: rgba(221, 216, 203, 0.56);
+    }
+
+    .speech-panel {
+      display: grid;
+      gap: 8px;
+    }
+
+    .speech-panel textarea {
+      min-height: 150px;
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .workbench .speech-panel {
+      margin-top: 16px;
+    }
+
+    .workbench .speech-panel textarea {
+      min-height: 260px;
     }
 
     .voice-link {
@@ -308,6 +335,7 @@
       justify-content: center;
       min-height: 40px;
       text-decoration: none;
+      text-align: center;
     }
 
     .phrase-row,
@@ -635,6 +663,16 @@
               </article>
             </div>
             <div id="status" class="status">Load a profile, choose a preset, then generate a preview.</div>
+
+            <div class="panel-title">
+              <h2>Speech delivery</h2>
+            </div>
+            <section class="speech-panel" data-part-id="speech_delivery_style">
+              <p class="persona-note">This prompt guides Gemini Live delivery for previews. Saved changes apply to lab previews immediately; the running bot still needs restart.</p>
+              <textarea id="speechDeliveryEditor" spellcheck="false" wrap="soft"></textarea>
+              <button id="saveSpeechDeliveryBtn">Save speech delivery</button>
+              <div id="speechDeliveryStatus" class="status">Load prompt parts to edit speech delivery.</div>
+            </section>
           </section>
 
           <aside class="rack">
@@ -763,6 +801,7 @@
       personaParts: [],
       personaTemplates: []
     };
+    const SPEECH_DELIVERY_PART_ID = "speech_delivery_style";
     const $ = (id) => document.getElementById(id);
 
     function escapeHtml(value) {
@@ -788,6 +827,11 @@
     function setPersonaStatus(text, tone = "") {
       $("personaSaveStatus").textContent = text;
       $("personaSaveStatus").className = `status ${tone}`;
+    }
+
+    function setSpeechDeliveryStatus(text, tone = "") {
+      $("speechDeliveryStatus").textContent = text;
+      $("speechDeliveryStatus").className = `status ${tone}`;
     }
 
     function audioUrl(audio) {
@@ -1059,6 +1103,7 @@
     async function loadPersonaParts() {
       const data = await api("/api/persona/parts");
       state.personaParts = Array.isArray(data.parts) ? data.parts : [];
+      renderSpeechDeliveryPart();
       renderPersonaParts();
     }
 
@@ -1090,22 +1135,38 @@
     }
 
     function renderPersonaParts() {
-      if (!state.personaParts.length) {
+      const parts = state.personaParts.filter((part) => part.id !== SPEECH_DELIVERY_PART_ID);
+      if (!parts.length) {
         $("personaParts").innerHTML = "";
         setPersonaStatus("No persona prompt parts loaded.", "hot");
         return;
       }
-      $("personaParts").innerHTML = state.personaParts.map((part) => `
+      $("personaParts").innerHTML = parts.map((part) => `
         <section class="persona-editor" data-part-id="${escapeHtml(part.id)}">
           <header>
             <strong>${escapeHtml(part.title || part.filename || part.id)}</strong>
             <span>${part.editable ? "Editable" : "Read-only"}</span>
           </header>
-          <textarea ${part.editable ? "" : "readonly"} spellcheck="false">${escapeHtml(part.content || "")}</textarea>
+          <textarea ${part.editable ? "" : "readonly"} spellcheck="false" wrap="soft">${escapeHtml(part.content || "")}</textarea>
           ${part.editable ? `<button data-save-part="${escapeHtml(part.id)}">Save part</button>` : ""}
         </section>
       `).join("");
       setPersonaStatus("Persona prompt parts loaded. Saved changes require bot restart.", "ok");
+    }
+
+    function renderSpeechDeliveryPart() {
+      const part = state.personaParts.find((item) => item.id === SPEECH_DELIVERY_PART_ID);
+      if (!part) {
+        $("speechDeliveryEditor").value = "";
+        $("speechDeliveryEditor").disabled = true;
+        $("saveSpeechDeliveryBtn").disabled = true;
+        setSpeechDeliveryStatus("Speech delivery prompt part is not loaded.", "hot");
+        return;
+      }
+      $("speechDeliveryEditor").value = part.content || "";
+      $("speechDeliveryEditor").disabled = !part.editable;
+      $("saveSpeechDeliveryBtn").disabled = !part.editable;
+      setSpeechDeliveryStatus("Speech delivery prompt loaded.", "ok");
     }
 
     function syncTemplateButtons() {
@@ -1379,6 +1440,25 @@
       }
     }
 
+    async function saveSpeechDeliveryPart() {
+      const editor = $("speechDeliveryEditor");
+      setSpeechDeliveryStatus("Saving speech delivery prompt...", "");
+      try {
+        const data = await api(`/api/persona/parts/${SPEECH_DELIVERY_PART_ID}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: editor.value })
+        });
+        const part = data.part || {};
+        const index = state.personaParts.findIndex((item) => item.id === SPEECH_DELIVERY_PART_ID);
+        if (index >= 0) state.personaParts[index] = part;
+        renderSpeechDeliveryPart();
+        setSpeechDeliveryStatus("Saved speech delivery. Lab previews use it immediately; bot restart required.", "ok");
+      } catch (error) {
+        setSpeechDeliveryStatus(error.message, "hot");
+      }
+    }
+
     async function loadPersonaTemplate(templateId) {
       setPersonaStatus("Loading persona template...", "");
       try {
@@ -1387,6 +1467,7 @@
           headers: { "Content-Type": "application/json" }
         });
         state.personaParts = Array.isArray(data.parts) ? data.parts : state.personaParts;
+        renderSpeechDeliveryPart();
         renderPersonaParts();
         setPersonaStatus("Template loaded. Restart required. Git has source changes.", "ok");
       } catch (error) {
@@ -1428,6 +1509,7 @@
     $("sourceBtn").addEventListener("click", generateSource);
     $("renderBtn").addEventListener("click", renderModulation);
     $("saveGeminiVoiceBtn").addEventListener("click", saveGeminiVoice);
+    $("saveSpeechDeliveryBtn").addEventListener("click", saveSpeechDeliveryPart);
     $("saveModulationBtn").addEventListener("click", saveModulation);
     $("saveModulationDefaultBtn").addEventListener("click", saveModulationDefault);
     $("personaParts").addEventListener("click", (event) => {

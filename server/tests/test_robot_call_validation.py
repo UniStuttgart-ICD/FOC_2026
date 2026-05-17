@@ -195,53 +195,60 @@ def test_accepts_task_solution_place_planning_arguments() -> None:
     assert "task solution" in description
 
 
-def test_task_tool_descriptions_route_compound_manipulation_tasks() -> None:
-    compound_task = agent_tool_description("moveit_plan_compound_task").lower()
+def test_task_tool_descriptions_route_staged_manipulation_tasks() -> None:
+    manipulation_task = agent_tool_description("moveit_plan_manipulation_task").lower()
     cartesian = agent_tool_description("moveit_plan_cartesian_motion").lower()
 
-    assert "compound manipulation task" in compound_task
-    assert "requirements" in compound_task
-    assert "preferences" in compound_task
-    assert "stage_intents" in compound_task
-    assert "optional" in compound_task
-    assert "hints" in compound_task
-    assert "non-executable" in compound_task
-    assert 'backend="mtc"' in compound_task
-    assert "execution_contract" in compound_task
+    assert "staged moveit manipulation task" in manipulation_task
+    assert "requirements" in manipulation_task
+    assert "preferences" in manipulation_task
+    assert "hold" in manipulation_task
+    assert "place" in manipulation_task
+    assert "move_and_release" in manipulation_task
+    assert "pick_place" in manipulation_task
+    assert "execution_contract" in manipulation_task
     assert "do not use for compound manipulation tasks" in cartesian
-    assert "moveit_plan_compound_task" in cartesian
+    assert "moveit_plan_manipulation_task" in cartesian
 
 
-def test_accepts_requirements_only_mtc_compound_task_planning_arguments() -> None:
+def test_accepts_requirements_only_manipulation_task_planning_arguments() -> None:
     validate_robot_tool_call(
-        "moveit_plan_compound_task",
+        "moveit_plan_manipulation_task",
         {
             "robot_name": "UR10",
             "requirements": {"goal": "hold", "object_name": "dynamic_5"},
-            "backend": "mtc",
             "timeout_s": 10.0,
         },
     )
 
-    assert canonical_mcp_tool_name("moveit_plan_compound_task") == "moveit_plan_compound_task"
+    assert canonical_mcp_tool_name("moveit_plan_manipulation_task") == "moveit_plan_manipulation_task"
 
 
 @pytest.mark.parametrize("goal", ["hold", "release"])
-def test_accepts_untargeted_final_compound_task_goals(goal: str) -> None:
+def test_accepts_untargeted_final_manipulation_task_goals(goal: str) -> None:
     validate_robot_tool_call(
-        "moveit_plan_compound_task",
+        "moveit_plan_manipulation_task",
         {
             "robot_name": "UR10",
             "requirements": {"goal": goal, "object_name": "dynamic_5"},
-            "backend": "mtc",
         },
     )
 
 
-@pytest.mark.parametrize("goal", ["move_and_release", "pick_place"])
-def test_accepts_targeted_final_compound_task_goals(goal: str) -> None:
+def test_accepts_release_manipulation_without_object_name_for_current_held_object() -> None:
     validate_robot_tool_call(
-        "moveit_plan_compound_task",
+        "moveit_plan_manipulation_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {"goal": "release"},
+        },
+    )
+
+
+@pytest.mark.parametrize("goal", ["place", "move_and_release", "pick_place"])
+def test_accepts_targeted_final_manipulation_task_goals(goal: str) -> None:
+    validate_robot_tool_call(
+        "moveit_plan_manipulation_task",
         {
             "robot_name": "UR10",
             "requirements": {
@@ -249,33 +256,31 @@ def test_accepts_targeted_final_compound_task_goals(goal: str) -> None:
                 "object_name": "dynamic_5",
                 "target_position": {"x": 0.75, "y": 0.2, "z": 0.28},
             },
-            "backend": "mtc",
         },
     )
 
 
 @pytest.mark.parametrize("goal", ["pick", "approach_hold_adjust_release"])
-def test_rejects_removed_model_visible_compound_task_goals(goal: str) -> None:
+def test_rejects_removed_model_visible_manipulation_task_goals(goal: str) -> None:
     with pytest.raises(RobotCallValidationError) as exc:
         validate_robot_tool_call(
-            "moveit_plan_compound_task",
+            "moveit_plan_manipulation_task",
             {
                 "robot_name": "UR10",
                 "requirements": {"goal": goal, "object_name": "dynamic_5"},
-                "backend": "mtc",
             },
         )
 
     structured = structured_robot_call_error(exc.value)
     assert structured["ok"] is False
-    assert "hold, release, move_and_release, or pick_place" in structured["correction"]
+    assert "hold, place, release, move_and_release, or pick_place" in structured["correction"]
     assert "approach_hold_adjust_release" not in structured["correction"]
 
 
 @pytest.mark.parametrize("lift_distance_m", [0.03, 0.1, 0.2])
-def test_accepts_hold_lift_distance_within_compound_bounds(lift_distance_m: float) -> None:
+def test_accepts_lift_distance_within_manipulation_bounds(lift_distance_m: float) -> None:
     validate_robot_tool_call(
-        "moveit_plan_compound_task",
+        "moveit_plan_manipulation_task",
         {
             "robot_name": "UR10",
             "requirements": {
@@ -283,16 +288,15 @@ def test_accepts_hold_lift_distance_within_compound_bounds(lift_distance_m: floa
                 "object_name": "dynamic_5",
                 "lift_distance_m": lift_distance_m,
             },
-            "backend": "mtc",
         },
     )
 
 
 @pytest.mark.parametrize("lift_distance_m", [0.0, 0.029, 0.201, "0.1"])
-def test_rejects_hold_lift_distance_outside_compound_bounds(lift_distance_m: object) -> None:
+def test_rejects_lift_distance_outside_manipulation_bounds(lift_distance_m: object) -> None:
     with pytest.raises(RobotCallValidationError) as exc:
         validate_robot_tool_call(
-            "moveit_plan_compound_task",
+            "moveit_plan_manipulation_task",
             {
                 "robot_name": "UR10",
                 "requirements": {
@@ -300,11 +304,10 @@ def test_rejects_hold_lift_distance_outside_compound_bounds(lift_distance_m: obj
                     "object_name": "dynamic_5",
                     "lift_distance_m": lift_distance_m,
                 },
-                "backend": "mtc",
             },
         )
 
-    assert str(exc.value) == "requirements.lift_distance_m is outside supported hold range"
+    assert str(exc.value) == "requirements.lift_distance_m is outside supported manipulation range"
     assert "0.03 m and 0.20 m" in exc.value.correction
 
 
@@ -791,7 +794,7 @@ def test_allows_compound_task_plan_execution_with_supported_cached_contract() ->
                         "handler": "verify_attached_object",
                         "source_stage": "verify_attached_object",
                         "object_name": "dynamic_5",
-                        "required_proof": "attachment_check",
+                        "required_proof": "attachment_verified",
                     },
                 ]
             }
@@ -803,6 +806,121 @@ def test_allows_compound_task_plan_execution_with_supported_cached_contract() ->
         {
             "robot_name": "UR10",
             "task_solution_id": "compound_task_dynamic_5_001",
+        },
+    )
+
+
+def test_allows_long_hybrid_task_plan_execution_contract() -> None:
+    task_solution_id = "hybrid_pick_place_dynamic_5_001"
+    store = RobotContextStore(time_fn=lambda: 100.0)
+    store.remember_task_solution_approval_candidate(
+        target_kind="task_solution",
+        task_solution_id=task_solution_id,
+        source_tool="moveit_plan_manipulation_task",
+        object_name="dynamic_5",
+        expected_movement="pick and place object",
+        scene_snapshot_id="scene_20260515_001",
+    )
+    store.record_task_solution_approval(
+        task_solution_id,
+        approval_turn_id="turn-1",
+        approved_at=100.0,
+    )
+    store.remember_task_solution(
+        task_solution_id=task_solution_id,
+        task_kind="pick_place",
+        object_name="dynamic_5",
+        backend="staged_moveit",
+        scene_snapshot_id="scene_20260515_001",
+        approval_required=True,
+        raw={
+            "execution_contract": {
+                "steps": [
+                    {
+                        "handler": "motion",
+                        "name": "connect_to_pre_grasp",
+                        "source_stage": "connect_to_pre_grasp",
+                        "target_pose": VALID_POSE,
+                        "required_proof": "emulated_motion_plan",
+                    },
+                    {
+                        "handler": "motion",
+                        "name": "approach_to_pre_grasp",
+                        "source_stage": "approach_to_pre_grasp",
+                        "target_pose": VALID_POSE,
+                        "required_proof": "emulated_motion_plan",
+                    },
+                    {
+                        "handler": "close_gripper",
+                        "name": "close_gripper",
+                        "source_stage": "close_gripper",
+                        "required_proof": "verified_gripper_closed",
+                    },
+                    {
+                        "handler": "attach_object",
+                        "name": "attach_object",
+                        "source_stage": "attach_object",
+                        "object_name": "dynamic_5",
+                        "required_proof": "planning_scene_attached",
+                    },
+                    {
+                        "handler": "motion",
+                        "name": "post_grasp_lift",
+                        "source_stage": "post_grasp_lift",
+                        "target_pose": VALID_POSE,
+                        "required_proof": "plan_execution_verified",
+                    },
+                    {
+                        "handler": "motion",
+                        "name": "connect_to_place",
+                        "source_stage": "connect_to_place",
+                        "target_pose": VALID_POSE,
+                        "required_proof": "emulated_motion_plan",
+                    },
+                    {
+                        "handler": "motion",
+                        "name": "approach_place",
+                        "source_stage": "approach_place",
+                        "target_pose": VALID_POSE,
+                        "required_proof": "emulated_motion_plan",
+                    },
+                    {
+                        "handler": "open_gripper",
+                        "name": "open_gripper",
+                        "source_stage": "open_gripper",
+                        "required_proof": "verified_gripper_open",
+                    },
+                    {
+                        "handler": "release_object",
+                        "name": "release_object",
+                        "source_stage": "release_object",
+                        "object_name": "dynamic_5",
+                        "required_proof": "planning_scene_update",
+                    },
+                    {
+                        "handler": "motion",
+                        "name": "retreat",
+                        "source_stage": "retreat",
+                        "target_pose": VALID_POSE,
+                        "required_proof": "emulated_motion_plan",
+                    },
+                    {
+                        "handler": "verify_released_object",
+                        "name": "verify_released_object",
+                        "source_stage": "verify_released_object",
+                        "object_name": "dynamic_5",
+                        "required_proof": "release_check",
+                    },
+                ]
+            }
+        },
+    )
+
+    ensure_task_solution_execution_allowed(
+        store,
+        {
+            "robot_name": "UR10",
+            "task_solution_id": task_solution_id,
         },
     )
 

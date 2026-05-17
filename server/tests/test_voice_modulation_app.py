@@ -144,8 +144,11 @@ def _write_prompt_parts(prompt_dir: Path) -> None:
         (prompt_dir / filename).write_text(f"# {filename}\n", encoding="utf-8")
 
 
-def _write_persona_template(server_dir: Path) -> None:
-    template_dir = server_dir / "agent_control" / "persona_templates" / "independent_agent"
+def _write_persona_template(
+    server_dir: Path,
+    template_id: str = "independent_agent",
+) -> None:
+    template_dir = server_dir / "agent_control" / "persona_templates" / template_id
     template_dir.mkdir(parents=True)
     for filename in (
         "mave_embodiment.md",
@@ -399,6 +402,7 @@ def test_persona_templates_route_lists_templates(tmp_path: Path) -> None:
     from voice_modulation.app import create_app
 
     _write_persona_template(tmp_path)
+    _write_persona_template(tmp_path, "robot_embodied_agent")
     client = TestClient(create_app(server_dir=tmp_path))
 
     response = client.get("/api/persona/templates")
@@ -406,7 +410,7 @@ def test_persona_templates_route_lists_templates(tmp_path: Path) -> None:
     assert response.status_code == 200
     templates = {template["id"]: template for template in response.json()["templates"]}
     assert templates["independent_agent"]["available"] is True
-    assert templates["robot_embodied_agent"]["available"] is False
+    assert templates["robot_embodied_agent"]["available"] is True
 
 
 def test_persona_template_load_route_writes_editable_parts(tmp_path: Path) -> None:
@@ -425,6 +429,35 @@ def test_persona_template_load_route_writes_editable_parts(tmp_path: Path) -> No
     assert {part["id"] for part in body["parts"]} >= {"mave_embodiment", "behavior_examples"}
     assert (prompt_dir / "behavior_examples.md").read_text(encoding="utf-8").startswith(
         "# Template behavior_examples.md"
+    )
+
+
+def test_robot_embodied_template_load_route_writes_editable_parts(tmp_path: Path) -> None:
+    from voice_modulation.app import create_app
+
+    prompt_dir = tmp_path / "agent_control" / "prompt_parts"
+    _write_prompt_parts(prompt_dir)
+    _write_persona_template(tmp_path, "robot_embodied_agent")
+    template_dir = (
+        tmp_path / "agent_control" / "persona_templates" / "robot_embodied_agent"
+    )
+    (template_dir / "mave_embodiment.md").write_text(
+        "# MAVE embodiment\nRobot body template.\n",
+        encoding="utf-8",
+    )
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.post("/api/persona/templates/robot_embodied_agent/load")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["restart_required"] is True
+    assert {part["id"] for part in body["parts"]} >= {
+        "mave_embodiment",
+        "speech_delivery_style",
+    }
+    assert (prompt_dir / "mave_embodiment.md").read_text(encoding="utf-8") == (
+        "# MAVE embodiment\nRobot body template.\n"
     )
 
 
@@ -767,6 +800,7 @@ def test_source_preview_route_accepts_gemini_voice_override(tmp_path, monkeypatc
     from voice_modulation.preview import AudioBytes
 
     _write_profiles(tmp_path / "runtime_profiles.toml")
+    _write_prompt_parts(tmp_path / "agent_control" / "prompt_parts")
     calls: list[tuple[TTSProfile, str]] = []
 
     def fake_synthesizer(tts: TTSProfile, text: str) -> AudioBytes:
@@ -792,6 +826,7 @@ def test_tts_preview_route_accepts_gemini_voice_override(tmp_path, monkeypatch) 
     from voice_modulation.preview import AudioBytes
 
     _write_profiles(tmp_path / "runtime_profiles.toml")
+    _write_prompt_parts(tmp_path / "agent_control" / "prompt_parts")
     calls: list[tuple[TTSProfile, str]] = []
 
     def fake_synthesizer(tts: TTSProfile, text: str) -> AudioBytes:
@@ -817,6 +852,12 @@ def test_source_preview_route_applies_gemini_live_speech_delivery(tmp_path) -> N
     from voice_modulation.preview import AudioBytes
 
     _write_profiles(tmp_path / "runtime_profiles.toml")
+    prompt_dir = tmp_path / "agent_control" / "prompt_parts"
+    _write_prompt_parts(prompt_dir)
+    (prompt_dir / "speech_delivery_style.md").write_text(
+        "Use current modulation delivery.",
+        encoding="utf-8",
+    )
     calls: list[TTSProfile] = []
 
     def fake_synthesizer(tts: TTSProfile, text: str) -> AudioBytes:
@@ -834,7 +875,20 @@ def test_source_preview_route_applies_gemini_live_speech_delivery(tmp_path) -> N
     assert calls
     assert calls[0].provider == "gemini_live"
     assert calls[0].instructions is not None
-    assert "Speak the transcript exactly" in calls[0].instructions
+    assert "Use current modulation delivery." in calls[0].instructions
+
+    (prompt_dir / "speech_delivery_style.md").write_text(
+        "Use updated modulation delivery.",
+        encoding="utf-8",
+    )
+    second_response = client.post(
+        "/api/preview/source",
+        json={"profile_name": "gemini_live_preview", "text": "Status report."},
+    )
+
+    assert second_response.status_code == 200
+    assert calls[1].instructions is not None
+    assert "Use updated modulation delivery." in calls[1].instructions
 
 
 def test_effect_preview_route_uses_dsp_process_pcm16(tmp_path, monkeypatch) -> None:
@@ -877,10 +931,15 @@ def test_index_page_serves_voice_mod_lab_workbench(tmp_path) -> None:
 
     assert response.status_code == 200
     assert "Agent Persona Lab" in response.text
+    assert 'rel="icon" type="image/svg+xml"' in response.text
+    assert "data:image/svg+xml" in response.text
     assert "profileSelect" in response.text
     assert "geminiVoiceSelect" in response.text
     assert 'data-tab="voiceTab"' not in response.text
     assert 'data-tab="modulationTab">Modulation' in response.text
+    assert "speechDeliveryEditor" in response.text
+    assert "saveSpeechDeliveryBtn" in response.text
+    assert response.text.index("speechDeliveryEditor") < response.text.index("Character bay")
     assert "voiceIdInput" in response.text
     assert "https://play.cartesia.ai/voices" in response.text
     assert "https://docs.cloud.google.com/text-to-speech/docs/gemini-tts" in response.text

@@ -116,8 +116,12 @@ def render_effect_preview(audio: AudioBytes, settings: VoiceModulationSettings) 
     return AudioBytes(pcm16=output, sample_rate=audio.sample_rate, channels=audio.channels)
 
 
-def tts_for_preview(tts: TTSProfile, voice_id: str | None) -> TTSProfile:
-    tts = _tts_with_preview_defaults(tts)
+def tts_for_preview(
+    tts: TTSProfile,
+    voice_id: str | None,
+    speech_delivery_style: str = SPEECH_DELIVERY_STYLE,
+) -> TTSProfile:
+    tts = _tts_with_preview_defaults(tts, speech_delivery_style)
     if voice_id is None:
         return tts
     if tts.provider == "cartesia":
@@ -256,9 +260,12 @@ def _require_provider_env(tts: TTSProfile) -> None:
         raise VoicePreviewError(f"Missing environment variables: {', '.join(missing)}")
 
 
-def _tts_with_preview_defaults(tts: TTSProfile) -> TTSProfile:
+def _tts_with_preview_defaults(
+    tts: TTSProfile,
+    speech_delivery_style: str = SPEECH_DELIVERY_STYLE,
+) -> TTSProfile:
     if tts.provider == "gemini_live" and tts.instructions is None:
-        return replace(tts, instructions=SPEECH_DELIVERY_STYLE)
+        return replace(tts, instructions=speech_delivery_style)
     return tts
 
 

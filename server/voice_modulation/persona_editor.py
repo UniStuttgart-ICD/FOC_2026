@@ -59,6 +59,11 @@ _READ_ONLY_PARTS: tuple[_PartSpec, ...] = (
 )
 _PARTS = _EDITABLE_PARTS + _READ_ONLY_PARTS
 _PARTS_BY_ID = {part.id: part for part in _PARTS}
+_TEMPLATES: tuple[tuple[str, str], ...] = (
+    ("independent_agent", "Independent agent"),
+    ("robot_embodied_agent", "Robot embodied agent"),
+)
+_TEMPLATE_IDS = {template_id for template_id, _label in _TEMPLATES}
 
 
 def load_persona_parts(prompt_parts_dir: str | Path) -> list[PersonaPart]:
@@ -84,24 +89,19 @@ def save_persona_part(
 
 def list_persona_templates(server_dir: str | Path) -> list[dict[str, object]]:
     root = Path(server_dir)
-    independent_dir = _template_dir(root, "independent_agent")
     return [
         {
-            "id": "independent_agent",
-            "label": "Independent agent",
-            "available": independent_dir.is_dir(),
-        },
-        {
-            "id": "robot_embodied_agent",
-            "label": "Robot embodied agent",
-            "available": False,
-        },
+            "id": template_id,
+            "label": label,
+            "available": _template_dir(root, template_id).is_dir(),
+        }
+        for template_id, label in _TEMPLATES
     ]
 
 
 def load_persona_template(server_dir: str | Path, template_id: str) -> list[PersonaPart]:
     root = Path(server_dir)
-    if template_id != "independent_agent":
+    if template_id not in _TEMPLATE_IDS:
         raise PersonaValidationError(f"Unavailable persona template: {template_id}")
 
     template_dir = _template_dir(root, template_id)

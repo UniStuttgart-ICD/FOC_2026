@@ -7,22 +7,24 @@ CANONICAL_TOOLS = {
     "moveit_get_robot_state",
     "moveit_list_scene_objects",
     "moveit_get_object_context",
+    "moveit_plan_manipulation_task",
+    "moveit_execute_task_solution",
+    "moveit_execute_task_plan",
+    "moveit_explain_motion_failure",
+    "geometry_update_dynamic_role",
+}
+
+HIDDEN_INTERNAL_TOOLS = {
     "moveit_plan_pick",
     "moveit_plan_place",
     "moveit_plan_compound_task",
     "moveit_plan_free_motion",
     "moveit_plan_cartesian_motion",
     "moveit_execute_plan",
-    "moveit_execute_task_solution",
-    "moveit_execute_task_plan",
-    "moveit_explain_motion_failure",
     "moveit_verify_attached_object",
     "moveit_open_gripper",
     "moveit_close_gripper",
     "moveit_attach_object",
-}
-
-HIDDEN_INTERNAL_TOOLS = {
     "moveit_plan_pick_task",
     "moveit_plan_place_task",
     "moveit_release_object",
@@ -67,7 +69,7 @@ def test_prompt_requires_observe_plan_execute_verify_for_robot_actions() -> None
     assert "plan before" in SYSTEM_PROMPT.lower()
     assert "execute only" in SYSTEM_PROMPT.lower()
     assert "verify" in SYSTEM_PROMPT.lower()
-    assert "combined plan-and-execute tools" in SYSTEM_PROMPT.lower()
+    assert "plan before execution" in SYSTEM_PROMPT.lower()
 
 
 def test_prompt_treats_queued_jobs_as_unverified_execution() -> None:
@@ -105,7 +107,7 @@ def test_prompt_uses_user_position_for_deictic_human_destination_with_standoff()
     assert "fresh user position" in prompt
     assert "0.40 m" in prompt
     assert "standoff" in prompt
-    assert "tcp waypoint in base_link" in prompt
+    assert "target object pose" in prompt
     assert "do not target the exact human position" in prompt
 
 
@@ -128,86 +130,63 @@ def test_prompt_describes_scene_object_grounding_flow() -> None:
     assert "grasp-relevant faces" in prompt
 
 
-def test_prompt_describes_pick_planning_gate() -> None:
+def test_prompt_describes_manipulation_planning_gate() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
-    assert "moveit_plan_pick" in prompt
-    assert "planning_strategy=\"auto\"" in prompt
-    assert "raw.candidate_attempts" in prompt
-    assert "planning_strategy=\"cartesian\"" in prompt
-    assert "planning_strategy=\"sampled_approach\"" in prompt
-    assert "bounded candidate search" in prompt
-    assert "raw.plan_name" in prompt
-    assert "feedback.can_execute" in prompt
-    assert "selected grasp face" in prompt
-    assert "same executable-plan result shape" in prompt
-    assert "top for horizontal beams" in prompt
-    assert "side faces for vertical beams" in prompt
-    assert "approach, pre-grasp, close-gripper, attach, and lift workflow steps" in prompt
-    assert "existing cartesian planner" in prompt
+    assert "moveit_plan_manipulation_task" in prompt
+    assert 'backend="staged_moveit"' in prompt
+    assert "requirements.goal" in prompt
+    assert "requirements.object_name" in prompt
     assert "object context" in prompt
-    assert "workflow metadata" in prompt
     assert "does not move" in prompt
-    assert "moveit_execute_plan" in prompt
     assert "explicit" in prompt
     assert "moveit_execute_task_solution" in prompt
     assert "moveit_execute_task_plan" in prompt
     assert "task_solution_id" in prompt
     assert "explicit user intent bound to that task solution" in prompt
     assert "verified real-robot task execution" in prompt
-    assert "moveit_execute_task_solution remains sim/emulated" in prompt
-    assert "legacy moveit_plan_pick result is partial" in prompt
-    assert "do not execute its preposition plan as a pick" in prompt
+    assert "sim/emulated task-solution execution" in prompt
 
 
-def test_prompt_routes_pick_place_to_compound_task_before_legacy_planners() -> None:
+def test_prompt_routes_pick_place_to_manipulation_task() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
     assert "single model-visible task planner" in prompt
-    assert "ordinary pick/place" in prompt
-    assert "when moveit_plan_compound_task is present" in prompt
-    assert "do not use moveit_plan_pick or moveit_plan_place for ordinary pick/place" in prompt
-    assert "legacy pick planner only" in prompt
-    assert prompt.index("moveit_plan_compound_task:") < prompt.index("moveit_plan_pick:")
-    assert prompt.index("when moveit_plan_compound_task is present") < prompt.index(
-        "legacy pick planner only"
-    )
+    assert "supported staged manipulation workflows" in prompt
+    assert "moveit_plan_manipulation_task" in prompt
+    assert "moveit_plan_compound_task" not in prompt
+    assert "moveit_plan_pick" not in prompt
+    assert "moveit_plan_place" not in prompt
 
 
 def test_prompt_describes_semantic_place_planning_gate() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
-    assert "moveit_plan_place" in prompt
+    assert "moveit_plan_manipulation_task" in prompt
     assert "object-level placement" in prompt
     assert "target object pose" in prompt
-    assert "orientation_mode" in prompt
-    assert "horizontal" in prompt
-    assert "vertical" in prompt
-    assert "release tcp pose" in prompt
-    assert "same executable-plan result shape" in prompt
+    assert "geometry world context" in prompt
+    assert "do not invent a release tcp pose" in prompt
     assert "does not move" in prompt
-    assert "moveit_execute_plan" in prompt
-    assert "moveit_plan_compound_task" in prompt
     assert "moveit_execute_task_solution" in prompt
 
 
-def test_prompt_routes_held_object_release_to_compound_task_planning() -> None:
+def test_prompt_routes_held_object_release_to_staged_manipulation_planning() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
-    assert "compound manipulation tasks" in prompt
+    assert "staged manipulation tasks" in prompt
     assert "multiple robot actions" in prompt
     assert "held or attached object" in prompt
     assert "release" in prompt
-    assert "moveit_plan_compound_task" in prompt
+    assert "moveit_plan_manipulation_task" in prompt
     assert 'requirements.goal="release"' in prompt
     assert 'requirements.goal="move_and_release"' in prompt
     assert "requirements" in prompt
     assert "preferences" in prompt
-    assert "not moveit_plan_cartesian_motion" in prompt
-    assert "use moveit_plan_place when a concrete executable release workflow is needed" not in prompt
+    assert "staged_moveit" in prompt
 
 
-def test_prompt_maps_pick_up_and_drop_language_to_compound_requirements() -> None:
+def test_prompt_maps_pick_up_and_drop_language_to_manipulation_requirements() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
     assert 'natural "pick up"' in prompt
@@ -219,10 +198,10 @@ def test_prompt_maps_pick_up_and_drop_language_to_compound_requirements() -> Non
     assert '"drop it"' in prompt
     assert '"let go"' in prompt
     assert 'requirements.goal="release"' in prompt
-    assert "distinct" in prompt
+    assert "release in place" in prompt
 
 
-def test_prompt_bounds_verified_compound_task_execution_contract() -> None:
+def test_prompt_bounds_verified_manipulation_task_execution_contract() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
     assert "requirements" in prompt
@@ -233,30 +212,29 @@ def test_prompt_bounds_verified_compound_task_execution_contract() -> None:
     assert "non-executable" in prompt
     assert "backend-issued task_solution_id" in prompt
     assert "execution_contract" in prompt
-    assert "supported verified compound goals in v1" in prompt
+    assert "supported verified staged manipulation goals in v1" in prompt
     assert "hold" in prompt
     assert "release" in prompt
     assert "move_and_release" in prompt
     assert "pick_place" in prompt
     assert "approach_hold_adjust_release" not in prompt
     assert "slide/contact manipulation is unsupported in v1" in prompt
-    assert "do not advertise arbitrary compound task support" in prompt
-    assert "stage intents are semantic only" not in prompt
-    assert "semantic stage_intents" not in prompt
+    assert "do not advertise arbitrary manipulation task support" in prompt
+    assert "stage_intents are semantic-only hints" in prompt
 
 
-def test_prompt_routes_compound_tasks_through_requirements_preferences_planning() -> None:
+def test_prompt_routes_manipulation_tasks_through_requirements_preferences_planning() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
-    assert "moveit_plan_compound_task" in prompt
-    assert 'backend="mtc"' in prompt
+    assert "moveit_plan_manipulation_task" in prompt
+    assert 'backend="staged_moveit"' in prompt
     assert "requirements.goal" in prompt
     assert "requirements.object_name" in prompt
     assert "preferences" in prompt
     assert "optional stage_intents" in prompt
     assert "non-executable" in prompt
     assert "hints" in prompt
-    assert "mcp/mtc backend must compile and solve" in prompt
+    assert "staged_moveit backend must compile and solve" in prompt
     assert "explicit user intent bound to that task solution" in prompt
     assert "moveit_execute_task_plan" in prompt
     assert "supported execution_contract" in prompt
@@ -304,13 +282,12 @@ def test_prompt_describes_failure_explanation_tool() -> None:
     assert "do not quote the correction" in prompt
 
 
-def test_prompt_describes_attached_object_verification_tool() -> None:
+def test_prompt_keeps_attachment_verification_internal() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
-    assert "moveit_verify_attached_object" in prompt
-    assert "moved with the gripper" in prompt
-    assert "after executing a pick plan" in prompt
-    assert "after executing a place plan" in prompt
+    assert "moveit_verify_attached_object" not in prompt
+    assert "execution_contract" in prompt
+    assert "verification.result" in prompt
 
 
 def test_prompt_maps_gaze_to_scene_object_before_grasp_and_delivery() -> None:
@@ -320,7 +297,7 @@ def test_prompt_maps_gaze_to_scene_object_before_grasp_and_delivery() -> None:
     assert "gaze object candidate" in prompt
     assert "dynamic_<n>" in prompt
     assert "one returned object_name" in prompt
-    assert "choose an approach from the returned grasp-relevant faces" in prompt
+    assert "use the returned grasp-relevant faces" in prompt
     assert "ground-plane clearance" in prompt
     assert "0.40 m standoff" in example
     assert "do not pretend the pickup or delivery happened" in example
@@ -333,16 +310,14 @@ def test_agent_instructions_match_current_moveit_observation_tool() -> None:
     assert "moveit_get_robot_status" not in agent_instructions
 
 
-def test_prompt_defines_kibbitz_as_separate_robot_controller() -> None:
+def test_prompt_defines_kibbitz_as_robot_inhabiting_controller() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
     assert "you are kibbitz" in prompt
     assert "digital agent" in prompt
-    assert "ar hologram" in prompt
-    assert "plane between the digital and physical" in prompt
-    assert "entity of his own" in prompt
-    assert "not the robot" in prompt
-    assert "control the ur10" in prompt
+    assert "robot-inhabiting agent" in prompt
+    assert "visible body" in prompt
+    assert "inhabiting and operating the robot body" in prompt
     assert "robot arm is your body" not in prompt
     assert "users are speaking to the robot itself" not in prompt
     assert "tcp" in prompt
@@ -399,7 +374,7 @@ def test_speech_delivery_style_is_separate_from_reasoning_prompt() -> None:
     assert "japanese elder-scholar cadence" in delivery
     assert "fictional goblin rasp" in delivery
     assert "do not imitate a real accent" in delivery
-    assert "separate digital agent" in delivery
+    assert "agent inhabiting the robot body" in delivery
     assert "do not add, remove, summarize, or rephrase words" in delivery
 
 
@@ -432,25 +407,15 @@ def test_prompt_allows_visible_improvised_gestures_without_undefined_bounds() ->
     assert "cables" not in prompt
 
 
-def test_prompt_contains_move_up_example_matching_default_magnitude() -> None:
-    example = _example_region("kibbitz, move up")
-
-    assert "z=0.62" in example
-    assert "z=0.82" in example
-    assert "moved up 200 mm" in example
-
-
-def test_prompt_contains_wave_and_shape_examples_with_human_scale_motion() -> None:
+def test_prompt_does_not_fake_free_space_motion_as_manipulation() -> None:
     prompt = SYSTEM_PROMPT.lower()
-    wave_example = _example_region("kibbitz, wave to me")
+    free_space_example = _example_region("kibbitz, move up")
 
-    assert "user: \"kibbitz, wave to me\"" in prompt
-    assert "moveit_plan_cartesian_motion" in wave_example
-    assert "0.20" in wave_example
-    assert "0.15" in wave_example
-    assert "40 cm side-to-side" in wave_example
-    assert "user: \"kibbitz, draw a short line\"" in prompt
-    assert "user: \"kibbitz, draw a small circle\"" in prompt
+    assert "user: \"kibbitz, move up\"" in prompt
+    assert "wave to me" in free_space_example
+    assert "draw a short line" in free_space_example
+    assert "free-space motion requests" in free_space_example
+    assert "do not fake them through moveit_plan_manipulation_task" in free_space_example
 
 
 def _example_region(user_text: str) -> str:

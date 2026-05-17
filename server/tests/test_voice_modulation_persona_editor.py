@@ -6,7 +6,18 @@ import pytest
 def test_behavior_examples_are_included_after_canonical_examples() -> None:
     from agent_control import prompts
 
-    canonical_index = prompts.SYSTEM_PROMPT.index("# Canonical motion examples")
+    canonical_index = next(
+        (
+            prompts.SYSTEM_PROMPT.index(heading)
+            for heading in (
+                "# Canonical motion examples",
+                "# Canonical manipulation examples",
+            )
+            if heading in prompts.SYSTEM_PROMPT
+        ),
+        None,
+    )
+    assert canonical_index is not None
     behavior_index = prompts.SYSTEM_PROMPT.index("# Behavior examples")
     speech_tags_index = prompts.SYSTEM_PROMPT.index("# Speech tag examples")
 
@@ -63,10 +74,11 @@ def test_save_persona_part_rejects_readonly_unknown_and_empty_content(
         save_persona_part(prompt_dir, "behavior_examples", "  \n")
 
 
-def test_persona_templates_report_available_independent_agent(tmp_path: Path) -> None:
+def test_persona_templates_report_available_known_templates(tmp_path: Path) -> None:
     from voice_modulation.persona_editor import list_persona_templates
 
     _template_dir(tmp_path)
+    _template_dir(tmp_path, "robot_embodied_agent")
 
     templates = list_persona_templates(tmp_path)
     by_id = {template["id"]: template for template in templates}
@@ -79,7 +91,7 @@ def test_persona_templates_report_available_independent_agent(tmp_path: Path) ->
     assert by_id["robot_embodied_agent"] == {
         "id": "robot_embodied_agent",
         "label": "Robot embodied agent",
-        "available": False,
+        "available": True,
     }
 
 
@@ -99,6 +111,34 @@ def test_load_persona_template_copies_editable_parts(tmp_path: Path) -> None:
     assert by_id["behavior_examples"].content == "# Behavior examples\n- Template text.\n"
     assert (prompt_dir / "behavior_examples.md").read_text(encoding="utf-8") == (
         "# Behavior examples\n- Template text.\n"
+    )
+
+
+def test_load_robot_embodied_template_copies_editable_parts(tmp_path: Path) -> None:
+    from voice_modulation.persona_editor import load_persona_template
+
+    prompt_dir = _prompt_parts_dir(tmp_path)
+    template_dir = _template_dir(tmp_path, "robot_embodied_agent")
+    (template_dir / "mave_embodiment.md").write_text(
+        "# MAVE embodiment\nRobot body template.\n",
+        encoding="utf-8",
+    )
+    (template_dir / "speech_delivery_style.md").write_text(
+        "# Speech delivery style\nRobot body voice.\n",
+        encoding="utf-8",
+    )
+
+    parts = load_persona_template(tmp_path, "robot_embodied_agent")
+    by_id = {part.id: part for part in parts}
+
+    assert by_id["mave_embodiment"].content == (
+        "# MAVE embodiment\nRobot body template.\n"
+    )
+    assert by_id["speech_delivery_style"].content == (
+        "# Speech delivery style\nRobot body voice.\n"
+    )
+    assert (prompt_dir / "mave_embodiment.md").read_text(encoding="utf-8") == (
+        "# MAVE embodiment\nRobot body template.\n"
     )
 
 
@@ -125,8 +165,8 @@ def _prompt_parts_dir(root: Path) -> Path:
     return prompt_dir
 
 
-def _template_dir(root: Path) -> Path:
-    template_dir = root / "agent_control" / "persona_templates" / "independent_agent"
+def _template_dir(root: Path, template_id: str = "independent_agent") -> Path:
+    template_dir = root / "agent_control" / "persona_templates" / template_id
     template_dir.mkdir(parents=True)
     for filename in (
         "mave_embodiment.md",

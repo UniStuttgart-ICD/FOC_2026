@@ -8,8 +8,8 @@ import json
 import math
 import operator
 import uuid
-from collections.abc import Callable
-from typing import Annotated, Any, Literal, TypedDict
+from collections.abc import Awaitable, Callable, Iterable
+from typing import Annotated, Any, Literal, TypedDict, cast
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
@@ -65,19 +65,33 @@ TASK_PLAN_OBSERVATION_MAX_ATTEMPTS = 3
 TASK_PLAN_OBSERVATION_RETRY_DELAY_S = 0.2
 VIZOR_ROBOT_NAME = "UR10"
 GEOMETRY_UPDATE_DYNAMIC_ROLE_TOOL_NAME = "geometry_update_dynamic_role"
+MODEL_VISIBLE_TASK_PLANNER_TOOL_NAME = "moveit_plan_manipulation_task"
 MODEL_HIDDEN_TASK_PLANNER_TOOL_NAMES = {
+    "moveit_plan_compound_task",
     "moveit_plan_pick_task",
     "moveit_plan_place_task",
+}
+MODEL_HIDDEN_MOTION_PLANNER_TOOL_NAMES = {
+    "moveit_plan_free_motion",
+    "moveit_plan_cartesian_motion",
+    "moveit_plan_pick",
+    "moveit_plan_place",
 }
 MODEL_HIDDEN_CONTRACT_INTERNAL_TOOL_NAMES = {
     "moveit_release_object",
     "moveit_verify_released_object",
     "moveit_remove_scene_object",
+    "moveit_open_gripper",
+    "moveit_close_gripper",
+    "moveit_attach_object",
+    "moveit_verify_attached_object",
 }
 MODEL_HIDDEN_TOOL_NAMES = (
-    MODEL_HIDDEN_TASK_PLANNER_TOOL_NAMES | MODEL_HIDDEN_CONTRACT_INTERNAL_TOOL_NAMES
+    MODEL_HIDDEN_TASK_PLANNER_TOOL_NAMES
+    | MODEL_HIDDEN_MOTION_PLANNER_TOOL_NAMES
+    | MODEL_HIDDEN_CONTRACT_INTERNAL_TOOL_NAMES
 )
-TASK_LEVEL_REPLAN_TOOL_NAME = "moveit_plan_compound_task"
+TASK_LEVEL_REPLAN_TOOL_NAME = MODEL_VISIBLE_TASK_PLANNER_TOOL_NAME
 SUPPORTED_TASK_SOLUTION_KINDS = {
     "pick",
     "place",
@@ -118,6 +132,7 @@ PLAN_TOOL_NAMES = {
     "moveit_plan_pick",
     "moveit_plan_place",
     "moveit_plan_compound_task",
+    "moveit_plan_manipulation_task",
 }
 ACTION_TOOL_NAMES = {
     "moveit_plan_free_motion",
@@ -125,6 +140,7 @@ ACTION_TOOL_NAMES = {
     "moveit_plan_pick",
     "moveit_plan_place",
     "moveit_plan_compound_task",
+    "moveit_plan_manipulation_task",
     "moveit_execute_plan",
     "moveit_execute_task_solution",
     "moveit_execute_task_plan",
@@ -506,6 +522,15 @@ class LangGraphRobotAgent:
                 output = _execute_geometry_update_dynamic_role(dict(args))
             elif name in OBSERVE_TOOL_NAMES:
                 output, observed_this_turn = await self._execute_observation_tool(name, dict(args))
+            elif name == MODEL_VISIBLE_TASK_PLANNER_TOOL_NAME:
+                output = await self._execute_tool(
+                    name,
+                    dict(args),
+                    user_text=state["user_text"],
+                    allow_execution=state["allow_pending_plan_execution"],
+                )
+                action_tool_ran = True
+                observed_this_turn = False
             elif name == "moveit_execute_task_plan":
                 output = await self._execute_verified_task_plan_tool(
                     dict(args),
@@ -632,23 +657,25 @@ class LangGraphRobotAgent:
             if self._verified_execution_client is not None
             else "moveit_execute_task_plan"
         )
+        visible_names = {
+            "moveit_get_current_pose",
+            "moveit_get_robot_state",
+            "moveit_list_scene_objects",
+            "moveit_get_object_context",
+            "moveit_explain_motion_failure",
+            "moveit_execute_task_solution",
+            "moveit_execute_task_plan",
+        }
         visible = [
             tool
             for tool in tools
-            if tool.get("name")
-            not in {
-                hidden_tool,
-                GEOMETRY_UPDATE_DYNAMIC_ROLE_TOOL_NAME,
-                *MODEL_HIDDEN_TOOL_NAMES,
-            }
+            if tool.get("name") in visible_names
+            and tool.get("name") != hidden_tool
         ]
+        task_planner_tool = _model_visible_task_planner_tool(tools)
+        if task_planner_tool is not None:
+            visible.append(task_planner_tool)
         visible.append(_geometry_update_dynamic_role_tool())
-        if self._verified_execution_client is None:
-            return visible
-        names = {str(tool.get("name") or "") for tool in visible}
-        for tool in _verified_recovery_tools():
-            if str(tool.get("name") or "") not in names:
-                visible.append(tool)
         return visible
 
     def _task_execution_mode_instruction(self) -> str:
@@ -1388,7 +1415,10 @@ class LangGraphRobotAgent:
         try:
             contract_call = getattr(self._tool_bridge, "call_contract_tool", None)
             if callable(contract_call):
-                output = await contract_call(name, arguments)
+                output = await cast(
+                    Callable[[str, dict[str, Any]], Awaitable[str]],
+                    contract_call,
+                )(name, arguments)
             else:
                 output = await self._tool_bridge.call_tool(name, arguments)
         except RobotMCPError as exc:
@@ -1762,9 +1792,10 @@ def _function_tool_names(tools: list[dict[str, Any]]) -> set[str]:
 def _contract_tool_names(tool_bridge: Any) -> set[str]:
     bridge_contract_tool_names = getattr(tool_bridge, "contract_tool_names", None)
     if callable(bridge_contract_tool_names):
+        names = cast(Callable[[], Iterable[str]], bridge_contract_tool_names)()
         return {
             str(name)
-            for name in bridge_contract_tool_names()
+            for name in names
             if isinstance(name, str)
         }
     return set()
@@ -1772,6 +1803,20 @@ def _contract_tool_names(tool_bridge: Any) -> set[str]:
 
 def _tools_for_model_binding(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [_tool_for_model_binding(tool) for tool in tools]
+
+
+def _model_visible_task_planner_tool(tools: list[dict[str, Any]]) -> dict[str, Any] | None:
+    return _function_tool_by_name(tools, MODEL_VISIBLE_TASK_PLANNER_TOOL_NAME)
+
+
+def _function_tool_by_name(
+    tools: list[dict[str, Any]],
+    name: str,
+) -> dict[str, Any] | None:
+    for tool in tools:
+        if tool.get("name") == name:
+            return tool
+    return None
 
 
 def _geometry_update_dynamic_role_tool() -> dict[str, Any]:
@@ -1972,7 +2017,7 @@ def _structured_task_policy_error(decision: TaskPolicyDecision) -> dict[str, Any
         tool_name in correction for tool_name in MODEL_HIDDEN_TASK_PLANNER_TOOL_NAMES
     ):
         payload["correction"] = (
-            "Use moveit_plan_compound_task for task-level manipulation planning."
+            "Use moveit_plan_manipulation_task for task-level manipulation planning."
         )
     if payload.get("suggested_next_tool") in MODEL_HIDDEN_TASK_PLANNER_TOOL_NAMES:
         payload["suggested_next_tool"] = TASK_LEVEL_REPLAN_TOOL_NAME

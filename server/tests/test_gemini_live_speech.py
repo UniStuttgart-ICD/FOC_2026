@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from pipecat.frames.frames import (
     Frame,
@@ -121,7 +123,7 @@ class FakeMessage:
 
 class FakeSession:
     def __init__(self) -> None:
-        self.turns: list[object] = []
+        self.turns: list[Any] = []
 
     async def send_client_content(self, *, turns, turn_complete: bool):
         assert not isinstance(turns, str)
