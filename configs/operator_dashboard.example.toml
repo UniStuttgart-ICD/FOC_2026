@@ -15,7 +15,7 @@ ready_checks = [
   { type = "tcp", host = "127.0.0.1", port = 8765, label = "MoveIt MCP port" },
 ]
 links = [
-  { label = "Open RViz", url = "http://127.0.0.1:6080/vnc.html?autoconnect=1&resize=scale" },
+  { label = "Open RViz", url = "http://localhost:6080/vnc_auto.html?host=localhost&port=6080&autoconnect=true&resize=remote" },
 ]
 
 [services.verified_execution]

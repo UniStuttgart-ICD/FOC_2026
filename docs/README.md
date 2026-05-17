@@ -1,6 +1,6 @@
 # Docs
 
-This directory mixes live project references, design notes, research material, and historical plans. Treat the files below by lifecycle.
+This directory contains workshop-facing project references, design notes, research material, and presentation assets. Historical plans and superseded specs live under `../archive/`.
 
 ## System Of Record
 
@@ -26,13 +26,5 @@ This directory mixes live project references, design notes, research material, a
 - [`research/`](research/): research notes and visual explainers.
 - [`ideas/`](ideas/): workshop scenarios, card drafts, and concept exploration.
 - [`presentations/`](presentations/): generated slide decks and presentation artifacts.
-
-## Historical Plans And Specs
-
-- [`plans/`](plans/): early implementation plans kept for provenance.
-- [`superpowers/specs/`](superpowers/specs/): approved design specs from earlier workstreams.
-- [`superpowers/plans/`](superpowers/plans/): detailed implementation plans from earlier workstreams.
-
-Historical files may mention old providers, profile matrices, or stale robot tool names. Use `ARCHITECTURE.md`, `CONTEXT.md`, and `server/runtime_profiles.toml` for current behavior.
 
 Agent process notes are local-only and ignored for workshop handover.

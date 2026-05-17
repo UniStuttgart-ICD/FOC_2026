@@ -203,19 +203,34 @@ The MCP-owned immutable store keyed by `task_solution_id`, containing the solved
 The host-side actuation boundary that executes cached MoveIt plans on the physical UR10 and Robotiq path after explicit execution intent.
 
 **Verified Execution Server**:
-The repo-local service that exposes the **Verified Real Robot Execution** HTTP boundary. It may use RTDE Receive for readiness and completion evidence, but production motion uses URScript over the robot script socket and gripper control uses the direct Robotiq socket.
+The repo-local service that exposes the **Verified Real Robot Execution** HTTP boundary. It may use UR RTDE Receive for readiness, TCP pose, joint state, and completion evidence directly from the UR controller, but production motion uses URScript over the robot script socket and gripper control uses the direct Robotiq socket.
 
 **Narrow Verified Execution Migration**:
 The workshop migration rule that brings only the UR10/Robotiq verified execution service code into `server/verified_execution_server`, not the broader legacy multi-robot `core` and `devices` framework.
 
 **Simulation-Only Robot Execution**:
-The runtime profile mode where robot execution stays inside MoveIt MCP/RViz/noVNC and Pipecat does not create a Verified Real Robot Execution client.
+Legacy wording for a runtime where physical execution is unavailable. The task executor still runs the digital/AR/RViz path and reports physical execution as unavailable rather than using a separate user-visible execution mode.
 
 **Simulation-First Dual Execution**:
-The robot execution mode where approved task execution always targets MoveIt MCP/RViz first and also attempts **Verified Real Robot Execution** when connected, with RViz success counting as execution success and real-robot status reported separately.
+The robot execution mode where approved task execution is invoked as one task-level call, while AR/RViz and physical execution advance through the same ordered stage evidence when physical execution is connected. The implementation always runs the RViz/MoveIt and AR visualization path, attempts **Verified Real Robot Execution** when connected, and reports digital and physical result facts separately. The digital path is required execution feedback for AR, not optional debug output.
+
+**Physical Execution Unavailable**:
+The verified physical robot branch did not respond or is not connected. This does not block the digital/AR/RViz task path; it is reported as unavailable rather than as task failure.
+
+**Physical Execution Failure**:
+The verified physical robot branch responded but failed execution or verification. If the digital/AR/RViz path succeeded, user-facing speech should say that execution completed in AR/RViz but physical execution failed.
 
 **Unified Task Execution Tool**:
-The single model-visible task execution tool, `moveit_execute_task`, that executes an approved **Task Solution** through **Simulation-First Dual Execution** while older execution tools remain internal compatibility paths.
+The single model-visible task execution tool, `moveit_execute_task`, that executes an approved **Task Solution** while older execution tools remain internal compatibility paths.
+
+**Monolithic Task Execution Call**:
+A single approved task-level execution call that preserves a clean agent-facing contract while internally executing and reporting ordered digital/AR, physical motion, gripper, attach/release, and verification stages. It must not be an opaque timeout-prone wrapper.
+
+**Stage-Synchronized Dual Execution**:
+The rule that one execution-contract stage identity ties together digital/AR/RViz proof and physical proof. A motion stage's AR preview, MoveIt plan evidence, and verified physical execution all refer to the same approved stage and plan evidence.
+
+**Physical Alignment Probe**:
+A read-only UR RTDE Receive observation used to compare the connected UR controller's actual joints or TCP pose against expected execution state. It is used only when the robot responds; it must not become a requirement for the digital/AR/RViz path when the physical robot is unavailable.
 
 **Workshop Monorepo**:
 The single repository students clone for the workshop runtime, including the voice agent, operator dashboard, Vizor/MoveIt Docker stack wiring, MCP services, and verified execution server.
@@ -245,7 +260,7 @@ The root-level Windows `.cmd` entrypoint that verifies `uv`, performs first-run 
 The repo-local versioned Docker Compose configuration in the **Workshop Monorepo** that owns the Vizor/MoveIt Docker stack. It owns development image tags, service wiring, and MTC enablement; local operator configuration is limited to machine-specific environment and secret overrides, which must not be committed.
 
 **Verified Task Plan Execution Bridge**:
-The internal Robot Control bridge used by **Simulation-First Dual Execution** for the real-robot branch. It consumes a recent approved **Task Solution** with a supported `execution_contract`, retries task motion stages when needed, executes returned plan names through **Verified Real Robot Execution**, interleaves verified gripper actions with MCP attach/release tools, and verifies attachment or release before real-robot success.
+The internal Robot Control bridge used by a **Monolithic Task Execution Call** to realize stage-by-stage task execution. It consumes a recent approved **Task Solution** with a supported `execution_contract`, retries task motion stages when needed, executes returned plan names through **Verified Real Robot Execution**, interleaves verified gripper actions with MCP attach/release tools, and verifies attachment or release before success.
 
 **Task-Level Pick**:
 A MoveIt MCP pick workflow that plans observe, approach, gripper, attach, lift, and attachment-verification stages as one **Task Solution**.
@@ -354,49 +369,10 @@ A timed Process Trace record with a name, parent span, status, timestamps, durat
 **Trace Event**:
 An instant Process Trace record for a semantic event such as wake detection, policy block, validation result, Robot Context update, or lifecycle event.
 
-### Testing
-
-**Live LLM Robot Eval**:
-An opt-in manual run that uses the real API-key LangChain backend and the MoveIt simulation stack to evaluate robot-agent behavior from natural-language commands.
-
-**Live LLM Robot Smoke Test**:
-A deterministic-leaning Live LLM Robot Eval that sends text through the Agent Turn seam and uses pass/fail assertions based on observed tool calls and MoveIt simulation results.
-
-**Exploratory Gesture Eval**:
-A non-blocking Live LLM Robot Eval for high-level gestures such as "wave to me" or "draw a star"; it records behavior for review but is not part of the pass/fail testing pipeline.
-
-**Manual Live Eval Gate**:
-A repository policy where Live LLM Robot Evals are never part of normal CI and run only when a developer explicitly opts in with live credentials and a prepared MoveIt simulation.
-
-**Live Eval Evidence**:
-The minimal JSON artifact saved by a Live LLM Robot Eval, containing prompts, assistant replies, recorded tool calls, tool outputs, validator results, and pass/fail reasons.
+### Testing And Replay
 
 **Replay Artifact**:
 A compact local artifact recording tool order, typed tool outputs, policy decisions, validation results, approvals, execution results, verification results, and terminal job events for review and replay.
-
-**Recording Robot Tool Adapter**:
-A test-only wrapper around the real Robot Tool Adapter that records each robot tool call and output for Live Eval Evidence without changing runtime behavior.
-
-**Smoke Movement Bound**:
-A Live LLM Robot Smoke Test rule where "a bit" means about 0.05 m along the intended axis, with tolerant final-pose checks for simulation/controller drift.
-
-**Model Eval Module**:
-The reusable module for comparing LangGraph-backed model candidates against robot-agent scenario packs, timing, validator results, tool behavior, and Live Eval Evidence.
-
-**Model Candidate**:
-One model configuration under evaluation, including provider, model id, reasoning effort, and API key environment variable.
-
-**Eval Scenario Pack**:
-A named set of prompts, validators, and scoring metadata used by the Model Eval Module.
-
-**Eval Tool Adapter**:
-The Robot Tool Adapter used during a Model Eval Module run; v1 defaults to a deterministic simulated MoveIt adapter and can optionally use live MCP.
-
-**Model Fit Score**:
-A correctness-gated ranking for Model Candidates. Robot correctness must pass first; passing candidates are then ranked mainly by realtime latency and tool-loop efficiency.
-
-**Improvisation Fit**:
-The qualitative part of a Model Fit Score that checks whether a model takes bounded embodied initiative for clear gesture requests without inventing scene facts or unsafe targets.
 
 ## Relationships
 
@@ -474,7 +450,7 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - An **Executable Plan** may be auto-executed only through a MoveIt execution workflow.
 - **Simulation-Only Robot Execution** is selected by `robot_execution.simulation_only = true` and is the default mode for RViz/noVNC testing.
 - **Canonical Development Compose** owns repeatable Vizor/MoveIt development stack wiring; local operator configuration must not hide MTC enablement or image-tag choices.
-- A **Task Solution** is executed through `moveit_execute_task`, which runs the sim/RViz task-solution path first and then uses the **Verified Task Plan Execution Bridge** for the real-robot branch when connected.
+- A **Task Solution** is executed through `moveit_execute_task`, preserving the **Monolithic Task Execution Call** shape while internally producing stage-by-stage proof through the **Verified Task Plan Execution Bridge**. MCP-owned monolithic execution is an internal compatibility path only if it provides equivalent stage proof.
 - The **Task-Level Manipulation Planner** may use the **Staged MoveIt Manipulation Backend** now and an **MTC Backend** later, but Agent Orchestration should still see `moveit_plan_manipulation_task` rather than competing pick, place, compound, and low-level motion tools.
 - The **Verified Task Plan Execution Bridge** supports typed, proof-backed contracts for pick, place, hold, move-and-release, approach-hold-adjust-release, and pick-place task kinds.
 - Verified task execution keeps the agent path semantic: task planner, explicit approval, then `moveit_execute_task`.
@@ -487,16 +463,7 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - A **Partial Pick Diagnostic** must not be stored as an **Executable Plan** or **Task Solution**.
 - Compound-task failures use **MTC Failure Code** values so Agent Orchestration can distinguish retry, correction, and HITL paths without parsing prose.
 - A blocked **Task Policy Decision** is returned to **Agent Orchestration** as structured tool feedback, not as a movement-safety claim.
-- A **Live LLM Robot Smoke Test** belongs to the manual pass/fail testing pipeline and does not exercise wake, STT, TTS, or browser audio.
-- An **Exploratory Gesture Eval** stays outside the pass/fail testing pipeline until its assertions become deterministic and actionable.
-- A **Manual Live Eval Gate** keeps Live LLM Robot Evals out of normal CI.
-- **Live Eval Evidence** is saved as minimal JSON, not as a human HTML report.
 - A **Replay Artifact** preserves the task-solution workflow evidence needed to review observe, plan, approve, execute, verify, and summarize loops.
-- A **Recording Robot Tool Adapter** observes live smoke tests without adding production logging hooks.
-- The **Model Eval Module** runs through the **Agent Turn** seam and evaluates **Agent Orchestration**; it does not own the Robot Agent Prompt, Task Policy Layer, Robot Call Validation, or MoveIt Safety Boundary.
-- An **Eval Tool Adapter** satisfies the same robot adapter interface as the production Robot Tool Adapter so model evaluation can switch between simulated and live MCP runs.
-- A **Model Fit Score** treats correctness as a gate and latency as a primary ranking factor for realtime robot use; provider cost is optional metadata, not a v1 ranking input.
-- **Improvisation Fit** rewards bounded expressive action for clear gesture requests such as waving, while ambiguous spatial references still require clarification.
 - **Process Trace** observes runtime behavior but does not own Voice Runtime, Agent Control, Robot Control, policy, validation, MCP execution, or robot safety behavior.
 - A **Trace Turn** may contain Voice Runtime, Agent Control, Robot Control, and MCP **Trace Spans** under one correlated tree.
 - **Voice Metrics** are summary timing records; **Process Trace** is the detailed span/event record for debugging, bottleneck analysis, and future visualization.
@@ -511,7 +478,6 @@ The qualitative part of a Model Fit Score that checks whether a model takes boun
 - "Safety Coverage" previously implied local movement-safety enforcement; resolved: movement safety means the **MoveIt Safety Boundary**, while **Robot Call Validation** is ergonomic validation only.
 - "Motion Safety Layer" is ambiguous; resolved: use **Robot Call Validation** for local tool-call validation and **MoveIt Safety Boundary** for movement safety.
 - Robot-side policy, context, validation, and adapter ownership is resolved to the **Robot Control Module**.
-- "Live test" was used for both pass/fail smoke testing and open-ended gesture exploration; resolved: use **Live LLM Robot Smoke Test** for manual pass/fail coverage and **Exploratory Gesture Eval** for wave/star-style behavior review.
 - "Metrics" can mean summary turn timing or detailed process tracing; resolved: use **Voice Metrics** for summary timing and **Process Trace** for correlated spans/events.
 - **Shared Geometry Model** detail is partially resolved: abstract primitives, transforms, geometric features, and constraints are primary; exact render/planning geometry should be derived or referenced unless a later design decision changes this.
 - "TCP coordinates from the hologram" is ambiguous; resolved: the hologram provides a desired object pose, while the planner derives the TCP/release pose.
