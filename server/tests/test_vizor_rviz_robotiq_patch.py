@@ -76,6 +76,19 @@ def test_vizor_rviz_dockerfile_installs_noetic_mtc_packages():
     assert "ros-noetic-rviz-marker-tools" in contents
 
 
+def test_vizor_rviz_dockerfile_normalizes_windows_shell_script_line_endings():
+    repo_root = Path(__file__).resolve().parents[2]
+    dockerfile = repo_root / "docker" / "vizor-rviz" / "Dockerfile"
+    attributes = repo_root / ".gitattributes"
+
+    dockerfile_contents = dockerfile.read_text()
+    attributes_contents = attributes.read_text()
+
+    assert "sed -i 's/\\r$//'" in dockerfile_contents
+    assert "/usr/local/bin/start-vizor-desktop.sh" in dockerfile_contents
+    assert "*.sh text eol=lf" in attributes_contents
+
+
 def test_ur10_rviz_config_loads_mtc_visualization():
     rviz_config = Path(__file__).resolve().parents[2] / "docker" / "vizor-rviz" / "ur10_robot.rviz"
 

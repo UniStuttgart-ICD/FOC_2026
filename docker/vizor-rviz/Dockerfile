@@ -44,6 +44,7 @@ COPY vizor_mtc_pick_server.py /usr/local/bin/vizor_mtc_pick_server.py
 COPY patch-vizor-robot.py /usr/local/bin/patch-vizor-robot.py
 COPY rviz_ur10.launch /root/catkin_ws/src/vizor_package/launch/rviz_ur10.launch
 COPY ur10_robot.rviz /root/catkin_ws/src/vizor_package/launch/ur10_robot.rviz
+RUN sed -i 's/\r$//' /usr/local/bin/start-vizor-desktop.sh
 RUN python3 /usr/local/bin/patch-vizor-robot.py
 RUN bash -lc "source /opt/ros/noetic/setup.bash && cd /root/catkin_ws && catkin_make"
 RUN chmod +x /usr/local/bin/start-vizor-desktop.sh /usr/local/bin/vizor_current_pose_service.py /usr/local/bin/vizor_mtc_pick_server.py
