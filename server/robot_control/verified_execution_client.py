@@ -11,6 +11,8 @@ VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S = 30.0
 
 
 class VerifiedExecutionClient(Protocol):
+    async def get_readiness(self, timeout_s: float) -> dict[str, Any]: ...
+
     async def execute_plan(
         self,
         *,
@@ -59,6 +61,44 @@ class HttpVerifiedExecutionClient:
         self._base_url = base_url.rstrip("/")
         self._request_timeout_s = request_timeout_s
         self._timeout_margin_s = timeout_margin_s
+
+    async def get_readiness(self, timeout_s: float) -> dict[str, Any]:
+        try:
+            response = await self._get_json("/health", timeout_s=timeout_s)
+        except OSError:
+            return {
+                "server_available": False,
+                "robot_connected": False,
+                "gripper_connected": False,
+                "error": "Verified execution server unavailable.",
+            }
+
+        robot = response.get("robot")
+        if robot is None:
+            return {
+                "server_available": True,
+                "robot_connected": None,
+                "gripper_connected": None,
+                "error": None,
+            }
+        if not isinstance(robot, dict):
+            return {
+                "server_available": True,
+                "robot_connected": None,
+                "gripper_connected": None,
+                "error": "Verified execution server returned unreadable readiness payload.",
+            }
+
+        robot_connected = robot.get("robot_connected")
+        gripper_connected = robot.get("gripper_connected")
+        return {
+            "server_available": True,
+            "robot_connected": robot_connected if isinstance(robot_connected, bool) else None,
+            "gripper_connected": (
+                gripper_connected if isinstance(gripper_connected, bool) else None
+            ),
+            "error": None,
+        }
 
     async def execute_plan(
         self,
@@ -124,6 +164,18 @@ class HttpVerifiedExecutionClient:
             _post_json,
             f"{self._base_url}{path}",
             payload,
+            timeout_s if timeout_s is not None else self._request_timeout_s,
+        )
+
+    async def _get_json(
+        self,
+        path: str,
+        *,
+        timeout_s: float | None = None,
+    ) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            _get_json,
+            f"{self._base_url}{path}",
             timeout_s if timeout_s is not None else self._request_timeout_s,
         )
 
@@ -307,6 +359,23 @@ def _post_json(url: str, payload: dict, timeout_s: float) -> dict[str, Any]:
         data=body,
         headers={"Content-Type": "application/json", "Accept": "application/json"},
         method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_s) as response:
+            data = response.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        data = exc.read().decode("utf-8")
+    parsed = json.loads(data)
+    if not isinstance(parsed, dict):
+        raise OSError("verified execution server returned non-object JSON")
+    return parsed
+
+
+def _get_json(url: str, timeout_s: float) -> dict[str, Any]:
+    request = urllib.request.Request(
+        url,
+        headers={"Accept": "application/json"},
+        method="GET",
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout_s) as response:

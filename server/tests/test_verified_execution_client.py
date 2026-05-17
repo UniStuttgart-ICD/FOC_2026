@@ -8,10 +8,19 @@ from robot_control.verified_execution_client import HttpVerifiedExecutionClient
 
 
 class RecordingVerifiedExecutionClient(HttpVerifiedExecutionClient):
-    def __init__(self, response: dict[str, object]) -> None:
+    def __init__(
+        self,
+        response: dict[str, object],
+        *,
+        get_response: dict[str, object] | None = None,
+        get_error: OSError | None = None,
+    ) -> None:
         super().__init__("http://verified.test", timeout_margin_s=2.0)
         self.response = response
+        self.get_response = get_response if get_response is not None else response
+        self.get_error = get_error
         self.posts: list[tuple[str, dict[str, object], float | None]] = []
+        self.gets: list[tuple[str, float | None]] = []
 
     async def _post_json(
         self,
@@ -22,6 +31,109 @@ class RecordingVerifiedExecutionClient(HttpVerifiedExecutionClient):
     ) -> dict[str, object]:
         self.posts.append((path, payload, timeout_s))
         return self.response
+
+    async def _get_json(
+        self,
+        path: str,
+        *,
+        timeout_s: float | None = None,
+    ) -> dict[str, object]:
+        self.gets.append((path, timeout_s))
+        if self.get_error is not None:
+            raise self.get_error
+        return self.get_response
+
+
+@pytest.mark.asyncio
+async def test_get_readiness_reports_healthy_robot_from_health_endpoint() -> None:
+    client = RecordingVerifiedExecutionClient(
+        {},
+        get_response={
+            "ok": True,
+            "ros_connected": True,
+            "cached_plans": 2,
+            "robot": {
+                "robot_name": "UR10",
+                "robot_connected": True,
+                "gripper_connected": True,
+            },
+        },
+    )
+
+    readiness = await client.get_readiness(timeout_s=4.0)
+
+    assert client.gets == [("/health", 4.0)]
+    assert readiness == {
+        "server_available": True,
+        "robot_connected": True,
+        "gripper_connected": True,
+        "error": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_readiness_reports_disconnected_robot_without_raising() -> None:
+    client = RecordingVerifiedExecutionClient(
+        {},
+        get_response={
+            "ok": True,
+            "ros_connected": True,
+            "cached_plans": 0,
+            "robot": {
+                "robot_name": "UR10",
+                "robot_connected": False,
+                "gripper_connected": True,
+            },
+        },
+    )
+
+    readiness = await client.get_readiness(timeout_s=4.0)
+
+    assert readiness == {
+        "server_available": True,
+        "robot_connected": False,
+        "gripper_connected": True,
+        "error": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_readiness_treats_missing_robot_payload_as_unknown_physical_state() -> None:
+    client = RecordingVerifiedExecutionClient(
+        {},
+        get_response={
+            "ok": True,
+            "ros_connected": True,
+            "cached_plans": 0,
+        },
+    )
+
+    readiness = await client.get_readiness(timeout_s=4.0)
+
+    assert readiness == {
+        "server_available": True,
+        "robot_connected": None,
+        "gripper_connected": None,
+        "error": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_readiness_reports_transport_errors_as_unavailable() -> None:
+    client = RecordingVerifiedExecutionClient(
+        {},
+        get_error=OSError("connection refused"),
+    )
+
+    readiness = await client.get_readiness(timeout_s=4.0)
+
+    assert client.gets == [("/health", 4.0)]
+    assert readiness == {
+        "server_available": False,
+        "robot_connected": False,
+        "gripper_connected": False,
+        "error": "Verified execution server unavailable.",
+    }
 
 
 @pytest.mark.asyncio

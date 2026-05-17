@@ -52,6 +52,7 @@ class PickTaskE2EBridge:
             _function_tool("moveit_execute_task_solution"),
             _function_tool("moveit_plan_free_motion"),
             _function_tool("moveit_plan_cartesian_motion"),
+            _function_tool("moveit_execute_plan"),
             _function_tool("moveit_close_gripper"),
             _function_tool("moveit_attach_object"),
             _function_tool("moveit_verify_attached_object"),
@@ -98,6 +99,34 @@ class PickTaskE2EBridge:
                     }
                 }
             )
+        if name == "moveit_execute_plan":
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": True,
+                        "robot": arguments["robot_name"],
+                        "tool": "moveit_execute_plan",
+                        "status": "executed",
+                        "feedback": {"plan_name": arguments["plan_name"]},
+                        "verification": {"result": "pass"},
+                        "raw": {"plan_name": arguments["plan_name"]},
+                    },
+                    "is_error": False,
+                }
+            )
+        if name == "moveit_close_gripper":
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": True,
+                        "robot": arguments["robot_name"],
+                        "tool": "moveit_close_gripper",
+                        "status": "gripper_closed",
+                        "verification": {"result": "pass"},
+                    },
+                    "is_error": False,
+                }
+            )
         if name == "moveit_verify_attached_object":
             return json.dumps(
                 {
@@ -119,8 +148,21 @@ class PickTaskE2EBridge:
 
 class FakeVerifiedExecutionClient:
     def __init__(self) -> None:
+        self.readiness_calls: list[float] = []
         self.calls: list[tuple[str, str, float]] = []
         self.gripper_calls: list[tuple[str, str, float]] = []
+
+    async def get_readiness(self, timeout_s: float) -> dict[str, Any]:
+        self.readiness_calls.append(timeout_s)
+        return {
+            "ok": True,
+            "ready": True,
+            "connected": True,
+            "server_available": True,
+            "robot_connected": True,
+            "gripper_connected": True,
+            "error": None,
+        }
 
     async def execute_plan(
         self,
@@ -302,6 +344,53 @@ def _latest_state_tool_output(fixture: GraphFixture) -> dict[str, Any]:
     return json.loads(content)
 
 
+def _stage_name_from_plan_name(plan_name: str) -> str:
+    for stage_name in ("approach", "pre_grasp", "lift"):
+        if f"_{stage_name}_" in plan_name:
+            return stage_name
+    raise AssertionError(f"unexpected staged plan_name: {plan_name}")
+
+
+def _assert_dynamic_5_staged_mcp_calls(
+    calls: list[tuple[str, dict[str, Any]]],
+) -> list[str]:
+    stage_events: list[tuple[str, str]] = []
+    for name, args in calls:
+        if name in {"moveit_plan_free_motion", "moveit_plan_cartesian_motion"}:
+            stage_events.append(("plan", _stage_name_from_plan_name(args["plan_name"])))
+        if name == "moveit_execute_plan":
+            stage_events.append(("execute", _stage_name_from_plan_name(args["plan_name"])))
+        if name == "moveit_close_gripper":
+            stage_events.append(("close_gripper", "close_gripper"))
+        if name == "moveit_attach_object":
+            stage_events.append(("attach_object", "attach_object"))
+        if name == "moveit_verify_attached_object":
+            stage_events.append(("verify_attached_object", "verify_attached_object"))
+
+    assert stage_events == [
+        ("plan", "approach"),
+        ("execute", "approach"),
+        ("plan", "pre_grasp"),
+        ("execute", "pre_grasp"),
+        ("close_gripper", "close_gripper"),
+        ("attach_object", "attach_object"),
+        ("plan", "lift"),
+        ("execute", "lift"),
+        ("verify_attached_object", "verify_attached_object"),
+    ]
+
+    planned_names = [
+        args["plan_name"]
+        for name, args in calls
+        if name in {"moveit_plan_free_motion", "moveit_plan_cartesian_motion"}
+    ]
+    executed_names = [
+        args["plan_name"] for name, args in calls if name == "moveit_execute_plan"
+    ]
+    assert executed_names == planned_names
+    return planned_names
+
+
 def _manipulation_hold_task_solution_output() -> str:
     return json.dumps(
         {
@@ -475,8 +564,8 @@ async def test_dynamic_5_manipulation_hold_plans_then_executes_unified_task() ->
     assert "moveit_plan_compound_task" not in tool_names
     assert "moveit_plan_pick_task" not in tool_names
     assert "moveit_execute_task_plan" not in tool_names
-    assert "moveit_execute_task_solution" in tool_names
-    assert "moveit_execute_plan" not in tool_names
+    assert "moveit_execute_task_solution" not in tool_names
+    staged_plan_names = _assert_dynamic_5_staged_mcp_calls(fixture.bridge.calls)
     manipulation_calls = [
         args for name, args in fixture.bridge.calls if name == "moveit_plan_manipulation_task"
     ]
@@ -517,6 +606,8 @@ async def test_dynamic_5_manipulation_hold_plans_then_executes_unified_task() ->
     ]
 
     verified_plan_names = [plan_name for _, plan_name, _ in fixture.verified_execution_client.calls]
+    assert fixture.verified_execution_client.readiness_calls
+    assert all(timeout_s == 9.0 for timeout_s in fixture.verified_execution_client.readiness_calls)
     assert [robot_name for robot_name, _, _ in fixture.verified_execution_client.calls] == [
         "UR10",
         "UR10",
@@ -528,6 +619,7 @@ async def test_dynamic_5_manipulation_hold_plans_then_executes_unified_task() ->
         9.0,
     ]
     assert fixture.verified_execution_client.gripper_calls == [("UR10", "close", 9.0)]
+    assert verified_plan_names == staged_plan_names
     attach_calls = [
         args for name, args in fixture.bridge.calls if name == "moveit_attach_object"
     ]
@@ -548,6 +640,7 @@ async def test_dynamic_5_manipulation_hold_plans_then_executes_unified_task() ->
     assert output["structured_content"]["tool"] == "moveit_execute_task"
     assert output["structured_content"]["simulation"]["ok"] is True
     assert output["structured_content"]["real_robot"]["ok"] is True
+    assert output["structured_content"]["real_robot"]["status"] == "executed"
     assert output["structured_content"]["real_robot"]["verified_plan_names"] == verified_plan_names
     assert "held object: dynamic_5" in fixture.robot_context.render_instruction_block()
 
@@ -590,13 +683,14 @@ async def test_live_llm_dynamic_5_manipulation_hold_uses_dummy_verified_executio
         "lift_distance_m": 0.10,
     }
     assert "moveit_plan_pick_task" not in tool_names
-    assert "moveit_execute_task_solution" in tool_names
-    assert "moveit_execute_plan" not in tool_names
-    assert "moveit_close_gripper" not in tool_names
+    assert "moveit_execute_task_solution" not in tool_names
+    staged_plan_names = _assert_dynamic_5_staged_mcp_calls(bridge.calls)
     assert verified_client.gripper_calls
 
     verified_plan_names = [plan_name for _, plan_name, _ in verified_client.calls]
+    assert verified_client.readiness_calls
     assert len(verified_plan_names) == 3
+    assert verified_plan_names == staged_plan_names
     assert verified_plan_names[0].startswith("manipulation_hold_dynamic_5_001_approach_")
     assert verified_plan_names[1].startswith("manipulation_hold_dynamic_5_001_pre_grasp_")
     assert verified_plan_names[2].startswith("manipulation_hold_dynamic_5_001_lift_")

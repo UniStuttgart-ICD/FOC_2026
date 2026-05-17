@@ -400,11 +400,22 @@ class FakeGeometryWorldContext:
 
 
 class FakeVerifiedExecutionClient:
-    def __init__(self) -> None:
+    def __init__(self, readiness: dict[str, Any] | None = None) -> None:
+        self.readiness = readiness or {
+            "server_available": True,
+            "robot_connected": True,
+            "gripper_connected": True,
+            "error": None,
+        }
+        self.readiness_calls: list[float] = []
         self.calls: list[tuple[str, str, float]] = []
         self.gripper_calls: list[tuple[str, str, float]] = []
         self.home_calls: list[tuple[str, float]] = []
         self.sync_calls: list[tuple[str, float]] = []
+
+    async def get_readiness(self, timeout_s: float) -> dict[str, Any]:
+        self.readiness_calls.append(timeout_s)
+        return dict(self.readiness)
 
     async def execute_plan(
         self,
@@ -993,6 +1004,123 @@ class HiddenContractToolBridge(CompoundTaskPlanBridge):
     async def call_contract_tool(self, name: str, arguments: dict[str, Any]) -> str:
         self.contract_calls.append((name, arguments))
         return await super().call_tool(name, arguments)
+
+
+class StageSynchronizedTaskBridge(CompoundTaskPlanBridge):
+    def function_tools(self) -> list[dict[str, Any]]:
+        return [
+            *super().function_tools(),
+            {
+                "type": "function",
+                "name": "moveit_execute_task",
+                "parameters": {"type": "object"},
+                "strict": None,
+            },
+        ]
+
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        if name == "moveit_execute_plan":
+            self.calls.append((name, arguments))
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": True,
+                        "robot": arguments["robot_name"],
+                        "tool": "moveit_execute_plan",
+                        "status": "executed",
+                        "feedback": {"plan_name": arguments["plan_name"]},
+                        "verification": {"result": "pass"},
+                    }
+                }
+            )
+        if name == "moveit_close_gripper":
+            self.calls.append((name, arguments))
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": True,
+                        "robot": arguments["robot_name"],
+                        "tool": "moveit_close_gripper",
+                        "status": "gripper_closed",
+                        "verification": {"result": "pass"},
+                    }
+                }
+            )
+        if name == "moveit_attach_object":
+            self.calls.append((name, arguments))
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": True,
+                        "robot": arguments["robot_name"],
+                        "tool": "moveit_attach_object",
+                        "object_name": arguments["object_name"],
+                        "verification": {"result": "pass"},
+                        "raw": {
+                            "mcp_attached_object": arguments["object_name"],
+                            "mcp_gripper_holds_object": True,
+                            "planning_scene_state": "attached",
+                        },
+                    }
+                }
+            )
+        return await super().call_tool(name, arguments)
+
+
+def approved_hold_contract_context(task_solution_id: str = "hold_task_dynamic_5_001") -> RobotContextStore:
+    raw = compound_task_raw(
+        task_solution_id=task_solution_id,
+        task_kind="hold",
+        execution_contract=hold_execution_contract(),
+    )
+    return approved_contract_task_context(
+        task_solution_id=task_solution_id,
+        task_kind="hold",
+        object_name="dynamic_5",
+        raw=raw,
+    )
+
+
+def bridge_tool_names(bridge: FakeBridge) -> list[str]:
+    return [name for name, _arguments in bridge.calls]
+
+
+def executed_ar_rviz_plan_names(bridge: FakeBridge) -> list[str]:
+    return [
+        str(arguments["plan_name"])
+        for name, arguments in bridge.calls
+        if name == "moveit_execute_plan"
+    ]
+
+
+def assert_subsequence(values: list[str], expected: list[str]) -> None:
+    position = 0
+    for value in values:
+        if position < len(expected) and value == expected[position]:
+            position += 1
+    if position != len(expected):
+        pytest.fail(
+            f"Missing stage call sequence {expected[position:]}; observed {values}"
+        )
+
+
+def assert_stage_synchronized_ar_rviz_calls(bridge: FakeBridge) -> None:
+    names = bridge_tool_names(bridge)
+    assert "moveit_execute_task_solution" not in names
+    assert_subsequence(
+        names,
+        [
+            "moveit_plan_free_motion",
+            "moveit_execute_plan",
+            "moveit_plan_cartesian_motion",
+            "moveit_execute_plan",
+            "moveit_close_gripper",
+            "moveit_attach_object",
+            "moveit_plan_cartesian_motion",
+            "moveit_execute_plan",
+            "moveit_verify_attached_object",
+        ],
+    )
 
 
 def write_dynamic_role_model(tmp_path: Any) -> Any:
@@ -2507,63 +2635,61 @@ async def test_graph_records_explicit_task_solution_approval_before_execution() 
 
 
 @pytest.mark.asyncio
-async def test_graph_execute_task_runs_simulation_when_real_robot_unavailable() -> None:
+async def test_graph_execute_task_runs_staged_ar_rviz_when_verified_client_missing() -> None:
     execute_args = {
         "robot_name": "UR10",
         "task_solution_id": "pick_task_dynamic_5_001",
         "timeout_s": 10.0,
     }
+    bridge = StageSynchronizedTaskBridge()
     fixture = make_graph(
         [
             ai_tool_call("moveit_execute_task", execute_args),
-            ai_text("Executed in RViz."),
+            ai_text("unexpected model fallback"),
         ],
-        bridge=TaskExecutionBridge(),
+        bridge=bridge,
         robot_context=approved_pick_task_context(),
     )
 
     text = await fixture.graph.run_turn(turn("yes, execute the pick task"))
 
-    assert text == "Execution complete in RViz; real robot not connected."
-    assert ("moveit_execute_task_solution", execute_args) in fixture.bridge.calls
+    assert text == "Execution completed in AR/RViz; physical status unavailable."
+    assert_stage_synchronized_ar_rviz_calls(bridge)
     output = json.loads(latest_state_tool_content(fixture))
-    assert output["structured_content"]["ok"] is True
-    assert output["structured_content"]["tool"] == "moveit_execute_task"
-    assert output["structured_content"]["simulation"] == {
-        "ok": True,
-        "tool": "moveit_execute_task_solution",
-        "status": "executed",
-    }
-    assert output["structured_content"]["real_robot"] == {
-        "ok": False,
-        "status": "unavailable",
-        "message": "Verified real robot execution is not connected.",
-    }
+    structured = output["structured_content"]
+    assert structured["ok"] is True
+    assert structured["tool"] == "moveit_execute_task"
+    assert structured["task_solution_id"] == "pick_task_dynamic_5_001"
+    assert structured["simulation"]["ok"] is True
+    assert structured["real_robot"]["status"] == "unavailable"
 
 
 @pytest.mark.asyncio
-async def test_graph_execute_task_keeps_ok_when_real_robot_attempt_fails() -> None:
+async def test_graph_execute_task_stops_physical_after_readiness_then_failure() -> None:
     execute_args = {
         "robot_name": "UR10",
         "task_solution_id": "pick_task_dynamic_5_001",
         "timeout_s": 9.0,
     }
+    bridge = StageSynchronizedTaskBridge()
     verified_client = FakeFailingVerifiedExecutionClient()
     fixture = make_graph(
         [
             ai_tool_call("moveit_execute_task", execute_args),
-            ai_text("Executed in RViz, but real robot execution failed."),
+            ai_text("unexpected model fallback"),
         ],
-        bridge=TaskExecutionBridge(),
+        bridge=bridge,
         robot_context=approved_pick_task_context(),
         verified_execution_client=verified_client,
     )
 
     text = await fixture.graph.run_turn(turn("yes, execute the pick task"))
 
-    assert text == "Execution complete."
-    assert ("moveit_execute_task_solution", execute_args) in fixture.bridge.calls
-    assert verified_client.calls
+    assert text == "Execution completed in AR/RViz, but physical execution failed."
+    assert_stage_synchronized_ar_rviz_calls(bridge)
+    assert verified_client.readiness_calls == [9.0]
+    assert len(verified_client.calls) == 1
+    assert verified_client.gripper_calls == []
     output = json.loads(latest_state_tool_content(fixture))
     structured = output["structured_content"]
     assert structured["ok"] is True
@@ -2571,6 +2697,118 @@ async def test_graph_execute_task_keeps_ok_when_real_robot_attempt_fails() -> No
     assert structured["simulation"]["ok"] is True
     assert structured["real_robot"]["ok"] is False
     assert structured["real_robot"]["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_graph_execute_task_runs_ar_rviz_and_physical_when_verified_ready() -> None:
+    execute_args = {
+        "robot_name": "UR10",
+        "task_solution_id": "hold_task_dynamic_5_001",
+        "timeout_s": 9.0,
+    }
+    bridge = StageSynchronizedTaskBridge()
+    verified_client = FakeVerifiedExecutionClient()
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_execute_task", execute_args),
+            ai_text("unexpected model fallback"),
+        ],
+        bridge=bridge,
+        robot_context=approved_hold_contract_context(),
+        verified_execution_client=verified_client,
+    )
+
+    await fixture.graph.run_turn(turn("yes, execute the pick task"))
+
+    assert_stage_synchronized_ar_rviz_calls(bridge)
+    ar_rviz_plan_names = executed_ar_rviz_plan_names(bridge)
+    assert len(ar_rviz_plan_names) == 3
+    assert verified_client.readiness_calls == [9.0]
+    assert [call[1] for call in verified_client.calls] == ar_rviz_plan_names
+    assert verified_client.gripper_calls == [("UR10", "close", 9.0)]
+    output = json.loads(latest_state_tool_content(fixture))
+    structured = output["structured_content"]
+    assert structured["ok"] is True
+    assert structured["simulation"]["ok"] is True
+    assert structured["real_robot"]["status"] == "executed"
+
+
+@pytest.mark.asyncio
+async def test_graph_execute_task_skips_physical_when_verified_readiness_unavailable() -> None:
+    execute_args = {
+        "robot_name": "UR10",
+        "task_solution_id": "hold_task_dynamic_5_001",
+        "timeout_s": 9.0,
+    }
+    bridge = StageSynchronizedTaskBridge()
+    verified_client = FakeVerifiedExecutionClient(
+        readiness={
+            "server_available": True,
+            "robot_connected": False,
+            "gripper_connected": True,
+            "error": "robot disconnected",
+        }
+    )
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_execute_task", execute_args),
+            ai_text("unexpected model fallback"),
+        ],
+        bridge=bridge,
+        robot_context=approved_hold_contract_context(),
+        verified_execution_client=verified_client,
+    )
+
+    await fixture.graph.run_turn(turn("yes, execute the pick task"))
+
+    assert_stage_synchronized_ar_rviz_calls(bridge)
+    assert verified_client.readiness_calls == [9.0]
+    assert verified_client.calls == []
+    assert verified_client.gripper_calls == []
+    output = json.loads(latest_state_tool_content(fixture))
+    structured = output["structured_content"]
+    assert structured["ok"] is True
+    assert structured["simulation"]["ok"] is True
+    assert structured["real_robot"]["status"] == "unavailable"
+
+
+@pytest.mark.asyncio
+async def test_graph_execute_task_records_stage_synchronized_process_trace_evidence() -> None:
+    execute_args = {
+        "robot_name": "UR10",
+        "task_solution_id": "hold_task_dynamic_5_001",
+        "timeout_s": 9.0,
+    }
+    bridge = StageSynchronizedTaskBridge()
+    writer = MemoryTraceWriter()
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_execute_task", execute_args),
+            ai_text("unexpected model fallback"),
+        ],
+        bridge=bridge,
+        robot_context=approved_hold_contract_context(),
+        tracer=ProcessTracer(writer),
+    )
+
+    await fixture.graph.run_turn(turn("yes, execute the pick task"))
+
+    assert_stage_synchronized_ar_rviz_calls(bridge)
+    trace_tool_names = [
+        record["attributes"].get("tool.name")
+        for record in writer.records
+        if isinstance(record.get("attributes"), dict)
+    ]
+    assert "moveit_execute_task_solution" not in trace_tool_names
+    for tool_name in [
+        "moveit_plan_free_motion",
+        "moveit_plan_cartesian_motion",
+        "moveit_execute_plan",
+        "moveit_close_gripper",
+        "moveit_attach_object",
+        "moveit_verify_attached_object",
+    ]:
+        assert tool_name in trace_tool_names
 
 
 @pytest.mark.asyncio
