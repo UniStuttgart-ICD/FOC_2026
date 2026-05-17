@@ -1,0 +1,4 @@
+<launch>
+  <node name="rviz_ur10" pkg="rviz" type="rviz" output="screen"
+        args="-d /root/catkin_ws/src/vizor_package/launch/ur10_robot.rviz" />
+</launch>

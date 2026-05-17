@@ -1,0 +1,111 @@
+Panels:
+  - Class: rviz/Displays
+    Name: Displays
+  - Class: moveit_task_constructor/Motion Planning Tasks
+    Name: MTC Motion Planning Tasks
+  - Class: rviz/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz/Grid
+      Enabled: true
+      Name: Grid
+      Plane: XY
+      Plane Cell Count: 20
+      Cell Size: 0.25
+      Color: 160; 160; 164
+      Alpha: 0.5
+    - Class: rviz/RobotModel
+      Enabled: true
+      Name: UR10 RobotModel
+      Robot Description: UR10/robot_description
+      TF Prefix: ""
+      Update Interval: 0
+      Visual Enabled: true
+      Collision Enabled: false
+      Alpha: 1
+    - Class: moveit_rviz_plugin/MotionPlanning
+      Enabled: true
+      Move Group Namespace: /UR10
+      Name: UR10 MotionPlanning
+      Planned Path:
+        Color Enabled: false
+        Interrupt Display: false
+        Loop Animation: false
+        Robot Alpha: 0.5
+        Robot Color: 150; 50; 150
+        Show Robot Collision: false
+        Show Robot Visual: true
+        Show Trail: false
+        State Display Time: 0.05 s
+        Trail Step Size: 10
+        Trajectory Topic: /UR10/move_group/display_planned_path
+        Use Sim Time: false
+      Planning Request:
+        Colliding Link Color: 255; 0; 0
+        Goal State Alpha: 1
+        Goal State Color: 250; 128; 0
+        Interactive Marker Size: 0
+        Joint Violation Color: 255; 0; 255
+        Planning Group: arm
+        Query Goal State: true
+        Query Start State: false
+        Show Workspace: false
+        Start State Alpha: 1
+        Start State Color: 0; 255; 0
+      Planning Scene Topic: /UR10/move_group/monitored_planning_scene
+      Robot Description: UR10/robot_description
+      Scene Geometry:
+        Scene Alpha: 1
+        Scene Color: 50; 230; 50
+        Scene Display Time: 0.01
+        Show Scene Geometry: true
+        Voxel Coloring: Z-Axis
+        Voxel Rendering: Occupied Voxels
+      Scene Robot:
+        Attached Body Color: 150; 50; 150
+        Robot Alpha: 0.5
+        Show Robot Collision: false
+        Show Robot Visual: true
+      Value: true
+    - Class: moveit_task_constructor/Motion Planning Tasks
+      Enabled: true
+      Name: MTC Motion Planning Tasks
+      Robot Description: robot_description
+      Task Solution Topic: /solution
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 35; 38; 42
+    Fixed Frame: base_link
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz/Interact
+    - Class: rviz/MoveCamera
+    - Class: rviz/Select
+    - Class: rviz/FocusCamera
+  Views:
+    Current:
+      Class: rviz/Orbit
+      Distance: 3.0
+      Enable Stereo Rendering: false
+      Focal Point:
+        X: 0.35
+        Y: 0.0
+        Z: 0.45
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.01
+      Pitch: 0.55
+      Target Frame: <Fixed Frame>
+      Yaw: 0.8
+    Saved: ~
+Window Geometry:
+  Height: 900
+  Width: 1200
+  X: 50
+  Y: 50

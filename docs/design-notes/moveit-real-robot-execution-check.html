@@ -1016,7 +1016,7 @@
 
         <div class="callout">
           Full step-by-step worker plan:
-          <code>C:/Users/Samuel/Documents/github/pipecat/pipecat-agent/.pi/plans/2026-05-14-simplified-verified-execution-server.md</code>.
+          <code>.pi/plans/2026-05-14-simplified-verified-execution-server.md</code>.
         </div>
       </section>
 
@@ -1090,7 +1090,7 @@
         <pre><code>Get-NetTCPConnection -LocalPort 8766 | Select-Object LocalAddress,LocalPort,State,OwningProcess
 Get-Process -Id &lt;pid&gt; | Select-Object Id,ProcessName,Path
 
-cd C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library
+cd legacy Multi-Actor-Interface-Library
 uv run python scripts/run_robot_mcp_server.py --host 127.0.0.1 --port 8766 --robot-ip &lt;robot-ip&gt;</code></pre>
       </section>
 
@@ -1103,51 +1103,51 @@ uv run python scripts/run_robot_mcp_server.py --host 127.0.0.1 --port 8766 --rob
         <div class="evidence-grid">
           <div class="evidence">
             <strong>MoveIt MCP tools</strong>
-            <code>C:/Users/Samuel/Documents/github/Multi-Actor-Interface-Library/moveit_mcp/server.py</code>
+            <code>server/moveit_mcp/server.py</code>
           </div>
           <div class="evidence">
             <strong>MoveIt plan and execute checks</strong>
-            <code>C:/Users/Samuel/Documents/github/Multi-Actor-Interface-Library/moveit_mcp/tools.py</code>
+            <code>server/moveit_mcp/tools.py</code>
           </div>
           <div class="evidence">
             <strong>ROS topic client</strong>
-            <code>C:/Users/Samuel/Documents/github/Multi-Actor-Interface-Library/moveit_mcp/vizor_client.py</code>
+            <code>server/moveit_mcp/vizor_client.py</code>
           </div>
           <div class="evidence">
             <strong>RTDE robot bridge</strong>
-            <code>C:/Users/Samuel/Documents/github/Multi-Actor-Interface-Library/devices/ur/bridge.py</code>
+            <code>legacy Multi-Actor devices/ur/bridge.py</code>
           </div>
           <div class="evidence">
             <strong>Robot MCP</strong>
-            <code>C:/Users/Samuel/Documents/github/Multi-Actor-Interface-Library/mcp_server/server.py</code>
+            <code>legacy Multi-Actor mcp_server/server.py</code>
           </div>
           <div class="evidence">
             <strong>Pipecat task policy</strong>
-            <code>C:/Users/Samuel/Documents/github/pipecat/pipecat-agent/server/robot_control/task_policy.py</code>
+            <code>server/robot_control/task_policy.py</code>
           </div>
           <div class="evidence">
             <strong>Pipecat robot context</strong>
-            <code>C:/Users/Samuel/Documents/github/pipecat/pipecat-agent/server/robot_control/context.py</code>
+            <code>server/robot_control/context.py</code>
           </div>
           <div class="evidence">
             <strong>Pipecat job board</strong>
-            <code>C:/Users/Samuel/Documents/github/pipecat/pipecat-agent/server/robot_control/job_board.py</code>
+            <code>server/robot_control/job_board.py</code>
           </div>
           <div class="evidence">
             <strong>Pipecat job worker</strong>
-            <code>C:/Users/Samuel/Documents/github/pipecat/pipecat-agent/server/robot_control/job_worker.py</code>
+            <code>server/robot_control/job_worker.py</code>
           </div>
           <div class="evidence">
             <strong>Robot MCP launcher</strong>
-            <code>C:/Users/Samuel/Documents/github/Multi-Actor-Interface-Library/scripts/run_robot_mcp_server.py</code>
+            <code>legacy Multi-Actor scripts/run_robot_mcp_server.py</code>
           </div>
           <div class="evidence">
             <strong>Simplified execution server plan</strong>
-            <code>C:/Users/Samuel/Documents/github/pipecat/pipecat-agent/.pi/plans/2026-05-14-simplified-verified-execution-server.md</code>
+            <code>.pi/plans/2026-05-14-simplified-verified-execution-server.md</code>
           </div>
           <div class="evidence">
             <strong>Operator dashboard config</strong>
-            <code>C:/Users/Samuel/Documents/github/Multi-Actor-Interface-Library/configs/operator_dashboard.example.toml</code>
+            <code>configs/operator_dashboard.example.toml</code>
           </div>
         </div>
       </section>

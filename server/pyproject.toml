@@ -17,6 +17,11 @@ dependencies = [
     "langchain-google-genai>=4.0,<5",
     "langchain-anthropic>=1.2,<2",
     "tomlkit>=0.13,<1",
+    "fastapi>=0.115.0,<1",
+    "uvicorn>=0.32.0,<1",
+    "psutil>=6.0.0,<8",
+    "roslibpy>=0.3.0,<2",
+    "ur-rtde>=1.6.2,<2",
 ]
 
 [dependency-groups]
@@ -33,6 +38,24 @@ line-length = 100
 [tool.ruff.lint]
 select = ["I"]
 
+[tool.pyright]
+exclude = [
+    ".venv",
+    ".pytest_cache",
+    "**/__pycache__",
+    "tests/test_moveit_mcp_agent_contract.py",
+    "tests/test_moveit_mcp_planning_tools.py",
+    "tests/test_moveit_mcp_server.py",
+    "tests/test_operator_dashboard_app.py",
+    "tests/test_operator_dashboard_launcher.py",
+    "tests/test_operator_dashboard_service_manager.py",
+    "tests/test_verified_execution_server.py",
+    "tests/test_vizor_client.py",
+    "tests/test_vizor_mcp_context.py",
+    "tests/test_vizor_mcp_launcher.py",
+    "tests/test_vizor_rviz_robotiq_patch.py",
+]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 markers = [
@@ -40,4 +63,5 @@ markers = [
     "llm: manual tests that call real API-backed chat models",
     "native_llm: manual tests that call real API-key LangChain providers",
     "robot_sim: manual tests that require the MoveIt robot simulation stack",
+    "integration: manual tests that require running local integration services",
 ]

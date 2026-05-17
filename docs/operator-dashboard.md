@@ -1,12 +1,13 @@
 # MAVE operator dashboard
 
-Start the MAVE operator dashboard from the Multi-Actor repository root:
+Start the MAVE operator dashboard from the repo root:
 
 ```powershell
-cd C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library
-uv run python scripts/run_operator_dashboard.py
+.\Start-MAVE-Workshop.cmd
 ```
 
-Open the printed localhost URL with its `token` query parameter. The dashboard can start and monitor Vizor + RViz, MoveIt MCP, and the Pipecat voice agent.
+The launcher prints the localhost URL with its `token` query parameter in the same `.cmd` window and opens it in the browser. Keep the window open while the dashboard is running.
 
-The dashboard service commands are configured in `C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\configs\operator_dashboard.example.toml` or the local override `configs\operator_dashboard.local.toml`.
+The dashboard can start and monitor the repo-local Vizor + RViz Compose stack, MoveIt MCP, Vizor MCP, the verified execution server, and the Pipecat voice agent.
+
+Service commands are configured in `configs/operator_dashboard.example.toml`. Put machine-specific values such as a physical robot IP in `configs/operator_dashboard.local.toml`; that file is ignored.

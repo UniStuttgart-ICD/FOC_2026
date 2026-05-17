@@ -26,7 +26,7 @@ Documentation workspace for the Pipecat voice robot agent.
 <important if="an HTML doc explains architecture, flow, dependencies, decisions, or other complex concepts">
 - Use visuals as helping cues: diagrams, flowcharts, timelines, callouts, comparison tables, annotated mockups, or small charts.
 - Use visuals to clarify the concept, not to decorate the page.
-- When precise arrows, lanes, labels, or SVG layout matter, follow `C:\Users\Samuel\.codex\skills\drawing-precise-html-svg-diagrams\SKILL.md`.
+- When precise arrows, lanes, labels, or SVG layout matter, follow `the drawing-precise-html-svg-diagrams skill`.
 - For inline SVG diagrams, keep node placement, arrow routing, labels, and mobile behavior deliberate.
 - Verify visual docs in a browser when practical before claiming they are ready.
 </important>

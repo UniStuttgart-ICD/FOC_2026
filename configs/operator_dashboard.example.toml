@@ -1,0 +1,70 @@
+[dashboard]
+host = "127.0.0.1"
+port = 8787
+
+[services.vizor]
+label = "Vizor + RViz"
+cwd = "."
+command = ["docker", "compose", "-f", "docker/compose/workshop.yml", "up", "--build"]
+stop_command = ["docker", "compose", "-f", "docker/compose/workshop.yml", "down"]
+startup_timeout_s = 240
+ready_checks = [
+  { type = "tcp", host = "127.0.0.1", port = 9090, label = "rosbridge" },
+  { type = "http", url = "http://127.0.0.1:6080", label = "noVNC" },
+  { type = "tcp", host = "127.0.0.1", port = 8001, label = "Vizor MCP port" },
+  { type = "tcp", host = "127.0.0.1", port = 8765, label = "MoveIt MCP port" },
+]
+links = [
+  { label = "Open RViz", url = "http://127.0.0.1:6080/vnc.html?autoconnect=1&resize=scale" },
+]
+
+[services.verified_execution]
+label = "Verified Execution Server"
+cwd = "server"
+command = ["uv", "run", "python", "../scripts/run_verified_execution_server.py"]
+env = { ROSBRIDGE_HOST = "127.0.0.1", ROSBRIDGE_PORT = "9090", ROBOT_NAME = "UR10", UR_ROBOT_IP = "127.0.0.1", UR_COMPLETION_TIMEOUT_S = "30.0", UR_COMPLETION_POLL_INTERVAL_S = "0.1", UR_JOINT_TOLERANCE_RAD = "0.03", UR_COMPLETION_STABLE_SAMPLES = "2", UR_SKIP_GRIPPER = "true" }
+startup_timeout_s = 60
+ready_checks = [
+  { type = "http", url = "http://127.0.0.1:8770/health", label = "Verified execution" },
+]
+
+[services.pipecat]
+label = "Pipecat Voice Agent"
+cwd = "server"
+command = ["uv", "run", "bot.py"]
+env = { MCP_VIZOR_URL = "http://127.0.0.1:8001/mcp", VERIFIED_EXECUTION_URL = "http://127.0.0.1:8770", ROBOT_JOB_MONITOR_HOST = "127.0.0.1", ROBOT_JOB_MONITOR_PORT = "8898" }
+startup_timeout_s = 60
+ready_checks = [
+  { type = "http", url = "http://localhost:7860/client", label = "Pipecat client" },
+  { type = "http", url = "http://127.0.0.1:8898", label = "Blackboard monitor" },
+]
+links = [
+  { label = "Open Pipecat", url = "http://localhost:7860/client" },
+  { label = "Open Blackboard", url = "http://127.0.0.1:8898" },
+]
+
+[services.wake_tuning]
+label = "Wake Word Tuning"
+cwd = "server"
+command = ["uv", "run", "python", "-m", "wake_tuning.app"]
+include_in_global_actions = false
+startup_timeout_s = 60
+ready_checks = [
+  { type = "http", url = "http://127.0.0.1:9010", label = "Wake lab" },
+]
+links = [
+  { label = "Open Wake Lab", url = "http://127.0.0.1:9010" },
+]
+
+[services.voice_modulation]
+label = "Voice Modulation Lab"
+cwd = "server"
+command = ["uv", "run", "uvicorn", "voice_modulation.app:app", "--host", "127.0.0.1", "--port", "8897"]
+include_in_global_actions = false
+startup_timeout_s = 60
+ready_checks = [
+  { type = "http", url = "http://127.0.0.1:8897", label = "Voice mod lab" },
+]
+links = [
+  { label = "Open Voice Mod", url = "http://127.0.0.1:8897" },
+]

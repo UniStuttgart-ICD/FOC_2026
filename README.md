@@ -29,6 +29,18 @@ uv run bot.py --profile hybrid_gemini_live_tts
 
 `server/runtime_profiles.toml` intentionally carries one bundled app profile. Do not rebuild the old provider matrix without a new architecture decision.
 
+## Workshop startup
+
+From the repo root, run:
+
+```cmd
+Start-MAVE-Workshop.cmd
+```
+
+The launcher checks for `uv`, creates `server/.venv` with `uv sync` if needed, starts the operator dashboard, prints the token URL, and opens the dashboard in the browser. Use the dashboard buttons to start Vizor + RViz, MoveIt MCP, Vizor MCP, the verified execution server, and the Pipecat voice agent.
+
+Repo-local workshop configuration lives in `configs/operator_dashboard.example.toml`. Copy it to `configs/operator_dashboard.local.toml` for machine-specific settings such as a physical robot IP. Do not commit local overrides.
+
 ### Wake tuning
 
 Run the independent wake tuning page from `server/`:
@@ -48,7 +60,7 @@ To make tuned values the shared default, copy the saved profile values into `ser
 Run the independent agent persona and voice workbench:
 
 ```powershell
-cd C:\Users\Samuel\Documents\github\pipecat\pipecat-agent\server
+cd server
 uv run uvicorn voice_modulation.app:app --host 127.0.0.1 --port 8897
 ```
 
@@ -116,6 +128,10 @@ Robot movement safety is delegated to MoveIt planning/execution and the robot si
 
 ```
 pipecat-agent/
+├── Start-MAVE-Workshop.cmd
+├── configs/            # Workshop dashboard config
+├── docker/             # Workshop Compose and image sources
+├── scripts/            # Repo-root launch scripts
 ├── server/              # Python bot server
 │   ├── bot.py           # Main bot implementation
 │   ├── pyproject.toml   # Python dependencies

@@ -202,11 +202,41 @@ The MCP-owned immutable store keyed by `task_solution_id`, containing the solved
 **Verified Real Robot Execution**:
 The host-side actuation boundary that executes cached MoveIt plans on the physical UR10 and Robotiq path after explicit execution intent.
 
+**Verified Execution Server**:
+The repo-local service that exposes the **Verified Real Robot Execution** HTTP boundary. It may use RTDE Receive for readiness and completion evidence, but production motion uses URScript over the robot script socket and gripper control uses the direct Robotiq socket.
+
+**Narrow Verified Execution Migration**:
+The workshop migration rule that brings only the UR10/Robotiq verified execution service code into `server/verified_execution_server`, not the broader legacy multi-robot `core` and `devices` framework.
+
 **Simulation-Only Robot Execution**:
 The runtime profile mode where robot execution stays inside MoveIt MCP/RViz/noVNC and Pipecat does not create a Verified Real Robot Execution client.
 
+**Workshop Monorepo**:
+The single repository students clone for the workshop runtime, including the voice agent, operator dashboard, Vizor/MoveIt Docker stack wiring, MCP services, and verified execution server.
+
+**Workshop Runtime Services**:
+The repo-local runtime service packages under `server/`, including the voice agent packages, operator dashboard, MoveIt MCP, Vizor MCP, and verified execution server.
+
+**Operator Dashboard**:
+The `server/operator_dashboard` service that starts and monitors the workshop runtime services and the **Canonical Development Compose** stack from a local browser UI.
+
+**Workshop Operator Config**:
+The repo-root `configs/` operator-facing configuration for dashboard service commands, robot IPs, and workshop startup defaults. Committed config and docs must use repo-relative paths or portable defaults, not machine-specific absolute paths.
+
+**Workshop MCP Services**:
+The repo-local `server/moveit_mcp` and `server/vizor_mcp` packages. They keep their package names so the Docker stack can continue to launch `python -m moveit_mcp` and `python -m vizor_mcp`.
+
+**Workshop MCP Image**:
+The Docker image built from the **Workshop Monorepo** that packages only the workshop MCP service code and its minimal runtime dependencies. Compose keeps both prebuilt image tags and repo-local build contexts so instructors can distribute images while developers can rebuild from source.
+
+**Legacy Multi-Actor Material**:
+Older Multi-Actor assignment code, Gradio agent surfaces, Mongo sensor workflow, broad multi-robot framework code, and study artifacts that are not part of the current Pipecat workshop runtime.
+
+**Workshop Dashboard Launcher**:
+The root-level Windows `.cmd` entrypoint that verifies `uv`, performs first-run server dependency sync when needed, starts only the **Operator Dashboard**, and keeps startup failures visible for workshop participants. The dashboard URL with its token is printed by the Python dashboard runner in the `.cmd` window, and the runner may auto-open that URL in the browser. The `.cmd` keeps the dashboard process in the foreground so logs and errors remain visible. Service lifecycle remains visible inside the dashboard UI. The launcher does not create local config files.
+
 **Canonical Development Compose**:
-The versioned Docker Compose configuration in the repository that owns the Vizor/MoveIt Docker stack. It owns development image tags, service wiring, and MTC enablement; local operator configuration is limited to machine-specific environment and secret overrides.
+The repo-local versioned Docker Compose configuration in the **Workshop Monorepo** that owns the Vizor/MoveIt Docker stack. It owns development image tags, service wiring, and MTC enablement; local operator configuration is limited to machine-specific environment and secret overrides, which must not be committed.
 
 **Verified Task Plan Execution Bridge**:
 The `moveit_execute_task_plan` Robot Control bridge that consumes a recent approved **Task Solution** with a supported `execution_contract`, retries task motion stages when needed, executes returned plan names through **Verified Real Robot Execution**, interleaves verified gripper actions with MCP attach/release tools, and verifies attachment or release before success.

@@ -197,6 +197,7 @@ cython_debug/
 # Local runtime state
 server/state/
 server/wake_tuning_settings.json
+configs/operator_dashboard.local.toml
 
 # Visual Studio Code
 #   Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 

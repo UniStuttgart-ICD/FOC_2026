@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Operator Dashboard</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/static/styles.css?v=20260515-robot-controls">
+    <script src="/static/app.js?v=20260515-robot-controls" defer></script>
+  </head>
+  <body>
+    <div class="dashboard-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Robot operator stack</p>
+          <h1>Operator Dashboard</h1>
+        </div>
+        <div id="global-status" class="global-status" role="status" aria-live="polite">
+          Awaiting telemetry
+        </div>
+      </header>
+
+      <main class="dashboard-main">
+        <section class="command-bar" aria-label="Global controls">
+          <button id="start-all" class="control control-start" type="button">Start system</button>
+          <button id="stop-all" class="control control-stop" type="button">Stop system</button>
+          <button id="refresh" class="control" type="button">Refresh</button>
+        </section>
+
+        <section class="command-bar robot-command-bar" aria-label="Robot RTDE controls">
+          <div class="robot-command-heading">
+            <p class="eyebrow">Robot RTDE</p>
+            <span id="robot-command-status" class="meta" role="status" aria-live="polite">Verified execution stopped</span>
+          </div>
+          <div class="robot-command-actions">
+            <button id="robot-home" class="control control-start" type="button" disabled>Home robot</button>
+            <button id="gripper-open" class="control" type="button" disabled>Open gripper</button>
+            <button id="gripper-close" class="control" type="button" disabled>Close gripper</button>
+          </div>
+        </section>
+
+        <div class="workspace">
+          <div class="process-stack">
+            <section class="panel service-panel core-panel" aria-labelledby="services-title">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Start system target</p>
+                  <h2 id="services-title">Core system</h2>
+                </div>
+                <span id="service-count" class="meta">0 core</span>
+              </div>
+              <div id="service-grid" class="service-grid" aria-live="polite"></div>
+            </section>
+
+            <section class="panel service-panel auxiliary-panel" aria-labelledby="auxiliary-services-title">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Manual launchpad</p>
+                  <h2 id="auxiliary-services-title">Auxiliary processes</h2>
+                </div>
+                <span id="auxiliary-service-count" class="meta">0 auxiliary</span>
+              </div>
+              <div id="auxiliary-service-grid" class="service-grid auxiliary-grid" aria-live="polite"></div>
+            </section>
+          </div>
+
+          <aside class="side-stack">
+            <section class="panel" aria-labelledby="health-title">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Readiness</p>
+                  <h2 id="health-title">Health checks</h2>
+                </div>
+              </div>
+              <ul id="health-list" class="health-list"></ul>
+            </section>
+
+            <section class="panel log-section" aria-labelledby="logs-title">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Selected service</p>
+                  <h2 id="logs-title">Recent logs</h2>
+                </div>
+                <button id="copy-logs" class="control control-small" type="button">Copy logs</button>
+              </div>
+              <pre id="log-panel" class="log-panel" aria-live="polite">Select a service to inspect logs.</pre>
+            </section>
+          </aside>
+        </div>
+
+      </main>
+    </div>
+  </body>
+</html>

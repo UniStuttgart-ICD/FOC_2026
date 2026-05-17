@@ -1,0 +1,85 @@
+x-mcp-service: &mcp-service
+  build:
+    context: ../..
+    dockerfile: docker/mcp/Dockerfile
+  image: local/multi-actor-mcp:latest
+  depends_on:
+    - vizor-demo
+  restart: unless-stopped
+
+services:
+  vizor-demo:
+    build:
+      context: ../vizor-rviz
+      dockerfile: Dockerfile
+    image: local/noetic-vizor-rviz:latest
+    container_name: vizor-demo
+    tty: true
+    environment:
+      - ROS_HOSTNAME=vizor-demo
+      - ROS_MASTER_URI=http://ros-core:11311
+      - DISPLAY=:1
+    ports:
+      - "6080:6080"
+      - "5901:5901"
+      - "9090:9090"
+      - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"
+      - "10003:10003"
+    depends_on:
+      - ros-core
+
+  ros-core:
+    build:
+      context: .
+      dockerfile: Dockerfile.noetic-vizor-local
+    image: local/noetic-vizor-local:latest
+    container_name: ros-core
+    ports:
+      - "11311:11311"
+    command:
+      - roscore
+
+  vizor-mcp:
+    <<: *mcp-service
+    container_name: vizor-mcp
+    command:
+      - python
+      - -m
+      - vizor_mcp
+      - --rosbridge-host
+      - vizor-demo
+      - --rosbridge-port
+      - "9090"
+      - --transport
+      - streamable-http
+      - --http-host
+      - 0.0.0.0
+      - --http-port
+      - "8001"
+      - --enable-holo1-tracking-on-startup
+      - --attention-window-s
+      - "8.0"
+    ports:
+      - "8001:8001"
+
+  moveit-mcp:
+    <<: *mcp-service
+    container_name: moveit-mcp
+    command:
+      - python
+      - -m
+      - moveit_mcp
+      - --rosbridge-host
+      - vizor-demo
+      - --rosbridge-port
+      - "9090"
+      - --transport
+      - streamable-http
+      - --http-host
+      - 0.0.0.0
+      - --http-port
+      - "8765"
+    ports:
+      - "8765:8765"

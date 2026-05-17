@@ -389,14 +389,14 @@ git commit -m "feat: swap scaffolded Google LLM for Claude MCP processor"
 
 **Files:**
 - Modify: `server/.env` locally only
-- Verify external dependency: `C:/Users/Samuel/Documents/github/Multi-Actor-Interface-Library`
+- Verify external dependency: `legacy Multi-Actor-Interface-Library`
 
 **Step 1: Start URSim**
 
 Run:
 
 ```bash
-docker compose -f C:/Users/Samuel/Documents/github/Multi-Actor-Interface-Library/docker/ursim/docker-compose.yml up
+docker compose -f legacy Multi-Actor-Interface-Library/docker/ursim/docker-compose.yml up
 ```
 
 Expected:
@@ -408,7 +408,7 @@ Expected:
 Run:
 
 ```bash
-cd C:/Users/Samuel/Documents/github/Multi-Actor-Interface-Library
+cd legacy Multi-Actor-Interface-Library
 uv run python -m mcp_server.server
 ```
 
@@ -419,7 +419,7 @@ Expected:
 **Step 3: Create local bot config**
 
 ```bash
-cd C:/Users/Samuel/Documents/github/pipecat/pipecat-agent/server
+cd server
 cp .env.example .env
 ```
 

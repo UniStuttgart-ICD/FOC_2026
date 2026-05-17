@@ -725,8 +725,8 @@
       <div class="section-head">
         <h2>Compared Inputs</h2>
         <p>
-          The original folder contains only compose YAML files. The current RViz image
-          and MCP image source live in <code>Multi-Actor-Interface-Library</code>, so
+          The original folder contains only compose YAML files. The current workshop
+          compose file and image sources live in this repo, so
           this comparison covers both compose-level changes and image-source changes.
         </p>
       </div>
@@ -734,19 +734,19 @@
       <div class="source-grid">
         <div class="source">
           <b>Original baseline</b>
-          <p><code>C:\Users\Samuel\Documents\github\BehFab2025_VizorHRC\BehFab2025_VizorHRC\01_Docker\vizor_config_two_worker.yml</code></p>
+          <p><code>legacy BehFab2025_VizorHRC/01_Docker/vizor_config_two_worker.yml</code></p>
         </div>
         <div class="source">
           <b>Current active compose file</b>
-          <p><code>C:\Users\Samuel\Documents\github\BehFab2025_VizorHRC\BehFab2025_VizorHRC\01_Docker\vizor_config.yml</code></p>
+          <p><code>docker/compose/workshop.yml</code></p>
         </div>
         <div class="source">
           <b>Current RViz/Vizor image source</b>
-          <p><code>C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\docker\vizor-rviz</code></p>
+          <p><code>docker/vizor-rviz</code></p>
         </div>
         <div class="source">
           <b>Current MCP image source</b>
-          <p><code>C:\Users\Samuel\Documents\github\Multi-Actor-Interface-Library\docker\mcp\Dockerfile</code></p>
+          <p><code>docker/mcp/Dockerfile</code></p>
         </div>
       </div>
 
@@ -1430,7 +1430,7 @@ rviz -d ur10_robot.rviz</pre>
           </tr>
           <tr>
             <td>What should be watched?</td>
-            <td>The active compose file still lives in the original <code>01_Docker</code> folder but points to image sources in <code>Multi-Actor-Interface-Library</code>. Keep those paths synchronized when moving machines or repositories.</td>
+            <td>The active compose file now lives at <code>docker/compose/workshop.yml</code> and uses repo-local image build contexts. Keep those contexts in sync with the migrated workshop service packages.</td>
           </tr>
         </tbody>
       </table>
