@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from pathlib import Path
 from typing import Callable
 from urllib.error import HTTPError, URLError
@@ -15,6 +15,14 @@ from fastapi.responses import HTMLResponse
 
 from agent_control.prompts import SPEAKING_AGENT_PERSONA, SPEECH_DELIVERY_STYLE
 from voice_modulation.dsp import VoiceModulationDspError
+from voice_modulation.gemini_voices import gemini_live_voice_options
+from voice_modulation.persona_editor import (
+    PersonaValidationError,
+    list_persona_templates,
+    load_persona_parts,
+    load_persona_template,
+    save_persona_part,
+)
 from voice_modulation.preview import (
     AudioBytes,
     VoicePreviewError,
@@ -22,13 +30,16 @@ from voice_modulation.preview import (
     encode_preview,
     render_effect_preview,
     synthesize_tts_reference,
+    tts_for_preview,
 )
+from voice_modulation.profile_editor import save_gemini_tts_voice, save_voice_modulation_default
 from voice_modulation.settings import (
     BUILT_IN_PRESETS,
     VoiceModulationError,
     default_settings_path,
     load_all_settings,
     load_profile_settings,
+    profile_default_settings,
     save_profile_settings,
     settings_from_mapping,
 )
@@ -83,6 +94,10 @@ def create_app(
     def cartesia_voices() -> dict[str, object]:
         return _cartesia_voice_response(fetcher=cartesia_voice_fetcher)
 
+    @app.get("/api/gemini/voices")
+    def gemini_voices() -> dict[str, object]:
+        return {"voices": gemini_live_voice_options()}
+
     @app.get("/api/persona")
     def persona() -> dict[str, object]:
         return {
@@ -94,10 +109,55 @@ def create_app(
             },
         }
 
+    @app.get("/api/persona/parts")
+    def persona_parts() -> dict[str, object]:
+        return {
+            "parts": [
+                asdict(part) for part in load_persona_parts(_prompt_parts_dir(root))
+            ]
+        }
+
+    @app.post("/api/persona/parts/{part_id}")
+    def post_persona_part(part_id: str, payload: dict[str, object]) -> dict[str, object]:
+        content = _string(payload.get("content"), "content")
+        try:
+            part = save_persona_part(_prompt_parts_dir(root), part_id, content)
+        except PersonaValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "ok": True,
+            "part": asdict(part),
+            "restart_required": True,
+            "git_source_changed": True,
+        }
+
+    @app.get("/api/persona/templates")
+    def persona_templates() -> dict[str, object]:
+        return {"templates": list_persona_templates(root)}
+
+    @app.post("/api/persona/templates/{template_id}/load")
+    def post_persona_template(template_id: str) -> dict[str, object]:
+        try:
+            parts = load_persona_template(root, template_id)
+        except PersonaValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "ok": True,
+            "parts": [asdict(part) for part in parts],
+            "restart_required": True,
+            "git_source_changed": True,
+        }
+
     @app.get("/api/settings/{profile_name}")
     def get_settings(profile_name: str) -> dict[str, object]:
         all_settings = load_all_settings(server_dir=root)
-        settings = all_settings.get(profile_name, BUILT_IN_PRESETS["clean"])
+        default_settings = BUILT_IN_PRESETS["clean"]
+        try:
+            profile = load_runtime_profile(server_dir=root, profile_name=profile_name)
+            default_settings = profile_default_settings(profile)
+        except ProfileError:
+            pass
+        settings = all_settings.get(profile_name, default_settings)
         return {
             "profile": profile_name,
             "saved": profile_name in all_settings,
@@ -119,6 +179,39 @@ def create_app(
             "settings_path": str(path),
         }
 
+    @app.post("/api/profiles/{profile_name}/tts/voice")
+    def post_tts_voice(profile_name: str, payload: dict[str, object]) -> dict[str, object]:
+        voice = _string(payload.get("voice"), "voice")
+        try:
+            result = save_gemini_tts_voice(_profiles_path(root), profile_name, voice)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "ok": True,
+            "profile": result.profile_name,
+            "voice": result.voice,
+            "restart_required": True,
+            "source_path": str(result.source_path),
+        }
+
+    @app.post("/api/profiles/{profile_name}/voice-modulation-default")
+    def post_voice_modulation_default(
+        profile_name: str,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        try:
+            settings = settings_from_mapping(payload)
+            result = save_voice_modulation_default(_profiles_path(root), profile_name, settings)
+        except (VoiceModulationError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "ok": True,
+            "profile": result.profile_name,
+            "settings": settings.to_dict(),
+            "restart_required": True,
+            "source_path": str(result.source_path),
+        }
+
     @app.post("/api/preview/effect")
     def preview_effect(payload: dict[str, object]) -> dict[str, object]:
         try:
@@ -136,7 +229,7 @@ def create_app(
         voice_id = _optional_string(payload.get("voice_id"), "voice_id")
         try:
             profile = load_runtime_profile(server_dir=root, profile_name=profile_name)
-            clean_audio = synthesize(_tts_for_preview(profile.tts, voice_id), text)
+            clean_audio = synthesize(tts_for_preview(profile.tts, voice_id), text)
         except ProfileError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except VoicePreviewError as exc:
@@ -153,8 +246,12 @@ def create_app(
         voice_id = _optional_string(payload.get("voice_id"), "voice_id")
         try:
             profile = load_runtime_profile(server_dir=root, profile_name=profile_name)
-            clean_audio = synthesize(_tts_for_preview(profile.tts, voice_id), text)
-            settings = load_profile_settings(profile_name, server_dir=root)
+            clean_audio = synthesize(tts_for_preview(profile.tts, voice_id), text)
+            settings = load_profile_settings(
+                profile_name,
+                server_dir=root,
+                default=profile_default_settings(profile),
+            )
             modulated_audio = render_effect_preview(clean_audio, settings)
         except ProfileError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -172,6 +269,14 @@ def create_app(
 
 def _static_index_path() -> Path:
     return Path(__file__).resolve().parent / "static" / "index.html"
+
+
+def _profiles_path(root: Path) -> Path:
+    return default_profiles_path(root)
+
+
+def _prompt_parts_dir(root: Path) -> Path:
+    return root / "agent_control" / "prompt_parts"
 
 
 def _profile_names(server_dir: Path) -> list[str]:
@@ -292,16 +397,6 @@ def _normalize_cartesia_voices(value: object) -> list[dict[str, object]]:
             }
         )
     return voices
-
-
-def _tts_for_preview(tts: TTSProfile, voice_id: str | None) -> TTSProfile:
-    if tts.provider == "gemini_live" and tts.instructions is None:
-        tts = replace(tts, instructions=SPEECH_DELIVERY_STYLE)
-    if voice_id is None:
-        return tts
-    if tts.provider != "cartesia":
-        raise VoicePreviewError("voice_id override is only supported for Cartesia TTS profiles")
-    return replace(tts, voice=voice_id)
 
 
 def _dict(value: object, name: str) -> dict[str, object]:

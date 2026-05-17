@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Geometry-Grounded Pick-Place</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef1ed;
+      --ink: #18201f;
+      --muted: #53625e;
+      --panel: #fbfcf7;
+      --panel-deep: #e1e8e2;
+      --line: rgba(24, 32, 31, 0.18);
+      --robot: #1f6b54;
+      --agent: #9a4e2c;
+      --hologram: #236f8e;
+      --physical: #6f5f24;
+      --warn: #9d3d32;
+      --shadow: 0 22px 52px rgba(20, 30, 28, 0.13);
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: Aptos, Candara, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      background:
+        linear-gradient(90deg, rgba(24, 32, 31, 0.055) 1px, transparent 1px) 0 0 / 38px 38px,
+        linear-gradient(180deg, rgba(24, 32, 31, 0.045) 1px, transparent 1px) 0 0 / 38px 38px,
+        radial-gradient(circle at 78% 10%, rgba(35, 111, 142, 0.17), transparent 26%),
+        radial-gradient(circle at 12% 2%, rgba(154, 78, 44, 0.13), transparent 23%),
+        var(--bg);
+    }
+
+    a {
+      color: inherit;
+      text-decoration-color: rgba(24, 32, 31, 0.32);
+      text-underline-offset: 3px;
+    }
+
+    code,
+    pre {
+      font-family: "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+      font-size: 0.92rem;
+    }
+
+    pre {
+      margin: 0;
+      padding: 18px;
+      overflow-x: auto;
+      color: #f7fbf5;
+      background: #15201d;
+      border-radius: var(--radius);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+
+    .shell {
+      width: min(1220px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 34px 0 70px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.04fr) minmax(320px, 0.76fr);
+      gap: 30px;
+      align-items: stretch;
+      min-height: 520px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .hero-copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
+    }
+
+    .eyebrow {
+      width: fit-content;
+      margin-bottom: 18px;
+      padding: 8px 10px;
+      color: #20302d;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: rgba(251, 252, 247, 0.72);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 850px;
+      margin-bottom: 20px;
+      font-size: 4.6rem;
+      line-height: 0.96;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 760px;
+      margin-bottom: 28px;
+      color: var(--muted);
+      font-size: 1.12rem;
+      line-height: 1.65;
+    }
+
+    .hero-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .tag {
+      padding: 9px 11px;
+      font-size: 0.86rem;
+      font-weight: 700;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+    }
+
+    .hero-panel {
+      align-self: center;
+      min-width: 0;
+      padding: 22px;
+      background: rgba(251, 252, 247, 0.82);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .model-pair {
+      display: grid;
+      gap: 14px;
+    }
+
+    .model {
+      min-width: 0;
+      padding: 16px;
+      background: #fffef9;
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--physical);
+      border-radius: var(--radius);
+    }
+
+    .model.hologram {
+      border-left-color: var(--hologram);
+    }
+
+    .model strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 1.02rem;
+    }
+
+    .model span {
+      display: block;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .pair-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 46px;
+      color: var(--robot);
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .pair-link::before,
+    .pair-link::after {
+      content: "";
+      width: 58px;
+      height: 2px;
+      background: currentColor;
+    }
+
+    section {
+      margin-top: 34px;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.86fr) minmax(260px, 0.44fr);
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+
+    h2 {
+      margin-bottom: 0;
+      font-size: 2rem;
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    .section-head p {
+      margin-bottom: 0;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .card,
+    .flow,
+    .callout {
+      min-width: 0;
+      background: rgba(251, 252, 247, 0.88);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 16px 38px rgba(20, 30, 28, 0.08);
+    }
+
+    .card {
+      padding: 18px;
+    }
+
+    .card h3 {
+      margin-bottom: 8px;
+      font-size: 1.02rem;
+      line-height: 1.25;
+    }
+
+    .card p {
+      margin-bottom: 0;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 18px;
+    }
+
+    .node {
+      min-height: 148px;
+      padding: 15px;
+      background: #fffef9;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .node small {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .node strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 1.08rem;
+    }
+
+    .node p {
+      margin-bottom: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .node.physical {
+      border-top: 5px solid var(--physical);
+    }
+
+    .node.agent {
+      border-top: 5px solid var(--agent);
+    }
+
+    .node.robot {
+      border-top: 5px solid var(--robot);
+    }
+
+    .arrow {
+      width: 36px;
+      color: var(--muted);
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+    }
+
+    .callout {
+      padding: 18px;
+      border-left: 5px solid var(--warn);
+    }
+
+    .callout h3 {
+      margin-bottom: 8px;
+      color: var(--warn);
+      font-size: 1rem;
+    }
+
+    .callout p {
+      margin-bottom: 0;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .checklist {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .checklist li {
+      padding: 12px 14px;
+      background: rgba(251, 252, 247, 0.88);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .label {
+      display: inline-block;
+      min-width: 92px;
+      margin-right: 8px;
+      color: var(--robot);
+      font-weight: 800;
+    }
+
+    footer {
+      margin-top: 44px;
+      padding-top: 18px;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 920px) {
+      .hero,
+      .section-head,
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 3.2rem;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .flow {
+        grid-template-columns: 1fr;
+      }
+
+      .arrow {
+        width: auto;
+        transform: rotate(90deg);
+      }
+    }
+
+    @media (max-width: 560px) {
+      .shell {
+        width: min(100% - 24px, 1220px);
+        padding-top: 20px;
+      }
+
+      h1 {
+        font-size: 2.35rem;
+      }
+
+      h2 {
+        font-size: 1.55rem;
+      }
+
+      .hero-panel,
+      .flow,
+      .card,
+      .callout {
+        padding: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">Robot Control Change Note</div>
+        <h1>Geometry-Grounded Pick-Place</h1>
+        <p class="lead">
+          The agent now reasons over a paired world model: physical elements from MoveIt setup and
+          user-positioned hologram targets from AR. It still observes and plans through MoveIt, but it
+          receives the compact geometry context needed to choose the correct target pose.
+        </p>
+        <div class="hero-tags" aria-label="Key properties">
+          <span class="tag">KISS context block</span>
+          <span class="tag">No new geometry tool</span>
+          <span class="tag">One compound pick_place task</span>
+          <span class="tag">No fallback target</span>
+        </div>
+      </div>
+
+      <aside class="hero-panel" aria-label="Paired geometry models">
+        <div class="model-pair">
+          <div class="model">
+            <strong>physical_model.json</strong>
+            <span>Semantic view of physical elements that are expected to exist in the MoveIt planning scene.</span>
+          </div>
+          <div class="pair-link">paired by dynamic_1</div>
+          <div class="model hologram">
+            <strong>hologram_model.json</strong>
+            <span>User-positioned AR target model that supplies desired object poses for placement.</span>
+          </div>
+        </div>
+      </aside>
+    </header>
+
+    <section aria-labelledby="what-changed">
+      <div class="section-head">
+        <h2 id="what-changed">What Changed</h2>
+        <p>The change keeps geometry reasoning local, explicit, and small enough to refresh every turn.</p>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <h3>Geometry World Context</h3>
+          <p>
+            <code>GeometryWorldContextStore</code> reads both shared geometry files on each render and injects
+            paired dynamic identity plus hologram target poses into LangGraph instructions.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Canonical Dynamic Names</h3>
+          <p>
+            Boundary input like <code>dynamic_05</code> normalizes to <code>dynamic_5</code>. Prompt examples and
+            user-sensing candidates use unpadded <code>dynamic_5</code>-style names.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Strict Motion Semantics</h3>
+          <p>
+            The physical JSON is context, not live pose authority. MoveIt/RViz supplies source pose; the
+            hologram JSON supplies desired object pose; the planner derives TCP and release poses.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Dynamic Roles</h3>
+          <p>
+            Verified release/place proof syncs physical pose bookkeeping. Structural/contact roles change only
+            through <code>geometry_update_dynamic_role</code> when the role is clear or confirmed.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="flow">
+      <div class="section-head">
+        <h2 id="flow">Runtime Flow</h2>
+        <p>The model gets world context first, then uses robot tools for live grounding and execution.</p>
+      </div>
+
+      <div class="flow" role="img" aria-label="Geometry context flows to agent, then MoveIt planning and execution">
+        <div class="node physical">
+          <small>World Model</small>
+          <strong>Paired geometry files</strong>
+          <p><code>physical_model.json</code> and <code>hologram_model.json</code> are paired by canonical element name.</p>
+        </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="node agent">
+          <small>Agent Context</small>
+          <strong>LangGraph instructions</strong>
+          <p>The compact context lists element identity, dynamic role payloads, model names, and target poses.</p>
+        </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="node robot">
+          <small>Robot Tools</small>
+          <strong>MoveIt task path</strong>
+          <p>Observe scene object, get object context, plan one compound task, execute only after approval.</p>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="payload">
+      <div class="section-head">
+        <h2 id="payload">Context Payload</h2>
+        <p>Each paired element is rendered in the shape the model needs for planning.</p>
+      </div>
+
+      <pre><code>{
+  "object_name": "dynamic_1",
+  "physical_model_name": "six_dynamic_b_c_triangular_frame",
+  "hologram_model_name": "six_dynamic_b_c_triangular_frame",
+  "label": "B vertical at shared vertex",
+  "family": "B",
+  "role": {"type": "unassigned"},
+  "target_pose": {
+    "position": {"x": 0.0, "y": -0.8, "z": 0.1},
+    "orientation": {"x": 0.5, "y": 0.5, "z": -0.5, "w": 0.5}
+  }
+}</code></pre>
+    </section>
+
+    <section aria-labelledby="tool-path">
+      <div class="section-head">
+        <h2 id="tool-path">Required Tool Path</h2>
+        <p>Hologram-guided relocation stays a single compound pick-place workflow.</p>
+      </div>
+
+      <ol class="checklist">
+        <li><span class="label">Observe</span>Call <code>moveit_list_scene_objects</code> and confirm the canonical object exists.</li>
+        <li><span class="label">Ground</span>Call <code>moveit_get_object_context</code> for <code>dynamic_1</code> or the selected canonical dynamic object.</li>
+        <li><span class="label">Plan</span>Call <code>moveit_plan_compound_task</code> with <code>backend="mtc"</code>, <code>requirements.goal="pick_place"</code>, <code>requirements.object_name</code>, and <code>requirements.target_pose</code> from Geometry World Context.</li>
+        <li><span class="label">Execute</span>Use <code>moveit_execute_task_plan</code> only after explicit execution intent bound to the returned task solution.</li>
+        <li><span class="label">Verify</span>Verify release before claiming that the object moved or was placed; pose sync is deterministic bookkeeping after that proof.</li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="guardrails">
+      <div class="section-head">
+        <h2 id="guardrails">Guardrails</h2>
+        <p>The implementation intentionally avoids fallbacks and hidden geometry execution paths.</p>
+      </div>
+
+      <div class="two-col">
+        <article class="callout">
+          <h3>Hard Blockers</h3>
+          <p>
+            Missing files, unpaired bodies, duplicate canonical names, or invalid hologram poses render a
+            blocked Geometry World Context. The agent must ask for an updated hologram target.
+          </p>
+        </article>
+        <article class="callout">
+          <h3>Not Added</h3>
+          <p>
+            No new MCP tool, no synthetic target-pose tool, no fallback to current object pose, and no
+            hologram collision geometry in RViz/MoveIt.
+          </p>
+        </article>
+        <article class="callout">
+          <h3>Role Semantics</h3>
+          <p>
+            Roles are <code>supporting_column</code>, <code>beam_supported_by</code>, or <code>unassigned</code>.
+            The agent must not infer role from pose alone; if uncertain, it asks the human.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="files">
+      <div class="section-head">
+        <h2 id="files">Implementation Files</h2>
+        <p>The feature is contained at the Robot Control and Agent Orchestration seam.</p>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <h3>Renderer</h3>
+          <p><a href="../server/robot_control/shared_geometry/world_context.py"><code>server/robot_control/shared_geometry/world_context.py</code></a></p>
+        </article>
+        <article class="card">
+          <h3>LangGraph Injection</h3>
+          <p><a href="../server/agent_control/langgraph_robot_agent.py"><code>server/agent_control/langgraph_robot_agent.py</code></a></p>
+        </article>
+        <article class="card">
+          <h3>Prompt Contract</h3>
+          <p><a href="../server/agent_control/prompt_parts/robot_contract.md"><code>server/agent_control/prompt_parts/robot_contract.md</code></a></p>
+        </article>
+      </div>
+    </section>
+
+    <footer>
+      <p>
+        Verification for the changed files: targeted pytest passed, scoped Ruff passed, and scoped Pyright passed.
+        Repo-wide checks still have unrelated pre-existing failures documented in the implementation handoff.
+      </p>
+    </footer>
+  </main>
+</body>
+</html>

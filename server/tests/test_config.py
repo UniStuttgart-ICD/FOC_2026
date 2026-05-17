@@ -130,6 +130,123 @@ enabled = false
     assert config.voice_modulation == settings
 
 
+def test_runtime_profile_voice_modulation_default_is_loaded_when_no_local_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    profiles = tmp_path / "runtime_profiles.toml"
+    profiles.write_text(
+        """
+[profiles.hybrid_gemini_live_tts]
+category = "benchmark_streaming"
+
+[profiles.hybrid_gemini_live_tts.wake]
+provider = "openwakeword"
+model_path = "models/mave.onnx"
+
+[profiles.hybrid_gemini_live_tts.emergency_stop]
+enabled = false
+
+[profiles.hybrid_gemini_live_tts.stt]
+provider = "openai_realtime"
+model = "gpt-realtime-whisper"
+
+[profiles.hybrid_gemini_live_tts.tts]
+provider = "gemini_live"
+model = "gemini-3.1-flash-live-preview"
+voice = "Sadaltager"
+
+[profiles.hybrid_gemini_live_tts.agent]
+provider = "gemini_api"
+model = "gemini-3.1-flash-lite-preview"
+api_key_env = "GOOGLE_API_KEY"
+
+[profiles.hybrid_gemini_live_tts.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+
+[profiles.hybrid_gemini_live_tts.metrics]
+enabled = true
+path = "logs/voice_metrics.jsonl"
+include_text = true
+
+[profiles.hybrid_gemini_live_tts.voice_modulation]
+enabled = true
+preset_name = "profile_default"
+gain_db = 3.0
+wet_mix = 1.0
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("OPENAI_API_KEY", "openai")
+    monkeypatch.setenv("GOOGLE_API_KEY", "google")
+    monkeypatch.setenv("VOICE_MODULATION_SETTINGS_PATH", str(tmp_path / "missing.json"))
+
+    config = load_runtime_config(profiles_path=profiles, server_dir=tmp_path)
+
+    assert isinstance(config.voice_modulation, VoiceModulationSettings)
+    assert config.voice_modulation.enabled is True
+    assert config.voice_modulation.preset_name == "profile_default"
+    assert config.voice_modulation.gain_db == 3.0
+
+
+def test_local_voice_modulation_override_wins_over_runtime_profile_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    profiles = tmp_path / "runtime_profiles.toml"
+    profiles.write_text(
+        """
+[profiles.hybrid_gemini_live_tts]
+category = "benchmark_streaming"
+
+[profiles.hybrid_gemini_live_tts.wake]
+provider = "openwakeword"
+model_path = "models/mave.onnx"
+
+[profiles.hybrid_gemini_live_tts.emergency_stop]
+enabled = false
+
+[profiles.hybrid_gemini_live_tts.stt]
+provider = "openai_realtime"
+model = "gpt-realtime-whisper"
+
+[profiles.hybrid_gemini_live_tts.tts]
+provider = "gemini_live"
+model = "gemini-3.1-flash-live-preview"
+voice = "Sadaltager"
+
+[profiles.hybrid_gemini_live_tts.agent]
+provider = "gemini_api"
+model = "gemini-3.1-flash-lite-preview"
+api_key_env = "GOOGLE_API_KEY"
+
+[profiles.hybrid_gemini_live_tts.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+
+[profiles.hybrid_gemini_live_tts.metrics]
+enabled = true
+path = "logs/voice_metrics.jsonl"
+include_text = true
+
+[profiles.hybrid_gemini_live_tts.voice_modulation]
+enabled = true
+preset_name = "profile_default"
+gain_db = 3.0
+""".strip(),
+        encoding="utf-8",
+    )
+    settings_path = tmp_path / "voice_modulation_settings.json"
+    monkeypatch.setenv("VOICE_MODULATION_SETTINGS_PATH", str(settings_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "openai")
+    monkeypatch.setenv("GOOGLE_API_KEY", "google")
+    override = VoiceModulationSettings(enabled=True, preset_name="local_override", gain_db=1.5)
+    save_profile_settings("hybrid_gemini_live_tts", override, settings_path=settings_path)
+
+    config = load_runtime_config(profiles_path=profiles, server_dir=tmp_path)
+
+    assert config.voice_modulation == override
+
+
 def test_cli_profile_overrides_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     profiles = tmp_path / "runtime_profiles.toml"
     profiles.write_text(

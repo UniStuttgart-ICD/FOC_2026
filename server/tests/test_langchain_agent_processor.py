@@ -223,6 +223,7 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
             model: Any,
             tool_bridge: Any,
             robot_context: Any,
+            geometry_world_context: Any | None = None,
             user_sensing_bridge: Any | None = None,
             user_sensing_context: Any | None = None,
             user_sensing_max_age_s: float = 2.0,
@@ -235,6 +236,7 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
             self.model = model
             self.tool_bridge = tool_bridge
             self.robot_context = robot_context
+            self.geometry_world_context = geometry_world_context
             self.user_sensing_bridge = user_sensing_bridge
             self.user_sensing_context = user_sensing_context
             self.user_sensing_max_age_s = user_sensing_max_age_s
@@ -268,6 +270,7 @@ async def test_processor_emits_backend_turn_and_passes_tracer_to_created_bridge_
     assert created_graphs[0].robot_job_blackboard_summary() is None
     assert created_graphs[0].verified_execution_client is None
     assert created_graphs[0].user_sensing_bridge is None
+    assert created_graphs[0].geometry_world_context is processor._geometry_world_context
     backend_span = records_named(writer, "agent.backend_turn")[-1]
     assert backend_span["record_type"] == "span"
     assert backend_span["module"] == "agent_control"
@@ -289,6 +292,7 @@ async def test_backend_turn_span_is_recorded_before_yielded_chunk_is_closed(
             model: Any,
             tool_bridge: Any,
             robot_context: Any,
+            geometry_world_context: Any | None = None,
             thread_id: str,
             job_submitter: Any | None = None,
             robot_job_blackboard_summary: Any | None = None,
@@ -617,6 +621,7 @@ async def test_langchain_processor_passes_verified_execution_client_to_graph(
             model: Any,
             tool_bridge: Any,
             robot_context: Any,
+            geometry_world_context: Any | None = None,
             thread_id: str,
             job_submitter: Any | None = None,
             robot_job_blackboard_summary: Any | None = None,
@@ -659,6 +664,7 @@ async def test_failed_job_notification_sends_planner_data_to_recovery_turn(
             model: Any,
             tool_bridge: Any,
             robot_context: Any,
+            geometry_world_context: Any | None = None,
             thread_id: str,
             job_submitter: Any | None = None,
             robot_job_blackboard_summary: Any | None = None,
@@ -725,17 +731,20 @@ async def test_failed_job_notification_sends_planner_data_to_recovery_turn(
 
 
 @pytest.mark.asyncio
-async def test_failed_execute_job_notification_reports_blocker_without_recovery_turn(
+async def test_failed_execute_job_notification_sends_execute_failure_to_recovery_turn(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from robot_control.job_board import RobotJobBoard, SubmitRobotJob
+
+    turns: list[AgentTurnInput] = []
 
     class FakeGraphAgent:
         def __init__(self, **kwargs: Any) -> None:
             pass
 
         async def run_turn(self, turn: AgentTurnInput) -> str:
-            raise AssertionError("failed execute notifications must not run recovery turns")
+            turns.append(turn)
+            return "Execution failed verification; I need operator guidance."
 
     monkeypatch.setattr("agent_control.langchain_agent_processor.LangGraphRobotAgent", FakeGraphAgent)
     board = RobotJobBoard()
@@ -782,11 +791,61 @@ async def test_failed_execute_job_notification_reports_blocker_without_recovery_
 
     text = await asyncio.wait_for(stream.__anext__(), timeout=1)
 
-    assert text == (
-        "Execution did not verify: "
-        "Execution could not be verified against fake controller joint state feedback "
-        "Check fake controller joint-state feedback."
+    assert text == "Execution failed verification; I need operator guidance."
+    assert len(turns) == 1
+    assert turns[0].allow_pending_plan_execution is False
+    assert "Tool: moveit_execute_plan" in turns[0].user_text
+    assert '"plan_name": "plan-1"' in turns[0].user_text
+    assert "Execution could not be verified against fake controller joint state feedback" in turns[0].user_text
+    assert "Ask the human/operator" in turns[0].user_text
+
+
+@pytest.mark.asyncio
+async def test_failed_job_notification_sends_exception_only_failure_to_recovery_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from robot_control.job_board import RobotJobBoard, SubmitRobotJob
+
+    turns: list[AgentTurnInput] = []
+
+    class FakeGraphAgent:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        async def run_turn(self, turn: AgentTurnInput) -> str:
+            turns.append(turn)
+            return "The robot control server dropped the request; please confirm server status."
+
+    monkeypatch.setattr("agent_control.langchain_agent_processor.LangGraphRobotAgent", FakeGraphAgent)
+    board = RobotJobBoard()
+    processor = LangChainAgentProcessor(
+        "http://127.0.0.1:8765/mcp",
+        chat_model=FakeChatModel([]),
+        model_label="fake",
+        tool_bridge=FakeBridge(),
+        robot_job_board=board,
     )
+    stream = processor.notifications()
+    job = await board.submit(
+        SubmitRobotJob(
+            "moveit_plan_free_motion",
+            {"robot_name": "UR10"},
+            "turn-1",
+            user_text="move forward",
+        )
+    )
+    await board.claim_next()
+    await board.fail(job.job_id, "MCP transport timed out")
+
+    text = await asyncio.wait_for(stream.__anext__(), timeout=1)
+
+    assert text == "The robot control server dropped the request; please confirm server status."
+    assert len(turns) == 1
+    assert turns[0].allow_pending_plan_execution is False
+    assert "Tool: moveit_plan_free_motion" in turns[0].user_text
+    assert "Error summary: MCP transport timed out" in turns[0].user_text
+    assert "Tool result:\nnull" in turns[0].user_text
+    assert "Ask the human/operator" in turns[0].user_text
 
 
 @pytest.mark.asyncio

@@ -9,13 +9,13 @@ from agent_control.langchain_agent_processor import LangChainAgentProcessor
 from robot_control.job_board import RobotJobBoard
 from voice_runtime.agent_turn import AgentTurnInput
 
-TASK_TOOL_PICK_SEQUENCE = [
+TASK_TOOL_COMPOUND_PICK_SEQUENCE = [
     "moveit_list_scene_objects",
     "moveit_get_object_context",
     "moveit_get_current_pose",
-    "moveit_plan_pick_task",
+    "moveit_plan_compound_task",
     "approval_recorded",
-    "moveit_execute_task_solution",
+    "moveit_execute_task_plan",
     "moveit_verify_attached_object",
 ]
 
@@ -183,22 +183,22 @@ def system_content(chat_model: ScriptedChatModel, request_index: int = 0) -> str
     return str(system.content)
 
 
-def test_pick_task_tool_behavior_contract_sequence() -> None:
-    assert TASK_TOOL_PICK_SEQUENCE == [
+def test_compound_pick_task_tool_behavior_contract_sequence() -> None:
+    assert TASK_TOOL_COMPOUND_PICK_SEQUENCE == [
         "moveit_list_scene_objects",
         "moveit_get_object_context",
         "moveit_get_current_pose",
-        "moveit_plan_pick_task",
+        "moveit_plan_compound_task",
         "approval_recorded",
-        "moveit_execute_task_solution",
+        "moveit_execute_task_plan",
         "moveit_verify_attached_object",
     ]
 
 
-def test_pick_task_replay_sequence_matches_behavior_contract() -> None:
+def test_compound_pick_replay_sequence_matches_behavior_contract() -> None:
     scenario = simulated_moveit.task_level_pick_replay_scenario()
 
-    assert scenario["expected_tool_sequence"] == TASK_TOOL_PICK_SEQUENCE
+    assert scenario["expected_tool_sequence"] == TASK_TOOL_COMPOUND_PICK_SEQUENCE
 
 
 @pytest.mark.asyncio

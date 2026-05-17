@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Robot Job Blackboard</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f4f1e8;
+      --ink: #161613;
+      --muted: #6f6a5f;
+      --line: #d8d0bd;
+      --panel: #fffaf0;
+      --panel-strong: #24231f;
+      --green: #176f4d;
+      --amber: #b06c00;
+      --red: #b83b2b;
+      --cyan: #097287;
+      --gray: #787164;
+      --shadow: 0 20px 50px rgba(38, 34, 26, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(22, 22, 19, 0.045) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(22, 22, 19, 0.035) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      color: var(--ink);
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .shell {
+      width: min(1440px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 28px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: end;
+      border-bottom: 2px solid var(--ink);
+      padding-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: "Bahnschrift", "Aptos Display", "Segoe UI", sans-serif;
+      font-size: 30px;
+      line-height: 1.05;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .live {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      min-height: 36px;
+      font-size: 13px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .pulse {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 5px rgba(23, 111, 77, 0.15);
+    }
+
+    .pulse.error {
+      background: var(--red);
+      box-shadow: 0 0 0 5px rgba(184, 59, 43, 0.15);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .stat {
+      min-height: 78px;
+      border: 1px solid var(--line);
+      background: rgba(255, 250, 240, 0.78);
+      box-shadow: var(--shadow);
+      padding: 12px;
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 8px;
+      font-family: "Bahnschrift", "Aptos Display", "Segoe UI", sans-serif;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(360px, 0.85fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      background: rgba(255, 250, 240, 0.9);
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 46px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(36, 35, 31, 0.92);
+      color: #fffaf0;
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .panel-head span {
+      color: #d7cdb9;
+      font-size: 12px;
+    }
+
+    .job-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .job-card {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--gray);
+      border-radius: 6px;
+      background: #fffdf7;
+      padding: 12px;
+    }
+
+    .job-card[data-status="queued"] {
+      border-left-color: var(--amber);
+    }
+
+    .job-card[data-status="running"] {
+      border-left-color: var(--cyan);
+    }
+
+    .job-card[data-status="completed"] {
+      border-left-color: var(--green);
+    }
+
+    .job-card[data-status="failed"] {
+      border-left-color: var(--red);
+    }
+
+    .job-card[data-status="cancelled"] {
+      border-left-color: var(--gray);
+    }
+
+    .job-main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .tool {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      font-family: "Cascadia Mono", "IBM Plex Mono", monospace;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .badge {
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 11px;
+      line-height: 1;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .badge.queued {
+      color: var(--amber);
+    }
+
+    .badge.running {
+      color: var(--cyan);
+    }
+
+    .badge.completed {
+      color: var(--green);
+    }
+
+    .badge.failed {
+      color: var(--red);
+    }
+
+    .badge.cancelled {
+      color: var(--gray);
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 10px 0;
+    }
+
+    .chip {
+      max-width: 100%;
+      border: 1px solid var(--line);
+      background: #f6efe0;
+      padding: 4px 7px;
+      color: #3d392f;
+      font-family: "Cascadia Mono", "IBM Plex Mono", monospace;
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+
+    .note {
+      margin-top: 9px;
+      border-top: 1px solid var(--line);
+      padding-top: 9px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .event-stream {
+      max-height: calc(100vh - 226px);
+      min-height: 300px;
+      overflow: auto;
+      padding: 10px 12px;
+    }
+
+    .event {
+      display: grid;
+      grid-template-columns: 58px minmax(0, 1fr);
+      gap: 10px;
+      border-bottom: 1px solid var(--line);
+      padding: 10px 0;
+    }
+
+    .seq {
+      color: var(--muted);
+      font-family: "Cascadia Mono", "IBM Plex Mono", monospace;
+      font-size: 12px;
+    }
+
+    .event-type {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .event-tool {
+      margin-top: 4px;
+      color: var(--muted);
+      font-family: "Cascadia Mono", "IBM Plex Mono", monospace;
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .empty {
+      padding: 24px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .job-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr;
+        align-items: start;
+      }
+
+      .live {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .shell {
+        width: min(100vw - 20px, 1440px);
+        padding-top: 14px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .stats {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <h1>Robot Job Blackboard</h1>
+        <div class="subtitle">Live MoveIt job state from the running voice robot agent.</div>
+      </div>
+      <div class="live">
+        <span id="pulse" class="pulse"></span>
+        <span id="lastUpdated">Waiting for data</span>
+      </div>
+    </header>
+
+    <section class="stats" id="stats"></section>
+
+    <section class="layout">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Current Jobs</h2>
+          <span id="jobCount">0 jobs</span>
+        </div>
+        <div class="job-grid" id="jobGrid"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Event Stream</h2>
+          <span id="eventCount">0 events</span>
+        </div>
+        <div class="event-stream" id="eventStream"></div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const endpoint = "/api/robot-jobs";
+    const statusOrder = ["queued", "running", "completed", "failed", "cancelled"];
+    const statsEl = document.getElementById("stats");
+    const jobGridEl = document.getElementById("jobGrid");
+    const eventStreamEl = document.getElementById("eventStream");
+    const lastUpdatedEl = document.getElementById("lastUpdated");
+    const pulseEl = document.getElementById("pulse");
+    const jobCountEl = document.getElementById("jobCount");
+    const eventCountEl = document.getElementById("eventCount");
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function formatAge(value) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        return "age unknown";
+      }
+      if (value < 60) {
+        return `${value.toFixed(1)}s old`;
+      }
+      return `${Math.floor(value / 60)}m ${Math.floor(value % 60)}s old`;
+    }
+
+    function chip(label, value) {
+      if (value === null || value === undefined || value === "") {
+        return "";
+      }
+      return `<span class="chip">${escapeHtml(label)}=${escapeHtml(value)}</span>`;
+    }
+
+    function renderStats(counts) {
+      statsEl.innerHTML = statusOrder.map((status) => `
+        <article class="stat">
+          <span>${escapeHtml(status)}</span>
+          <strong>${Number(counts?.[status] || 0)}</strong>
+        </article>
+      `).join("");
+    }
+
+    function renderJobs(jobs) {
+      jobCountEl.textContent = `${jobs.length} ${jobs.length === 1 ? "job" : "jobs"}`;
+      if (!jobs.length) {
+        jobGridEl.innerHTML = '<div class="empty">No robot jobs recorded.</div>';
+        return;
+      }
+      jobGridEl.innerHTML = jobs.map((job) => {
+        const salient = Object.entries(job.salient_arguments || {})
+          .map(([key, value]) => chip(key, value))
+          .join("");
+        const queue = job.queue_position ? chip("queue", job.queue_position) : "";
+        const turn = chip("turn", job.requested_by_turn_id);
+        const result = job.result_present ? '<span class="chip">result=present</span>' : "";
+        const after = chip("after", job.after_success_tool);
+        const error = job.error
+          ? `<div class="note">${escapeHtml(job.error)}</div>`
+          : "";
+        const request = job.user_text
+          ? `<div class="note">${escapeHtml(job.user_text)}</div>`
+          : "";
+        return `
+          <article class="job-card" data-status="${escapeHtml(job.status)}">
+            <div class="job-main">
+              <div class="tool">${escapeHtml(job.tool_name)}</div>
+              <span class="badge ${escapeHtml(job.status)}">${escapeHtml(job.status)}</span>
+            </div>
+            <div class="meta">
+              ${salient}
+              ${queue}
+              ${turn}
+              ${result}
+              ${after}
+              <span class="chip">${formatAge(job.updated_age_s)}</span>
+            </div>
+            ${error || request}
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderEvents(events) {
+      eventCountEl.textContent = `${events.length} ${events.length === 1 ? "event" : "events"}`;
+      if (!events.length) {
+        eventStreamEl.innerHTML = '<div class="empty">No events recorded.</div>';
+        return;
+      }
+      eventStreamEl.innerHTML = events.map((event) => {
+        const payload = event.payload && Object.keys(event.payload).length
+          ? `<div class="note">${escapeHtml(JSON.stringify(event.payload))}</div>`
+          : "";
+        return `
+          <div class="event">
+            <div class="seq">#${escapeHtml(event.sequence)}</div>
+            <div>
+              <div class="event-type">${escapeHtml(event.event_type)}</div>
+              <div class="event-tool">${escapeHtml(event.tool_name)} | ${escapeHtml(event.status)}</div>
+              ${payload}
+            </div>
+          </div>
+        `;
+      }).join("");
+      eventStreamEl.scrollTop = eventStreamEl.scrollHeight;
+    }
+
+    async function refresh() {
+      try {
+        const response = await fetch(endpoint, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const snapshot = await response.json();
+        pulseEl.classList.remove("error");
+        lastUpdatedEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+        renderStats(snapshot.counts || {});
+        renderJobs(snapshot.jobs || []);
+        renderEvents(snapshot.events || []);
+      } catch (error) {
+        pulseEl.classList.add("error");
+        lastUpdatedEl.textContent = `Disconnected: ${error.message}`;
+      }
+    }
+
+    refresh();
+    window.setInterval(refresh, 1000);
+  </script>
+</body>
+</html>

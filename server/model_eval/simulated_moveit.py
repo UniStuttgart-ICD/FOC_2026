@@ -5,17 +5,24 @@ import json
 from typing import Any
 
 from robot_control.call_validation import agent_tool_description
+from robot_control.mcp_bridge import AGENT_CONTROL_TASK_PLAN_EXECUTION_REQUIRED
 
 ROBOT_NAME = "UR10"
 SCENE_SNAPSHOT_ID = "scene_20260515_001"
-TASK_SOLUTION_ID = "pick_task_dynamic_5_001"
+TASK_SOLUTION_ID = "compound_hold_dynamic_5_001"
+DEFAULT_HOLD_LIFT_DISTANCE_M = 0.10
+COMPOUND_HOLD_REQUIREMENTS: dict[str, Any] = {
+    "goal": "hold",
+    "object_name": "dynamic_5",
+    "lift_distance_m": DEFAULT_HOLD_LIFT_DISTANCE_M,
+}
 TASK_LEVEL_PICK_TOOL_SEQUENCE = [
     "moveit_list_scene_objects",
     "moveit_get_object_context",
     "moveit_get_current_pose",
-    "moveit_plan_pick_task",
+    "moveit_plan_compound_task",
     "approval_recorded",
-    "moveit_execute_task_solution",
+    "moveit_execute_task_plan",
     "moveit_verify_attached_object",
 ]
 INITIAL_POSE: dict[str, Any] = {
@@ -36,7 +43,11 @@ SCENE_OBJECTS: list[dict[str, Any]] = [
 ]
 
 _SUPPORTED_TOOLS = (
+    "moveit_list_scene_objects",
+    "moveit_get_object_context",
     "moveit_get_current_pose",
+    "moveit_plan_compound_task",
+    "moveit_execute_task_plan",
     "moveit_plan_cartesian_motion",
     "moveit_execute_plan",
     "moveit_list_available_robots",
@@ -48,20 +59,29 @@ _DESCRIPTIONS = {
 
 
 def task_level_pick_replay_scenario() -> dict[str, Any]:
-    """Return a compact replay artifact for the task-level pick loop."""
+    """Return a compact replay artifact for the compound task-level pick loop."""
     approval_payload = {
         "target_kind": "task_solution",
         "task_solution_id": TASK_SOLUTION_ID,
-        "source_tool": "moveit_plan_pick_task",
+        "source_tool": "moveit_plan_compound_task",
         "object_name": "dynamic_5",
-        "expected_movement": "approach grasp, close gripper, attach object, lift object",
+        "expected_movement": "hold dynamic_5 with a 0.10 m lift",
         "scene_snapshot_id": SCENE_SNAPSHOT_ID,
         "approval_turn_id": "turn_001",
         "approved_at": "2026-05-15T17:45:00Z",
     }
     execution_result = {
         "ok": True,
+        "tool": "moveit_execute_task_plan",
+        "source": "agent_control_intercept",
         "task_solution_id": TASK_SOLUTION_ID,
+        "object_name": "dynamic_5",
+        "verified_plan_names": [
+            f"{TASK_SOLUTION_ID}_approach_simulated_try1",
+            f"{TASK_SOLUTION_ID}_pre_grasp_simulated_try1",
+            f"{TASK_SOLUTION_ID}_lift_simulated_try1",
+        ],
+        "verification": {"result": "pass"},
         "executed_stages": [
             "observe_current_state",
             "connect_to_pre_grasp",
@@ -119,16 +139,13 @@ def task_level_pick_replay_scenario() -> dict[str, Any]:
                 },
             },
             {
-                "tool_name": "moveit_plan_pick_task",
+                "tool_name": "moveit_plan_compound_task",
                 "structured_content": _task_solution_content(approval_payload),
             },
             {
-                "tool_name": "moveit_execute_task_solution",
-                "structured_content": {
-                    "ok": True,
-                    "robot_name": ROBOT_NAME,
-                    "raw": copy.deepcopy(execution_result),
-                },
+                "tool_name": "moveit_execute_task_plan",
+                "source": "agent_control_intercept",
+                "structured_content": copy.deepcopy(execution_result),
             },
             {
                 "tool_name": "moveit_verify_attached_object",
@@ -136,15 +153,16 @@ def task_level_pick_replay_scenario() -> dict[str, Any]:
             },
         ],
         "policy_decisions": [
-            {"tool_name": "moveit_plan_pick_task", "decision": "allow"},
-            {"tool_name": "moveit_execute_task_solution", "decision": "allow"},
+            {"tool_name": "moveit_plan_compound_task", "decision": "allow"},
+            {"tool_name": "moveit_execute_task_plan", "decision": "allow"},
         ],
         "validation_results": [
-            {"tool_name": "moveit_plan_pick_task", "ok": True},
-            {"tool_name": "moveit_execute_task_solution", "ok": True},
+            {"tool_name": "moveit_plan_compound_task", "ok": True},
+            {"tool_name": "moveit_execute_task_plan", "ok": True},
         ],
         "approval_payload": approval_payload,
         "execution_result": execution_result,
+        "adapter_direct_execution_equivalent": False,
         "verification_result": verification_result,
         "terminal_job_event": {
             "event_type": "robot_job_completed",
@@ -157,7 +175,8 @@ def task_level_pick_replay_scenario() -> dict[str, Any]:
 def negative_pick_replay_scenarios() -> dict[str, dict[str, Any]]:
     return {
         "partial_legacy_pick": {
-            "utterance": "pick up dynamic_5",
+            "utterance": "use the legacy pick planner for dynamic_5",
+            "tool_name": "moveit_plan_pick_task",
             "tool_output": {
                 "structured_content": {
                     "ok": False,
@@ -185,17 +204,17 @@ def negative_pick_replay_scenarios() -> dict[str, dict[str, Any]]:
             "execution_attempted": False,
         },
         "missing_approval": {
-            "tool_name": "moveit_execute_task_solution",
+            "tool_name": "moveit_execute_task_plan",
             "arguments": {"robot_name": ROBOT_NAME, "task_solution_id": TASK_SOLUTION_ID},
             "policy_decision": {
-                "tool_name": "moveit_execute_task_solution",
+                "tool_name": "moveit_execute_task_plan",
                 "decision": "block",
                 "reason": "missing_approval",
             },
             "execution_attempted": False,
         },
         "stale_scene_snapshot_id": {
-            "tool_name": "moveit_execute_task_solution",
+            "tool_name": "moveit_execute_task_plan",
             "arguments": {"robot_name": ROBOT_NAME, "task_solution_id": TASK_SOLUTION_ID},
             "approval_payload": {
                 "task_solution_id": TASK_SOLUTION_ID,
@@ -203,7 +222,7 @@ def negative_pick_replay_scenarios() -> dict[str, dict[str, Any]]:
             },
             "current_scene_snapshot_id": SCENE_SNAPSHOT_ID,
             "policy_decision": {
-                "tool_name": "moveit_execute_task_solution",
+                "tool_name": "moveit_execute_task_plan",
                 "decision": "block",
                 "reason": "stale_scene_snapshot_id",
             },
@@ -249,17 +268,20 @@ def _task_solution_content(approval_payload: dict[str, Any]) -> dict[str, Any]:
         },
         "raw": {
             "task_solution_id": TASK_SOLUTION_ID,
-            "task_kind": "pick",
-            "backend": "emulated",
+            "task_kind": "hold",
+            "backend": "mtc",
             "object_name": "dynamic_5",
             "robot_name": ROBOT_NAME,
-            "created_from_tool": "moveit_plan_pick_task",
+            "created_from_tool": "moveit_plan_compound_task",
+            "requirements": copy.deepcopy(COMPOUND_HOLD_REQUIREMENTS),
             "scene_snapshot_id": SCENE_SNAPSHOT_ID,
             "planning_frame": "base_link",
             "object_pose_age_s": 0.24,
-            "solver": "emulated_mtc_stages",
+            "solver": "real_mtc_compound_task",
             "selected_cost": 1.42,
             "clearance_m": 0.018,
+            "waypoints": _compound_hold_waypoints(),
+            "execution_contract": {"backend": "mtc", "steps": _compound_hold_execution_steps()},
             "stages": stages,
             "stage_report": stages,
             "candidate_attempts": 1,
@@ -275,12 +297,76 @@ def _task_solution_content(approval_payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _compound_hold_waypoints() -> list[dict[str, Any]]:
+    return [
+        {
+            "position": {"x": 0.40, "y": 0.10, "z": 0.32},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+        {
+            "position": {"x": 0.46, "y": 0.10, "z": 0.32},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+        {
+            "position": {"x": 0.46, "y": 0.10, "z": 0.42},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        },
+    ]
+
+
+def _compound_hold_execution_steps() -> list[dict[str, Any]]:
+    return [
+        {
+            "name": "approach",
+            "handler": "motion",
+            "waypoint_index": 0,
+            "source_stage": "approach_grasp",
+            "required_proof": "verified_motion_plan",
+        },
+        {
+            "name": "pre_grasp",
+            "handler": "motion",
+            "waypoint_index": 1,
+            "source_stage": "connect_to_pre_grasp",
+            "required_proof": "verified_motion_plan",
+        },
+        {
+            "name": "close_gripper",
+            "handler": "close_gripper",
+            "source_stage": "close_gripper",
+            "required_proof": "verified_gripper_closed",
+        },
+        {
+            "name": "attach_object",
+            "handler": "attach_object",
+            "object_name": "dynamic_5",
+            "source_stage": "attach_object",
+            "required_proof": "planning_scene_attached",
+        },
+        {
+            "name": "lift",
+            "handler": "motion",
+            "waypoint_index": 2,
+            "source_stage": "lift_object",
+            "required_proof": "verified_motion_plan",
+        },
+        {
+            "name": "verify_attached_object",
+            "handler": "verify_attached_object",
+            "object_name": "dynamic_5",
+            "source_stage": "verify_attached_object",
+            "required_proof": "attached_object",
+        },
+    ]
+
+
 class SimulatedMoveItAdapter:
     """Deterministic offline Robot Tool Adapter for model evaluation."""
 
     def __init__(self) -> None:
         self._pose = copy.deepcopy(INITIAL_POSE)
         self._plans: dict[str, dict[str, Any]] = {}
+        self._task_solutions: dict[str, dict[str, Any]] = {}
         self._connected = False
 
     async def connect(self) -> None:
@@ -302,6 +388,32 @@ class SimulatedMoveItAdapter:
         ]
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        if name == "moveit_list_scene_objects":
+            return _tool_output(
+                content=["Scene objects: dynamic_5."],
+                structured_content={
+                    "ok": True,
+                    "robot_name": ROBOT_NAME,
+                    "raw": {
+                        "scene_snapshot_id": SCENE_SNAPSHOT_ID,
+                        "objects": copy.deepcopy(SCENE_OBJECTS),
+                    },
+                },
+            )
+        if name == "moveit_get_object_context":
+            if arguments.get("object_name") != "dynamic_5":
+                return _error_output("Unknown simulated scene object.")
+            return _tool_output(
+                content=["dynamic_5 is available in the planning scene."],
+                structured_content={
+                    "ok": True,
+                    "robot_name": ROBOT_NAME,
+                    "raw": {
+                        "scene_snapshot_id": SCENE_SNAPSHOT_ID,
+                        "object": copy.deepcopy(SCENE_OBJECTS[0]),
+                    },
+                },
+            )
         if name == "moveit_get_current_pose":
             return _tool_output(
                 content=[f"{ROBOT_NAME} pose is x={self._pose['position']['x']}, y={self._pose['position']['y']}, z={self._pose['position']['z']}."],
@@ -312,6 +424,10 @@ class SimulatedMoveItAdapter:
                     "raw": {"pose": copy.deepcopy(self._pose)},
                 },
             )
+        if name == "moveit_plan_compound_task":
+            return self._plan_compound_task(arguments)
+        if name == "moveit_execute_task_plan":
+            return json.dumps(copy.deepcopy(AGENT_CONTROL_TASK_PLAN_EXECUTION_REQUIRED), ensure_ascii=False)
         if name == "moveit_plan_cartesian_motion":
             return self._plan_cartesian(arguments)
         if name == "moveit_execute_plan":
@@ -326,6 +442,39 @@ class SimulatedMoveItAdapter:
                 },
             )
         return _error_output(f"Tool is not supported by simulated MoveIt adapter: {name}")
+
+    def _plan_compound_task(self, arguments: dict[str, Any]) -> str:
+        if arguments.get("backend") != "mtc":
+            return _error_output('moveit_plan_compound_task requires backend="mtc".')
+        requirements = arguments.get("requirements")
+        if not isinstance(requirements, dict):
+            return _error_output("Expected requirements object.")
+        normalized_requirements = {
+            "goal": requirements.get("goal"),
+            "object_name": requirements.get("object_name"),
+            "lift_distance_m": requirements.get(
+                "lift_distance_m",
+                DEFAULT_HOLD_LIFT_DISTANCE_M,
+            ),
+        }
+        if normalized_requirements != COMPOUND_HOLD_REQUIREMENTS:
+            return _error_output("Simulated adapter supports only holding dynamic_5 with a 0.10 m lift.")
+        approval_payload = {
+            "target_kind": "task_solution",
+            "task_solution_id": TASK_SOLUTION_ID,
+            "source_tool": "moveit_plan_compound_task",
+            "object_name": "dynamic_5",
+            "expected_movement": "hold dynamic_5 with a 0.10 m lift",
+            "scene_snapshot_id": SCENE_SNAPSHOT_ID,
+        }
+        structured_content = _task_solution_content(approval_payload)
+        self._task_solutions[TASK_SOLUTION_ID] = copy.deepcopy(
+            structured_content["raw"]
+        )
+        return _tool_output(
+            content=["MTC compound hold task planned for dynamic_5."],
+            structured_content=structured_content,
+        )
 
     def _plan_cartesian(self, arguments: dict[str, Any]) -> str:
         waypoints = arguments.get("waypoints", arguments.get("positions", arguments.get("points")))
@@ -371,6 +520,24 @@ def _tool_description(name: str) -> str:
 
 
 def _tool_parameters(name: str) -> dict[str, Any]:
+    if name == "moveit_list_scene_objects":
+        return {
+            "type": "object",
+            "properties": {
+                "robot_name": {"type": "string", "const": ROBOT_NAME},
+                "timeout_s": {"type": "number"},
+            },
+        }
+    if name == "moveit_get_object_context":
+        return {
+            "type": "object",
+            "properties": {
+                "robot_name": {"type": "string", "const": ROBOT_NAME},
+                "object_name": {"type": "string"},
+                "timeout_s": {"type": "number"},
+            },
+            "required": ["object_name"],
+        }
     if name == "moveit_get_current_pose":
         return {
             "type": "object",
@@ -378,6 +545,35 @@ def _tool_parameters(name: str) -> dict[str, Any]:
                 "robot_name": {"type": "string", "const": ROBOT_NAME},
                 "timeout_s": {"type": "number"},
             },
+        }
+    if name == "moveit_plan_compound_task":
+        return {
+            "type": "object",
+            "properties": {
+                "robot_name": {"type": "string", "const": ROBOT_NAME},
+                "backend": {"type": "string", "const": "mtc"},
+                "requirements": {
+                    "type": "object",
+                    "properties": {
+                        "goal": {"type": "string"},
+                        "object_name": {"type": "string"},
+                        "lift_distance_m": {"type": "number"},
+                    },
+                    "required": ["goal", "object_name"],
+                },
+                "timeout_s": {"type": "number"},
+            },
+            "required": ["backend", "requirements"],
+        }
+    if name == "moveit_execute_task_plan":
+        return {
+            "type": "object",
+            "properties": {
+                "robot_name": {"type": "string", "const": ROBOT_NAME},
+                "task_solution_id": {"type": "string"},
+                "timeout_s": {"type": "number"},
+            },
+            "required": ["task_solution_id"],
         }
     if name == "moveit_plan_cartesian_motion":
         return {

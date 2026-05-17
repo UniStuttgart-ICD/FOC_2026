@@ -14,6 +14,7 @@ from robot_control.context import RobotContextStore
 from robot_control.job_board import RobotJob, RobotJobBoard, RobotJobEvent, RobotJobEventType
 from robot_control.job_worker import RobotJobWorker
 from robot_control.mcp_bridge import RobotMCPBridge
+from robot_control.shared_geometry import GeometryWorldContextStore
 from robot_control.verified_execution_client import (
     HttpVerifiedExecutionClient,
     VerifiedExecutionClient,
@@ -56,6 +57,7 @@ class LangChainAgentProcessor:
         self._robot_job_worker = robot_job_worker
         self._user_sensing_bridge = user_sensing_bridge
         self._user_sensing_context = UserSensingContextStore()
+        self._geometry_world_context = GeometryWorldContextStore()
         self._user_sensing_max_age_s = user_sensing_max_age_s
         self._verified_execution_client = (
             verified_execution_client
@@ -73,6 +75,10 @@ class LangChainAgentProcessor:
         self._graph_chat_model: Any | None = None
         self._graph_tool_bridge: Any | None = None
         self._graph_user_sensing_bridge: Any | None = None
+
+    @property
+    def robot_job_board(self) -> RobotJobBoard:
+        return self._robot_job_board
 
     async def connect(self) -> None:
         await self._ensure_connected()
@@ -194,6 +200,7 @@ class LangChainAgentProcessor:
                 "model": chat_model,
                 "tool_bridge": tool_bridge,
                 "robot_context": self._robot_context,
+                "geometry_world_context": self._geometry_world_context,
                 "robot_job_blackboard_summary": self._robot_job_blackboard_summary,
                 "thread_id": self._thread_id,
                 "job_submitter": self._robot_job_submitter,
@@ -217,9 +224,7 @@ class LangChainAgentProcessor:
     async def _failed_job_notification(self, event: RobotJobEvent) -> str:
         error = str(event.payload.get("error") or "unknown error")
         job = self._robot_job_board.get(event.job_id)
-        if job is not None and job.tool_name == "moveit_execute_plan":
-            return _failed_execute_job_notification(job, error)
-        if job is None or job.result is None or self._tool_bridge is None:
+        if job is None or self._tool_bridge is None:
             return f"The robot action hit a snag: {error}"
 
         prompt = _failed_job_recovery_prompt(job, error)
@@ -281,10 +286,6 @@ def _completed_job_notification(tool_name: str) -> str:
     return "Action complete."
 
 
-def _failed_execute_job_notification(job: RobotJob, error: str) -> str:
-    return f"Execution did not verify: {error}"
-
-
 def _accepts_tracer_keyword(callable_obj: Any) -> bool:
     try:
         signature = inspect.signature(callable_obj)
@@ -298,19 +299,20 @@ def _accepts_tracer_keyword(callable_obj: Any) -> bool:
 
 def _failed_job_recovery_prompt(job: RobotJob, error: str) -> str:
     arguments = _format_jsonish(job.arguments)
-    planner_result = _format_jsonish(job.result)
+    tool_result = _format_jsonish(job.result)
     original_user_request = job.user_text or "unknown"
     return (
-        "A queued MoveIt robot action failed after the planner/tool returned a result.\n"
-        "The planner/tool is the authority on motion feasibility.\n"
+        "A queued MoveIt robot action failed after the robot worker handled it.\n"
+        "Any structured tool result below is the authority on motion feasibility and execution proof.\n"
         f"Original user request: {original_user_request}\n"
         f"Tool: {job.tool_name}\n"
         f"Tool arguments:\n{arguments}\n"
         f"Error summary: {error}\n"
-        f"Planner result:\n{planner_result}\n\n"
+        f"Tool result:\n{tool_result}\n\n"
         "Use this failure data to respond as the robot agent. If a nearby alternate motion "
         "can still satisfy the user's intent by improvising, call an available MoveIt planning "
-        "or diagnostic tool now. Otherwise explain the blocker and ask for guidance."
+        "or diagnostic tool now. Ask the human/operator for guidance when recovery needs "
+        "judgment, physical inspection, approval, or a changed task. "
         "Do not claim completion until a future tool result verifies execution."
     )
 

@@ -119,6 +119,10 @@ class AgentTurnProcessor(FrameProcessor):
         self._last_agent_turn_id: str | None = None
         self._notification_task: asyncio.Task[None] | None = None
 
+    @property
+    def robot_job_board(self) -> Any | None:
+        return getattr(self._backend, "robot_job_board", None)
+
     async def connect(self) -> None:
         await self._backend.connect()
         notifications = getattr(self._backend, "notifications", None)

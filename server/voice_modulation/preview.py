@@ -12,6 +12,7 @@ from typing import Any
 from google import genai
 
 from agent_control.prompts import SPEECH_DELIVERY_STYLE
+from voice_modulation.gemini_voices import is_gemini_live_voice
 from voice_modulation.settings import VoiceModulationSettings
 from voice_runtime.gemini_live_speech import (
     DEFAULT_GEMINI_LIVE_MODEL,
@@ -113,6 +114,21 @@ def render_effect_preview(audio: AudioBytes, settings: VoiceModulationSettings) 
         settings=settings,
     )
     return AudioBytes(pcm16=output, sample_rate=audio.sample_rate, channels=audio.channels)
+
+
+def tts_for_preview(tts: TTSProfile, voice_id: str | None) -> TTSProfile:
+    tts = _tts_with_preview_defaults(tts)
+    if voice_id is None:
+        return tts
+    if tts.provider == "cartesia":
+        return replace(tts, voice=voice_id)
+    if tts.provider == "gemini_live":
+        if not is_gemini_live_voice(voice_id):
+            raise VoicePreviewError(f"Unsupported Gemini Live voice: {voice_id}")
+        return replace(tts, voice=voice_id)
+    raise VoicePreviewError(
+        "voice_id override is only supported for Cartesia and Gemini Live TTS profiles"
+    )
 
 
 def synthesize_tts_reference(tts: TTSProfile, text: str) -> AudioBytes:

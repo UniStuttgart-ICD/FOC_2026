@@ -21,6 +21,7 @@ class FakeTaskPolicyContext:
     executable_plans: set[str] | None = None
     gripper: str | None = None
     recent_gripper: bool = False
+    held_object: str | None = None
     seen_pose_max_age_s: float | None = None
     seen_plan_max_age_s: float | None = None
     seen_gripper_max_age_s: float | None = None
@@ -40,6 +41,9 @@ class FakeTaskPolicyContext:
         self.seen_gripper_max_age_s = max_age_s
         return self.gripper == state and self.recent_gripper
 
+    def held_object_name(self) -> str | None:
+        return self.held_object
+
 
 def test_policy_allows_observation_without_existing_context() -> None:
     decision = validate_task_step(
@@ -49,6 +53,20 @@ def test_policy_allows_observation_without_existing_context() -> None:
     )
 
     assert decision == TaskPolicyDecision(ok=True)
+
+
+def test_policy_rejects_contract_internal_scene_tools_as_standalone_calls() -> None:
+    decision = validate_task_step(
+        "moveit_verify_released_object",
+        {"robot_name": "UR10", "object_name": "dynamic_5"},
+        FakeTaskPolicyContext(recent_pose=True, held_object="dynamic_5"),
+        user_text="verify the release",
+    )
+
+    assert decision.ok is False
+    assert decision.code == "contract_internal_tool"
+    assert decision.suggested_next_tool == "moveit_execute_task_plan"
+    assert structured_task_policy_error(decision)["code"] == "contract_internal_tool"
 
 
 def test_policy_rejects_motion_without_recent_pose_observation() -> None:
@@ -85,10 +103,10 @@ def test_policy_rejects_cartesian_for_move_then_release_compound_task() -> None:
     assert decision.ok is False
     assert decision.error == "Compound manipulation tasks must use task planning tools."
     assert decision.correction == (
-        "Use moveit_plan_pick_task or moveit_plan_place_task for requests that combine "
-        "motion with gripper, attach, detach, pick, place, or release actions."
+        "Use moveit_plan_compound_task for pick, hold, place, release, or other "
+        "multi-stage manipulation tasks."
     )
-    assert decision.suggested_next_tool == "moveit_plan_place_task"
+    assert decision.suggested_next_tool == "moveit_plan_compound_task"
 
 
 def test_policy_rejects_free_motion_for_pick_compound_task() -> None:
@@ -100,7 +118,94 @@ def test_policy_rejects_free_motion_for_pick_compound_task() -> None:
     )
 
     assert decision.ok is False
-    assert decision.suggested_next_tool == "moveit_plan_pick_task"
+    assert decision.suggested_next_tool == "moveit_plan_compound_task"
+
+
+def test_policy_rejects_release_goal_without_held_object_evidence() -> None:
+    decision = validate_task_step(
+        "moveit_plan_compound_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {"goal": "release", "object_name": "dynamic_5"},
+            "backend": "mtc",
+        },
+        FakeTaskPolicyContext(recent_pose=True),
+    )
+
+    assert decision.ok is False
+    assert decision.error == "Cannot release an object that is not currently held."
+    assert decision.code == "not_holding_object"
+    assert decision.suggested_next_tool == "moveit_verify_attached_object"
+    assert structured_task_policy_error(decision)["code"] == "not_holding_object"
+
+
+def test_policy_allows_release_goal_with_matching_held_object_evidence() -> None:
+    decision = validate_task_step(
+        "moveit_plan_compound_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {"goal": "release", "object_name": "dynamic_5"},
+            "backend": "mtc",
+        },
+        FakeTaskPolicyContext(recent_pose=True, held_object="dynamic_5"),
+    )
+
+    assert decision == TaskPolicyDecision(ok=True)
+
+
+def test_policy_rejects_hold_goal_without_recent_robot_state() -> None:
+    context = FakeTaskPolicyContext()
+
+    decision = validate_task_step(
+        "moveit_plan_compound_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {"goal": "hold", "object_name": "dynamic_5"},
+            "backend": "mtc",
+        },
+        context,
+    )
+
+    assert decision.ok is False
+    assert decision.error == "Fresh robot pose is required before compound task planning."
+    assert decision.suggested_next_tool == "moveit_get_current_pose"
+    assert context.seen_pose_max_age_s == DEFAULT_FRESH_OBSERVATION_MAX_AGE_S
+
+
+def test_policy_rejects_pick_place_goal_without_recent_robot_state() -> None:
+    decision = validate_task_step(
+        "moveit_plan_compound_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {
+                "goal": "pick_place",
+                "object_name": "dynamic_5",
+                "target_position": {"x": 0.75, "y": 0.2, "z": 0.28},
+            },
+            "backend": "mtc",
+        },
+        FakeTaskPolicyContext(),
+    )
+
+    assert decision.ok is False
+    assert decision.error == "Fresh robot pose is required before compound task planning."
+    assert decision.suggested_next_tool == "moveit_get_current_pose"
+
+
+def test_policy_rejects_release_goal_without_recent_robot_state() -> None:
+    decision = validate_task_step(
+        "moveit_plan_compound_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {"goal": "release", "object_name": "dynamic_5"},
+            "backend": "mtc",
+        },
+        FakeTaskPolicyContext(held_object="dynamic_5"),
+    )
+
+    assert decision.ok is False
+    assert decision.error == "Fresh robot pose is required before release."
+    assert decision.suggested_next_tool == "moveit_get_current_pose"
 
 
 def test_policy_allows_cartesian_for_non_manipulation_multi_point_motion() -> None:

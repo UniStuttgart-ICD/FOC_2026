@@ -214,3 +214,118 @@ async def test_close_gripper_posts_to_verified_execution_server() -> None:
         "verification": {"result": "pass"},
         "raw": {"command": "gripper_close"},
     }
+
+
+@pytest.mark.asyncio
+async def test_open_gripper_posts_to_verified_execution_server() -> None:
+    client = RecordingVerifiedExecutionClient(
+        {
+            "ok": True,
+            "robot_name": "UR10",
+            "command": "gripper_open",
+            "status": "gripper_open",
+        }
+    )
+
+    result = await client.open_gripper(robot_name="UR10", timeout_s=8.0)
+
+    assert client.posts == [
+        (
+            "/gripper/open",
+            {"robot_name": "UR10", "timeout_s": 8.0},
+            10.0,
+        )
+    ]
+    structured_content = json.loads(result)["structured_content"]
+    assert structured_content == {
+        "ok": True,
+        "robot": "UR10",
+        "tool": "moveit_open_gripper",
+        "phase": "gripper",
+        "status": "gripper_open",
+        "feedback": {
+            "phase": "gripper",
+            "status": "gripper_open",
+            "message": "Verified gripper open completed.",
+            "can_execute": False,
+        },
+        "verification": {"result": "pass"},
+        "raw": {"command": "gripper_open"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_go_home_posts_to_verified_execution_server_and_surfaces_sync_metadata() -> None:
+    client = RecordingVerifiedExecutionClient(
+        {
+            "ok": True,
+            "robot_name": "UR10",
+            "command": "home",
+            "status": "homed",
+            "final_joint_positions": [0.0, -1.57, 1.57, 0.0, 0.0, 0.0],
+            "state_sync_published": True,
+        }
+    )
+
+    result = await client.go_home(robot_name="UR10", timeout_s=12.0)
+
+    assert client.posts == [
+        (
+            "/home",
+            {"robot_name": "UR10", "timeout_s": 12.0},
+            14.0,
+        )
+    ]
+    structured_content = json.loads(result)["structured_content"]
+    assert structured_content["ok"] is True
+    assert structured_content["tool"] == "moveit_go_home"
+    assert structured_content["status"] == "homed"
+    assert structured_content["verification"] == {"result": "pass"}
+    assert structured_content["feedback"]["final_joint_positions"] == [
+        0.0,
+        -1.57,
+        1.57,
+        0.0,
+        0.0,
+        0.0,
+    ]
+    assert structured_content["feedback"]["state_sync_published"] is True
+
+
+@pytest.mark.asyncio
+async def test_sync_real_robot_state_posts_to_verified_execution_server() -> None:
+    client = RecordingVerifiedExecutionClient(
+        {
+            "ok": True,
+            "robot_name": "UR10",
+            "command": "sync_state",
+            "status": "state_synced",
+            "actual_joint_positions": [0.2, -1.4, 1.3, 0.1, 0.0, -0.2],
+            "actual_tcp_pose": [0.4, -0.2, 0.3, 0.0, 3.14, 0.0],
+            "state_sync_published": True,
+        }
+    )
+
+    result = await client.sync_real_robot_state(robot_name="UR10", timeout_s=6.0)
+
+    assert client.posts == [
+        (
+            "/sync_state",
+            {"robot_name": "UR10", "timeout_s": 6.0},
+            8.0,
+        )
+    ]
+    structured_content = json.loads(result)["structured_content"]
+    assert structured_content["ok"] is True
+    assert structured_content["tool"] == "moveit_sync_real_robot_state"
+    assert structured_content["status"] == "state_synced"
+    assert structured_content["verification"] == {"result": "pass"}
+    assert structured_content["feedback"]["actual_joint_positions"] == [
+        0.2,
+        -1.4,
+        1.3,
+        0.1,
+        0.0,
+        -0.2,
+    ]
+    assert structured_content["feedback"]["state_sync_published"] is True

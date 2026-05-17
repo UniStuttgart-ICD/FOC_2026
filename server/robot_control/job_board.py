@@ -205,6 +205,28 @@ class RobotJobBoard:
     def events_since(self, sequence: int) -> list[RobotJobEvent]:
         return [event for event in self._events if event.sequence > sequence]
 
+    async def snapshot(self, *, max_events: int = 50) -> dict[str, Any]:
+        async with self._condition:
+            now = self._time_fn()
+            queued_positions = {job_id: index + 1 for index, job_id in enumerate(self._queue)}
+            jobs = sorted(self._jobs.values(), key=lambda job: job.updated_at, reverse=True)
+            return {
+                "now_monotonic_s": now,
+                "counts": {
+                    status.value: sum(1 for job in self._jobs.values() if job.status is status)
+                    for status in RobotJobStatus
+                },
+                "queue": list(self._queue),
+                "jobs": [
+                    _job_snapshot(job, now=now, queue_position=queued_positions.get(job.job_id))
+                    for job in jobs
+                ],
+                "events": [
+                    _event_snapshot(event)
+                    for event in self._events[-max(max_events, 0) :]
+                ],
+            }
+
     def render_instruction_block(
         self,
         *,
@@ -302,6 +324,57 @@ def _format_salient_arguments(arguments: dict[str, Any]) -> str:
 
 def _trace_event_name(event_type: RobotJobEventType) -> str:
     return f"robot.job.{event_type.value.removeprefix('robot_job_')}"
+
+
+def _job_snapshot(
+    job: RobotJob,
+    *,
+    now: float,
+    queue_position: int | None,
+) -> dict[str, Any]:
+    return {
+        "job_id": job.job_id,
+        "tool_name": job.tool_name,
+        "arguments": dict(job.arguments),
+        "salient_arguments": salient_job_arguments(job.arguments),
+        "requested_by_turn_id": job.requested_by_turn_id,
+        "user_text": job.user_text,
+        "status": job.status.value,
+        "created_at": job.created_at,
+        "updated_at": job.updated_at,
+        "age_s": max(now - job.created_at, 0.0),
+        "updated_age_s": max(now - job.updated_at, 0.0),
+        "queue_position": queue_position,
+        "result_present": job.result is not None,
+        "error": job.error,
+        "after_success_tool": job.after_success_tool,
+        "after_success_arguments": (
+            dict(job.after_success_arguments)
+            if isinstance(job.after_success_arguments, dict)
+            else None
+        ),
+        "execute_via_mcp": job.execute_via_mcp,
+    }
+
+
+def _event_snapshot(event: RobotJobEvent) -> dict[str, Any]:
+    return {
+        "sequence": event.sequence,
+        "event_type": event.event_type.value,
+        "job_id": event.job_id,
+        "tool_name": event.tool_name,
+        "status": event.status.value,
+        "created_at": event.created_at,
+        "payload": _monitor_payload(event.payload),
+    }
+
+
+def _monitor_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    rendered = dict(payload)
+    if "result" in rendered:
+        rendered["result_present"] = True
+        del rendered["result"]
+    return rendered
 
 
 _TERMINAL_STATUSES = {

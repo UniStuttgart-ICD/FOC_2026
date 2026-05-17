@@ -4,11 +4,11 @@ category = "benchmark_streaming"
 [profiles.hybrid_gemini_live_tts.wake]
 provider = "openwakeword"
 model_path = "models/mave.onnx"
-threshold = 0.85
+threshold = 0.70
 vad_threshold = 0.0
 candidate_log_threshold = 0.3
 required_hits = 1
-min_wake_rms = 4.0
+min_wake_rms = 0.01
 min_wake_peak = 12
 pre_buffer_s = 0.35
 single_command = true
@@ -23,7 +23,7 @@ model = "gpt-realtime-whisper"
 [profiles.hybrid_gemini_live_tts.tts]
 provider = "gemini_live"
 model = "gemini-3.1-flash-live-preview"
-voice = "Sadaltager"
+voice = "Orus"
 
 [profiles.hybrid_gemini_live_tts.agent]
 provider = "gemini_api"

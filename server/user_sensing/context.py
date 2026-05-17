@@ -6,6 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from robot_control.shared_geometry import canonical_dynamic_name
+
 
 @dataclass
 class UserSensingSnapshot:
@@ -201,5 +203,5 @@ def _gaze_object_candidate(value: Any) -> str | None:
         return raw_target.strip()
     target = value.get("target")
     if isinstance(target, str) and target.strip().isdigit():
-        return f"dynamic_{target.strip()}"
+        return canonical_dynamic_name(f"dynamic_{target.strip()}")
     return None

@@ -26,6 +26,27 @@ class VerifiedExecutionClient(Protocol):
         timeout_s: float,
     ) -> VerifiedExecutionOutput: ...
 
+    async def open_gripper(
+        self,
+        *,
+        robot_name: str,
+        timeout_s: float,
+    ) -> VerifiedExecutionOutput: ...
+
+    async def go_home(
+        self,
+        *,
+        robot_name: str,
+        timeout_s: float,
+    ) -> VerifiedExecutionOutput: ...
+
+    async def sync_real_robot_state(
+        self,
+        *,
+        robot_name: str,
+        timeout_s: float,
+    ) -> VerifiedExecutionOutput: ...
+
 
 class HttpVerifiedExecutionClient:
     def __init__(
@@ -144,6 +165,138 @@ class HttpVerifiedExecutionClient:
                 else None
             ),
             command=response.get("command") if isinstance(response.get("command"), str) else None,
+        )
+
+    async def open_gripper(
+        self,
+        *,
+        robot_name: str,
+        timeout_s: float,
+    ) -> str:
+        request_timeout_s = max(self._request_timeout_s, timeout_s + self._timeout_margin_s)
+        try:
+            response = await self._post_json(
+                "/gripper/open",
+                {
+                    "robot_name": robot_name,
+                    "timeout_s": timeout_s,
+                },
+                timeout_s=request_timeout_s,
+            )
+        except OSError:
+            return _gripper_tool_output(
+                ok=False,
+                robot_name=robot_name,
+                action="open",
+                status="server_unavailable",
+                error="Verified execution server unavailable.",
+                correction="Start the verified execution server, then retry gripper open.",
+            )
+        ok = bool(response.get("ok"))
+        return _gripper_tool_output(
+            ok=ok,
+            robot_name=str(response.get("robot_name") or robot_name),
+            action="open",
+            status=str(response.get("status") or ("gripper_open" if ok else "failed")),
+            error=response.get("error") if isinstance(response.get("error"), str) else None,
+            correction=(
+                response.get("correction")
+                if isinstance(response.get("correction"), str)
+                else None
+            ),
+            command=response.get("command") if isinstance(response.get("command"), str) else None,
+        )
+
+    async def go_home(
+        self,
+        *,
+        robot_name: str,
+        timeout_s: float,
+    ) -> str:
+        request_timeout_s = timeout_s + self._timeout_margin_s
+        try:
+            response = await self._post_json(
+                "/home",
+                {
+                    "robot_name": robot_name,
+                    "timeout_s": timeout_s,
+                },
+                timeout_s=request_timeout_s,
+            )
+        except OSError:
+            return _command_tool_output(
+                ok=False,
+                robot_name=robot_name,
+                tool="moveit_go_home",
+                phase="recovery",
+                command="home",
+                status="server_unavailable",
+                error="Verified execution server unavailable.",
+                correction="Start the verified execution server, then retry go home.",
+            )
+        ok = bool(response.get("ok"))
+        command = response.get("command")
+        command_text = command if isinstance(command, str) else "home"
+        return _command_tool_output(
+            ok=ok,
+            robot_name=str(response.get("robot_name") or robot_name),
+            tool="moveit_go_home",
+            phase="recovery",
+            command=command_text,
+            status=str(response.get("status") or ("homed" if ok else "failed")),
+            error=response.get("error") if isinstance(response.get("error"), str) else None,
+            correction=(
+                response.get("correction")
+                if isinstance(response.get("correction"), str)
+                else None
+            ),
+            metadata=_command_metadata(response),
+        )
+
+    async def sync_real_robot_state(
+        self,
+        *,
+        robot_name: str,
+        timeout_s: float,
+    ) -> str:
+        request_timeout_s = timeout_s + self._timeout_margin_s
+        try:
+            response = await self._post_json(
+                "/sync_state",
+                {
+                    "robot_name": robot_name,
+                    "timeout_s": timeout_s,
+                },
+                timeout_s=request_timeout_s,
+            )
+        except OSError:
+            return _command_tool_output(
+                ok=False,
+                robot_name=robot_name,
+                tool="moveit_sync_real_robot_state",
+                phase="observation",
+                command="sync_state",
+                status="server_unavailable",
+                error="Verified execution server unavailable.",
+                correction="Start the verified execution server, then retry real robot state sync.",
+            )
+        ok = bool(response.get("ok"))
+        command = response.get("command")
+        command_text = command if isinstance(command, str) else "sync_state"
+        return _command_tool_output(
+            ok=ok,
+            robot_name=str(response.get("robot_name") or robot_name),
+            tool="moveit_sync_real_robot_state",
+            phase="observation",
+            command=command_text,
+            status=str(response.get("status") or ("state_synced" if ok else "failed")),
+            error=response.get("error") if isinstance(response.get("error"), str) else None,
+            correction=(
+                response.get("correction")
+                if isinstance(response.get("correction"), str)
+                else None
+            ),
+            metadata=_command_metadata(response),
         )
 
 
@@ -281,6 +434,83 @@ def _gripper_tool_output(
         },
         ensure_ascii=False,
     )
+
+
+def _command_tool_output(
+    *,
+    ok: bool,
+    robot_name: str,
+    tool: str,
+    phase: str,
+    command: str,
+    status: str,
+    error: str | None = None,
+    correction: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> str:
+    details = dict(metadata or {})
+    message = _command_content_text(ok=ok, tool=tool, status=status, error=error)
+    structured: dict[str, Any] = {
+        "ok": ok,
+        "robot": robot_name,
+        "tool": tool,
+        "phase": phase,
+        "status": status,
+        "feedback": {
+            "phase": phase,
+            "status": status,
+            "message": message,
+            "can_execute": False,
+            **details,
+        },
+        "verification": {"result": "pass" if ok else "fail"},
+        "raw": {"command": command},
+    }
+    if error is not None:
+        structured["error"] = error
+    if correction is not None:
+        structured["correction"] = correction
+    return json.dumps(
+        {
+            "content": [message],
+            "structured_content": structured,
+            "is_error": not ok,
+        },
+        ensure_ascii=False,
+    )
+
+
+def _command_metadata(response: dict[str, Any]) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    for source, target in (
+        ("target_joint_positions", "target_joint_positions"),
+        ("final_joint_positions", "final_joint_positions"),
+        ("actual_joint_positions", "actual_joint_positions"),
+        ("actual_tcp_pose", "actual_tcp_pose"),
+    ):
+        values = _float_list(response.get(source))
+        if values is not None:
+            metadata[target] = values
+    max_joint_error = _float_or_none(response.get("max_joint_error"))
+    if max_joint_error is not None:
+        metadata["max_joint_error"] = max_joint_error
+    joint_tolerance_rad = _float_or_none(response.get("joint_tolerance_rad"))
+    if joint_tolerance_rad is not None:
+        metadata["joint_tolerance_rad"] = joint_tolerance_rad
+    state_sync_published = response.get("state_sync_published")
+    if isinstance(state_sync_published, bool):
+        metadata["state_sync_published"] = state_sync_published
+    return metadata
+
+
+def _command_content_text(*, ok: bool, tool: str, status: str, error: str | None) -> str:
+    if ok and tool == "moveit_go_home":
+        return "Verified go home completed."
+    if ok and tool == "moveit_sync_real_robot_state":
+        return "Verified real robot state sync completed."
+    if ok:
+        return "Verified command completed."
+    return error or f"Verified command failed: {status}"
 
 
 def _float_list(value: Any) -> list[float] | None:

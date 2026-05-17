@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -10,6 +11,8 @@ from robot_control.manipulation_plans import (
     parse_executable_plan_result,
     parse_task_solution_result,
 )
+
+TASK_SOLUTION_APPROVAL_MAX_AGE_S = 60.0
 
 
 @dataclass
@@ -44,6 +47,25 @@ class RecentTaskSolution:
 
 
 @dataclass
+class RecentTaskFailure:
+    task_solution_id: str
+    task_kind: str
+    object_name: str
+    scene_snapshot_id: str | None
+    failed_step: str
+    failed_stage: str
+    failed_tool_name: str | None
+    failed_tool_arguments: dict[str, Any] | None
+    failed_tool_result: Any
+    completed_steps: list[dict[str, Any]]
+    verified_plan_names: list[str]
+    gripper_state: str | None
+    attached_object_verified: bool
+    released_object_verified: bool
+    observed_at_s: float
+
+
+@dataclass
 class PendingTaskSolutionApproval:
     target_kind: str
     task_solution_id: str
@@ -73,6 +95,7 @@ class RobotContextSnapshot:
     executable_plan_observed_at_s: dict[str, float] = field(default_factory=dict)
     pending_executable_plans: dict[str, PendingExecutablePlan] = field(default_factory=dict)
     recent_task_solution: RecentTaskSolution | None = None
+    recent_task_failure: RecentTaskFailure | None = None
     pending_task_solution_approval: PendingTaskSolutionApproval | None = None
     user_intent_revision: int = 0
     approval_intent_revision: int | None = None
@@ -92,6 +115,10 @@ class RobotContextStore:
         return self._snapshot.recent_task_solution
 
     @property
+    def recent_task_failure(self) -> RecentTaskFailure | None:
+        return self._snapshot.recent_task_failure
+
+    @property
     def pending_task_solution_approval(self) -> PendingTaskSolutionApproval | None:
         return self._snapshot.pending_task_solution_approval
 
@@ -100,6 +127,9 @@ class RobotContextStore:
         if observed_at_s is None:
             return False
         return self._time_fn() - observed_at_s <= max_age_s
+
+    def held_object_name(self) -> str | None:
+        return self._snapshot.held_object_name
 
     def remember_executable_plan(
         self,
@@ -176,6 +206,44 @@ class RobotContextStore:
             raw=dict(raw) if isinstance(raw, dict) else None,
         )
 
+    def remember_task_failure(
+        self,
+        *,
+        task_solution_id: str,
+        task_kind: str,
+        object_name: str,
+        scene_snapshot_id: str | None,
+        failed_step: str,
+        failed_stage: str,
+        failed_tool_name: str | None,
+        failed_tool_arguments: dict[str, Any] | None,
+        failed_tool_result: Any,
+        completed_steps: list[dict[str, Any]],
+        verified_plan_names: list[str],
+        gripper_state: str | None,
+        attached_object_verified: bool,
+        released_object_verified: bool,
+    ) -> None:
+        self._snapshot.recent_task_failure = RecentTaskFailure(
+            task_solution_id=task_solution_id,
+            task_kind=task_kind,
+            object_name=object_name,
+            scene_snapshot_id=scene_snapshot_id,
+            failed_step=failed_step,
+            failed_stage=failed_stage,
+            failed_tool_name=failed_tool_name,
+            failed_tool_arguments=(
+                dict(failed_tool_arguments) if isinstance(failed_tool_arguments, dict) else None
+            ),
+            failed_tool_result=failed_tool_result,
+            completed_steps=[dict(step) for step in completed_steps],
+            verified_plan_names=list(verified_plan_names),
+            gripper_state=gripper_state,
+            attached_object_verified=attached_object_verified,
+            released_object_verified=released_object_verified,
+            observed_at_s=self._time_fn(),
+        )
+
     def remember_task_solution_approval_candidate(
         self,
         *,
@@ -206,8 +274,12 @@ class RobotContextStore:
         approval = self._snapshot.pending_task_solution_approval
         if approval is None or approval.task_solution_id != task_solution_id:
             return False
+        now_s = self._time_fn()
+        approval_time = now_s
+        if approved_at is not None and math.isfinite(approved_at) and approved_at <= now_s:
+            approval_time = approved_at
         approval.approval_turn_id = approval_turn_id
-        approval.approved_at = self._time_fn() if approved_at is None else approved_at
+        approval.approved_at = approval_time
         self._snapshot.approval_intent_revision = self._snapshot.user_intent_revision
         return True
 
@@ -230,6 +302,11 @@ class RobotContextStore:
             return TaskSolutionApprovalStatus(
                 ok=False,
                 reason="approval_for_different_task_solution",
+            )
+        if self._time_fn() - approval.approved_at > TASK_SOLUTION_APPROVAL_MAX_AGE_S:
+            return TaskSolutionApprovalStatus(
+                ok=False,
+                reason="approval_expired",
             )
         recent_task_solution = self._snapshot.recent_task_solution
         if recent_task_solution is not None and recent_task_solution.task_solution_id != task_solution_id:
@@ -286,6 +363,7 @@ class RobotContextStore:
             if self._snapshot.held_object_name:
                 lines.append(f"- held object: {self._snapshot.held_object_name}")
             lines.extend(pending_lines)
+            lines.extend(self._recent_task_failure_instruction_lines())
             return "\n".join(lines)
 
         lines.append(f"- robot: {self._snapshot.robot_name}")
@@ -299,6 +377,7 @@ class RobotContextStore:
         if self._snapshot.last_execution_result:
             lines.append(f"- last execution: {self._snapshot.last_execution_result}")
         lines.extend(pending_lines)
+        lines.extend(self._recent_task_failure_instruction_lines())
         return "\n".join(lines)
 
     def latest_tcp_pose(self) -> dict[str, Any] | None:
@@ -318,16 +397,31 @@ class RobotContextStore:
         if tool_name == "moveit_open_gripper":
             self._snapshot.gripper_state = "open"
             self._snapshot.gripper_observed_at_s = self._time_fn()
-            self._snapshot.held_object_name = None
             return
-        if tool_name in {"moveit_attach_object", "moveit_verify_attached_object"}:
+        if tool_name in {
+            "moveit_attach_object",
+            "moveit_verify_attached_object",
+            "moveit_release_object",
+            "moveit_verify_released_object",
+        }:
+            released_object = _released_object_name(structured_content)
+            if released_object is not None and (
+                self._snapshot.held_object_name is None
+                or self._snapshot.held_object_name == released_object
+            ):
+                self._snapshot.held_object_name = None
+                return
             held_object = _held_object_name(structured_content)
             if held_object is not None:
                 self._snapshot.held_object_name = held_object
             return
         plan = parse_executable_plan_result(tool_name, output)
         task_solution = parse_task_solution_result(tool_name, output)
-        if tool_name in {"moveit_plan_pick_task", "moveit_plan_place_task"} and task_solution is not None:
+        if (
+            tool_name
+            in {"moveit_plan_pick_task", "moveit_plan_place_task", "moveit_plan_compound_task"}
+            and task_solution is not None
+        ):
             self.remember_task_solution(
                 task_solution_id=task_solution.task_solution_id,
                 task_kind=task_solution.task_kind,
@@ -451,6 +545,31 @@ class RobotContextStore:
             )
         return lines
 
+    def _recent_task_failure_instruction_lines(self) -> list[str]:
+        failure = self._snapshot.recent_task_failure
+        if failure is None:
+            return []
+        lines = [
+            f"- recent task failure: {failure.task_solution_id}",
+            f"- object: {failure.object_name}",
+            f"- failed step: {failure.failed_step}",
+            f"- failed stage: {failure.failed_stage}",
+        ]
+        if failure.failed_tool_name:
+            lines.append(f"- failed tool: {failure.failed_tool_name}")
+        if failure.completed_steps:
+            completed = ", ".join(
+                str(step.get("name") or step.get("handler") or "step")
+                for step in failure.completed_steps
+            )
+            lines.append(f"- completed steps: {completed}")
+        if failure.verified_plan_names:
+            lines.append(f"- verified plans: {', '.join(failure.verified_plan_names)}")
+        if failure.gripper_state:
+            lines.append(f"- gripper at failure: {failure.gripper_state}")
+        lines.append("- recovery requires explicit user/operator intent.")
+        return lines
+
 
 def _structured_content(output: str) -> Any:
     try:
@@ -470,10 +589,38 @@ def _held_object_name(structured_content: dict[str, Any]) -> str | None:
     planning_state = raw.get("planning_scene_state")
     if holds_object is False or planning_state == "free":
         return None
-    for key in ("attached_object", "mcp_attached_object", "object_name"):
+    for key in ("attached_object", "mcp_attached_object"):
         value = raw.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
+    if holds_object is not True and planning_state != "attached":
+        return None
+    value = raw.get("object_name")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _released_object_name(structured_content: dict[str, Any]) -> str | None:
+    verification = structured_content.get("verification")
+    if isinstance(verification, dict) and verification.get("result") not in {None, "pass"}:
+        return None
+    raw = structured_content.get("raw")
+    if not isinstance(raw, dict):
+        return None
+    holds_object = raw.get("mcp_gripper_holds_object")
+    planning_state = str(raw.get("planning_scene_state") or "").strip().lower()
+    attached_object = raw.get("mcp_attached_object", raw.get("attached_object"))
+    if isinstance(attached_object, str) and attached_object.strip():
+        return None
+    if planning_state == "attached":
+        return None
+    released_scene_states = {"free", "released", "detached", "world", "not_attached"}
+    if holds_object is not False and planning_state not in released_scene_states:
+        return None
+    value = raw.get("object_name")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
     return None
 
 

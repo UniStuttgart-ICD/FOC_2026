@@ -1,0 +1,926 @@
+{
+  "schema": "pipecat.shared_geometry.common_model.v0.1",
+  "version": "0.1.0",
+  "name": "three_dynamic_a_c_gate_with_inventory",
+  "description": "Physical scene with two 10 cm A beams vertical at the sides, one 30 cm C beam spanning horizontally across them, and six inventory beams laid out toward negative Y. All beams have a 4 cm by 4 cm rectangular section.",
+  "units": "meters",
+  "owner_module": "robot_control.shared_geometry",
+  "coordinate_system": {
+    "frame": "rhino_world",
+    "up_axis": "z",
+    "notes": "The axis start/end points define the beam centerline. The C span bottom face bears on the top faces of the two A verticals. Inventory beams lie horizontally on z=0 with 5 cm centerline spacing along negative Y, starting at y=-0.90 m."
+  },
+  "source": {
+    "visual_template": "pipecat-agent/docs/research/shared-geometry-model-explainer.html",
+    "scenario_reference": "user requested physical model update on 2026-05-16"
+  },
+  "catalog": {
+    "A": {
+      "length": 0.1,
+      "section": {
+        "y": 0.04,
+        "z": 0.04
+      }
+    },
+    "B": {
+      "length": 0.2,
+      "section": {
+        "y": 0.04,
+        "z": 0.04
+      }
+    },
+    "C": {
+      "length": 0.3,
+      "section": {
+        "y": 0.04,
+        "z": 0.04
+      }
+    }
+  },
+  "defaults": {
+    "solid": {
+      "type": "box",
+      "origin": "center",
+      "section": {
+        "y": 0.04,
+        "z": 0.04
+      }
+    },
+    "feature_set": [
+      "end_start",
+      "end_end",
+      "end_neg_x",
+      "end_pos_x",
+      "face_top",
+      "face_bottom",
+      "face_side_a",
+      "face_side_b",
+      "axis_x"
+    ]
+  },
+  "bodies": [
+    {
+      "id": "dynamic_1",
+      "label": "A 10 cm vertical left support",
+      "family": "A",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.1,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "bottom",
+        "end_label": "top",
+        "start_xyz": [
+          0,
+          -0.7,
+          0
+        ],
+        "end_xyz": [
+          0,
+          -0.7,
+          0.1
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0,
+          -0.7,
+          0.05
+        ],
+        "quat_xyzw": [
+          0.5,
+          0.5,
+          -0.5,
+          0.5
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0,
+            -0.7,
+            0
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0,
+            -0.7,
+            0.1
+          ]
+        },
+        "face_bottom": {
+          "center_xyz": [
+            0,
+            -0.7,
+            0
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            -1
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0,
+            -0.7,
+            0.1
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "alignment": "vertical"
+      }
+    },
+    {
+      "id": "dynamic_2",
+      "label": "A 10 cm vertical right support",
+      "family": "A",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.1,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "bottom",
+        "end_label": "top",
+        "start_xyz": [
+          0.3,
+          -0.7,
+          0
+        ],
+        "end_xyz": [
+          0.3,
+          -0.7,
+          0.1
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0.3,
+          -0.7,
+          0.05
+        ],
+        "quat_xyzw": [
+          0.5,
+          0.5,
+          -0.5,
+          0.5
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0.3,
+            -0.7,
+            0
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0.3,
+            -0.7,
+            0.1
+          ]
+        },
+        "face_bottom": {
+          "center_xyz": [
+            0.3,
+            -0.7,
+            0
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            -1
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0.3,
+            -0.7,
+            0.1
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "alignment": "vertical"
+      }
+    },
+    {
+      "id": "dynamic_3",
+      "label": "C 30 cm horizontal span across supports",
+      "family": "C",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.3,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "left_end",
+        "end_label": "right_end",
+        "start_xyz": [
+          0.0,
+          -0.7,
+          0.12
+        ],
+        "end_xyz": [
+          0.3,
+          -0.7,
+          0.12
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0.15,
+          -0.7,
+          0.12
+        ],
+        "quat_xyzw": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0.0,
+            -0.7,
+            0.12
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0.3,
+            -0.7,
+            0.12
+          ]
+        },
+        "face_bottom": {
+          "center_xyz": [
+            0.15,
+            -0.7,
+            0.1
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            -1
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0.15,
+            -0.7,
+            0.14
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "alignment": "horizontal"
+      }
+    },
+    {
+      "id": "dynamic_4",
+      "label": "A 10 cm inventory beam",
+      "family": "A",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.1,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "left_end",
+        "end_label": "right_end",
+        "start_xyz": [
+          0.1,
+          -0.9,
+          0.02
+        ],
+        "end_xyz": [
+          0.2,
+          -0.9,
+          0.02
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0.15,
+          -0.9,
+          0.02
+        ],
+        "quat_xyzw": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0.1,
+            -0.9,
+            0.02
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0.2,
+            -0.9,
+            0.02
+          ]
+        },
+        "face_bottom": {
+          "center_xyz": [
+            0.15,
+            -0.9,
+            0.0
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            -1
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0.15,
+            -0.9,
+            0.04
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "alignment": "horizontal",
+        "inventory_index": 1,
+        "inventory_spacing_m": 0.05
+      }
+    },
+    {
+      "id": "dynamic_5",
+      "label": "B 20 cm inventory beam 1",
+      "family": "B",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.2,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "left_end",
+        "end_label": "right_end",
+        "start_xyz": [
+          0.05,
+          -0.95,
+          0.02
+        ],
+        "end_xyz": [
+          0.25,
+          -0.95,
+          0.02
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0.15,
+          -0.95,
+          0.02
+        ],
+        "quat_xyzw": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0.05,
+            -0.95,
+            0.02
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0.25,
+            -0.95,
+            0.02
+          ]
+        },
+        "face_bottom": {
+          "center_xyz": [
+            0.15,
+            -0.95,
+            0.0
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            -1
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0.15,
+            -0.95,
+            0.04
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "alignment": "horizontal",
+        "inventory_index": 2,
+        "inventory_spacing_m": 0.05
+      }
+    },
+    {
+      "id": "dynamic_6",
+      "label": "B 20 cm inventory beam 2",
+      "family": "B",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.2,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "left_end",
+        "end_label": "right_end",
+        "start_xyz": [
+          0.05,
+          -1.0,
+          0.02
+        ],
+        "end_xyz": [
+          0.25,
+          -1.0,
+          0.02
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0.15,
+          -1.0,
+          0.02
+        ],
+        "quat_xyzw": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0.05,
+            -1.0,
+            0.02
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0.25,
+            -1.0,
+            0.02
+          ]
+        },
+        "face_bottom": {
+          "center_xyz": [
+            0.15,
+            -1.0,
+            0.0
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            -1
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0.15,
+            -1.0,
+            0.04
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "alignment": "horizontal",
+        "inventory_index": 3,
+        "inventory_spacing_m": 0.05
+      }
+    },
+    {
+      "id": "dynamic_7",
+      "label": "B 20 cm inventory beam 3",
+      "family": "B",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.2,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "left_end",
+        "end_label": "right_end",
+        "start_xyz": [
+          0.05,
+          -1.05,
+          0.02
+        ],
+        "end_xyz": [
+          0.25,
+          -1.05,
+          0.02
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0.15,
+          -1.05,
+          0.02
+        ],
+        "quat_xyzw": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0.05,
+            -1.05,
+            0.02
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0.25,
+            -1.05,
+            0.02
+          ]
+        },
+        "face_bottom": {
+          "center_xyz": [
+            0.15,
+            -1.05,
+            0.0
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            -1
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0.15,
+            -1.05,
+            0.04
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "alignment": "horizontal",
+        "inventory_index": 4,
+        "inventory_spacing_m": 0.05
+      }
+    },
+    {
+      "id": "dynamic_8",
+      "label": "C 30 cm inventory beam 1",
+      "family": "C",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.3,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "left_end",
+        "end_label": "right_end",
+        "start_xyz": [
+          0.0,
+          -1.1,
+          0.02
+        ],
+        "end_xyz": [
+          0.3,
+          -1.1,
+          0.02
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0.15,
+          -1.1,
+          0.02
+        ],
+        "quat_xyzw": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0.0,
+            -1.1,
+            0.02
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0.3,
+            -1.1,
+            0.02
+          ]
+        },
+        "face_bottom": {
+          "center_xyz": [
+            0.15,
+            -1.1,
+            0.0
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            -1
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0.15,
+            -1.1,
+            0.04
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "alignment": "horizontal",
+        "inventory_index": 5,
+        "inventory_spacing_m": 0.05
+      }
+    },
+    {
+      "id": "dynamic_9",
+      "label": "C 30 cm inventory beam 2",
+      "family": "C",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.3,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "left_end",
+        "end_label": "right_end",
+        "start_xyz": [
+          0.0,
+          -1.15,
+          0.02
+        ],
+        "end_xyz": [
+          0.3,
+          -1.15,
+          0.02
+        ]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [
+          0.15,
+          -1.15,
+          0.02
+        ],
+        "quat_xyzw": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [
+            0.0,
+            -1.15,
+            0.02
+          ]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [
+            0.3,
+            -1.15,
+            0.02
+          ]
+        },
+        "face_bottom": {
+          "center_xyz": [
+            0.15,
+            -1.15,
+            0.0
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            -1
+          ]
+        },
+        "face_top": {
+          "center_xyz": [
+            0.15,
+            -1.15,
+            0.04
+          ],
+          "normal_xyz": [
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "state": {
+        "alignment": "horizontal",
+        "inventory_index": 6,
+        "inventory_spacing_m": 0.05
+      }
+    }
+  ],
+  "assembly_graph": {
+    "nodes": [
+      {
+        "id": "built_gate_frame",
+        "type": "subassembly",
+        "members": [
+          "dynamic_1",
+          "dynamic_2",
+          "dynamic_3"
+        ],
+        "status": "built"
+      },
+      {
+        "id": "inventory_stack",
+        "type": "inventory",
+        "members": [
+          "dynamic_4",
+          "dynamic_5",
+          "dynamic_6",
+          "dynamic_7",
+          "dynamic_8",
+          "dynamic_9"
+        ],
+        "status": "inventory"
+      }
+    ],
+    "relations": [
+      {
+        "id": "rel_001",
+        "relation_type": "bearing_contact",
+        "a": "dynamic_1.face_top",
+        "b": "dynamic_3.face_bottom",
+        "role": "left_span_support",
+        "status": "built"
+      },
+      {
+        "id": "rel_002",
+        "relation_type": "bearing_contact",
+        "a": "dynamic_2.face_top",
+        "b": "dynamic_3.face_bottom",
+        "role": "right_span_support",
+        "status": "built"
+      },
+      {
+        "id": "rel_003",
+        "relation_type": "ordered_inventory_layout",
+        "a": "dynamic_4",
+        "b": "dynamic_9",
+        "role": "5_cm_centerline_spacing_toward_negative_y",
+        "status": "inventory"
+      }
+    ]
+  },
+  "operation_history": [
+    {
+      "id": "op_001",
+      "op": "initialize_from_user_requested_physical_layout",
+      "status": "applied",
+      "notes": "Two A beams are 10 cm vertical supports. One C beam is the 30 cm horizontal span. Inventory contains one A beam, three B beams, and two C beams laid out from y=-0.90 m toward negative Y at 5 cm centerline spacing."
+    }
+  ],
+  "projections": {
+    "grasshopper": {
+      "source_of_truth": "this_file",
+      "adapter": "geometry group Python 3 Script",
+      "output": "Rhino Brep boxes generated from body axis segments and box section dimensions"
+    }
+  }
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from contextlib import AsyncExitStack
+from copy import deepcopy
 from datetime import timedelta
 from typing import Any, Protocol
 
@@ -13,12 +14,21 @@ from process_trace import NoopProcessTracer, ProcessTracer
 from robot_control.call_validation import (
     AGENT_TO_LEGACY_MCP_TOOL_NAMES,
     ALLOWED_ROBOT_TOOLS,
+    COMPOUND_TASK_GOAL_VALUES,
+    CONTRACT_INTERNAL_TOOL_NAMES,
     RobotCallValidationError,
     agent_tool_description,
     structured_robot_call_error,
     validate_robot_tool_call,
 )
 
+AGENT_CONTROL_TASK_PLAN_EXECUTION_REQUIRED = {
+    "ok": False,
+    "error": "moveit_execute_task_plan is executed by Agent Control, not the MCP bridge",
+    "correction": "Route this task_solution_id through Agent Control's task-plan executor.",
+    "retryable": False,
+    "code": "agent_control_execution_required",
+}
 LEGACY_TO_AGENT_TOOL_NAMES = {legacy: agent for agent, legacy in AGENT_TO_LEGACY_MCP_TOOL_NAMES.items()}
 TASK_SOLUTION_EXECUTION_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -48,6 +58,7 @@ AGENT_TOOL_ORDER = {
             "moveit_get_robot_state",
             "moveit_list_scene_objects",
             "moveit_get_object_context",
+            "moveit_plan_compound_task",
             "moveit_plan_pick_task",
             "moveit_plan_place_task",
             "moveit_execute_task_plan",
@@ -58,13 +69,22 @@ AGENT_TOOL_ORDER = {
             "moveit_plan_cartesian_motion",
             "moveit_execute_plan",
             "moveit_explain_motion_failure",
+            "moveit_go_home",
+            "moveit_sync_real_robot_state",
             "moveit_verify_attached_object",
+            "moveit_release_object",
+            "moveit_verify_released_object",
+            "moveit_remove_scene_object",
             "moveit_open_gripper",
             "moveit_close_gripper",
             "moveit_attach_object",
         ]
     )
 }
+MODEL_HIDDEN_TOOL_NAMES = (
+    frozenset({"moveit_plan_pick_task", "moveit_plan_place_task"})
+    | CONTRACT_INTERNAL_TOOL_NAMES
+)
 
 
 class RobotMCPError(RuntimeError):
@@ -179,7 +199,7 @@ class RobotMCPBridge:
         tools: list[dict[str, Any]] = []
         for tool in self._tools:
             agent_name = self._agent_tool_name(tool.name)
-            if agent_name is None:
+            if agent_name is None or agent_name in MODEL_HIDDEN_TOOL_NAMES:
                 continue
             tools.append(
                 {
@@ -205,7 +225,22 @@ class RobotMCPBridge:
             )
         return sorted(tools, key=lambda tool: _agent_tool_order(str(tool.get("name") or "")))
 
+    def contract_tool_names(self) -> set[str]:
+        return set(self._backing_tool_names)
+
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        return await self._call_tool(name, arguments, allow_contract_internal=False)
+
+    async def call_contract_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        return await self._call_tool(name, arguments, allow_contract_internal=True)
+
+    async def _call_tool(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        allow_contract_internal: bool,
+    ) -> str:
         normalized_arguments = _normalize_agent_arguments(name, arguments)
         validation_attributes = self._tool_attributes(name, normalized_arguments)
         async with self._tracer.span(
@@ -214,7 +249,11 @@ class RobotMCPBridge:
             attributes=validation_attributes,
         ):
             try:
-                validate_robot_tool_call(name, normalized_arguments)
+                validate_robot_tool_call(
+                    name,
+                    normalized_arguments,
+                    allow_contract_internal=allow_contract_internal,
+                )
             except RobotCallValidationError as exc:
                 blocked_attributes: dict[str, Any] = {
                     "tool.name": name,
@@ -230,6 +269,9 @@ class RobotMCPBridge:
                 )
                 return _serialize_validation_failure(exc)
 
+        if name == "moveit_execute_task_plan":
+            return json.dumps(AGENT_CONTROL_TASK_PLAN_EXECUTION_REQUIRED, ensure_ascii=False)
+
         backing_tool_name = self._backing_tool_names.get(name)
         if backing_tool_name is None:
             raise RobotMCPError(f"Tool is not allowed: {name}")
@@ -240,7 +282,18 @@ class RobotMCPBridge:
             "robot_control",
             attributes=call_attributes,
         ) as span:
-            result = await self._server.call_tool(backing_tool_name, normalized_arguments)
+            try:
+                result = await self._server.call_tool(backing_tool_name, normalized_arguments)
+            except RobotMCPError:
+                raise
+            except TimeoutError as exc:
+                span.update_attributes(_tool_exception_trace_attributes(exc))
+                span.set_status("transport-error")
+                raise RobotMCPError(_tool_exception_message(name, exc, timed_out=True)) from exc
+            except Exception as exc:
+                span.update_attributes(_tool_exception_trace_attributes(exc))
+                span.set_status("transport-error")
+                raise RobotMCPError(_tool_exception_message(name, exc, timed_out=False)) from exc
             serialized_output = _serialize_tool_result(result)
             result_attributes = _tool_result_trace_attributes(result)
             span.update_attributes(result_attributes)
@@ -271,7 +324,7 @@ class RobotMCPBridge:
         return attributes
 
     def _should_advertise_task_plan_execution(self) -> bool:
-        return "moveit_plan_pick_task" in self._backing_tool_names
+        return "moveit_plan_compound_task" in self._backing_tool_names
 
 
 def _normalize_agent_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -288,6 +341,8 @@ def _normalize_agent_arguments(name: str, arguments: dict[str, Any]) -> dict[str
 
 
 def _agent_tool_schema(name: str, input_schema: dict[str, Any]) -> dict[str, Any]:
+    if name == "moveit_plan_compound_task":
+        return _compound_task_planning_schema(input_schema)
     if name == "moveit_execute_task_solution":
         return {
             "type": "object",
@@ -303,6 +358,33 @@ def _agent_tool_schema(name: str, input_schema: dict[str, Any]) -> dict[str, Any
             "additionalProperties": False,
         }
     return input_schema
+
+
+def _compound_task_planning_schema(input_schema: dict[str, Any]) -> dict[str, Any]:
+    schema = deepcopy(input_schema)
+    if not isinstance(schema, dict):
+        schema = {}
+    schema.setdefault("type", "object")
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        properties = {}
+        schema["properties"] = properties
+    requirements = properties.get("requirements")
+    if not isinstance(requirements, dict):
+        requirements = {}
+        properties["requirements"] = requirements
+    requirements.setdefault("type", "object")
+    requirement_properties = requirements.get("properties")
+    if not isinstance(requirement_properties, dict):
+        requirement_properties = {}
+        requirements["properties"] = requirement_properties
+    goal = requirement_properties.get("goal")
+    if not isinstance(goal, dict):
+        goal = {}
+        requirement_properties["goal"] = goal
+    goal["type"] = "string"
+    goal["enum"] = list(COMPOUND_TASK_GOAL_VALUES)
+    return schema
 
 
 def _agent_tool_order(name: str) -> int:
@@ -348,3 +430,19 @@ def _tool_result_trace_attributes(result: CallToolResult) -> dict[str, Any]:
     if isinstance(structured_content, dict) and isinstance(structured_content.get("error"), str):
         attributes["tool.result.error"] = structured_content["error"]
     return attributes
+
+
+def _tool_exception_trace_attributes(exc: BaseException) -> dict[str, Any]:
+    return {
+        "mcp.transport.ok": False,
+        "tool.exception.type": type(exc).__name__,
+        "tool.exception.message": str(exc),
+    }
+
+
+def _tool_exception_message(name: str, exc: BaseException, *, timed_out: bool) -> str:
+    prefix = "timed out" if timed_out else "failed"
+    detail = str(exc).strip()
+    if detail:
+        return f"Robot MCP tool {name} {prefix}: {type(exc).__name__}: {detail}"
+    return f"Robot MCP tool {name} {prefix}: {type(exc).__name__}"

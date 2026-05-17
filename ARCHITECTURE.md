@@ -55,7 +55,7 @@ It contains these target submodules:
 It contains:
 
 - **LangChain API Backend**: builds native LangChain chat models and satisfies the Agent Turn backend seam.
-- **Agent Orchestration**: the LangGraph loop that calls the model, executes robot tools through Robot Control, observes Robot Context, and repeats until done or blocked.
+- **Agent Orchestration**: the LangGraph loop that calls the model, executes robot tools through Robot Control, observes Robot Context, and repeats until done, retried, or blocked.
 - **Robot Agent Prompt**: the prompt renderer and prompt parts aligned with Robot Call Validation and Robot Tool Adapter feedback.
 - **Agent Turn Factory**: builds the native LangChain backend and wraps it in the Voice Runtime Agent Turn processor for the app composition root.
 
@@ -69,8 +69,8 @@ It contains these target submodules:
 
 - **Task Policy Layer**: deterministic pre-tool checks for obvious robot-step preconditions.
 - **Robot Call Validation**: structural and local tool-call validation for allowed MoveIt tools, UR10 arguments, target bounds, timeouts, and executable plan names.
-- **Robot Tool Adapter**: exposes MoveIt MCP tools and Robot Control bridge tools to Agent Orchestration, adapts LangChain tool-call messages, and executes tool calls.
-- **Robot Context**: stores advisory recent observations, planning results, gripper state, and execution results.
+- **Robot Tool Adapter**: exposes MoveIt MCP tools and Robot Control bridge tools to Agent Orchestration, adapts LangChain tool-call messages, executes tool calls, and normalizes MCP timeouts/exceptions.
+- **Robot Context**: stores advisory recent observations, planning results, gripper state, execution results, and held objects proven by attach or verification evidence.
 - **Robot Job Blackboard**: stores queued/running/completed/failed robot jobs and terminal events for long-running action execution.
 - **Robot Job Worker**: deterministic executor for queued MoveIt jobs; it calls the exact tool and arguments submitted by Agent Control.
 
@@ -145,22 +145,63 @@ Agent-facing robot tools should stay semantic and narrow. Tool tiers are observa
 The current agent-facing robot contract includes:
 
 - Observation: `moveit_get_current_pose`, `moveit_get_robot_state`, `moveit_list_scene_objects`, and `moveit_get_object_context`.
-- Planning: `moveit_plan_free_motion`, `moveit_plan_cartesian_motion`, `moveit_plan_pick`, `moveit_plan_place`, `moveit_plan_pick_task`, and `moveit_plan_place_task`.
-- Execution: `moveit_execute_plan` with a recent returned `raw.plan_name`, `moveit_execute_task_plan` with a recent pick `raw.task_solution_id` for Verified Real Robot Execution, and `moveit_execute_task_solution` with a returned `raw.task_solution_id` for sim/emulated task-solution execution.
-- Diagnostic: `moveit_explain_motion_failure` and `moveit_verify_attached_object`.
-- Admin/state mutation: `moveit_open_gripper`, `moveit_close_gripper`, and `moveit_attach_object`. In verified task-plan execution, physical gripper close is routed through Verified Real Robot Execution; `moveit_attach_object` only synchronizes MoveIt planning-scene attachment state after that verified close.
+- Planning: `moveit_plan_free_motion`, `moveit_plan_cartesian_motion`, `moveit_plan_pick`, `moveit_plan_place`, `moveit_plan_pick_task`, `moveit_plan_place_task`, and `moveit_plan_compound_task`.
+- Execution: `moveit_execute_plan` with a recent returned `raw.plan_name`, `moveit_execute_task_plan` with a recent approved `raw.task_solution_id` and supported `raw.execution_contract` for Verified Real Robot Execution, and `moveit_execute_task_solution` with a returned `raw.task_solution_id` for sim/emulated task-solution execution.
+- Diagnostic: `moveit_explain_motion_failure`, `moveit_verify_attached_object`, and `moveit_verify_released_object`.
+- Admin/state mutation: `moveit_open_gripper`, `moveit_close_gripper`, `moveit_attach_object`, and `moveit_release_object`. In verified task-plan execution, physical gripper open/close is routed through Verified Real Robot Execution; MCP tools only synchronize MoveIt planning-scene attach/release state after verified gripper evidence.
 
 Agent Orchestration filters task-solution execution tools before model binding. With a Verified Real Robot Execution client, the model sees `moveit_execute_task_plan` and not `moveit_execute_task_solution`; without that client, it sees `moveit_execute_task_solution` and not `moveit_execute_task_plan`. The MCP adapter may still know both tools.
 
+The verified dynamic pick path stays semantic: `moveit_plan_pick_task`, explicit approval bound to the returned task solution, then `moveit_execute_task_plan`.
+
+Supported compound manipulation stays semantic too: the model may request `moveit_plan_compound_task` with hard `requirements` and optional non-executable `preferences`; `stage_intents` such as `approach_object`, `move_to_pose`, `release_object`, and `verify_released` are optional planner hints. It does not author executable stages, raw MTC graphs, code, or waypoints. `moveit_plan_compound_task` requires `backend="mtc"` and either returns a solved `TaskSolution` with `raw.execution_contract` or fails with no task solution id. Unsupported contact manipulation such as `slide` and `push` fails at planning.
+
 Do not expose broad ROS control, raw topic mutation tools, or combined `moveit_plan_and_execute_*` tools to Agent Orchestration by default. Planning and execution are separate agent-visible verbs.
 
-The MTC Backend is not the default MoveIt MCP backend. MTC packages are installed in the experimental `local/vizor-rviz:mtc-proof` image path, and the proof path is started only with `VIZOR_ENABLE_MTC_PROOF=1`. The real MTC backend remains deferred pending UR10+Robotiq end-effector and gripper semantics.
+The MTC Backend is not the default MoveIt MCP backend. The default pick task backend remains emulated. Emulated mode is the configured default, not a fallback from failed MTC. A configured MTC backend must return solved stage evidence and a task solution before it is executable; failures return structured `ok=false` evidence with `failed_stage` and `blocker`, no silent emulated fallback, and no task solution.
+
+#### Dynamic Pick and MTC Backend Contract
+
+Dynamic pick remains a semantic task path:
+
+```text
+moveit_plan_pick_task
+  -> explicit approval for the returned task_solution_id
+  -> moveit_execute_task_plan
+```
+
+The agent does not author waypoint lists for dynamic pick. `moveit_plan_pick_task` owns object grounding, grasp candidate evidence, backend choice, stage evidence, and the returned `task_solution_id`. `moveit_execute_task_plan` owns verified execution of that exact task solution.
+
+The configured backend determines planning behavior:
+
+- `backend="emulated"` is the default. It returns MTC-shaped stage evidence and multiple candidate attempts for dynamic or vertical objects so a single low side/back attempt is not treated as the whole search.
+- `backend="mtc"` is explicit opt-in. It must solve through the ROS-side MTC boundary and return `backend="mtc"`, stage summaries, candidate evidence, selected cost, selected grasp, and a task solution.
+- Failed MTC does not fall back to emulated planning. It returns `ok=false`, `failed_stage`, `blocker`, retry guidance, and no task solution id.
+
+The ROS-side MTC boundary uses current MoveIt Task Constructor stage terminology: `CurrentState`, `Connect`, `GenerateGraspPose`, `ComputeIK`, `MoveRelative`, and `ModifyPlanningScene`. The current service endpoints are `/vizor_mtc/plan_pick_task` for MTC pick proof and `/vizor_mtc/plan_compound_task` for requirements/preferences compound planning with optional stage-intent hints. Until the UR10+Robotiq typed service and semantic config are complete, these endpoints must fail closed instead of reporting fake MTC success.
+
+#### Compound Task Execution Contract
+
+`moveit_execute_task_plan` is now the verified executor for supported task-solution kinds, not a pick-only executor. It still requires the exact recent `task_solution_id`, explicit approval bound to the same scene snapshot, and a supported `raw.execution_contract`.
+
+The contract is typed and proof-backed:
+
+- Each ordered step names a supported handler: `motion`, `close_gripper`, `open_gripper`, `attach_object`, `release_object`, `verify_attached_object`, or `verify_released_object`.
+- Each step must include source-stage and proof metadata such as `source_stage` and `required_proof`.
+- Motion steps carry a backend plan handle or enough solved stage evidence for the bridge to produce a concrete MoveIt plan.
+- Attach/release steps carry the object name and scene snapshot context; release also carries the released object pose.
+- Motion steps are converted into MoveIt plans and executed through Verified Real Robot Execution.
+- Gripper open/close is executed through the verified gripper path.
+- Attach and release only synchronize the MoveIt planning scene after verified gripper evidence.
+- Success is reported only after attachment or release verification proof. Robot Context does not mark a held object on a model-written claim.
+
+Supported v1 task kinds are `pick`, `place`, `hold`, `move_and_release`, `approach_hold_adjust_release`, and `pick_place`. Unknown task kinds, unknown handlers, raw waypoint-only recipes, missing proof fields, stale approval, and unsupported intents fail with structured corrections. This is not an automatic fallback path.
 
 ### Verified Real Robot Execution Boundary
 
 Verified Real Robot Execution is the host-side actuation boundary from MoveIt plans to the physical UR10 and Robotiq gripper. It is intentionally not an MCP server. The agent still plans through MoveIt MCP; execution requires an explicit returned plan name or an explicit operator command.
 
-For verified pick-task execution, `moveit_execute_task_plan` is the agent-facing Robot Control bridge. It requires the exact recent pick `task_solution_id` and matching approval payload, converts each workflow motion stage into a concrete MoveIt plan, executes each returned `plan_name` through Verified Real Robot Execution, closes the physical gripper through Verified Real Robot Execution, synchronizes MoveIt attachment state with `moveit_attach_object`, and verifies attachment before reporting success. Place task-plan execution is not part of this bridge yet.
+For verified task-plan execution, `moveit_execute_task_plan` is the agent-facing Robot Control bridge. It requires the exact recent `task_solution_id` and matching approval payload, interprets a supported typed `execution_contract`, converts motion stages into concrete MoveIt plans, retries failed task stages with attempt-scoped plan names inside the same task path, executes each returned `plan_name` through Verified Real Robot Execution, routes physical gripper open/close through Verified Real Robot Execution, synchronizes MoveIt attachment/release state with explicit MCP tools, and verifies attachment or release before reporting success. Stage retry is not fallback to another backend or legacy tool. Final user-facing execution text is bounded to short status or correction text.
 
 The verified execution server caches MoveIt planned trajectories from ROSBridge and exposes narrow HTTP commands for execute, home, and gripper control. The operator dashboard may start this server and call those commands. Agent Control may call the execute tool only when the user explicitly requests execution and a planned action is waiting.
 
@@ -216,7 +257,9 @@ Task Policy Layer
 
 Task Policy may block obvious under-observed or incorrectly ordered steps. Robot Call Validation may reject unsupported or malformed tool calls. MoveIt planning/execution and the robot simulation stack are the source of movement safety.
 
-Planning tools return a candidate plan or Task Solution and execution gate fields. `moveit_execute_plan` executes ordinary plans. `moveit_execute_task_plan` is the verified real-robot bridge for pick task solutions. `moveit_execute_task_solution` remains the sim/emulated task-solution execution path. Pick/place proof is separate from planning: after executing a pick/place workflow, the agent must verify attachment or release evidence before claiming the object moved, was picked, or was placed.
+Planning tools return a candidate plan or Task Solution and execution gate fields. `moveit_execute_plan` executes ordinary plans. `moveit_execute_task_plan` is the verified real-robot bridge for supported proof-backed task solutions. `moveit_execute_task_solution` remains the sim/emulated task-solution execution path. Pick/place/compound proof is separate from planning: after executing a task workflow, the agent must verify attachment or release evidence before claiming the object moved, was picked, held, placed, or released.
+
+Robot Tool Adapter normalizes MCP transport timeouts and exceptions into structured robot feedback before Agent Control sees them.
 
 ### Physical actuation avoids RTDE Control
 

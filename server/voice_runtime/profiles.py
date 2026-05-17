@@ -178,6 +178,7 @@ def load_runtime_profile(
     metrics = _parse_metrics(_table(raw_profile, "metrics"), server_root)
     process_trace = _parse_process_trace(_optional_table(raw_profile, "process_trace"), server_root)
     robot_execution = _parse_robot_execution(_optional_table(raw_profile, "robot_execution"))
+    voice_modulation = _optional_table(raw_profile, "voice_modulation") or None
 
     profile = RuntimeProfile(
         name=selected_profile,
@@ -192,6 +193,7 @@ def load_runtime_profile(
         process_trace=process_trace,
         robot_execution=robot_execution,
         server_dir=server_root,
+        voice_modulation=voice_modulation,
     )
     _validate_runtime_profile(profile)
     return profile

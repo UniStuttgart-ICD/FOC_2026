@@ -130,6 +130,34 @@ path = "logs/trace.jsonl"
     )
 
 
+def _write_prompt_parts(prompt_dir: Path) -> None:
+    prompt_dir.mkdir(parents=True)
+    for filename in (
+        "mave_embodiment.md",
+        "reasoning_agent_persona.md",
+        "response_style.md",
+        "speech_delivery_style.md",
+        "speech_tag_examples.md",
+        "behavior_examples.md",
+        "examples.md",
+    ):
+        (prompt_dir / filename).write_text(f"# {filename}\n", encoding="utf-8")
+
+
+def _write_persona_template(server_dir: Path) -> None:
+    template_dir = server_dir / "agent_control" / "persona_templates" / "independent_agent"
+    template_dir.mkdir(parents=True)
+    for filename in (
+        "mave_embodiment.md",
+        "reasoning_agent_persona.md",
+        "response_style.md",
+        "speech_delivery_style.md",
+        "speech_tag_examples.md",
+        "behavior_examples.md",
+    ):
+        (template_dir / filename).write_text(f"# Template {filename}\n", encoding="utf-8")
+
+
 def test_wav_preview_helpers_round_trip_pcm16() -> None:
     from voice_modulation.preview import (
         AudioBytes,
@@ -267,6 +295,19 @@ def test_cartesia_voices_route_uses_injected_fetcher(tmp_path) -> None:
     }
 
 
+def test_gemini_voices_route_lists_documented_voices(tmp_path) -> None:
+    from voice_modulation.app import create_app
+
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.get("/api/gemini/voices")
+
+    assert response.status_code == 200
+    voices = response.json()["voices"]
+    names = {voice["name"] for voice in voices}
+    assert {"Kore", "Sadaltager", "Puck"}.issubset(names)
+
+
 def test_presets_route_lists_built_in_preset_names(tmp_path) -> None:
     from voice_modulation.app import create_app
 
@@ -317,6 +358,76 @@ def test_persona_route_loads_prompt_parts(tmp_path: Path) -> None:
     }
 
 
+def test_persona_parts_route_exposes_allowlisted_parts(tmp_path: Path) -> None:
+    from voice_modulation.app import create_app
+
+    prompt_dir = tmp_path / "agent_control" / "prompt_parts"
+    _write_prompt_parts(prompt_dir)
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.get("/api/persona/parts")
+
+    assert response.status_code == 200
+    parts = response.json()["parts"]
+    by_id = {part["id"]: part for part in parts}
+    assert by_id["mave_embodiment"]["editable"] is True
+    assert by_id["canonical_motion_examples"]["editable"] is False
+
+
+def test_persona_part_save_route_writes_allowlisted_part(tmp_path: Path) -> None:
+    from voice_modulation.app import create_app
+
+    prompt_dir = tmp_path / "agent_control" / "prompt_parts"
+    _write_prompt_parts(prompt_dir)
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.post(
+        "/api/persona/parts/behavior_examples",
+        json={"content": "# Behavior examples\n- Keep it brief.\n"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["restart_required"] is True
+    assert "Git has source changes" not in body
+    assert (prompt_dir / "behavior_examples.md").read_text(encoding="utf-8").startswith(
+        "# Behavior examples"
+    )
+
+
+def test_persona_templates_route_lists_templates(tmp_path: Path) -> None:
+    from voice_modulation.app import create_app
+
+    _write_persona_template(tmp_path)
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.get("/api/persona/templates")
+
+    assert response.status_code == 200
+    templates = {template["id"]: template for template in response.json()["templates"]}
+    assert templates["independent_agent"]["available"] is True
+    assert templates["robot_embodied_agent"]["available"] is False
+
+
+def test_persona_template_load_route_writes_editable_parts(tmp_path: Path) -> None:
+    from voice_modulation.app import create_app
+
+    prompt_dir = tmp_path / "agent_control" / "prompt_parts"
+    _write_prompt_parts(prompt_dir)
+    _write_persona_template(tmp_path)
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.post("/api/persona/templates/independent_agent/load")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["restart_required"] is True
+    assert {part["id"] for part in body["parts"]} >= {"mave_embodiment", "behavior_examples"}
+    assert (prompt_dir / "behavior_examples.md").read_text(encoding="utf-8").startswith(
+        "# Template behavior_examples.md"
+    )
+
+
 def test_settings_routes_load_defaults_save_and_reload(tmp_path) -> None:
     from voice_modulation.app import create_app
 
@@ -339,6 +450,36 @@ def test_settings_routes_load_defaults_save_and_reload(tmp_path) -> None:
     assert reloaded.json()["settings"]["gain_db"] == 5.0
 
 
+def test_settings_route_uses_profile_voice_modulation_default_without_local_override(
+    tmp_path,
+) -> None:
+    from voice_modulation.app import create_app
+
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profiles(profiles_path)
+    profiles_path.write_text(
+        profiles_path.read_text(encoding="utf-8")
+        + """
+
+[profiles.local_current.voice_modulation]
+enabled = true
+preset_name = "profile_default"
+gain_db = 2.0
+""",
+        encoding="utf-8",
+    )
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.get("/api/settings/local_current")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["saved"] is False
+    assert body["settings"]["enabled"] is True
+    assert body["settings"]["preset_name"] == "profile_default"
+    assert body["settings"]["gain_db"] == 2.0
+
+
 def test_settings_post_rejects_out_of_range_values(tmp_path) -> None:
     from voice_modulation.app import create_app
 
@@ -351,6 +492,62 @@ def test_settings_post_rejects_out_of_range_values(tmp_path) -> None:
 
     assert response.status_code == 400
     assert "wet_mix must be between 0.0 and 1.0" in response.json()["detail"]
+
+
+def test_tts_voice_save_route_updates_runtime_profile_toml(tmp_path) -> None:
+    from voice_modulation.app import create_app
+
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profiles(profiles_path)
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.post(
+        "/api/profiles/gemini_live_preview/tts/voice",
+        json={"voice": "Kore"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["voice"] == "Kore"
+    assert body["restart_required"] is True
+    assert body["source_path"] == str(profiles_path)
+    assert 'voice = "Kore"' in profiles_path.read_text(encoding="utf-8")
+
+
+def test_tts_voice_save_route_rejects_non_gemini_voice(tmp_path) -> None:
+    from voice_modulation.app import create_app
+
+    _write_profiles(tmp_path / "runtime_profiles.toml")
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.post(
+        "/api/profiles/gemini_live_preview/tts/voice",
+        json={"voice": "UnknownVoice"},
+    )
+
+    assert response.status_code == 400
+    assert "Unsupported Gemini Live voice" in response.json()["detail"]
+
+
+def test_voice_modulation_default_route_updates_runtime_profile_toml(tmp_path) -> None:
+    from voice_modulation.app import create_app
+
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profiles(profiles_path)
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.post(
+        "/api/profiles/local_current/voice-modulation-default",
+        json={"enabled": True, "preset_name": "profile_default", "gain_db": 2.0},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["restart_required"] is True
+    assert body["source_path"] == str(profiles_path)
+    text = profiles_path.read_text(encoding="utf-8")
+    assert "[profiles.local_current.voice_modulation]" in text
+    assert 'preset_name = "profile_default"' in text
 
 
 def test_effect_preview_rejects_invalid_base64_audio(tmp_path) -> None:
@@ -459,6 +656,55 @@ def test_tts_preview_route_uses_injected_synthesizer(tmp_path, monkeypatch) -> N
     assert calls == [(TTSProfile(provider="kokoro", voice="af_heart"), "Status report.")]
 
 
+def test_tts_preview_uses_profile_voice_modulation_default_without_local_override(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from voice_modulation.app import create_app
+    from voice_modulation.preview import AudioBytes
+
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profiles(profiles_path)
+    profiles_path.write_text(
+        profiles_path.read_text(encoding="utf-8")
+        + """
+
+[profiles.local_current.voice_modulation]
+enabled = true
+preset_name = "profile_default"
+gain_db = 2.0
+""",
+        encoding="utf-8",
+    )
+
+    def fake_synthesizer(tts: TTSProfile, text: str) -> AudioBytes:
+        return AudioBytes(pcm16=_pcm16(), sample_rate=16000, channels=1)
+
+    seen_settings: list[Any] = []
+    dsp = types.ModuleType("voice_modulation.dsp")
+
+    def fake_process_pcm16(pcm16: bytes, *, sample_rate: int, num_channels: int, settings: Any) -> bytes:
+        seen_settings.append(settings)
+        return pcm16
+
+    cast(Any, dsp).process_pcm16 = fake_process_pcm16
+    monkeypatch.setitem(sys.modules, "voice_modulation.dsp", dsp)
+    client = TestClient(create_app(server_dir=tmp_path, preview_synthesizer=fake_synthesizer))
+
+    response = client.post(
+        "/api/preview/tts",
+        json={"profile_name": "local_current", "text": "Status report."},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["settings"]["enabled"] is True
+    assert body["settings"]["preset_name"] == "profile_default"
+    assert body["settings"]["gain_db"] == 2.0
+    assert seen_settings
+    assert seen_settings[0].preset_name == "profile_default"
+
+
 def test_source_preview_route_returns_clean_audio_without_modulation(tmp_path, monkeypatch) -> None:
     from voice_modulation.app import create_app
     from voice_modulation.preview import AudioBytes
@@ -514,6 +760,56 @@ def test_source_preview_route_accepts_cartesia_voice_override(tmp_path, monkeypa
     assert calls == [
         (TTSProfile(provider="cartesia", model="sonic-3", voice="voice-override"), "Status report.")
     ]
+
+
+def test_source_preview_route_accepts_gemini_voice_override(tmp_path, monkeypatch) -> None:
+    from voice_modulation.app import create_app
+    from voice_modulation.preview import AudioBytes
+
+    _write_profiles(tmp_path / "runtime_profiles.toml")
+    calls: list[tuple[TTSProfile, str]] = []
+
+    def fake_synthesizer(tts: TTSProfile, text: str) -> AudioBytes:
+        calls.append((tts, text))
+        return AudioBytes(pcm16=_pcm16(), sample_rate=16000, channels=1)
+
+    dsp = types.ModuleType("voice_modulation.dsp")
+    cast(Any, dsp).process_pcm16 = lambda *args, **kwargs: pytest.fail("source route modulated")
+    monkeypatch.setitem(sys.modules, "voice_modulation.dsp", dsp)
+    client = TestClient(create_app(server_dir=tmp_path, preview_synthesizer=fake_synthesizer))
+
+    response = client.post(
+        "/api/preview/source",
+        json={"profile_name": "gemini_live_preview", "text": "Status report.", "voice_id": "Kore"},
+    )
+
+    assert response.status_code == 200
+    assert calls[0][0].voice == "Kore"
+
+
+def test_tts_preview_route_accepts_gemini_voice_override(tmp_path, monkeypatch) -> None:
+    from voice_modulation.app import create_app
+    from voice_modulation.preview import AudioBytes
+
+    _write_profiles(tmp_path / "runtime_profiles.toml")
+    calls: list[tuple[TTSProfile, str]] = []
+
+    def fake_synthesizer(tts: TTSProfile, text: str) -> AudioBytes:
+        calls.append((tts, text))
+        return AudioBytes(pcm16=_pcm16(), sample_rate=16000, channels=1)
+
+    dsp = types.ModuleType("voice_modulation.dsp")
+    cast(Any, dsp).process_pcm16 = lambda pcm16, *, sample_rate, num_channels, settings: pcm16
+    monkeypatch.setitem(sys.modules, "voice_modulation.dsp", dsp)
+    client = TestClient(create_app(server_dir=tmp_path, preview_synthesizer=fake_synthesizer))
+
+    response = client.post(
+        "/api/preview/tts",
+        json={"profile_name": "gemini_live_preview", "text": "Status report.", "voice_id": "Kore"},
+    )
+
+    assert response.status_code == 200
+    assert calls[0][0].voice == "Kore"
 
 
 def test_source_preview_route_applies_gemini_live_speech_delivery(tmp_path) -> None:
@@ -580,18 +876,21 @@ def test_index_page_serves_voice_mod_lab_workbench(tmp_path) -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Voice Mod Lab" in response.text
+    assert "Agent Persona Lab" in response.text
     assert "profileSelect" in response.text
-    assert "voiceSelect" in response.text
+    assert "geminiVoiceSelect" in response.text
+    assert 'data-tab="voiceTab"' not in response.text
+    assert 'data-tab="modulationTab">Modulation' in response.text
     assert "voiceIdInput" in response.text
     assert "https://play.cartesia.ai/voices" in response.text
+    assert "https://docs.cloud.google.com/text-to-speech/docs/gemini-tts" in response.text
+    assert "personaParts" in response.text
+    assert "saveModulationBtn" in response.text
     assert "sourceBtn" in response.text
     assert "renderBtn" in response.text
     assert "protocol_droid" in response.text
     assert "masked_breather" in response.text
     assert "Character bay" in response.text
-    assert "Speaking persona" in response.text
-    assert "personaText" in response.text
     for label in ["Voice size", "Robot edge", "Radio filter", "Glitch", "Space", "Mask breath"]:
         assert label in response.text
     for expert_label in [

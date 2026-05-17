@@ -29,6 +29,14 @@ PLACE_INTENT_TERMS = ("place", "release", "let go", "drop")
 GRIPPER_INTENT_TERMS = ("gripper", "attach", "detach")
 MOTION_INTENT_TERMS = ("move", "carry", "bring", "take", "put")
 COMPOUND_CONNECTOR_TERMS = ("and", "then", "after", "before", "followed by")
+COMPOUND_GOALS_REQUIRING_FRESH_POSE = frozenset({"hold", "move_and_release", "pick_place"})
+CONTRACT_INTERNAL_TOOL_NAMES = frozenset(
+    {
+        "moveit_release_object",
+        "moveit_verify_released_object",
+        "moveit_remove_scene_object",
+    }
+)
 
 
 class TaskPolicyContext(Protocol):
@@ -40,6 +48,8 @@ class TaskPolicyContext(Protocol):
 
     def has_recent_gripper_state(self, state: str, *, max_age_s: float) -> bool: ...
 
+    def held_object_name(self) -> str | None: ...
+
 
 @dataclass(frozen=True)
 class TaskPolicyDecision:
@@ -48,6 +58,7 @@ class TaskPolicyDecision:
     correction: str | None = None
     retryable: bool = True
     suggested_next_tool: str | None = None
+    code: str | None = None
 
 
 def validate_task_step(
@@ -61,6 +72,19 @@ def validate_task_step(
     gripper_state_max_age_s: float = DEFAULT_GRIPPER_STATE_MAX_AGE_S,
     explicit_execute_requested: bool = False,
 ) -> TaskPolicyDecision:
+    if name in CONTRACT_INTERNAL_TOOL_NAMES:
+        return TaskPolicyDecision(
+            ok=False,
+            error=f"{name} is reserved for cached execution_contract steps.",
+            correction=(
+                "Run moveit_execute_task_plan for the cached execution_contract; "
+                "do not call this tool directly."
+            ),
+            retryable=False,
+            suggested_next_tool="moveit_execute_task_plan",
+            code="contract_internal_tool",
+        )
+
     if name in MOTION_TOOL_NAMES and not context.has_recent_robot_observation(
         max_age_s=fresh_observation_max_age_s
     ):
@@ -77,11 +101,29 @@ def validate_task_step(
             ok=False,
             error="Compound manipulation tasks must use task planning tools.",
             correction=(
-                "Use moveit_plan_pick_task or moveit_plan_place_task for requests that combine "
-                "motion with gripper, attach, detach, pick, place, or release actions."
+                "Use moveit_plan_compound_task for pick, hold, place, release, or other "
+                "multi-stage manipulation tasks."
             ),
             suggested_next_tool=suggested_task_tool,
         )
+
+    release_decision = _validate_compound_release_preconditions(
+        name,
+        arguments,
+        context,
+        fresh_observation_max_age_s=fresh_observation_max_age_s,
+    )
+    if release_decision is not None:
+        return release_decision
+
+    compound_motion_decision = _validate_compound_motion_preconditions(
+        name,
+        arguments,
+        context,
+        fresh_observation_max_age_s=fresh_observation_max_age_s,
+    )
+    if compound_motion_decision is not None:
+        return compound_motion_decision
 
     if name == "moveit_execute_plan":
         plan_name = arguments.get("plan_name")
@@ -127,19 +169,83 @@ def _suggested_task_tool_for_compound_intent(name: str, user_text: str | None) -
     if name not in NON_TASK_MANIPULATION_PLANNING_TOOLS or not user_text:
         return None
     text = _normalized_text(user_text)
-    if any(_contains_phrase(text, term) for term in PICK_INTENT_TERMS):
-        return "moveit_plan_pick_task"
+    has_pick_intent = any(_contains_phrase(text, term) for term in PICK_INTENT_TERMS)
     has_place_intent = any(_contains_phrase(text, term) for term in PLACE_INTENT_TERMS)
     has_gripper_intent = any(_contains_phrase(text, term) for term in GRIPPER_INTENT_TERMS)
     has_motion_intent = any(_contains_phrase(text, term) for term in MOTION_INTENT_TERMS)
     has_compound_connector = any(
         _contains_phrase(text, term) for term in COMPOUND_CONNECTOR_TERMS
     )
-    if has_place_intent and (has_motion_intent or has_gripper_intent or has_compound_connector):
-        return "moveit_plan_place_task"
+    if has_pick_intent:
+        return "moveit_plan_compound_task"
+    if has_place_intent:
+        return "moveit_plan_compound_task"
     if has_gripper_intent and has_motion_intent and has_compound_connector:
-        return "moveit_plan_place_task"
+        return "moveit_plan_compound_task"
     return None
+
+
+def _validate_compound_release_preconditions(
+    name: str,
+    arguments: dict[str, Any],
+    context: TaskPolicyContext,
+    *,
+    fresh_observation_max_age_s: float,
+) -> TaskPolicyDecision | None:
+    if name != "moveit_plan_compound_task":
+        return None
+    requirements = arguments.get("requirements")
+    if not isinstance(requirements, dict):
+        return None
+    goal = requirements.get("goal")
+    if goal not in {"release", "move_and_release"}:
+        return None
+    object_name = requirements.get("object_name")
+    held_object_name = context.held_object_name()
+    if (
+        not isinstance(object_name, str)
+        or not object_name.strip()
+        or held_object_name != object_name.strip()
+    ):
+        return TaskPolicyDecision(
+            ok=False,
+            error="Cannot release an object that is not currently held.",
+            correction="Verify the held object or plan a hold task before release.",
+            suggested_next_tool="moveit_verify_attached_object",
+            code="not_holding_object",
+        )
+    if not context.has_recent_robot_observation(max_age_s=fresh_observation_max_age_s):
+        return TaskPolicyDecision(
+            ok=False,
+            error="Fresh robot pose is required before release.",
+            correction="Call moveit_get_current_pose, then retry the release plan.",
+            suggested_next_tool="moveit_get_current_pose",
+        )
+    return None
+
+
+def _validate_compound_motion_preconditions(
+    name: str,
+    arguments: dict[str, Any],
+    context: TaskPolicyContext,
+    *,
+    fresh_observation_max_age_s: float,
+) -> TaskPolicyDecision | None:
+    if name != "moveit_plan_compound_task":
+        return None
+    requirements = arguments.get("requirements")
+    if not isinstance(requirements, dict):
+        return None
+    if requirements.get("goal") not in COMPOUND_GOALS_REQUIRING_FRESH_POSE:
+        return None
+    if context.has_recent_robot_observation(max_age_s=fresh_observation_max_age_s):
+        return None
+    return TaskPolicyDecision(
+        ok=False,
+        error="Fresh robot pose is required before compound task planning.",
+        correction="Call moveit_get_current_pose, then retry the compound task plan.",
+        suggested_next_tool="moveit_get_current_pose",
+    )
 
 
 def _normalized_text(text: str) -> str:
@@ -160,4 +266,6 @@ def structured_task_policy_error(decision: TaskPolicyDecision) -> dict[str, Any]
     }
     if decision.suggested_next_tool is not None:
         payload["suggested_next_tool"] = decision.suggested_next_tool
+    if decision.code is not None:
+        payload["code"] = decision.code
     return payload

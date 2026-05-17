@@ -8,9 +8,8 @@ CANONICAL_TOOLS = {
     "moveit_list_scene_objects",
     "moveit_get_object_context",
     "moveit_plan_pick",
-    "moveit_plan_pick_task",
     "moveit_plan_place",
-    "moveit_plan_place_task",
+    "moveit_plan_compound_task",
     "moveit_plan_free_motion",
     "moveit_plan_cartesian_motion",
     "moveit_execute_plan",
@@ -21,6 +20,14 @@ CANONICAL_TOOLS = {
     "moveit_open_gripper",
     "moveit_close_gripper",
     "moveit_attach_object",
+}
+
+HIDDEN_INTERNAL_TOOLS = {
+    "moveit_plan_pick_task",
+    "moveit_plan_place_task",
+    "moveit_release_object",
+    "moveit_verify_released_object",
+    "moveit_remove_scene_object",
 }
 
 STALE_TOOLS = {
@@ -47,6 +54,9 @@ STALE_TOOLS = {
 def test_prompt_lists_only_canonical_moveit_tools() -> None:
     for tool_name in CANONICAL_TOOLS:
         assert tool_name in SYSTEM_PROMPT
+
+    for tool_name in HIDDEN_INTERNAL_TOOLS:
+        assert tool_name not in SYSTEM_PROMPT
 
     for tool_name in STALE_TOOLS:
         assert tool_name not in SYSTEM_PROMPT
@@ -140,7 +150,6 @@ def test_prompt_describes_pick_planning_gate() -> None:
     assert "does not move" in prompt
     assert "moveit_execute_plan" in prompt
     assert "explicit" in prompt
-    assert "moveit_plan_pick_task" in prompt
     assert "moveit_execute_task_solution" in prompt
     assert "moveit_execute_task_plan" in prompt
     assert "task_solution_id" in prompt
@@ -151,17 +160,18 @@ def test_prompt_describes_pick_planning_gate() -> None:
     assert "do not execute its preposition plan as a pick" in prompt
 
 
-def test_prompt_routes_ordinary_pick_place_to_task_tools_before_legacy_fallback() -> None:
+def test_prompt_routes_pick_place_to_compound_task_before_legacy_planners() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
-    assert "moveit_plan_pick_task: primary tool for ordinary pick requests" in prompt
-    assert "moveit_plan_place_task: primary tool for ordinary place requests" in prompt
-    assert "when task tools are present" in prompt
+    assert "single model-visible task planner" in prompt
+    assert "ordinary pick/place" in prompt
+    assert "when moveit_plan_compound_task is present" in prompt
     assert "do not use moveit_plan_pick or moveit_plan_place for ordinary pick/place" in prompt
-    assert "legacy pick fallback only" in prompt
-    assert prompt.index("moveit_plan_pick_task:") < prompt.index("moveit_plan_pick:")
-    assert prompt.index("moveit_plan_place_task:") < prompt.index("moveit_plan_place:")
-    assert prompt.index("when task tools are present") < prompt.index("legacy pick fallback only")
+    assert "legacy pick planner only" in prompt
+    assert prompt.index("moveit_plan_compound_task:") < prompt.index("moveit_plan_pick:")
+    assert prompt.index("when moveit_plan_compound_task is present") < prompt.index(
+        "legacy pick planner only"
+    )
 
 
 def test_prompt_describes_semantic_place_planning_gate() -> None:
@@ -177,21 +187,110 @@ def test_prompt_describes_semantic_place_planning_gate() -> None:
     assert "same executable-plan result shape" in prompt
     assert "does not move" in prompt
     assert "moveit_execute_plan" in prompt
-    assert "moveit_plan_place_task" in prompt
+    assert "moveit_plan_compound_task" in prompt
     assert "moveit_execute_task_solution" in prompt
 
 
-def test_prompt_routes_held_object_release_to_place_planning() -> None:
+def test_prompt_routes_held_object_release_to_compound_task_planning() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
     assert "compound manipulation tasks" in prompt
     assert "multiple robot actions" in prompt
-    assert "moveit_plan_pick_task or moveit_plan_place_task" in prompt
     assert "held or attached object" in prompt
     assert "release" in prompt
-    assert "moveit_plan_place_task" in prompt
+    assert "moveit_plan_compound_task" in prompt
+    assert 'requirements.goal="release"' in prompt
+    assert 'requirements.goal="move_and_release"' in prompt
+    assert "requirements" in prompt
+    assert "preferences" in prompt
     assert "not moveit_plan_cartesian_motion" in prompt
     assert "use moveit_plan_place when a concrete executable release workflow is needed" not in prompt
+
+
+def test_prompt_maps_pick_up_and_drop_language_to_compound_requirements() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert 'natural "pick up"' in prompt
+    assert 'requirements.goal="hold"' in prompt
+    assert "requirements.lift_distance_m" in prompt
+    assert "default 0.10 m" in prompt
+    assert "0.03" in prompt
+    assert "0.20" in prompt
+    assert '"drop it"' in prompt
+    assert '"let go"' in prompt
+    assert 'requirements.goal="release"' in prompt
+    assert "distinct" in prompt
+
+
+def test_prompt_bounds_verified_compound_task_execution_contract() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "requirements" in prompt
+    assert "preferences" in prompt
+    assert "stage_intents" in prompt
+    assert "optional" in prompt
+    assert "hints" in prompt
+    assert "non-executable" in prompt
+    assert "backend-issued task_solution_id" in prompt
+    assert "execution_contract" in prompt
+    assert "supported verified compound goals in v1" in prompt
+    assert "hold" in prompt
+    assert "release" in prompt
+    assert "move_and_release" in prompt
+    assert "pick_place" in prompt
+    assert "approach_hold_adjust_release" not in prompt
+    assert "slide/contact manipulation is unsupported in v1" in prompt
+    assert "do not advertise arbitrary compound task support" in prompt
+    assert "stage intents are semantic only" not in prompt
+    assert "semantic stage_intents" not in prompt
+
+
+def test_prompt_routes_compound_tasks_through_requirements_preferences_planning() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "moveit_plan_compound_task" in prompt
+    assert 'backend="mtc"' in prompt
+    assert "requirements.goal" in prompt
+    assert "requirements.object_name" in prompt
+    assert "preferences" in prompt
+    assert "optional stage_intents" in prompt
+    assert "non-executable" in prompt
+    assert "hints" in prompt
+    assert "mcp/mtc backend must compile and solve" in prompt
+    assert "explicit user intent bound to that task solution" in prompt
+    assert "moveit_execute_task_plan" in prompt
+    assert "supported execution_contract" in prompt
+
+
+def test_prompt_describes_geometry_grounded_pick_place_context() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "geometry world context" in prompt
+    assert "hologram target pose" in prompt
+    assert "desired object pose, not a tcp pose" in prompt
+    assert "physical_model.json is semantic context" in prompt
+    assert "moveit/rviz planning scene is the live source pose authority" in prompt
+    assert 'requirements.goal="pick_place"' in prompt
+    assert "requirements.target_pose from geometry world context" in prompt
+    assert "do not load hologram geometry into rviz/moveit" in prompt
+    assert "no fallback" in prompt
+
+
+def test_prompt_describes_physical_pose_sync_and_dynamic_role_updates() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "physical pose updates are deterministic bookkeeping" in prompt
+    assert "after verified release/place proof" in prompt
+    assert "geometry_update_dynamic_role" in prompt
+    assert "must not infer role from pose alone" in prompt
+    assert "if role semantics are uncertain, ask the human" in prompt
+    assert "supporting_column" in prompt
+    assert "beam_supported_by" in prompt
+    assert "unassigned" in prompt
+    assert "body `group`" not in prompt
+    assert '"group"' not in prompt
+    assert "state.status" not in prompt
+    assert "inventory" not in prompt
 
 
 def test_prompt_describes_failure_explanation_tool() -> None:
@@ -201,6 +300,8 @@ def test_prompt_describes_failure_explanation_tool() -> None:
     assert "failed planner or executor result" in prompt
     assert "retry guidance" in prompt
     assert "suggested next tool" in prompt
+    assert "internal guidance" in prompt
+    assert "do not quote the correction" in prompt
 
 
 def test_prompt_describes_attached_object_verification_tool() -> None:
@@ -217,7 +318,7 @@ def test_prompt_maps_gaze_to_scene_object_before_grasp_and_delivery() -> None:
     example = _example_region("kibbitz, bring me that")
 
     assert "gaze object candidate" in prompt
-    assert "dynamic_<target>" in prompt
+    assert "dynamic_<n>" in prompt
     assert "one returned object_name" in prompt
     assert "choose an approach from the returned grasp-relevant faces" in prompt
     assert "ground-plane clearance" in prompt

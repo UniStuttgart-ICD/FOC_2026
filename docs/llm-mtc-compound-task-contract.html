@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LLM and MTC Compound Task Contract</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f3ed;
+      --ink: #20231f;
+      --muted: #596058;
+      --panel: #ffffff;
+      --panel-2: #ece7dc;
+      --line: #cfc7b8;
+      --strong: #234c45;
+      --accent: #b4572a;
+      --accent-2: #2f6f8f;
+      --good: #2d7d52;
+      --warn: #a05d14;
+      --bad: #a13d33;
+      --shadow: 0 18px 42px rgba(45, 37, 25, .12);
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(90deg, rgba(32, 35, 31, .045) 1px, transparent 1px) 0 0 / 44px 44px,
+        linear-gradient(180deg, rgba(32, 35, 31, .035) 1px, transparent 1px) 0 0 / 44px 44px,
+        var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", Candara, Tahoma, sans-serif;
+      line-height: 1.55;
+    }
+
+    main {
+      width: min(1180px, calc(100vw - 36px));
+      margin: 0 auto;
+      padding: 42px 0 64px;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      max-width: 860px;
+      margin-bottom: 14px;
+      font-size: clamp(2.35rem, 5vw, 5rem);
+      line-height: .95;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin-bottom: 14px;
+      font-size: 1.45rem;
+      line-height: 1.15;
+    }
+
+    h3 {
+      margin-bottom: 8px;
+      font-size: 1rem;
+      line-height: 1.25;
+    }
+
+    p { color: var(--muted); }
+
+    code, pre {
+      font-family: "Cascadia Mono", Consolas, monospace;
+      font-size: .92rem;
+    }
+
+    pre {
+      overflow-x: auto;
+      margin: 0;
+      padding: 18px;
+      background: #18221f;
+      color: #f7f1e6;
+      border-radius: var(--radius);
+      border: 1px solid rgba(255, 255, 255, .12);
+    }
+
+    .lede {
+      max-width: 780px;
+      margin-bottom: 24px;
+      font-size: 1.16rem;
+      color: #41483f;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 34px;
+    }
+
+    .rule {
+      padding: 22px;
+      background: var(--strong);
+      color: #fffaf0;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .rule strong {
+      display: block;
+      margin-bottom: 8px;
+      color: #fff;
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .rule p {
+      margin: 0;
+      color: #f1efe7;
+      font-size: 1.05rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin: 22px 0 32px;
+    }
+
+    .card {
+      padding: 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 10px 26px rgba(45, 37, 25, .08);
+    }
+
+    .card p:last-child { margin-bottom: 0; }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      margin-bottom: 12px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      background: var(--panel-2);
+      color: var(--strong);
+      font-size: .78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .section {
+      margin-top: 28px;
+      padding: 24px;
+      background: rgba(255, 255, 255, .72);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .flow-wrap {
+      overflow-x: auto;
+      padding: 12px;
+      background: #fbf9f4;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    svg {
+      display: block;
+      min-width: 980px;
+      width: 100%;
+      height: auto;
+    }
+
+    .node { fill: #fff; stroke: #958b7a; stroke-width: 1.2; rx: 8; }
+    .node.main { fill: #fff9ec; stroke: var(--accent); }
+    .node.backend { fill: #edf7f3; stroke: var(--strong); }
+    .node.exec { fill: #eef5fb; stroke: var(--accent-2); }
+    .node.fail { fill: #fff2ee; stroke: var(--bad); }
+    .label { fill: var(--ink); font-size: 16px; font-weight: 700; }
+    .small { fill: var(--muted); font-size: 12px; font-weight: 500; }
+    .arrow { fill: none; stroke: #615947; stroke-width: 1.5; marker-end: url(#arrow); }
+    .return { fill: none; stroke: var(--bad); stroke-width: 1.4; stroke-dasharray: 6 5; marker-end: url(#arrow-bad); }
+    .halo {
+      paint-order: stroke;
+      stroke: #fbf9f4;
+      stroke-width: 6px;
+      stroke-linejoin: round;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .list li {
+      padding-left: 18px;
+      position: relative;
+      color: var(--muted);
+    }
+
+    .list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: .72em;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .status {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .status div {
+      padding: 14px;
+      background: var(--panel-2);
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+    }
+
+    .status strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--ink);
+    }
+
+    @media (max-width: 860px) {
+      main { width: min(100% - 24px, 1180px); padding-top: 28px; }
+      .hero, .grid, .two-col, .status { grid-template-columns: 1fr; }
+      .rule { order: -1; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div>
+        <h1>LLM and MTC Compound Task Contract</h1>
+        <p class="lede">The LLM listens to the user and describes the desired manipulation task. MTC owns the robot task construction and solving. The real robot executor only runs a solved, approved, proof-backed contract.</p>
+      </div>
+      <aside class="rule">
+        <strong>Plain rule</strong>
+        <p>The LLM gives intent and constraints. MTC decides whether the robot can do it. Execution starts only after MTC returns a solved task solution.</p>
+      </aside>
+    </section>
+
+    <section class="grid" aria-label="System roles">
+      <article class="card">
+        <span class="tag">LLM agent</span>
+        <h2>Understands the request</h2>
+        <p>It turns "move this there and let go" into a structured goal with object, target, and preferences. It may suggest hints, but those hints are not executable robot instructions.</p>
+      </article>
+      <article class="card">
+        <span class="tag">MCP / MTC</span>
+        <h2>Builds and solves the task</h2>
+        <p>It validates the goal, grounds the object in the scene, creates the MTC task, searches for a solution, and returns clear blockers when the task cannot be solved.</p>
+      </article>
+      <article class="card">
+        <span class="tag">Executor</span>
+        <h2>Runs only solved contracts</h2>
+        <p>It executes the ordered contract from the backend: motion, gripper close/open, attach/release, and verification proof. It does not invent missing stages.</p>
+      </article>
+    </section>
+
+    <section class="section">
+      <h2>Data Flow</h2>
+      <div class="flow-wrap">
+        <svg viewBox="0 0 1120 470" role="img" aria-labelledby="flow-title flow-desc">
+          <title id="flow-title">LLM to MTC to verified robot execution flow</title>
+          <desc id="flow-desc">The user request is converted into requirements and preferences, sent to MTC, solved into an execution contract, approved, and executed with proof. Failed planning returns blockers to the LLM.</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#615947"></path>
+            </marker>
+            <marker id="arrow-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#a13d33"></path>
+            </marker>
+          </defs>
+
+          <rect class="node main" x="28" y="72" width="170" height="92"></rect>
+          <text class="label" x="113" y="110" text-anchor="middle">User intent</text>
+          <text class="small" x="113" y="134" text-anchor="middle">"move beam there"</text>
+
+          <rect class="node main" x="252" y="72" width="190" height="92"></rect>
+          <text class="label" x="347" y="104" text-anchor="middle">LLM agent</text>
+          <text class="small" x="347" y="128" text-anchor="middle">goal + object + target</text>
+          <text class="small" x="347" y="146" text-anchor="middle">preferences as hints</text>
+
+          <rect class="node backend" x="500" y="62" width="210" height="112"></rect>
+          <text class="label" x="605" y="98" text-anchor="middle">MCP / MTC</text>
+          <text class="small" x="605" y="122" text-anchor="middle">validate inputs</text>
+          <text class="small" x="605" y="140" text-anchor="middle">compile and solve task</text>
+
+          <rect class="node backend" x="768" y="62" width="220" height="112"></rect>
+          <text class="label" x="878" y="98" text-anchor="middle">Task solution</text>
+          <text class="small" x="878" y="122" text-anchor="middle">execution_contract</text>
+          <text class="small" x="878" y="140" text-anchor="middle">stage evidence + cost</text>
+
+          <rect class="node exec" x="768" y="258" width="220" height="112"></rect>
+          <text class="label" x="878" y="294" text-anchor="middle">Verified executor</text>
+          <text class="small" x="878" y="318" text-anchor="middle">motion, gripper, scene</text>
+          <text class="small" x="878" y="336" text-anchor="middle">attachment/release proof</text>
+
+          <rect class="node exec" x="500" y="258" width="210" height="112"></rect>
+          <text class="label" x="605" y="294" text-anchor="middle">Approval gate</text>
+          <text class="small" x="605" y="318" text-anchor="middle">exact task_solution_id</text>
+          <text class="small" x="605" y="336" text-anchor="middle">fresh scene snapshot</text>
+
+          <rect class="node fail" x="252" y="282" width="190" height="92"></rect>
+          <text class="label" x="347" y="318" text-anchor="middle">Clear blocker</text>
+          <text class="small" x="347" y="342" text-anchor="middle">MTC says why it failed</text>
+
+          <path class="arrow" d="M 198 118 H 252"></path>
+          <path class="arrow" d="M 442 118 H 500"></path>
+          <path class="arrow" d="M 710 118 H 768"></path>
+          <path class="arrow" d="M 878 174 V 258"></path>
+          <path class="arrow" d="M 768 314 H 710"></path>
+          <path class="arrow" d="M 605 258 V 174"></path>
+          <path class="return" d="M 500 142 C 456 202, 440 252, 442 315"></path>
+          <path class="return" d="M 347 282 C 250 238, 238 164, 252 126"></path>
+
+          <text class="small halo" x="474" y="104" text-anchor="middle">requirements</text>
+          <text class="small halo" x="740" y="104" text-anchor="middle">solved only</text>
+          <text class="small halo" x="905" y="222" text-anchor="middle">explicit approval</text>
+          <text class="small halo" x="484" y="260" text-anchor="middle">feedback loop</text>
+        </svg>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Planner Input Shape</h2>
+      <p>The clearest public contract is requirements plus preferences. Requirements are hard facts needed for the task. Preferences are hints the planner may use or reject.</p>
+      <div class="two-col">
+        <pre><code>{
+  "requirements": {
+    "goal": "move_and_release",
+    "object_name": "beam_1",
+    "target_position": {
+      "x": 0.5,
+      "y": 0.2,
+      "z": 0.3
+    }
+  },
+  "preferences": {
+    "grasp_face": "top",
+    "retreat_after_release": true
+  }
+}</code></pre>
+        <article class="card">
+          <h3>Why this is safer</h3>
+          <ul class="list">
+            <li>The LLM does not author executable robot stages.</li>
+            <li>MTC can derive the real stage graph from the goal.</li>
+            <li>Planner failure gives useful feedback to the LLM.</li>
+            <li>Unsupported work such as slide or push can fail early.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>How the Retry Loop Works</h2>
+      <div class="grid">
+        <article class="card">
+          <span class="tag">1</span>
+          <h3>LLM submits task requirements</h3>
+          <p>Example: hold beam_1, move it to the target, then release it. Optional preferences can describe grasp face, retreat, or orientation.</p>
+        </article>
+        <article class="card">
+          <span class="tag">2</span>
+          <h3>MTC accepts or rejects</h3>
+          <p>If it cannot solve the task, it returns a failed stage, blocker, and correction. It does not return a task_solution_id for unsolved work.</p>
+        </article>
+        <article class="card">
+          <span class="tag">3</span>
+          <h3>LLM adjusts only the request</h3>
+          <p>The LLM may change preferences or ask for a different target. It still cannot bypass MTC or send raw waypoints to the real robot.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>What MTC Must Return Before Execution</h2>
+      <div class="status">
+        <div><strong>task_solution_id</strong><span>Exact solved task to approve and execute.</span></div>
+        <div><strong>execution_contract</strong><span>Typed ordered steps for the executor.</span></div>
+        <div><strong>stage evidence</strong><span>Planner stages, costs, candidates, failed blockers.</span></div>
+        <div><strong>scene snapshot</strong><span>Object and world state used by the solved plan.</span></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Execution Boundary</h2>
+      <ul class="list">
+        <li><code>moveit_plan_compound_task</code> should call MTC and return either a solved task solution or a structured failure.</li>
+        <li><code>moveit_execute_task_plan</code> should execute only a recent approved <code>task_solution_id</code> with a backend-issued <code>execution_contract</code>.</li>
+        <li>Gripper close/open must be verified before attach or release state changes are trusted.</li>
+        <li>After release, the system must verify the object is released before saying the object was placed, dropped, or let go.</li>
+        <li>No automatic fallback to emulated, legacy, waypoint, slide, or push execution belongs in this path.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Terminology</h2>
+      <div class="two-col">
+        <article class="card">
+          <h3>Requirements</h3>
+          <p>Hard task facts: goal, object, target pose or position, and any must-have constraints.</p>
+        </article>
+        <article class="card">
+          <h3>Preferences</h3>
+          <p>Planner hints: preferred grasp face, retreat behavior, orientation style, or other choices MTC may reject.</p>
+        </article>
+        <article class="card">
+          <h3>Stage intents</h3>
+          <p>Optional semantic hints such as approach, hold, move, release. They are not executable stages and should not be required for every call.</p>
+        </article>
+        <article class="card">
+          <h3>Execution contract</h3>
+          <p>The backend-issued proof contract the real robot executor follows after explicit approval.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

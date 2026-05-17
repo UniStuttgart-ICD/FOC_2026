@@ -135,3 +135,29 @@ def test_user_sensing_context_renders_raw_gaze_object_candidate() -> None:
     assert "gaze target: 5" in text
     assert "gaze object candidate: dynamic_5" in text
     assert store.summary_attributes()["gaze.raw_target"] == "dynamic_5"
+
+
+def test_user_sensing_context_derives_canonical_dynamic_candidate_from_numeric_gaze() -> None:
+    store = UserSensingContextStore(time_fn=lambda: 31.0)
+    store.update_from_tool_result(
+        json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "gaze": {
+                        "available": True,
+                        "target": "5",
+                        "age_s": 0.2,
+                        "stale": False,
+                    },
+                    "user": {"available": False, "position": None, "stale": True},
+                    "manual_target": {"available": False, "position": None, "stale": True},
+                }
+            }
+        )
+    )
+
+    text = store.render_instruction_block()
+
+    assert "gaze object candidate: dynamic_5" in text
+    assert store.summary_attributes()["gaze.object_candidate"] == "dynamic_5"

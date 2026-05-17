@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import math
 import operator
 import uuid
 from collections.abc import Callable
@@ -22,13 +23,15 @@ from agent_control.robot_job_submission import (
 )
 from process_trace import NoopProcessTracer, ProcessTracer
 from robot_control.call_validation import (
+    SUPPORTED_TASK_PLAN_REQUIRED_PROOFS,
     RobotCallValidationError,
+    agent_tool_description,
     ensure_task_solution_execution_allowed,
     executable_plan_name,
     structured_robot_call_error,
     validate_robot_tool_call,
 )
-from robot_control.context import RobotContextStore
+from robot_control.context import RecentTaskSolution, RobotContextStore
 from robot_control.execution_intent import (
     explicit_execute_requested as _explicit_execute_requested,
 )
@@ -39,6 +42,8 @@ from robot_control.execution_intent import (
     should_auto_execute_successful_plan,
 )
 from robot_control.mcp_bridge import RobotMCPError
+from robot_control.shared_geometry.pose_update import update_physical_model_pose
+from robot_control.shared_geometry.role_update import update_dynamic_role
 from robot_control.task_policy import (
     DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S,
     TaskPolicyDecision,
@@ -59,8 +64,48 @@ TASK_PLAN_STAGE_MAX_ATTEMPTS = 2
 TASK_PLAN_OBSERVATION_MAX_ATTEMPTS = 3
 TASK_PLAN_OBSERVATION_RETRY_DELAY_S = 0.2
 VIZOR_ROBOT_NAME = "UR10"
+GEOMETRY_UPDATE_DYNAMIC_ROLE_TOOL_NAME = "geometry_update_dynamic_role"
+MODEL_HIDDEN_TASK_PLANNER_TOOL_NAMES = {
+    "moveit_plan_pick_task",
+    "moveit_plan_place_task",
+}
+MODEL_HIDDEN_CONTRACT_INTERNAL_TOOL_NAMES = {
+    "moveit_release_object",
+    "moveit_verify_released_object",
+    "moveit_remove_scene_object",
+}
+MODEL_HIDDEN_TOOL_NAMES = (
+    MODEL_HIDDEN_TASK_PLANNER_TOOL_NAMES | MODEL_HIDDEN_CONTRACT_INTERNAL_TOOL_NAMES
+)
+TASK_LEVEL_REPLAN_TOOL_NAME = "moveit_plan_compound_task"
+SUPPORTED_TASK_SOLUTION_KINDS = {
+    "pick",
+    "place",
+    "hold",
+    "move_and_release",
+    "pick_place",
+}
+SUPPORTED_TASK_PLAN_HANDLERS = {
+    "motion",
+    "close_gripper",
+    "open_gripper",
+    "attach_object",
+    "release_object",
+    "verify_attached_object",
+    "verify_released_object",
+}
+TASK_PLAN_STAGE_REQUIRED_PROOF_BY_HANDLER = {
+    "motion": "emulated_motion_plan",
+    "close_gripper": "verified_gripper_closed",
+    "open_gripper": "verified_gripper_open",
+    "attach_object": "planning_scene_attached",
+    "release_object": "planning_scene_update",
+    "verify_attached_object": "attachment_check",
+    "verify_released_object": "release_check",
+}
 REAL_ROBOT_TASK_EXECUTION_INSTRUCTION = (
-    "Use moveit_execute_task_plan for returned pick task_solution_id values; "
+    "Use moveit_execute_task_plan for returned task_solution_id values with a supported "
+    "execution_contract; "
     "moveit_execute_task_solution is not available in real-robot mode."
 )
 SIM_TASK_EXECUTION_INSTRUCTION = (
@@ -72,16 +117,23 @@ PLAN_TOOL_NAMES = {
     "moveit_plan_cartesian_motion",
     "moveit_plan_pick",
     "moveit_plan_place",
+    "moveit_plan_compound_task",
 }
 ACTION_TOOL_NAMES = {
     "moveit_plan_free_motion",
     "moveit_plan_cartesian_motion",
     "moveit_plan_pick",
     "moveit_plan_place",
+    "moveit_plan_compound_task",
     "moveit_execute_plan",
     "moveit_execute_task_solution",
     "moveit_execute_task_plan",
+    "moveit_go_home",
+    "moveit_sync_real_robot_state",
     "moveit_verify_attached_object",
+    "moveit_release_object",
+    "moveit_verify_released_object",
+    "moveit_remove_scene_object",
     "moveit_open_gripper",
     "moveit_close_gripper",
     "moveit_attach_object",
@@ -135,6 +187,7 @@ class LangGraphRobotAgent:
         model: Any,
         tool_bridge: Any,
         robot_context: RobotContextStore,
+        geometry_world_context: Any | None = None,
         user_sensing_bridge: Any | None = None,
         user_sensing_context: UserSensingContextStore | None = None,
         user_sensing_max_age_s: float = 2.0,
@@ -147,6 +200,7 @@ class LangGraphRobotAgent:
         self._model = model
         self._tool_bridge = tool_bridge
         self._robot_context = robot_context
+        self._geometry_world_context = geometry_world_context
         self._user_sensing_bridge = user_sensing_bridge
         self._user_sensing_context = user_sensing_context or UserSensingContextStore()
         self._user_sensing_max_age_s = user_sensing_max_age_s
@@ -254,6 +308,8 @@ class LangGraphRobotAgent:
         tools = self._model_visible_tools(available_tools)
         await self._refresh_user_sensing_context()
         if state.get("observed_this_turn"):
+            return {"tools": tools}
+        if _is_direct_verified_recovery_request(state["user_text"]):
             return {"tools": tools}
         observe_tool_name = _first_available_tool(available_tools, OBSERVE_TOOL_NAMES)
         if observe_tool_name is None:
@@ -446,7 +502,9 @@ class LangGraphRobotAgent:
 
             started = monotonic_s()
             logger.info("Robot tool start name={} call_id={}", name, call_id)
-            if name in OBSERVE_TOOL_NAMES:
+            if name == GEOMETRY_UPDATE_DYNAMIC_ROLE_TOOL_NAME:
+                output = _execute_geometry_update_dynamic_role(dict(args))
+            elif name in OBSERVE_TOOL_NAMES:
                 output, observed_this_turn = await self._execute_observation_tool(name, dict(args))
             elif name == "moveit_execute_task_plan":
                 output = await self._execute_verified_task_plan_tool(
@@ -455,6 +513,7 @@ class LangGraphRobotAgent:
                     allow_execution=state["allow_pending_plan_execution"],
                 )
                 action_tool_ran = True
+                final_text = _task_plan_execution_result_text(output)
                 observed_this_turn = False
             elif name == "moveit_execute_plan" and self._verified_execution_client is not None:
                 output = await self._execute_verified_plan_tool(
@@ -468,6 +527,16 @@ class LangGraphRobotAgent:
                         output,
                         str(args.get("plan_name") or ""),
                     )
+                observed_this_turn = False
+            elif name in {"moveit_go_home", "moveit_sync_real_robot_state"}:
+                output = await self._execute_verified_recovery_tool(
+                    name,
+                    dict(args),
+                    user_text=state["user_text"],
+                    allow_execution=state["allow_pending_plan_execution"],
+                )
+                action_tool_ran = True
+                final_text = _execution_result_text(output, name)
                 observed_this_turn = False
             elif self._job_submitter is not None and name in QUEUEABLE_ROBOT_ACTION_TOOLS:
                 job_user_text = state["user_text"] if state["allow_pending_plan_execution"] else None
@@ -547,6 +616,8 @@ class LangGraphRobotAgent:
             self._task_execution_mode_instruction(),
             self._robot_context.render_instruction_block(),
         ]
+        if self._geometry_world_context is not None:
+            parts.append(self._geometry_world_context.render_instruction_block())
         if self._robot_job_blackboard_summary is not None:
             job_blackboard_summary = self._robot_job_blackboard_summary()
             if job_blackboard_summary:
@@ -561,7 +632,24 @@ class LangGraphRobotAgent:
             if self._verified_execution_client is not None
             else "moveit_execute_task_plan"
         )
-        return [tool for tool in tools if tool.get("name") != hidden_tool]
+        visible = [
+            tool
+            for tool in tools
+            if tool.get("name")
+            not in {
+                hidden_tool,
+                GEOMETRY_UPDATE_DYNAMIC_ROLE_TOOL_NAME,
+                *MODEL_HIDDEN_TOOL_NAMES,
+            }
+        ]
+        visible.append(_geometry_update_dynamic_role_tool())
+        if self._verified_execution_client is None:
+            return visible
+        names = {str(tool.get("name") or "") for tool in visible}
+        for tool in _verified_recovery_tools():
+            if str(tool.get("name") or "") not in names:
+                visible.append(tool)
+        return visible
 
     def _task_execution_mode_instruction(self) -> str:
         if self._verified_execution_client is not None:
@@ -663,7 +751,7 @@ class LangGraphRobotAgent:
             allow_execution=allow_execution,
         )
         if not decision.ok:
-            return json.dumps(structured_task_policy_error(decision), ensure_ascii=False)
+            return json.dumps(_structured_task_policy_error(decision), ensure_ascii=False)
         assert self._job_submitter is not None
         return await self._job_submitter.submit_tool(
             name,
@@ -690,7 +778,7 @@ class LangGraphRobotAgent:
             allow_execution=allow_execution,
         )
         if not decision.ok:
-            return json.dumps(structured_task_policy_error(decision), ensure_ascii=False)
+            return json.dumps(_structured_task_policy_error(decision), ensure_ascii=False)
         if name == "moveit_execute_task_solution":
             verified_error = self._verified_real_robot_task_solution_error(arguments)
             if verified_error is not None:
@@ -813,6 +901,42 @@ class LangGraphRobotAgent:
                 structured_robot_call_error(exc, retryable=True, suggested_next_tool=None),
                 ensure_ascii=False,
             )
+        task_solution_id = str(arguments["task_solution_id"]).strip()
+        robot_name = str(arguments.get("robot_name") or VIZOR_ROBOT_NAME)
+        timeout_s = float(arguments.get("timeout_s") or VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S)
+        recent = self._robot_context.recent_task_solution
+        if recent is None or recent.task_solution_id != task_solution_id:
+            return _task_plan_error(
+                "Task plan execution requires the exact recent task_solution_id.",
+                "Plan the compound task again, then retry moveit_execute_task_plan with that task_solution_id.",
+                suggested_next_tool=TASK_LEVEL_REPLAN_TOOL_NAME,
+            )
+        if recent.task_kind not in SUPPORTED_TASK_SOLUTION_KINDS:
+            return _task_plan_error(
+                f"Task plan execution does not support task kind: {recent.task_kind}.",
+                "Plan a supported pick/place task, then retry moveit_execute_task_plan.",
+                retryable=False,
+                suggested_next_tool=None,
+            )
+        raw = recent.raw
+        if raw is None:
+            return _task_plan_error(
+                "Task plan execution requires the recent raw task solution.",
+                "Plan the compound task again, then retry moveit_execute_task_plan with that task_solution_id.",
+                suggested_next_tool=TASK_LEVEL_REPLAN_TOOL_NAME,
+            )
+        execution_steps, execution_steps_error = _task_plan_execution_steps(
+            raw,
+            task_kind=recent.task_kind,
+        )
+        if execution_steps_error is not None:
+            return execution_steps_error
+        assert execution_steps is not None
+        _remember_task_solution_execution_contract_steps(
+            self._robot_context,
+            recent=recent,
+            execution_steps=execution_steps,
+        )
         self._record_task_solution_approval_if_explicit(
             arguments,
             user_text=user_text,
@@ -823,57 +947,29 @@ class LangGraphRobotAgent:
         except RobotCallValidationError as exc:
             return json.dumps(structured_robot_call_error(exc), ensure_ascii=False)
 
-        task_solution_id = str(arguments["task_solution_id"]).strip()
-        robot_name = str(arguments.get("robot_name") or VIZOR_ROBOT_NAME)
-        timeout_s = float(arguments.get("timeout_s") or VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S)
-        recent = self._robot_context.recent_task_solution
-        if recent is None or recent.task_solution_id != task_solution_id:
-            return _task_plan_error(
-                "Task plan execution requires the exact recent task_solution_id.",
-                "Plan the pick task again, then retry moveit_execute_task_plan with that task_solution_id.",
-                suggested_next_tool="moveit_plan_pick_task",
-            )
-        if recent.task_kind != "pick":
-            return _task_plan_error(
-                "Task plan execution currently supports pick task solutions only.",
-                "Use a pick task solution, or execute place workflows through supported verified plan steps.",
-                retryable=False,
-                suggested_next_tool=None,
-            )
-        raw = recent.raw
-        if raw is None:
-            return _task_plan_error(
-                "Task plan execution requires the recent raw task solution.",
-                "Plan the pick task again, then retry moveit_execute_task_plan with that task_solution_id.",
-                suggested_next_tool="moveit_plan_pick_task",
-            )
-        waypoints = raw.get("waypoints")
-        workflow_steps = raw.get("workflow_steps")
-        if not isinstance(waypoints, list) or not isinstance(workflow_steps, list):
-            return _task_plan_error(
-                "Task plan execution requires task waypoints and workflow steps.",
-                "Plan the pick task again, then retry moveit_execute_task_plan with that task_solution_id.",
-                suggested_next_tool="moveit_plan_pick_task",
-            )
-
         execution_id = uuid.uuid4().hex[:8]
         verified_plan_names: list[str] = []
-        for step in workflow_steps:
-            if not isinstance(step, dict):
-                return _task_plan_error(
-                    "Task plan workflow contains an unsupported step.",
-                    "Plan the pick task again, then retry moveit_execute_task_plan.",
-                    suggested_next_tool="moveit_plan_pick_task",
-                )
+        completed_steps: list[dict[str, Any]] = []
+        verified_gripper_closed = False
+        verified_gripper_open = False
+        task_verified = False
+        attached_object_verified = False
+        released_object_verified = False
+        release_verification: dict[str, str] | None = None
+        release_proof_output: str | None = None
+        released_object_name: str | None = None
+        available_tool_names = _function_tool_names(self._tool_bridge.function_tools())
+        contract_tool_names = _contract_tool_names(self._tool_bridge)
+        for step in execution_steps:
             step_name = str(step.get("name") or step.get("tool") or "")
-            step_kind = str(step.get("kind") or step.get("type") or "")
-            if step_kind == "motion" or isinstance(step.get("waypoint_index"), int):
-                waypoint = _task_plan_waypoint(step, waypoints)
+            step_handler = str(step["handler"])
+            if step_handler == "motion":
+                waypoint = _task_plan_step_waypoint(step, raw)
                 if waypoint is None:
                     return _task_plan_error(
                         "Task plan motion step references a missing waypoint.",
-                        "Plan the pick task again, then retry moveit_execute_task_plan.",
-                        suggested_next_tool="moveit_plan_pick_task",
+                        "Plan a supported pick/place task again, then retry moveit_execute_task_plan.",
+                        suggested_next_tool=None,
                     )
                 pose_output = await self._execute_task_plan_pose_observation(
                     robot_name=robot_name,
@@ -881,10 +977,27 @@ class LangGraphRobotAgent:
                     allow_execution=allow_execution,
                 )
                 if not _tool_ok(pose_output):
-                    return _task_plan_stage_error("observe_current_pose", step_name, pose_output)
+                    return await self._task_plan_stage_failure(
+                        stage="observe_current_pose",
+                        step_name=step_name,
+                        output=pose_output,
+                        failed_tool_name="moveit_get_current_pose",
+                        failed_tool_arguments={"robot_name": robot_name},
+                        task_solution_id=task_solution_id,
+                        recent=recent,
+                        completed_steps=completed_steps,
+                        verified_plan_names=verified_plan_names,
+                        attached_object_verified=attached_object_verified,
+                        released_object_verified=released_object_verified,
+                        available_tool_names=available_tool_names,
+                        user_text=user_text,
+                    )
                 base_plan_name = f"{task_solution_id}_{_task_plan_step_label(step_name)}"
                 stage_succeeded = False
-                last_error = ""
+                last_failed_stage = "planning"
+                last_failed_output = ""
+                last_failed_tool_name: str | None = None
+                last_failed_tool_arguments: dict[str, Any] | None = None
                 for attempt_index in range(1, TASK_PLAN_STAGE_MAX_ATTEMPTS + 1):
                     plan_name = _task_plan_attempt_name(
                         base_plan_name,
@@ -906,7 +1019,10 @@ class LangGraphRobotAgent:
                         allow_execution=allow_execution,
                     )
                     if not _tool_ok(plan_output):
-                        last_error = _task_plan_stage_error("planning", step_name, plan_output)
+                        last_failed_stage = "planning"
+                        last_failed_output = plan_output
+                        last_failed_tool_name = planning_tool
+                        last_failed_tool_arguments = planning_args
                         continue
                     executable_name = executable_plan_name(plan_output) or plan_name
                     execute_output = await self._execute_verified_plan_tool(
@@ -922,17 +1038,37 @@ class LangGraphRobotAgent:
                     if executable_name != plan_name:
                         self._robot_context.consume_executable_plan(executable_name)
                     if not _execution_succeeded(execute_output):
-                        last_error = _task_plan_stage_error(
-                            "verified_execution", step_name, execute_output
-                        )
+                        last_failed_stage = "verified_execution"
+                        last_failed_output = execute_output
+                        last_failed_tool_name = "moveit_execute_plan"
+                        last_failed_tool_arguments = {
+                            "robot_name": robot_name,
+                            "plan_name": executable_name,
+                            "timeout_s": timeout_s,
+                        }
                         continue
                     verified_plan_names.append(executable_name)
+                    completed_steps.append({"name": step_name, "handler": step_handler})
                     stage_succeeded = True
                     break
                 if not stage_succeeded:
-                    return last_error
+                    return await self._task_plan_stage_failure(
+                        stage=last_failed_stage,
+                        step_name=step_name,
+                        output=last_failed_output,
+                        failed_tool_name=last_failed_tool_name,
+                        failed_tool_arguments=last_failed_tool_arguments,
+                        task_solution_id=task_solution_id,
+                        recent=recent,
+                        completed_steps=completed_steps,
+                        verified_plan_names=verified_plan_names,
+                        attached_object_verified=attached_object_verified,
+                        released_object_verified=released_object_verified,
+                        available_tool_names=available_tool_names,
+                        user_text=user_text,
+                    )
                 continue
-            if step_name in {"close", "close_gripper"} or step.get("tool") == "moveit_close_gripper":
+            if step_handler == "close_gripper":
                 close_output = verified_execution_output_to_json(
                     await self._verified_execution_client.close_gripper(
                         robot_name=robot_name,
@@ -940,55 +1076,334 @@ class LangGraphRobotAgent:
                     )
                 )
                 if not _tool_ok(close_output):
-                    return _task_plan_stage_error("close_gripper", step_name, close_output)
+                    return await self._task_plan_stage_failure(
+                        stage="close_gripper",
+                        step_name=step_name,
+                        output=close_output,
+                        failed_tool_name="moveit_close_gripper",
+                        failed_tool_arguments={"robot_name": robot_name, "timeout_s": timeout_s},
+                        task_solution_id=task_solution_id,
+                        recent=recent,
+                        completed_steps=completed_steps,
+                        verified_plan_names=verified_plan_names,
+                        attached_object_verified=attached_object_verified,
+                        released_object_verified=released_object_verified,
+                        available_tool_names=available_tool_names,
+                        user_text=user_text,
+                    )
                 self._robot_context.update_from_tool_result(
                     "moveit_close_gripper",
                     close_output,
                 )
+                verified_gripper_closed = True
+                verified_gripper_open = False
+                completed_steps.append({"name": step_name, "handler": step_handler})
                 continue
-            if step_name in {"attach", "attach_object"} or step.get("tool") == "moveit_attach_object":
+            if step_handler == "open_gripper":
+                open_output = verified_execution_output_to_json(
+                    await self._verified_execution_client.open_gripper(
+                        robot_name=robot_name,
+                        timeout_s=timeout_s,
+                    )
+                )
+                if not _tool_ok(open_output):
+                    return await self._task_plan_stage_failure(
+                        stage="open_gripper",
+                        step_name=step_name,
+                        output=open_output,
+                        failed_tool_name="moveit_open_gripper",
+                        failed_tool_arguments={"robot_name": robot_name, "timeout_s": timeout_s},
+                        task_solution_id=task_solution_id,
+                        recent=recent,
+                        completed_steps=completed_steps,
+                        verified_plan_names=verified_plan_names,
+                        attached_object_verified=attached_object_verified,
+                        released_object_verified=released_object_verified,
+                        available_tool_names=available_tool_names,
+                        user_text=user_text,
+                    )
+                self._robot_context.update_from_tool_result(
+                    "moveit_open_gripper",
+                    open_output,
+                )
+                verified_gripper_open = True
+                verified_gripper_closed = False
+                completed_steps.append({"name": step_name, "handler": step_handler})
+                continue
+            if step_handler == "attach_object":
+                if not verified_gripper_closed:
+                    return _task_plan_error(
+                        "Task plan attach_object requires verified gripper close evidence.",
+                        "Execute a backend contract with close_gripper before attach_object.",
+                        retryable=False,
+                        suggested_next_tool=None,
+                    )
+                object_name = _task_plan_step_object_name(step, recent.object_name)
+                if object_name is None:
+                    return _task_plan_error(
+                        "Task plan attach_object requires an object_name.",
+                        "Plan a supported pick/place task again with object fields.",
+                        retryable=False,
+                        suggested_next_tool=None,
+                    )
                 attach_output = await self._execute_tool(
                     "moveit_attach_object",
                     {
                         "robot_name": robot_name,
-                        "object_name": recent.object_name,
+                        "object_name": object_name,
                         "verified_gripper_closed": True,
                     },
                     user_text=user_text,
                     allow_execution=allow_execution,
                 )
                 if not _tool_ok(attach_output):
-                    return _task_plan_stage_error("attach_object", step_name, attach_output)
+                    return await self._task_plan_stage_failure(
+                        stage="attach_object",
+                        step_name=step_name,
+                        output=attach_output,
+                        failed_tool_name="moveit_attach_object",
+                        failed_tool_arguments={
+                            "robot_name": robot_name,
+                            "object_name": object_name,
+                            "verified_gripper_closed": True,
+                        },
+                        task_solution_id=task_solution_id,
+                        recent=recent,
+                        completed_steps=completed_steps,
+                        verified_plan_names=verified_plan_names,
+                        attached_object_verified=attached_object_verified,
+                        released_object_verified=released_object_verified,
+                        available_tool_names=available_tool_names,
+                        user_text=user_text,
+                    )
+                completed_steps.append({"name": step_name, "handler": step_handler})
+                continue
+            if step_handler == "release_object":
+                if not verified_gripper_open:
+                    return _task_plan_error(
+                        "Task plan release_object requires verified gripper open evidence.",
+                        "Execute a backend contract with open_gripper before release_object.",
+                        retryable=False,
+                        suggested_next_tool=None,
+                    )
+                release_tool = _task_plan_step_tool(step, default="moveit_release_object")
+                if release_tool not in contract_tool_names:
+                    return _task_plan_error(
+                        f"Task plan release_object requires unavailable tool: {release_tool}.",
+                        "Expose the release/detach MCP tool in the bridge, then replan.",
+                        retryable=False,
+                        suggested_next_tool=None,
+                    )
+                object_name = _task_plan_step_object_name(step, recent.object_name)
+                if object_name is None:
+                    return _task_plan_error(
+                        "Task plan release_object requires an object_name.",
+                        "Plan a supported pick/place task again with object fields.",
+                        retryable=False,
+                        suggested_next_tool=None,
+                    )
+                release_args = _task_plan_step_arguments(step)
+                release_args.update(
+                    {
+                        "robot_name": robot_name,
+                        "object_name": object_name,
+                        "verified_gripper_open": True,
+                    }
+                )
+                release_output = await self._execute_contract_mcp_tool(
+                    release_tool,
+                    release_args,
+                )
+                if not _tool_ok(release_output):
+                    return await self._task_plan_stage_failure(
+                        stage="release_object",
+                        step_name=step_name,
+                        output=release_output,
+                        failed_tool_name=release_tool,
+                        failed_tool_arguments=release_args,
+                        task_solution_id=task_solution_id,
+                        recent=recent,
+                        completed_steps=completed_steps,
+                        verified_plan_names=verified_plan_names,
+                        attached_object_verified=attached_object_verified,
+                        released_object_verified=released_object_verified,
+                        available_tool_names=available_tool_names,
+                        user_text=user_text,
+                    )
+                completed_steps.append({"name": step_name, "handler": step_handler})
+                continue
+            if step_handler == "verify_attached_object":
+                object_name = _task_plan_step_object_name(step, recent.object_name)
+                if object_name is None:
+                    return _task_plan_error(
+                        "Task plan verify_attached_object requires an object_name.",
+                        "Plan a supported pick/place task again with object fields.",
+                        retryable=False,
+                        suggested_next_tool=None,
+                    )
+                verify_output = await self._execute_tool(
+                    "moveit_verify_attached_object",
+                    {"robot_name": robot_name, "object_name": object_name, "timeout_s": timeout_s},
+                    user_text=user_text,
+                    allow_execution=allow_execution,
+                )
+                if not _tool_ok(verify_output):
+                    return await self._task_plan_stage_failure(
+                        stage="verify_attached_object",
+                        step_name=step_name,
+                        output=verify_output,
+                        failed_tool_name="moveit_verify_attached_object",
+                        failed_tool_arguments={
+                            "robot_name": robot_name,
+                            "object_name": object_name,
+                            "timeout_s": timeout_s,
+                        },
+                        task_solution_id=task_solution_id,
+                        recent=recent,
+                        completed_steps=completed_steps,
+                        verified_plan_names=verified_plan_names,
+                        attached_object_verified=attached_object_verified,
+                        released_object_verified=released_object_verified,
+                        available_tool_names=available_tool_names,
+                        user_text=user_text,
+                    )
+                task_verified = True
+                attached_object_verified = True
+                completed_steps.append({"name": step_name, "handler": step_handler})
+                continue
+            if step_handler == "verify_released_object":
+                object_name = _task_plan_step_object_name(step, recent.object_name)
+                if object_name is None:
+                    return _task_plan_error(
+                        "Task plan verify_released_object requires an object_name.",
+                        "Plan a supported pick/place task again with object fields.",
+                        retryable=False,
+                        suggested_next_tool=None,
+                    )
+                verify_tool = _task_plan_step_tool(step, default="moveit_verify_released_object")
+                verify_args = _task_plan_step_arguments(step)
+                verify_args.update(
+                    {"robot_name": robot_name, "object_name": object_name, "timeout_s": timeout_s}
+                )
+                if verify_tool not in contract_tool_names:
+                    return _task_plan_error(
+                        f"Task plan verify_released_object requires unavailable tool: {verify_tool}.",
+                        "Expose the release verification MCP tool in the bridge, then replan.",
+                        retryable=False,
+                        suggested_next_tool=None,
+                    )
+                verify_output = await self._execute_contract_mcp_tool(
+                    verify_tool,
+                    verify_args,
+                )
+                if not _tool_ok(verify_output):
+                    return await self._task_plan_stage_failure(
+                        stage="verify_released_object",
+                        step_name=step_name,
+                        output=verify_output,
+                        failed_tool_name=verify_tool,
+                        failed_tool_arguments=verify_args,
+                        task_solution_id=task_solution_id,
+                        recent=recent,
+                        completed_steps=completed_steps,
+                        verified_plan_names=verified_plan_names,
+                        attached_object_verified=attached_object_verified,
+                        released_object_verified=released_object_verified,
+                        available_tool_names=available_tool_names,
+                        user_text=user_text,
+                    )
+                if not _release_verification_succeeded(verify_output, object_name):
+                    return await self._task_plan_stage_failure(
+                        stage="verify_released_object",
+                        step_name=step_name,
+                        output=verify_output,
+                        failed_tool_name=verify_tool,
+                        failed_tool_arguments=verify_args,
+                        task_solution_id=task_solution_id,
+                        recent=recent,
+                        completed_steps=completed_steps,
+                        verified_plan_names=verified_plan_names,
+                        attached_object_verified=attached_object_verified,
+                        released_object_verified=released_object_verified,
+                        available_tool_names=available_tool_names,
+                        user_text=user_text,
+                    )
+                task_verified = True
+                released_object_verified = True
+                release_verification = {"result": "pass"}
+                release_proof_output = verify_output
+                released_object_name = object_name
+                completed_steps.append({"name": step_name, "handler": step_handler})
                 continue
             return _task_plan_error(
-                "Task plan workflow contains an unsupported step.",
-                "Plan the pick task again, then retry moveit_execute_task_plan.",
-                suggested_next_tool="moveit_plan_pick_task",
+                f"Task plan workflow contains an unsupported step handler: {step_handler}.",
+                "Plan a supported pick/place task again, then retry moveit_execute_task_plan.",
+                retryable=False,
+                suggested_next_tool=None,
             )
 
-        verify_output = await self._execute_tool(
-            "moveit_verify_attached_object",
-            {"robot_name": robot_name, "object_name": recent.object_name, "timeout_s": timeout_s},
-            user_text=user_text,
-            allow_execution=allow_execution,
-        )
-        if not _tool_ok(verify_output):
-            return _task_plan_stage_error("verify_attached_object", "verify", verify_output)
+        if not task_verified:
+            return _task_plan_error(
+                "Task plan execution requires a backend verification step.",
+                "Plan a supported pick/place task again with attachment or release verification.",
+                retryable=False,
+                suggested_next_tool=None,
+            )
+        structured_content: dict[str, Any] = {
+            "ok": True,
+            "tool": "moveit_execute_task_plan",
+            "task_solution_id": task_solution_id,
+            "object_name": recent.object_name,
+            "verified_plan_names": verified_plan_names,
+            "verification": {"result": "pass"},
+        }
+        if release_verification is not None:
+            structured_content["release_verification"] = release_verification
+        if released_object_verified and release_proof_output is not None:
+            update_reason = (
+                "verified_pick_place_release"
+                if recent.task_kind == "pick_place"
+                else "verified_place_release"
+            )
+            physical_model_update = await self._update_physical_model_pose_after_release(
+                object_name=released_object_name or recent.object_name,
+                reason=update_reason,
+                release_proof_output=release_proof_output,
+            )
+            structured_content["physical_model_update"] = physical_model_update
         return json.dumps(
             {
                 "content": ["Verified task plan execution completed."],
-                "structured_content": {
-                    "ok": True,
-                    "tool": "moveit_execute_task_plan",
-                    "task_solution_id": task_solution_id,
-                    "object_name": recent.object_name,
-                    "verified_plan_names": verified_plan_names,
-                    "verification": {"result": "pass"},
-                },
+                "structured_content": structured_content,
                 "is_error": False,
             },
             ensure_ascii=False,
         )
+
+    async def _execute_contract_mcp_tool(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+    ) -> str:
+        try:
+            contract_call = getattr(self._tool_bridge, "call_contract_tool", None)
+            if callable(contract_call):
+                output = await contract_call(name, arguments)
+            else:
+                output = await self._tool_bridge.call_tool(name, arguments)
+        except RobotMCPError as exc:
+            validation_error = RobotCallValidationError(
+                str(exc),
+                correction="Check the robot control server, then retry the robot action.",
+            )
+            return json.dumps(structured_robot_call_error(validation_error), ensure_ascii=False)
+        self._robot_context.update_from_tool_result(name, output)
+        self._tracer.event(
+            "robot.context_update",
+            "robot_control",
+            attributes={"tool.name": name},
+        )
+        return output
 
     async def _execute_task_plan_pose_observation(
         self,
@@ -1010,6 +1425,120 @@ class LangGraphRobotAgent:
             if attempt_index < TASK_PLAN_OBSERVATION_MAX_ATTEMPTS:
                 await asyncio.sleep(TASK_PLAN_OBSERVATION_RETRY_DELAY_S)
         return output
+
+    async def _update_physical_model_pose_after_release(
+        self,
+        *,
+        object_name: str,
+        reason: str,
+        release_proof_output: str,
+    ) -> dict[str, Any]:
+        pose_evidence = _pose_evidence_from_output(
+            release_proof_output,
+            object_name=object_name,
+            source="moveit_verify_released_object",
+        )
+        if pose_evidence is None:
+            return _physical_model_update_failure(
+                "Full object pose evidence was not found in verified release proof.",
+                "Use release proof with object position and orientation, or run an explicit operator sync.",
+                retryable=True,
+            )
+        try:
+            result = update_physical_model_pose(object_name, reason, pose_evidence)
+        except Exception as exc:
+            return _physical_model_update_failure(
+                f"physical model update failed: {exc}",
+                "Check the physical model file and retry the sync.",
+                retryable=True,
+            )
+        if isinstance(result, dict):
+            return result
+        return _physical_model_update_failure(
+            "physical model update returned a non-object result",
+            "Check the physical model update helper.",
+            retryable=False,
+        )
+
+    async def _task_plan_stage_failure(
+        self,
+        *,
+        stage: str,
+        step_name: str,
+        output: str,
+        failed_tool_name: str | None,
+        failed_tool_arguments: dict[str, Any] | None,
+        task_solution_id: str,
+        recent: Any,
+        completed_steps: list[dict[str, Any]],
+        verified_plan_names: list[str],
+        attached_object_verified: bool,
+        released_object_verified: bool,
+        available_tool_names: set[str],
+        user_text: str | None,
+    ) -> str:
+        failed_tool_result = _json_payload(output)
+        recovery = {
+            "task_solution_id": task_solution_id,
+            "task_kind": recent.task_kind,
+            "object_name": recent.object_name,
+            "scene_snapshot_id": recent.scene_snapshot_id,
+            "failed_step": step_name,
+            "failed_stage": stage,
+            "failed_tool_name": failed_tool_name,
+            "failed_tool_arguments": dict(failed_tool_arguments or {}),
+            "failed_tool_result": failed_tool_result,
+            "completed_steps": [dict(step) for step in completed_steps],
+            "verified_plan_names": list(verified_plan_names),
+            "gripper_state": self._robot_context.gripper_state(),
+            "attached_object_verified": attached_object_verified,
+            "released_object_verified": released_object_verified,
+        }
+        self._robot_context.remember_task_failure(
+            task_solution_id=task_solution_id,
+            task_kind=recent.task_kind,
+            object_name=recent.object_name,
+            scene_snapshot_id=recent.scene_snapshot_id,
+            failed_step=step_name,
+            failed_stage=stage,
+            failed_tool_name=failed_tool_name,
+            failed_tool_arguments=dict(failed_tool_arguments or {}),
+            failed_tool_result=failed_tool_result,
+            completed_steps=[dict(step) for step in completed_steps],
+            verified_plan_names=list(verified_plan_names),
+            gripper_state=self._robot_context.gripper_state(),
+            attached_object_verified=attached_object_verified,
+            released_object_verified=released_object_verified,
+        )
+        diagnostic: Any | None = None
+        if (
+            failed_tool_name is not None
+            and failed_tool_name != "moveit_explain_motion_failure"
+            and "moveit_explain_motion_failure" in available_tool_names
+        ):
+            explain_args: dict[str, Any] = {
+                "failed_tool_name": failed_tool_name,
+                "failed_tool_result": failed_tool_result,
+            }
+            if failed_tool_arguments is not None:
+                explain_args["failed_tool_arguments"] = dict(failed_tool_arguments)
+            if isinstance(user_text, str) and user_text.strip():
+                explain_args["user_intent"] = user_text
+            diagnostic_output = await self._execute_contract_mcp_tool(
+                "moveit_explain_motion_failure",
+                explain_args,
+            )
+            diagnostic = _json_payload(diagnostic_output)
+            recovery["diagnostic"] = diagnostic
+        return _task_plan_stage_error(
+            stage,
+            step_name,
+            output,
+            failed_tool_name=failed_tool_name,
+            failed_tool_arguments=failed_tool_arguments,
+            recovery=recovery,
+            diagnostic=diagnostic,
+        )
 
     async def _execute_verified_plan_tool(
         self,
@@ -1083,6 +1612,79 @@ class LangGraphRobotAgent:
             )
         return output_json
 
+    async def _execute_verified_recovery_tool(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        user_text: str | None,
+        allow_execution: bool = True,
+    ) -> str:
+        try:
+            validate_robot_tool_call(name, arguments)
+        except RobotCallValidationError as exc:
+            return json.dumps(structured_robot_call_error(exc), ensure_ascii=False)
+        if self._verified_execution_client is None:
+            exc = RobotCallValidationError(
+                "Verified Real Robot Execution client is unavailable.",
+                correction="Start or configure the verified execution server, then retry.",
+            )
+            return json.dumps(
+                structured_robot_call_error(exc, retryable=True, suggested_next_tool=None),
+                ensure_ascii=False,
+            )
+        if name == "moveit_go_home" and (
+            not allow_execution or not _explicit_go_home_requested(user_text)
+        ):
+            exc = RobotCallValidationError(
+                "Go home requires explicit user/operator intent.",
+                correction="Ask the operator for approval before sending the robot home.",
+            )
+            return json.dumps(
+                structured_robot_call_error(exc, retryable=True, suggested_next_tool=None),
+                ensure_ascii=False,
+            )
+        robot_name = str(arguments.get("robot_name") or VIZOR_ROBOT_NAME)
+        timeout_s = float(arguments.get("timeout_s") or VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S)
+        trace_attributes: dict[str, Any] = {
+            "tool.name": name,
+            "robot_name": robot_name,
+            "timeout_s": timeout_s,
+        }
+        span_name = (
+            "robot.verified_execution.go_home"
+            if name == "moveit_go_home"
+            else "robot.verified_execution.sync_real_robot_state"
+        )
+        async with self._tracer.span(
+            span_name,
+            "robot_control",
+            attributes=trace_attributes,
+        ):
+            if name == "moveit_go_home":
+                output = await self._verified_execution_client.go_home(
+                    robot_name=robot_name,
+                    timeout_s=timeout_s,
+                )
+            else:
+                output = await self._verified_execution_client.sync_real_robot_state(
+                    robot_name=robot_name,
+                    timeout_s=timeout_s,
+                )
+            output_json = verified_execution_output_to_json(output)
+            result = _structured_result_payload(output_json)
+            if result is not None:
+                trace_attributes["execute.ok"] = result.get("ok")
+                trace_attributes["execute.status"] = result.get("status")
+                feedback = result.get("feedback")
+                if isinstance(feedback, dict) and isinstance(
+                    feedback.get("state_sync_published"), bool
+                ):
+                    trace_attributes["state_sync_published"] = feedback[
+                        "state_sync_published"
+                    ]
+        return output_json
+
     async def _execute_after_success_action(
         self,
         name: str | None,
@@ -1149,8 +1751,91 @@ def _first_available_tool(tools: list[dict[str, Any]], names: tuple[str, ...]) -
     return None
 
 
+def _function_tool_names(tools: list[dict[str, Any]]) -> set[str]:
+    return {
+        str(tool.get("name"))
+        for tool in tools
+        if isinstance(tool.get("name"), str)
+    }
+
+
+def _contract_tool_names(tool_bridge: Any) -> set[str]:
+    bridge_contract_tool_names = getattr(tool_bridge, "contract_tool_names", None)
+    if callable(bridge_contract_tool_names):
+        return {
+            str(name)
+            for name in bridge_contract_tool_names()
+            if isinstance(name, str)
+        }
+    return set()
+
+
 def _tools_for_model_binding(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [_tool_for_model_binding(tool) for tool in tools]
+
+
+def _geometry_update_dynamic_role_tool() -> dict[str, Any]:
+    return {
+        "type": "function",
+        "name": GEOMETRY_UPDATE_DYNAMIC_ROLE_TOOL_NAME,
+        "description": (
+            "Update the local physical model role for a dynamic object after the human "
+            "confirms its structural role. Ask the human when structural role is uncertain; "
+            "do not infer support relationships from view-dependent wording."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "object_name": {
+                    "type": "string",
+                    "description": "Canonical dynamic object name such as dynamic_1.",
+                },
+                "role": {
+                    "type": "object",
+                    "description": (
+                        "Structured role payload, for example {'type': 'unassigned'}, "
+                        "{'type': 'supporting_column', 'supports': ['dynamic_2']}, or "
+                        "{'type': 'beam_supported_by', 'supported_by': ['dynamic_1']}."
+                    ),
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why the role update is justified by the current turn.",
+                },
+            },
+            "required": ["object_name", "role", "reason"],
+            "additionalProperties": False,
+        },
+        "strict": None,
+    }
+
+
+def _verified_recovery_tools() -> list[dict[str, Any]]:
+    parameters = {
+        "type": "object",
+        "properties": {
+            "robot_name": {"type": "string"},
+            "timeout_s": {"type": "number"},
+        },
+        "required": ["robot_name"],
+        "additionalProperties": False,
+    }
+    return [
+        {
+            "type": "function",
+            "name": "moveit_go_home",
+            "description": agent_tool_description("moveit_go_home"),
+            "parameters": dict(parameters),
+            "strict": None,
+        },
+        {
+            "type": "function",
+            "name": "moveit_sync_real_robot_state",
+            "description": agent_tool_description("moveit_sync_real_robot_state"),
+            "parameters": dict(parameters),
+            "strict": None,
+        },
+    ]
 
 
 def _tool_for_model_binding(tool: dict[str, Any]) -> dict[str, Any]:
@@ -1177,6 +1862,29 @@ def _should_execute_latest_pending_plan(text: str, robot_context: RobotContextSt
         max_age_s=DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S
     )
     return pending is not None and not _is_task_stage_attempt_plan_name(pending.plan_name)
+
+
+def _is_direct_verified_recovery_request(text: str) -> bool:
+    normalized = text.casefold()
+    if "go home" in normalized:
+        return True
+    if "sync" in normalized and "robot" in normalized and "state" in normalized:
+        return True
+    if "align" in normalized and "rviz" in normalized:
+        return True
+    return False
+
+
+def _explicit_go_home_requested(text: str | None) -> bool:
+    if not text:
+        return False
+    normalized = text.casefold()
+    return (
+        "go home" in normalized
+        or "send the robot home" in normalized
+        or "send robot home" in normalized
+        or "return home" in normalized
+    )
 
 
 def _is_task_stage_attempt_plan_name(plan_name: str) -> bool:
@@ -1209,6 +1917,160 @@ def _execution_result_text(output: str, plan_name: str) -> str:
     if isinstance(verification, dict) and verification.get("result") == "pass":
         return "Execution complete."
     return NO_TEXT_RESPONSE
+
+
+def _task_plan_execution_result_text(output: str) -> str:
+    result = _structured_result_payload(output)
+    if result is not None and _task_plan_failure_needs_model_feedback(result):
+        return ""
+    return _execution_result_text(output, "moveit_execute_task_plan")
+
+
+def _execute_geometry_update_dynamic_role(arguments: dict[str, Any]) -> str:
+    object_name = arguments.get("object_name")
+    role = arguments.get("role")
+    reason = arguments.get("reason")
+    if not isinstance(object_name, str) or not object_name.strip():
+        result = _geometry_update_dynamic_role_failure("object_name is required")
+    elif not isinstance(role, dict):
+        result = _geometry_update_dynamic_role_failure(
+            "role must be one of the structured dynamic role payloads"
+        )
+    elif not isinstance(reason, str) or not reason.strip():
+        result = _geometry_update_dynamic_role_failure("reason is required")
+    else:
+        result = update_dynamic_role(object_name.strip(), role, reason.strip())
+    return json.dumps(result, ensure_ascii=False)
+
+
+def _geometry_update_dynamic_role_failure(error: str) -> dict[str, object]:
+    return {
+        "ok": False,
+        "error": error,
+        "correction": "Use object_name, a structured dynamic role payload, and a human-grounded reason.",
+        "retryable": True,
+    }
+
+
+def _structured_result_payload(output: str) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(output)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    structured = payload.get("structured_content")
+    if isinstance(structured, dict):
+        return structured
+    return payload
+
+
+def _structured_task_policy_error(decision: TaskPolicyDecision) -> dict[str, Any]:
+    payload = structured_task_policy_error(decision)
+    correction = payload.get("correction")
+    if isinstance(correction, str) and any(
+        tool_name in correction for tool_name in MODEL_HIDDEN_TASK_PLANNER_TOOL_NAMES
+    ):
+        payload["correction"] = (
+            "Use moveit_plan_compound_task for task-level manipulation planning."
+        )
+    if payload.get("suggested_next_tool") in MODEL_HIDDEN_TASK_PLANNER_TOOL_NAMES:
+        payload["suggested_next_tool"] = TASK_LEVEL_REPLAN_TOOL_NAME
+    return payload
+
+
+def _pose_evidence_from_output(
+    output: str,
+    *,
+    object_name: str,
+    source: str,
+) -> dict[str, object] | None:
+    payload = _json_payload(output)
+    if not isinstance(payload, dict):
+        return None
+    containers = _pose_candidate_containers(payload)
+    for container in containers:
+        pose = _full_pose_from_container(container)
+        if pose is not None:
+            return {"object_name": object_name, "source": source, "pose": pose}
+    return None
+
+
+def _pose_candidate_containers(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    containers: list[dict[str, Any]] = []
+    structured = payload.get("structured_content")
+    if isinstance(structured, dict):
+        containers.append(structured)
+        raw = structured.get("raw")
+        if isinstance(raw, dict):
+            containers.append(raw)
+    raw = payload.get("raw")
+    if isinstance(raw, dict):
+        containers.append(raw)
+    containers.append(payload)
+    return containers
+
+
+def _full_pose_from_container(container: dict[str, Any]) -> dict[str, dict[str, float]] | None:
+    for key in ("object_pose", "pose"):
+        pose = container.get(key)
+        full_pose = _full_pose(pose)
+        if full_pose is not None:
+            return full_pose
+    return _full_pose(container)
+
+
+def _full_pose(value: Any) -> dict[str, dict[str, float]] | None:
+    if not isinstance(value, dict):
+        return None
+    position = value.get("position")
+    orientation = value.get("orientation")
+    if not isinstance(position, dict) or not isinstance(orientation, dict):
+        return None
+    xyz = _finite_pose_fields(position, ("x", "y", "z"))
+    quat = _finite_pose_fields(orientation, ("x", "y", "z", "w"))
+    if xyz is None or quat is None:
+        return None
+    return {
+        "position": {"x": xyz[0], "y": xyz[1], "z": xyz[2]},
+        "orientation": {"x": quat[0], "y": quat[1], "z": quat[2], "w": quat[3]},
+    }
+
+
+def _finite_pose_fields(values: dict[Any, Any], keys: tuple[str, ...]) -> list[float] | None:
+    result: list[float] = []
+    for key in keys:
+        value = values.get(key)
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            return None
+        number = float(value)
+        if not math.isfinite(number):
+            return None
+        result.append(number)
+    return result
+
+
+def _physical_model_update_failure(
+    error: str,
+    correction: str,
+    *,
+    retryable: bool,
+) -> dict[str, object]:
+    return {
+        "ok": False,
+        "error": error,
+        "correction": correction,
+        "retryable": retryable,
+    }
+
+
+def _task_plan_failure_needs_model_feedback(result: dict[str, Any]) -> bool:
+    if result.get("ok") is not False:
+        return False
+    if "failed_tool_result" not in result:
+        return False
+    suggested_next_tool = result.get("suggested_next_tool")
+    return isinstance(suggested_next_tool, str) and bool(suggested_next_tool.strip())
 
 
 def _queued_job_result_ok(output: str) -> bool:
@@ -1254,6 +2116,314 @@ def _tool_ok(output: str) -> bool:
         return False
     structured = payload.get("structured_content")
     return isinstance(structured, dict) and structured.get("ok") is True
+
+
+def _task_plan_execution_steps(
+    raw: dict[str, Any],
+    *,
+    task_kind: str,
+) -> tuple[list[dict[str, Any]] | None, str | None]:
+    execution_contract = raw.get("execution_contract")
+    if execution_contract is not None:
+        contract_steps = _task_plan_contract_steps(execution_contract)
+        stage_shaped_contract = _task_plan_contract_uses_stages(execution_contract)
+        if contract_steps is None:
+            return None, _task_plan_error(
+                "Task plan execution_contract must contain ordered steps.",
+                "Plan a supported pick/place task again, then retry moveit_execute_task_plan.",
+                retryable=False,
+                suggested_next_tool=None,
+            )
+        steps: list[dict[str, Any]] = []
+        for step in contract_steps:
+            if not isinstance(step, dict):
+                return None, _task_plan_error(
+                    "Task plan workflow contains an unsupported step.",
+                    "Plan a supported pick/place task again, then retry moveit_execute_task_plan.",
+                    retryable=False,
+                    suggested_next_tool=None,
+                )
+            handler = _task_plan_step_handler(step)
+            if handler not in SUPPORTED_TASK_PLAN_HANDLERS:
+                return None, _task_plan_error(
+                    f"Task plan workflow contains an unsupported step handler: {handler}.",
+                    "Plan a supported pick/place task again, then retry moveit_execute_task_plan.",
+                    retryable=False,
+                    suggested_next_tool=None,
+                )
+            normalized = dict(step)
+            normalized["handler"] = handler
+            if stage_shaped_contract:
+                _normalize_task_plan_stage_contract_step(normalized, handler=handler)
+            missing_contract_field = _task_plan_missing_contract_field(normalized)
+            if missing_contract_field is not None:
+                return None, _task_plan_error(
+                    f"Task plan execution_contract step is missing {missing_contract_field}.",
+                    "Replan with a backend task solution that includes source stage and proof metadata.",
+                    retryable=False,
+                    suggested_next_tool=None,
+                )
+            steps.append(normalized)
+        return steps, None
+
+    if task_kind != "pick":
+        return None, _task_plan_error(
+            "Task plan execution requires a backend execution_contract.",
+            "Plan a supported compound task again, then retry moveit_execute_task_plan.",
+            retryable=False,
+            suggested_next_tool=None,
+        )
+    waypoints = raw.get("waypoints")
+    workflow_steps = raw.get("workflow_steps")
+    if not isinstance(waypoints, list) or not isinstance(workflow_steps, list):
+        return None, _task_plan_error(
+            "Task plan execution requires task waypoints and workflow steps.",
+            "Plan the compound task again, then retry moveit_execute_task_plan with that task_solution_id.",
+            suggested_next_tool=TASK_LEVEL_REPLAN_TOOL_NAME,
+        )
+    steps = []
+    for step in workflow_steps:
+        if not isinstance(step, dict):
+            return None, _task_plan_error(
+                "Task plan workflow contains an unsupported step.",
+                "Plan the compound task again, then retry moveit_execute_task_plan.",
+                suggested_next_tool=TASK_LEVEL_REPLAN_TOOL_NAME,
+            )
+        handler = _task_plan_legacy_pick_step_handler(step)
+        if handler is None:
+            return None, _task_plan_error(
+                "Task plan workflow contains an unsupported step.",
+                "Plan the compound task again, then retry moveit_execute_task_plan.",
+                suggested_next_tool=TASK_LEVEL_REPLAN_TOOL_NAME,
+            )
+        normalized = dict(step)
+        normalized["handler"] = handler
+        steps.append(normalized)
+    steps.append({"handler": "verify_attached_object", "name": "verify_attached_object"})
+    return steps, None
+
+
+def _remember_task_solution_execution_contract_steps(
+    context: RobotContextStore,
+    *,
+    recent: RecentTaskSolution,
+    execution_steps: list[dict[str, Any]],
+) -> None:
+    raw = recent.raw
+    if not isinstance(raw, dict):
+        return
+    normalized_raw = dict(raw)
+    execution_contract = normalized_raw.get("execution_contract")
+    normalized_steps = [dict(step) for step in execution_steps]
+    if isinstance(execution_contract, dict):
+        normalized_contract = dict(execution_contract)
+        normalized_contract["steps"] = normalized_steps
+        normalized_raw["execution_contract"] = normalized_contract
+    else:
+        normalized_raw["execution_contract"] = normalized_steps
+    context.remember_task_solution(
+        task_solution_id=recent.task_solution_id,
+        task_kind=recent.task_kind,
+        object_name=recent.object_name,
+        backend=recent.backend,
+        scene_snapshot_id=recent.scene_snapshot_id,
+        approval_required=recent.approval_required,
+        raw=normalized_raw,
+    )
+
+
+def _task_plan_contract_steps(execution_contract: Any) -> list[Any] | None:
+    if isinstance(execution_contract, list):
+        return execution_contract
+    if not isinstance(execution_contract, dict):
+        return None
+    steps = execution_contract.get("steps")
+    if not isinstance(steps, list):
+        steps = execution_contract.get("stages")
+    return steps if isinstance(steps, list) else None
+
+
+def _task_plan_contract_uses_stages(execution_contract: Any) -> bool:
+    if not isinstance(execution_contract, dict):
+        return False
+    if isinstance(execution_contract.get("steps"), list):
+        return False
+    return isinstance(execution_contract.get("stages"), list)
+
+
+def _normalize_task_plan_stage_contract_step(step: dict[str, Any], *, handler: str) -> None:
+    source_stage = _task_plan_stage_source_stage(step)
+    if source_stage is not None:
+        step["source_stage"] = source_stage
+    required_proof = step.get("required_proof")
+    if (
+        isinstance(required_proof, str)
+        and required_proof.strip() in SUPPORTED_TASK_PLAN_REQUIRED_PROOFS
+    ):
+        step["required_proof"] = required_proof.strip()
+        return
+    step["required_proof"] = TASK_PLAN_STAGE_REQUIRED_PROOF_BY_HANDLER[handler]
+
+
+def _task_plan_stage_source_stage(step: dict[str, Any]) -> str | None:
+    source_stage = step.get("source_stage")
+    if isinstance(source_stage, str) and source_stage.strip():
+        return source_stage.strip()
+    for key in ("name", "intent", "tool"):
+        value = step.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _task_plan_missing_contract_field(step: dict[str, Any]) -> str | None:
+    source_stage = step.get("source_stage")
+    if not isinstance(source_stage, str) or not source_stage.strip():
+        return "source_stage"
+    required_proof = step.get("required_proof")
+    if not isinstance(required_proof, str) or not required_proof.strip():
+        return "required_proof"
+    return None
+
+
+def _task_plan_legacy_pick_step_handler(step: dict[str, Any]) -> str | None:
+    step_name = str(step.get("name") or step.get("tool") or "")
+    step_kind = str(step.get("kind") or step.get("type") or "")
+    if step_kind == "motion" or isinstance(step.get("waypoint_index"), int):
+        return "motion"
+    if step_name in {"close", "close_gripper"} or step.get("tool") == "moveit_close_gripper":
+        return "close_gripper"
+    if step_name in {"attach", "attach_object"} or step.get("tool") == "moveit_attach_object":
+        return "attach_object"
+    return None
+
+
+def _task_plan_step_handler(step: dict[str, Any]) -> str:
+    raw_handler = step.get("handler")
+    if not isinstance(raw_handler, str) or not raw_handler.strip():
+        raw_handler = step.get("tool")
+    if not isinstance(raw_handler, str) or not raw_handler.strip():
+        raw_handler = step.get("kind")
+    if not isinstance(raw_handler, str) or not raw_handler.strip():
+        raw_handler = step.get("type")
+    if not isinstance(raw_handler, str) or not raw_handler.strip():
+        raw_handler = step.get("intent")
+    if not isinstance(raw_handler, str) or not raw_handler.strip():
+        raw_handler = step.get("name")
+    handler = str(raw_handler or "").strip().lower()
+    handler = handler.removeprefix("moveit_")
+    aliases = {
+        "close": "close_gripper",
+        "open": "open_gripper",
+        "verified_close": "close_gripper",
+        "verified_open": "open_gripper",
+        "attach": "attach_object",
+        "release": "release_object",
+        "detach": "release_object",
+        "detach_object": "release_object",
+        "verify_attached": "verify_attached_object",
+        "verify_attachment": "verify_attached_object",
+        "attachment_proof": "verify_attached_object",
+        "verify_released": "verify_released_object",
+        "verify_release": "verify_released_object",
+        "release_proof": "verify_released_object",
+    }
+    if handler == "motion":
+        return "motion"
+    if handler == "gripper":
+        step_name = str(step.get("name") or step.get("intent") or "").strip().lower()
+        if step_name in {"close", "close_gripper"}:
+            return "close_gripper"
+        if step_name in {"open", "open_gripper"}:
+            return "open_gripper"
+        return aliases.get(step_name, step_name)
+    if handler == "scene":
+        step_name = str(
+            step.get("name") or step.get("intent") or step.get("tool") or ""
+        ).strip().lower()
+        step_name = step_name.removeprefix("moveit_")
+        return aliases.get(step_name, step_name)
+    if handler == "verify":
+        step_name = str(step.get("name") or step.get("intent") or "").strip().lower()
+        return aliases.get(step_name, step_name)
+    return aliases.get(handler, handler)
+
+
+def _task_plan_step_waypoint(step: dict[str, Any], raw: dict[str, Any]) -> dict[str, Any] | None:
+    waypoint = step.get("waypoint")
+    if isinstance(waypoint, dict):
+        return dict(waypoint)
+    target_pose = step.get("target_pose")
+    if isinstance(target_pose, dict):
+        return dict(target_pose)
+    waypoints = raw.get("waypoints")
+    if not isinstance(waypoints, list):
+        return None
+    return _task_plan_waypoint(step, waypoints)
+
+
+def _task_plan_step_arguments(step: dict[str, Any]) -> dict[str, Any]:
+    arguments = step.get("arguments")
+    if not isinstance(arguments, dict):
+        arguments = step.get("args")
+    return dict(arguments) if isinstance(arguments, dict) else {}
+
+
+def _task_plan_step_object_name(step: dict[str, Any], fallback: str | None) -> str | None:
+    arguments = _task_plan_step_arguments(step)
+    object_name = arguments.get("object_name")
+    if not isinstance(object_name, str) or not object_name.strip():
+        object_name = step.get("object_name")
+    if not isinstance(object_name, str) or not object_name.strip():
+        object_name = fallback
+    return object_name.strip() if isinstance(object_name, str) and object_name.strip() else None
+
+
+def _task_plan_step_tool(step: dict[str, Any], *, default: str) -> str:
+    tool = step.get("tool")
+    if not isinstance(tool, str) or not tool.strip():
+        tool = step.get("tool_name")
+    return tool.strip() if isinstance(tool, str) and tool.strip() else default
+
+
+def _release_verification_succeeded(output: str, object_name: str) -> bool:
+    payload = _json_payload(output)
+    if not isinstance(payload, dict):
+        return False
+    structured = payload.get("structured_content")
+    if not isinstance(structured, dict):
+        structured = payload
+    raw = structured.get("raw")
+    raw = raw if isinstance(raw, dict) else {}
+    attached_object = raw.get("mcp_attached_object", structured.get("attached_object"))
+    if isinstance(attached_object, str) and attached_object.strip() == object_name:
+        return False
+    scene_state = str(raw.get("planning_scene_state") or structured.get("status") or "")
+    scene_state = scene_state.strip().lower()
+    if scene_state == "attached":
+        return False
+    attached_values = [
+        structured.get("attached"),
+        structured.get("is_attached"),
+        raw.get("attached"),
+        raw.get("is_attached"),
+    ]
+    released_scene_states = {
+        "released",
+        "detached",
+        "free",
+        "world",
+        "not_attached",
+        "not attached",
+    }
+    if attached_object is None or attached_object == "" or attached_object is False:
+        if scene_state in released_scene_states:
+            return True
+        if raw.get("mcp_gripper_holds_object") is False and any(
+            value is False for value in attached_values
+        ):
+            return True
+    return False
 
 
 def _task_plan_waypoint(step: dict[str, Any], waypoints: list[Any]) -> dict[str, Any] | None:
@@ -1332,18 +2502,33 @@ def _task_plan_error(
     return json.dumps(payload, ensure_ascii=False)
 
 
-def _task_plan_stage_error(stage: str, step_name: str, output: str) -> str:
-    return json.dumps(
-        {
-            "ok": False,
-            "error": f"Task plan {stage} failed at {step_name or 'workflow step'}.",
-            "correction": "Inspect the failed tool result, then replan before retrying task execution.",
-            "retryable": True,
-            "failed_tool_result": _json_payload(output),
-            "suggested_next_tool": "moveit_explain_motion_failure",
-        },
-        ensure_ascii=False,
-    )
+def _task_plan_stage_error(
+    stage: str,
+    step_name: str,
+    output: str,
+    *,
+    failed_tool_name: str | None = None,
+    failed_tool_arguments: dict[str, Any] | None = None,
+    recovery: dict[str, Any] | None = None,
+    diagnostic: Any | None = None,
+) -> str:
+    payload: dict[str, Any] = {
+        "ok": False,
+        "error": f"Task plan {stage} failed at {step_name or 'workflow step'}.",
+        "correction": "Inspect the failed tool result, then replan before retrying task execution.",
+        "retryable": True,
+        "failed_tool_result": _json_payload(output),
+        "suggested_next_tool": "moveit_explain_motion_failure",
+    }
+    if failed_tool_name is not None:
+        payload["failed_tool_name"] = failed_tool_name
+    if failed_tool_arguments is not None:
+        payload["failed_tool_arguments"] = failed_tool_arguments
+    if recovery is not None:
+        payload["recovery"] = recovery
+    if diagnostic is not None:
+        payload["diagnostic"] = diagnostic
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def _json_payload(output: str) -> Any:

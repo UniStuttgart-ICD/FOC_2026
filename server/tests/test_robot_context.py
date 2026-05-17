@@ -106,6 +106,44 @@ def test_robot_context_reports_recent_and_stale_pose_observations() -> None:
     assert store.has_recent_robot_observation(max_age_s=15.0) is False
 
 
+def test_robot_context_renders_recent_task_failure_for_recovery() -> None:
+    store = RobotContextStore(time_fn=lambda: 500.0)
+
+    store.remember_task_failure(
+        task_solution_id="place_task_dynamic_5_002",
+        task_kind="place",
+        object_name="dynamic_5",
+        scene_snapshot_id="scene_20260515_001",
+        failed_step="retreat",
+        failed_stage="planning",
+        failed_tool_name="moveit_plan_cartesian_motion",
+        failed_tool_arguments={"plan_name": "place_task_dynamic_5_002_retreat_try2"},
+        failed_tool_result={"ok": False, "feedback": {"status": "incomplete path"}},
+        completed_steps=[
+            {"name": "release_pose", "handler": "motion"},
+            {"name": "open_gripper", "handler": "open_gripper"},
+            {"name": "release_object", "handler": "release_object"},
+        ],
+        verified_plan_names=["place_task_dynamic_5_002_release_pose_try1"],
+        gripper_state="open",
+        attached_object_verified=False,
+        released_object_verified=False,
+    )
+
+    failure = store.recent_task_failure
+    assert failure is not None
+    assert failure.task_solution_id == "place_task_dynamic_5_002"
+    assert failure.failed_step == "retreat"
+    assert failure.failed_tool_result["feedback"]["status"] == "incomplete path"
+
+    text = store.render_instruction_block()
+    assert "recent task failure: place_task_dynamic_5_002" in text
+    assert "object: dynamic_5" in text
+    assert "failed step: retreat" in text
+    assert "completed steps: release_pose, open_gripper, release_object" in text
+    assert "recovery requires explicit user/operator intent" in text
+
+
 def test_robot_context_remembers_recent_executable_plan_names() -> None:
     now = 200.0
     store = RobotContextStore(time_fn=lambda: now)
@@ -289,13 +327,44 @@ def test_robot_context_records_task_solution_approval() -> None:
     assert store.record_task_solution_approval(
         "pick_task_dynamic_5_001",
         approval_turn_id="turn-7",
-        approved_at=301.0,
+        approved_at=299.0,
     ) is True
 
     approval = store.pending_task_solution_approval
     assert approval is not None
     assert approval.approval_turn_id == "turn-7"
-    assert approval.approved_at == 301.0
+    assert approval.approved_at == 299.0
+
+
+def test_robot_context_clamps_future_task_solution_approval_time_to_store_clock() -> None:
+    now = 100.0
+    store = RobotContextStore(time_fn=lambda: now)
+    store.remember_task_solution_approval_candidate(
+        target_kind="task_solution",
+        task_solution_id="pick_task_dynamic_5_001",
+        source_tool="moveit_plan_compound_task",
+        object_name="dynamic_5",
+        expected_movement="hold object",
+        scene_snapshot_id="scene_20260515_001",
+    )
+
+    assert store.record_task_solution_approval(
+        "pick_task_dynamic_5_001",
+        approval_turn_id="turn-7",
+        approved_at=9999.0,
+    ) is True
+
+    approval = store.pending_task_solution_approval
+    assert approval is not None
+    assert approval.approved_at == 100.0
+
+    now = 161.1
+    status = store.task_solution_execution_approval_status(
+        "pick_task_dynamic_5_001",
+        scene_snapshot_id="scene_20260515_001",
+    )
+    assert status.ok is False
+    assert status.reason == "approval_expired"
 
 
 def test_robot_context_rejects_stale_task_solution_approval_after_new_user_intent() -> None:
@@ -327,6 +396,39 @@ def test_robot_context_rejects_stale_task_solution_approval_after_new_user_inten
     )
     assert status.ok is False
     assert status.reason == "approval_stale_after_new_user_intent"
+
+
+def test_robot_context_rejects_task_solution_approval_after_60_seconds() -> None:
+    now = 400.0
+    store = RobotContextStore(time_fn=lambda: now)
+    store.remember_task_solution_approval_candidate(
+        target_kind="task_solution",
+        task_solution_id="pick_task_dynamic_5_001",
+        source_tool="moveit_plan_compound_task",
+        object_name="dynamic_5",
+        expected_movement="hold object",
+        scene_snapshot_id="scene_20260515_001",
+    )
+    store.record_task_solution_approval(
+        "pick_task_dynamic_5_001",
+        approval_turn_id="turn-7",
+        approved_at=400.0,
+    )
+
+    now = 460.0
+    assert store.task_solution_execution_approval_status(
+        "pick_task_dynamic_5_001",
+        scene_snapshot_id="scene_20260515_001",
+    ).ok is True
+
+    now = 460.1
+    status = store.task_solution_execution_approval_status(
+        "pick_task_dynamic_5_001",
+        scene_snapshot_id="scene_20260515_001",
+    )
+
+    assert status.ok is False
+    assert status.reason == "approval_expired"
 
 
 def test_robot_context_preserves_pick_follow_up_after_success() -> None:
@@ -474,7 +576,7 @@ def test_robot_context_tracks_recent_gripper_state_from_gripper_tools() -> None:
     assert store.has_recent_gripper_state("open", max_age_s=30.0) is True
 
 
-def test_robot_context_tracks_held_object_and_clears_it_on_open_gripper() -> None:
+def test_robot_context_tracks_held_object_until_verified_release_proof() -> None:
     store = RobotContextStore()
 
     store.update_from_tool_result(
@@ -495,10 +597,120 @@ def test_robot_context_tracks_held_object_and_clears_it_on_open_gripper() -> Non
     )
 
     assert "held object: dynamic_5" in store.render_instruction_block()
+    assert store.held_object_name() == "dynamic_5"
 
     store.update_from_tool_result(
         "moveit_open_gripper",
         json.dumps({"structured_content": {"ok": True}}),
     )
 
+    assert "held object: dynamic_5" in store.render_instruction_block()
+
+    store.update_from_tool_result(
+        "moveit_verify_attached_object",
+        json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "raw": {
+                        "object_name": "dynamic_5",
+                        "mcp_attached_object": None,
+                        "mcp_gripper_holds_object": False,
+                        "planning_scene_state": "free",
+                    },
+                }
+            }
+        ),
+    )
+
     assert "held object: dynamic_5" not in store.render_instruction_block()
+    assert store.held_object_name() is None
+
+
+def test_robot_context_keeps_held_object_when_release_proof_still_names_attached_object() -> None:
+    store = RobotContextStore()
+    _mark_dynamic_5_held(store)
+
+    store.update_from_tool_result(
+        "moveit_verify_released_object",
+        json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "raw": {
+                        "object_name": "dynamic_5",
+                        "mcp_attached_object": "dynamic_5",
+                        "mcp_gripper_holds_object": False,
+                        "planning_scene_state": "free",
+                    },
+                }
+            }
+        ),
+    )
+
+    assert "held object: dynamic_5" in store.render_instruction_block()
+    assert store.held_object_name() == "dynamic_5"
+
+
+def test_robot_context_keeps_held_object_when_release_proof_scene_state_attached() -> None:
+    store = RobotContextStore()
+    _mark_dynamic_5_held(store)
+
+    store.update_from_tool_result(
+        "moveit_verify_released_object",
+        json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "raw": {
+                        "object_name": "dynamic_5",
+                        "mcp_attached_object": None,
+                        "mcp_gripper_holds_object": False,
+                        "planning_scene_state": "attached",
+                    },
+                }
+            }
+        ),
+    )
+
+    assert "held object: dynamic_5" in store.render_instruction_block()
+    assert store.held_object_name() == "dynamic_5"
+
+
+def test_robot_context_does_not_track_held_object_without_attachment_evidence() -> None:
+    store = RobotContextStore()
+
+    store.update_from_tool_result(
+        "moveit_verify_attached_object",
+        json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "raw": {
+                        "object_name": "dynamic_5",
+                    },
+                }
+            }
+        ),
+    )
+
+    assert "held object: dynamic_5" not in store.render_instruction_block()
+
+
+def _mark_dynamic_5_held(store: RobotContextStore) -> None:
+    store.update_from_tool_result(
+        "moveit_verify_attached_object",
+        json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "raw": {
+                        "object_name": "dynamic_5",
+                        "mcp_attached_object": "dynamic_5",
+                        "mcp_gripper_holds_object": True,
+                        "planning_scene_state": "attached",
+                    },
+                }
+            }
+        ),
+    )

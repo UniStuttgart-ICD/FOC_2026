@@ -9,6 +9,7 @@ _PROMPT_PARTS = (
     "reasoning_agent_persona.md",
     "robot_contract.md",
     "examples.md",
+    "behavior_examples.md",
     "speech_tag_examples.md",
     "response_style.md",
 )

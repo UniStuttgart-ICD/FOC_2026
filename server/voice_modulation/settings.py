@@ -253,10 +253,11 @@ def load_profile_settings(
     *,
     server_dir: Path | None = None,
     settings_path: str | Path | None = None,
+    default: VoiceModulationSettings | None = None,
 ) -> VoiceModulationSettings:
     return load_all_settings(settings_path, server_dir=server_dir).get(
         profile_name,
-        BUILT_IN_PRESETS["clean"],
+        default or BUILT_IN_PRESETS["clean"],
     )
 
 
@@ -286,12 +287,23 @@ def apply_saved_voice_modulation(
     profile: RuntimeProfile,
     settings_path: str | Path | None = None,
 ) -> RuntimeProfile:
+    default = profile_default_settings(profile)
     settings = load_profile_settings(
         profile.profile_name,
         server_dir=profile.server_dir,
         settings_path=settings_path,
+        default=default,
     )
     return replace(profile, voice_modulation=settings)
+
+
+def profile_default_settings(profile: RuntimeProfile) -> VoiceModulationSettings:
+    raw = profile.voice_modulation
+    if isinstance(raw, VoiceModulationSettings):
+        return raw
+    if isinstance(raw, dict):
+        return settings_from_mapping(raw)
+    return BUILT_IN_PRESETS["clean"]
 
 
 def _string(data: dict[str, Any], key: str, default: str) -> str:

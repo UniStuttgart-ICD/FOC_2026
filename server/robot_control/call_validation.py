@@ -11,6 +11,65 @@ VIZOR_ROBOT_NAME = "UR10"
 WORKSPACE_ABS_LIMIT_M = 1.5
 DEFAULT_TIMEOUT_MAX_S = 60.0
 PLANNING_STRATEGIES = {"auto", "cartesian", "sampled_approach"}
+HOLD_LIFT_DISTANCE_MIN_M = 0.03
+HOLD_LIFT_DISTANCE_MAX_M = 0.20
+COMPOUND_TASK_GOAL_VALUES = (
+    "hold",
+    "release",
+    "move_and_release",
+    "pick_place",
+)
+COMPOUND_TASK_GOALS = set(COMPOUND_TASK_GOAL_VALUES)
+COMPOUND_TASK_GOALS_REQUIRING_TARGET = {
+    "move_and_release",
+    "pick_place",
+}
+COMPOUND_TASK_KINDS_REQUIRING_EXECUTION_CONTRACT = COMPOUND_TASK_GOALS
+SUPPORTED_TASK_PLAN_HANDLERS = {
+    "motion",
+    "close_gripper",
+    "open_gripper",
+    "attach_object",
+    "release_object",
+    "verify_attached_object",
+    "verify_released_object",
+}
+SUPPORTED_TASK_PLAN_REQUIRED_PROOFS = {
+    "plan_execution_verified",
+    "verified_motion_plan",
+    "emulated_motion_plan",
+    "verified_gripper_closed",
+    "verified_gripper_open",
+    "planning_scene_attached",
+    "planning_scene_update",
+    "attachment_check",
+    "attached_object",
+    "release_check",
+}
+COMPOUND_STAGE_INTENTS = {
+    "observe_current_state",
+    "approach_object",
+    "close_gripper",
+    "verify_attached",
+    "lift",
+    "move_to_pose",
+    "adjust_pose",
+    "open_gripper",
+    "release_object",
+    "verify_released",
+}
+COMPOUND_UNSAFE_STAGE_HINTS = {
+    "slide",
+    "push",
+    "code",
+    "raw_code",
+    "script",
+    "raw_script",
+    "waypoint",
+    "waypoints",
+    "raw_waypoint",
+    "raw_waypoints",
+}
 
 AGENT_TO_LEGACY_MCP_TOOL_NAMES = {
     "moveit_get_current_pose": "get_current_pose",
@@ -30,13 +89,26 @@ CANONICAL_ONLY_MCP_TOOL_NAMES: frozenset[str] = frozenset(
         "moveit_plan_place",
         "moveit_plan_pick_task",
         "moveit_plan_place_task",
+        "moveit_plan_compound_task",
         "moveit_execute_task_solution",
         "moveit_execute_task_plan",
+        "moveit_go_home",
+        "moveit_sync_real_robot_state",
         "moveit_explain_motion_failure",
         "moveit_verify_attached_object",
+        "moveit_release_object",
+        "moveit_verify_released_object",
+        "moveit_remove_scene_object",
     }
 )
 ALLOWED_ROBOT_TOOLS = frozenset(AGENT_TO_LEGACY_MCP_TOOL_NAMES) | CANONICAL_ONLY_MCP_TOOL_NAMES
+CONTRACT_INTERNAL_TOOL_NAMES = frozenset(
+    {
+        "moveit_release_object",
+        "moveit_verify_released_object",
+        "moveit_remove_scene_object",
+    }
+)
 
 _AGENT_TOOL_DESCRIPTIONS = {
     "moveit_get_current_pose": (
@@ -86,20 +158,27 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "gripper actions."
     ),
     "moveit_plan_pick_task": (
-        "Primary tool for ordinary pick requests and compound manipulation tasks that "
-        "require multiple robot actions starting with picking one MoveIt planning-scene "
-        "object. Plan a task solution after "
+        "Primary tool for ordinary pick and pick-hold requests involving one MoveIt "
+        "planning-scene object. Plan a task solution after "
         "moveit_list_scene_objects, moveit_get_object_context, and moveit_get_current_pose. "
         "It returns a task_solution_id, stage evidence, scene snapshot evidence, and approval "
         "payload. It does not execute motion or gripper actions."
     ),
     "moveit_plan_place_task": (
-        "Primary tool for ordinary place requests and compound manipulation tasks involving "
-        "a held or attached object, including move-then-release, let-go, drop, or place "
-        "requests. Plan a task solution for placing one attached MoveIt planning-scene "
+        "Primary tool for ordinary place/release requests involving a held or attached "
+        "object. Plan a task solution for placing one attached MoveIt planning-scene "
         "object. Use a target_pose or target_position plus orientation_mode. It returns a task_solution_id, "
         "stage evidence, scene snapshot evidence, and approval payload. It does not execute "
         "motion or gripper actions."
+    ),
+    "moveit_plan_compound_task": (
+        "Plan a supported compound manipulation task from requirements through the MTC "
+        'backend only. Use backend="mtc" with requirements.goal and requirements.object_name. '
+        "Use preferences as non-executable planner hints; optional stage_intents are only "
+        "stage-intent hints, not trusted executable steps. The backend compiles and solves "
+        "the executable task solution. It returns task_solution_id, execution_contract, stage "
+        "evidence, scene snapshot evidence, and approval payload. It does not execute motion "
+        "or gripper actions."
     ),
     "moveit_execute_task_solution": (
         "Execute a returned task_solution_id from moveit_plan_pick_task or moveit_plan_place_task. "
@@ -107,11 +186,21 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "to that exact task solution."
     ),
     "moveit_execute_task_plan": (
-        "Execute a returned pick task_solution_id through Verified Real Robot Execution by "
-        "planning concrete motion stages, executing each returned plan_name, closing the gripper, "
-        "attaching the object, and verifying attachment. Use only after explicit user intent is "
-        "bound to that exact task_solution_id. Use timeout_s around 30 for real-robot execution "
-        "unless the user asks for a shorter supervised timeout."
+        "Execute a returned supported task_solution_id with a supported execution_contract "
+        "through Verified Real Robot Execution by planning concrete motion stages, executing "
+        "each returned plan_name, running verified gripper actions, attaching or releasing "
+        "the object as directed, and verifying required proof. Use only after explicit user "
+        "intent is bound to that exact task_solution_id. Use timeout_s around 30 for real-robot "
+        "execution unless the user asks for a shorter supervised timeout."
+    ),
+    "moveit_go_home": (
+        "Send the real UR10 home through Verified Real Robot Execution, then sync the RViz/MoveIt "
+        "fake-controller joint state. Use only when the user or operator explicitly asks to go home."
+    ),
+    "moveit_sync_real_robot_state": (
+        "Sync RViz/MoveIt to the real UR10 by reading real joint state through Verified Real Robot "
+        "Execution and publishing the fake-controller joint state. It observes and aligns state; "
+        "it does not move the physical robot."
     ),
     "moveit_explain_motion_failure": (
         "Explain one failed planner or executor result for the UR10. Use after a MoveIt tool "
@@ -125,6 +214,21 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "plan. Use after moveit_execute_plan for pick/place workflows before claiming the object "
         "was picked, carried, placed, or released. Do not use it to execute motion or attach objects."
     ),
+    "moveit_release_object": (
+        "Release/detach one planning-scene object after the verified executor has opened the "
+        "gripper. Requires verified_gripper_open=true and an object_pose supplied by the task "
+        "execution_contract; do not call it as a standalone release shortcut."
+    ),
+    "moveit_verify_released_object": (
+        "Verify that one planning-scene object is released/free after an execution_contract "
+        "open-gripper and release_object step. Use this proof before claiming a place or release "
+        "completed."
+    ),
+    "moveit_remove_scene_object": (
+        "Explicit cleanup tool that removes one free MoveIt planning-scene object and verifies "
+        "readback. Use only after direct user/operator cleanup intent; attached objects must be "
+        "released and verified before removal."
+    ),
     "moveit_plan_free_motion": (
         "Plan collision-aware free-space point-to-point motion to one target pose in base_link. "
         "Use for a single destination, not for drawing shapes or expressive paths. "
@@ -137,7 +241,7 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "orientation unless the task asks to rotate; when preserving orientation, copy the current raw.pose.orientation "
         "into every waypoint. Do not use for compound manipulation tasks involving pick, "
         "place, held objects, gripper, attach, detach, or release; use "
-        "moveit_plan_pick_task or moveit_plan_place_task."
+        "moveit_plan_compound_task, moveit_plan_pick_task, or moveit_plan_place_task."
     ),
     "moveit_execute_plan": (
         "Execute a returned plan_name from a successful free/cartesian or legacy pick/place "
@@ -195,8 +299,22 @@ _ALLOWED_ARGUMENTS: dict[str, set[str]] = {
         "orientation_mode",
         "timeout_s",
     },
+    "moveit_plan_compound_task": {
+        "robot_name",
+        "object_name",
+        "task_goal",
+        "requirements",
+        "preferences",
+        "stage_intents",
+        "target_pose",
+        "target_position",
+        "backend",
+        "timeout_s",
+    },
     "moveit_execute_task_solution": {"robot_name", "task_solution_id", "timeout_s"},
     "moveit_execute_task_plan": {"robot_name", "task_solution_id", "timeout_s"},
+    "moveit_go_home": {"robot_name", "timeout_s"},
+    "moveit_sync_real_robot_state": {"robot_name", "timeout_s"},
     "moveit_explain_motion_failure": {
         "robot_name",
         "failed_tool_name",
@@ -206,6 +324,15 @@ _ALLOWED_ARGUMENTS: dict[str, set[str]] = {
         "timeout_s",
     },
     "moveit_verify_attached_object": {"robot_name", "object_name", "timeout_s"},
+    "moveit_release_object": {
+        "robot_name",
+        "object_name",
+        "object_pose",
+        "verified_gripper_open",
+        "timeout_s",
+    },
+    "moveit_verify_released_object": {"robot_name", "object_name", "timeout_s"},
+    "moveit_remove_scene_object": {"robot_name", "object_name", "timeout_s"},
     "moveit_plan_free_motion": {"robot_name", "target_pose", "position", "plan_name", "timeout_s", "allow_existing_name"},
     "moveit_plan_cartesian_motion": {"robot_name", "waypoints", "positions", "plan_name", "timeout_s", "allow_existing_name"},
     "moveit_execute_plan": {"robot_name", "plan_name", "timeout_s"},
@@ -218,9 +345,22 @@ _ALLOWED_ARGUMENTS: dict[str, set[str]] = {
 class RobotCallValidationError(ValueError):
     """Raised when a robot tool call violates local validation policy."""
 
-    def __init__(self, message: str, *, correction: str):
+    _SUGGESTED_TOOL_UNSET = object()
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        correction: str,
+        code: str | None = None,
+        retryable: bool | None = None,
+        suggested_next_tool: str | None | object = _SUGGESTED_TOOL_UNSET,
+    ):
         super().__init__(message)
         self.correction = correction
+        self.code = code
+        self.retryable = retryable
+        self.suggested_next_tool = suggested_next_tool
 
 
 def canonical_mcp_tool_name(agent_tool_name: str) -> str:
@@ -263,14 +403,26 @@ def structured_robot_call_error(
         "ok": False,
         "error": str(exc),
         "correction": exc.correction,
-        "retryable": retryable,
+        "retryable": exc.retryable if exc.retryable is not None else retryable,
     }
-    if suggested_next_tool is not None:
-        payload["suggested_next_tool"] = suggested_next_tool
+    if exc.code is not None:
+        payload["code"] = exc.code
+    suggested = (
+        exc.suggested_next_tool
+        if exc.suggested_next_tool is not RobotCallValidationError._SUGGESTED_TOOL_UNSET
+        else suggested_next_tool
+    )
+    if suggested is not None:
+        payload["suggested_next_tool"] = suggested
     return payload
 
 
-def validate_robot_tool_call(name: str, arguments: dict[str, Any]) -> None:
+def validate_robot_tool_call(
+    name: str,
+    arguments: dict[str, Any],
+    *,
+    allow_contract_internal: bool = False,
+) -> None:
     if name not in ALLOWED_ROBOT_TOOLS:
         if name.startswith("moveit_plan_and_execute_"):
             raise RobotCallValidationError(
@@ -283,6 +435,18 @@ def validate_robot_tool_call(name: str, arguments: dict[str, Any]) -> None:
         raise RobotCallValidationError(
             f"Tool is not allowed: {name}",
             correction="Use one of the allowed MoveIt robot tools.",
+        )
+
+    if name in CONTRACT_INTERNAL_TOOL_NAMES and not allow_contract_internal:
+        raise RobotCallValidationError(
+            f"{name} is reserved for cached execution_contract steps",
+            correction=(
+                "Run moveit_execute_task_plan for the cached execution_contract; "
+                "do not call this tool directly."
+            ),
+            code="contract_internal_tool",
+            retryable=False,
+            suggested_next_tool="moveit_execute_task_plan",
         )
 
     allowed = _ALLOWED_ARGUMENTS[name]
@@ -305,6 +469,20 @@ def validate_robot_tool_call(name: str, arguments: dict[str, Any]) -> None:
             raise RobotCallValidationError(
                 "Expected a non-empty object_name",
                 correction="Call moveit_list_scene_objects, then retry with one returned object_name.",
+            )
+        _validate_timeout(arguments.get("timeout_s"))
+        return
+
+    if name in {"moveit_go_home", "moveit_sync_real_robot_state"}:
+        _validate_timeout(arguments.get("timeout_s"))
+        return
+
+    if name == "moveit_remove_scene_object":
+        object_name = arguments.get("object_name")
+        if not isinstance(object_name, str) or not object_name.strip():
+            raise RobotCallValidationError(
+                "Expected a non-empty object_name",
+                correction="Retry with the free planning-scene object to remove.",
             )
         _validate_timeout(arguments.get("timeout_s"))
         return
@@ -337,13 +515,35 @@ def validate_robot_tool_call(name: str, arguments: dict[str, Any]) -> None:
         _validate_timeout(arguments.get("timeout_s"))
         return
 
-    if name == "moveit_verify_attached_object":
+    if name in {"moveit_verify_attached_object", "moveit_verify_released_object"}:
         object_name = arguments.get("object_name")
         if not isinstance(object_name, str) or not object_name.strip():
             raise RobotCallValidationError(
                 "Expected a non-empty object_name",
                 correction="Retry with the object to verify.",
             )
+        _validate_timeout(arguments.get("timeout_s"))
+        return
+
+    if name == "moveit_release_object":
+        object_name = arguments.get("object_name")
+        if not isinstance(object_name, str) or not object_name.strip():
+            raise RobotCallValidationError(
+                "Expected a non-empty object_name",
+                correction="Retry with the object to release.",
+            )
+        if arguments.get("verified_gripper_open") is not True:
+            raise RobotCallValidationError(
+                "Release requires verified_gripper_open=true",
+                correction="Open the gripper through verified execution before releasing the object.",
+            )
+        object_pose = arguments.get("object_pose")
+        if object_pose is None:
+            raise RobotCallValidationError(
+                "Expected object_pose for release",
+                correction="Use the backend execution_contract release step with object_pose evidence.",
+            )
+        _validate_pose(object_pose)
         _validate_timeout(arguments.get("timeout_s"))
         return
 
@@ -390,6 +590,92 @@ def validate_robot_tool_call(name: str, arguments: dict[str, Any]) -> None:
                 "Expected a non-empty grasp_face",
                 correction="Omit grasp_face or retry with one raw.object.grasp_faces name.",
             )
+        _validate_timeout(arguments.get("timeout_s"))
+        return
+
+    if name == "moveit_plan_compound_task":
+        backend = arguments.get("backend")
+        if backend != "mtc":
+            raise RobotCallValidationError(
+                'moveit_plan_compound_task requires backend="mtc"',
+                correction='Retry with backend="mtc"; unsupported compound tasks must fail at planning.',
+            )
+        requirements = arguments.get("requirements")
+        if not isinstance(requirements, dict):
+            raise RobotCallValidationError(
+                "Expected requirements object",
+                correction=(
+                    "Retry with requirements.goal and requirements.object_name; use preferences "
+                    "and stage_intents only as optional planner hints."
+                ),
+            )
+        goal = requirements.get("goal")
+        if goal not in COMPOUND_TASK_GOALS:
+            raise RobotCallValidationError(
+                "Unsupported compound requirements.goal",
+                correction=(
+                    "Use requirements.goal hold, release, move_and_release, or pick_place."
+                ),
+            )
+        object_name = requirements.get("object_name")
+        if not isinstance(object_name, str) or not object_name.strip():
+            raise RobotCallValidationError(
+                "Expected requirements.object_name",
+                correction="Call moveit_list_scene_objects, then retry with one returned object_name in requirements.object_name.",
+                code="object_not_found",
+                suggested_next_tool="moveit_list_scene_objects",
+            )
+        if goal == "hold":
+            _validate_hold_lift_distance(requirements.get("lift_distance_m"))
+        target = requirements.get("target_pose", requirements.get("target_position"))
+        if goal in COMPOUND_TASK_GOALS_REQUIRING_TARGET and target is None:
+            raise RobotCallValidationError(
+                "Expected requirements.target_pose or requirements.target_position",
+                correction="Retry with the compound task target inside requirements.",
+            )
+        if target is not None:
+            _validate_pose(target)
+        preferences = arguments.get("preferences")
+        if preferences is not None:
+            if not isinstance(preferences, dict):
+                raise RobotCallValidationError(
+                    "Expected preferences object",
+                    correction="Omit preferences or retry with non-executable planner hints.",
+                )
+            for key in preferences:
+                if not isinstance(key, str):
+                    raise RobotCallValidationError(
+                        "Expected preference hint names",
+                        correction="Use string preference hint names only.",
+                    )
+                normalized_key = _normalize_compound_hint_name(key)
+                if normalized_key in COMPOUND_UNSAFE_STAGE_HINTS:
+                    raise RobotCallValidationError(
+                        f"Unsupported compound preference hint: {normalized_key}",
+                        correction="Preferences are non-executable planner hints; slide/push/code/raw waypoints are unsupported.",
+                    )
+        stage_intents = arguments.get("stage_intents")
+        if stage_intents is not None:
+            if not isinstance(stage_intents, list):
+                raise RobotCallValidationError(
+                    "Expected stage_intents list",
+                    correction="Omit stage_intents or retry with supported stage-intent hint names.",
+                )
+            for intent in stage_intents:
+                if not isinstance(intent, str) or not intent.strip():
+                    raise RobotCallValidationError(
+                        "Expected stage_intents to contain hint names",
+                        correction="Use supported stage-intent hint names only.",
+                    )
+                normalized_intent = _normalize_compound_hint_name(intent)
+                if (
+                    normalized_intent in COMPOUND_UNSAFE_STAGE_HINTS
+                    or normalized_intent not in COMPOUND_STAGE_INTENTS
+                ):
+                    raise RobotCallValidationError(
+                        f"Unsupported compound stage intent: {normalized_intent}",
+                        correction="Use supported stage-intent hints; slide/push/code/raw waypoints are unsupported.",
+                    )
         _validate_timeout(arguments.get("timeout_s"))
         return
 
@@ -526,27 +812,120 @@ def ensure_task_solution_execution_allowed(
     status = context.task_solution_execution_approval_status(
         task_solution_id,
     )
-    if status.ok:
-        return
-    if status.reason == "approval_for_different_task_solution":
+    if not status.ok and status.reason == "approval_for_different_task_solution":
         raise RobotCallValidationError(
             "Task solution approval points to a different task solution",
             correction="Ask for explicit approval for this returned task_solution_id before executing.",
+            code="approval_for_different_task_solution",
+            suggested_next_tool=None,
         )
-    if status.reason == "scene_snapshot_changed":
+    if not status.ok and status.reason == "scene_snapshot_changed":
         raise RobotCallValidationError(
             "Task solution scene snapshot changed",
             correction="Re-observe the scene and plan the pick/place task again before executing.",
+            code="stale_scene",
+            suggested_next_tool=None,
         )
-    if status.reason == "approval_stale_after_new_user_intent":
+    if not status.ok and status.reason == "approval_stale_after_new_user_intent":
         raise RobotCallValidationError(
             "Task solution approval is stale after newer user intent",
             correction="Ask for explicit approval for the current task_solution_id before executing.",
+            code="approval_stale_after_new_user_intent",
+            suggested_next_tool=None,
         )
-    raise RobotCallValidationError(
-        "Task solution execution requires explicit approval",
-        correction="Ask for explicit approval for the returned task_solution_id before executing.",
-    )
+    if not status.ok and status.reason == "approval_expired":
+        raise RobotCallValidationError(
+            "Task solution approval expired",
+            correction="Ask for explicit approval for the current task_solution_id before executing.",
+            code="approval_expired",
+            suggested_next_tool=None,
+        )
+    if not status.ok:
+        raise RobotCallValidationError(
+            "Task solution execution requires explicit approval",
+            correction="Ask for explicit approval for the returned task_solution_id before executing.",
+            code=status.reason or "approval_missing",
+            suggested_next_tool=None,
+        )
+    _validate_recent_task_solution_execution_evidence(context, task_solution_id)
+
+
+def _validate_recent_task_solution_execution_evidence(
+    context: RobotContextStore,
+    task_solution_id: str,
+) -> None:
+    recent = context.recent_task_solution
+    if recent is None or recent.task_solution_id != task_solution_id:
+        raise RobotCallValidationError(
+            "Task solution execution requires recent task solution evidence",
+            correction="Plan the compound task again, then retry with the returned task_solution_id.",
+        )
+    if recent.backend != "mtc" and recent.task_kind not in COMPOUND_TASK_KINDS_REQUIRING_EXECUTION_CONTRACT:
+        return
+    raw = recent.raw
+    if not isinstance(raw, dict):
+        raise RobotCallValidationError(
+            "Task plan execution requires the recent raw task solution",
+            correction="Plan the compound task again, then retry with the returned task_solution_id.",
+            retryable=False,
+            suggested_next_tool=None,
+        )
+    contract_steps = _task_plan_contract_steps(raw.get("execution_contract"))
+    if not contract_steps:
+        raise RobotCallValidationError(
+            "Task plan execution requires a backend execution_contract",
+            correction="Plan the compound task again with a supported execution contract.",
+            retryable=False,
+            suggested_next_tool=None,
+        )
+    for step in contract_steps:
+        if not isinstance(step, dict):
+            raise RobotCallValidationError(
+                "Task plan execution_contract contains an unsupported step",
+                correction="Plan the compound task again with typed execution steps.",
+                retryable=False,
+                suggested_next_tool=None,
+            )
+        handler = step.get("handler")
+        if not isinstance(handler, str) or handler not in SUPPORTED_TASK_PLAN_HANDLERS:
+            raise RobotCallValidationError(
+                "Task plan execution_contract contains an unsupported step handler",
+                correction="Plan the compound task again with supported typed handlers.",
+                retryable=False,
+                suggested_next_tool=None,
+            )
+        source_stage = step.get("source_stage")
+        if not isinstance(source_stage, str) or not source_stage.strip():
+            raise RobotCallValidationError(
+                "Task plan execution_contract step is missing source_stage",
+                correction="Plan the compound task again with source stage metadata.",
+                retryable=False,
+                suggested_next_tool=None,
+            )
+        required_proof = step.get("required_proof")
+        if not isinstance(required_proof, str) or not required_proof.strip():
+            raise RobotCallValidationError(
+                "Task plan execution_contract step is missing required_proof",
+                correction="Plan the compound task again with proof metadata.",
+                retryable=False,
+                suggested_next_tool=None,
+            )
+        if required_proof.strip() not in SUPPORTED_TASK_PLAN_REQUIRED_PROOFS:
+            raise RobotCallValidationError(
+                "Task plan execution_contract step has unsupported required_proof",
+                correction="Plan the compound task again with supported proof metadata.",
+                retryable=False,
+                suggested_next_tool=None,
+            )
+
+
+def _task_plan_contract_steps(execution_contract: Any) -> list[Any] | None:
+    if isinstance(execution_contract, list):
+        return execution_contract
+    if not isinstance(execution_contract, dict):
+        return None
+    steps = execution_contract.get("steps")
+    return steps if isinstance(steps, list) else None
 
 
 def execution_result_text(output: str) -> str:
@@ -557,6 +936,10 @@ def execution_result_text(output: str) -> str:
             if verification.get("result") == "pass":
                 return "Motion completed."
     return "I planned the motion, but execution could not be verified."
+
+
+def _normalize_compound_hint_name(value: str) -> str:
+    return value.strip().lower().replace("-", "_").replace(" ", "_")
 
 
 def _validate_robot_name(robot_name: Any) -> None:
@@ -638,6 +1021,23 @@ def _validate_pick_distance(value: Any) -> None:
         raise RobotCallValidationError(
             "Pick distances must be positive finite numbers",
             correction="Retry with positive approach_distance_m, grasp_standoff_m, and lift_distance_m values.",
+        )
+
+
+def _validate_hold_lift_distance(value: Any) -> None:
+    if value is None:
+        return
+    if (
+        not _finite_number(value)
+        or float(value) < HOLD_LIFT_DISTANCE_MIN_M
+        or float(value) > HOLD_LIFT_DISTANCE_MAX_M
+    ):
+        raise RobotCallValidationError(
+            "requirements.lift_distance_m is outside supported hold range",
+            correction=(
+                "Retry hold with requirements.lift_distance_m between "
+                f"{HOLD_LIFT_DISTANCE_MIN_M:.2f} m and {HOLD_LIFT_DISTANCE_MAX_M:.2f} m."
+            ),
         )
 
 

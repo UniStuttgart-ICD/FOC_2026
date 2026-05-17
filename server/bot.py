@@ -30,6 +30,7 @@ from pipecat.transports.smallwebrtc.transport import SmallWebRTCTransport
 
 from config import load_runtime_config
 from pipeline_builder import build_pipeline
+from robot_control.job_monitor import start_robot_job_monitor_from_env
 from voice_runtime.agent_turn import AgentTurnProcessor
 
 load_dotenv(override=True)
@@ -98,6 +99,9 @@ async def run_bot(transport: BaseTransport, profile_name: str | None = None):
     built = build_pipeline(config, transport)
     task = built.task
     agent_processor = built.agent_processor
+    robot_job_monitor = await start_robot_job_monitor_from_env(
+        getattr(agent_processor, "robot_job_board", None)
+    )
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
@@ -123,7 +127,11 @@ async def run_bot(transport: BaseTransport, profile_name: str | None = None):
         logger.info(f"Transcript: {timestamp}assistant: {message.content}")
 
     runner = PipelineRunner(handle_sigint=False)
-    await runner.run(task)
+    try:
+        await runner.run(task)
+    finally:
+        if robot_job_monitor is not None:
+            await robot_job_monitor.stop()
 
 
 async def bot(runner_args: RunnerArguments):

@@ -50,6 +50,16 @@ class FakeFailedResultServer(FakeServer):
         )
 
 
+class FakeExceptionServer(FakeServer):
+    def __init__(self, exc):
+        super().__init__()
+        self.exc = exc
+
+    async def call_tool(self, tool_name, arguments):
+        self.called.append((tool_name, arguments))
+        raise self.exc
+
+
 def _trace_record_names(writer):
     return [record["name"] for record in writer.records]
 
@@ -74,6 +84,11 @@ class FakeCanonicalServer(FakeServer):
             Tool(name="moveit_plan_pick_task", description="Plan pick task", inputSchema={"type": "object"}),
             Tool(name="moveit_plan_place_task", description="Plan place task", inputSchema={"type": "object"}),
             Tool(
+                name="moveit_plan_compound_task",
+                description="Plan compound task",
+                inputSchema={"type": "object"},
+            ),
+            Tool(
                 name="moveit_execute_task_solution",
                 description="Execute task solution",
                 inputSchema={
@@ -96,6 +111,49 @@ class FakeCanonicalServer(FakeServer):
                 name="moveit_verify_attached_object",
                 description="Verify attached object",
                 inputSchema={"type": "object"},
+            ),
+        ]
+
+
+class FakeContractInternalServer(FakeServer):
+    async def list_tools(self):
+        return [
+            Tool(
+                name="moveit_release_object",
+                description="Release object",
+                inputSchema={"type": "object"},
+            ),
+            Tool(
+                name="moveit_verify_released_object",
+                description="Verify released object",
+                inputSchema={"type": "object"},
+            ),
+            Tool(
+                name="moveit_remove_scene_object",
+                description="Remove scene object",
+                inputSchema={"type": "object"},
+            ),
+        ]
+
+
+class FakeHostileCompoundSchemaServer(FakeServer):
+    async def list_tools(self):
+        return [
+            Tool(
+                name="moveit_plan_compound_task",
+                description="Plan compound task",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "requirements": {
+                            "type": "object",
+                            "properties": {
+                                "goal": {"type": "string", "enum": ["slide", "push"]},
+                                "object_name": {"type": "string"},
+                            },
+                        }
+                    },
+                },
             ),
         ]
 
@@ -139,6 +197,14 @@ class FakeCartesianAliasServer(FakeServer):
         ]
 
 
+class FakeOnlyLegacyTaskPlanningServer(FakeServer):
+    async def list_tools(self):
+        return [
+            Tool(name="moveit_plan_pick_task", description="Plan pick task", inputSchema={"type": "object"}),
+            Tool(name="moveit_plan_place_task", description="Plan place task", inputSchema={"type": "object"}),
+        ]
+
+
 TASK_SOLUTION_EXECUTION_PARAMETERS = {
     "type": "object",
     "properties": {
@@ -158,6 +224,20 @@ TASK_PLAN_EXECUTION_PARAMETERS = {
     },
     "required": ["robot_name", "task_solution_id"],
     "additionalProperties": False,
+}
+COMPOUND_TASK_PLANNING_PARAMETERS = {
+    "type": "object",
+    "properties": {
+        "requirements": {
+            "type": "object",
+            "properties": {
+                "goal": {
+                    "type": "string",
+                    "enum": ["hold", "release", "move_and_release", "pick_place"],
+                }
+            },
+        }
+    },
 }
 
 
@@ -220,6 +300,27 @@ async def test_failed_structured_tool_result_marks_mcp_call_span_failed_result()
     assert mcp_call["attributes"]["tool.result.ok"] is False
     assert mcp_call["attributes"]["tool.result.is_error"] is True
     assert mcp_call["attributes"]["tool.result.error"] == "Target is outside simulation workspace"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("exc", "expected"),
+    [
+        (TimeoutError("read timed out"), "timed out"),
+        (RuntimeError("server exploded"), "failed"),
+    ],
+)
+async def test_transport_exceptions_raise_robot_mcp_error(exc, expected):
+    server = FakeExceptionServer(exc)
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
+    await bridge.connect()
+
+    with pytest.raises(RobotMCPError) as error:
+        await bridge.call_tool("moveit_get_current_pose", {"robot_name": "UR10"})
+
+    assert expected in str(error.value)
+    assert error.value.__cause__ is exc
+    assert server.called == [("get_current_pose", {"robot_name": "UR10"})]
 
 
 @pytest.mark.asyncio
@@ -357,16 +458,9 @@ async def test_calls_canonical_listed_tool_by_advertised_name():
         },
         {
             "type": "function",
-            "name": "moveit_plan_pick_task",
-            "description": agent_tool_description("moveit_plan_pick_task"),
-            "parameters": {"type": "object"},
-            "strict": None,
-        },
-        {
-            "type": "function",
-            "name": "moveit_plan_place_task",
-            "description": agent_tool_description("moveit_plan_place_task"),
-            "parameters": {"type": "object"},
+            "name": "moveit_plan_compound_task",
+            "description": agent_tool_description("moveit_plan_compound_task"),
+            "parameters": COMPOUND_TASK_PLANNING_PARAMETERS,
             "strict": None,
         },
         {
@@ -437,6 +531,14 @@ async def test_calls_canonical_listed_tool_by_advertised_name():
     await bridge.call_tool("moveit_plan_place", place_args)
     assert ("moveit_plan_place", place_args) in server.called
 
+    compound_args = {
+        "robot_name": "UR10",
+        "requirements": {"goal": "hold", "object_name": "beam_001"},
+        "backend": "mtc",
+    }
+    await bridge.call_tool("moveit_plan_compound_task", compound_args)
+    assert ("moveit_plan_compound_task", compound_args) in server.called
+
     pick_task_args = {"robot_name": "UR10", "object_name": "beam_001"}
     await bridge.call_tool("moveit_plan_pick_task", pick_task_args)
     assert ("moveit_plan_pick_task", pick_task_args) in server.called
@@ -471,6 +573,46 @@ async def test_calls_canonical_listed_tool_by_advertised_name():
 
 
 @pytest.mark.asyncio
+async def test_contract_internal_tools_are_hidden_and_require_contract_call_path():
+    server = FakeContractInternalServer()
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
+    await bridge.connect()
+
+    assert bridge.function_tools() == []
+    assert bridge.contract_tool_names() == {
+        "moveit_release_object",
+        "moveit_verify_released_object",
+        "moveit_remove_scene_object",
+    }
+
+    direct_output = json.loads(
+        await bridge.call_tool(
+            "moveit_verify_released_object",
+            {"robot_name": "UR10", "object_name": "dynamic_5"},
+        )
+    )
+    assert direct_output["ok"] is False
+    assert direct_output["code"] == "contract_internal_tool"
+    assert server.called == []
+
+    release_args = {
+        "robot_name": "UR10",
+        "object_name": "dynamic_5",
+        "object_pose": {
+            "position": {"x": 0.57, "y": 0.39, "z": 0.62},
+            "orientation": {"x": 0.0, "y": -0.70710678, "z": -0.70710678, "w": 0.0},
+        },
+        "verified_gripper_open": True,
+    }
+    contract_output = json.loads(
+        await bridge.call_contract_tool("moveit_release_object", release_args)
+    )
+
+    assert contract_output == {"content": ["ok"], "structured_content": {"ok": True}, "is_error": False}
+    assert server.called == [("moveit_release_object", release_args)]
+
+
+@pytest.mark.asyncio
 async def test_task_solution_execution_schema_hides_upstream_scene_snapshot_id():
     bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeCanonicalServer())
     await bridge.connect()
@@ -481,6 +623,18 @@ async def test_task_solution_execution_schema_hides_upstream_scene_snapshot_id()
     assert parameters == TASK_SOLUTION_EXECUTION_PARAMETERS
     assert "scene_snapshot_id" not in parameters["properties"]
     assert "scene_snapshot_id" not in parameters["required"]
+
+
+@pytest.mark.asyncio
+async def test_compound_task_schema_overrides_goal_enum_from_upstream_schema():
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeHostileCompoundSchemaServer())
+    await bridge.connect()
+
+    tools = {tool["name"]: tool for tool in bridge.function_tools()}
+    goal = tools["moveit_plan_compound_task"]["parameters"]["properties"]["requirements"]["properties"]["goal"]
+
+    assert goal["enum"] == ["hold", "release", "move_and_release", "pick_place"]
+    assert "slide" not in goal["enum"]
 
 
 @pytest.mark.asyncio
@@ -497,6 +651,50 @@ async def test_bridge_advertises_synthetic_task_plan_execution_tool():
         "parameters": TASK_PLAN_EXECUTION_PARAMETERS,
         "strict": None,
     }
+
+
+@pytest.mark.asyncio
+async def test_bridge_returns_structured_error_for_direct_synthetic_task_plan_execution():
+    server = FakeCanonicalServer()
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server)
+    await bridge.connect()
+
+    output = await bridge.call_tool(
+        "moveit_execute_task_plan",
+        {"robot_name": "UR10", "task_solution_id": "compound_task_dynamic_5_001"},
+    )
+
+    assert json.loads(output) == {
+        "ok": False,
+        "error": "moveit_execute_task_plan is executed by Agent Control, not the MCP bridge",
+        "correction": "Route this task_solution_id through Agent Control's task-plan executor.",
+        "retryable": False,
+        "code": "agent_control_execution_required",
+    }
+    assert server.called == []
+
+
+@pytest.mark.asyncio
+async def test_model_visible_tools_hide_internal_pick_and_place_task_planners():
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=FakeCanonicalServer())
+    await bridge.connect()
+
+    names = {tool["name"] for tool in bridge.function_tools()}
+
+    assert "moveit_plan_compound_task" in names
+    assert "moveit_plan_pick_task" not in names
+    assert "moveit_plan_place_task" not in names
+
+
+@pytest.mark.asyncio
+async def test_internal_pick_and_place_task_planners_do_not_expose_task_plan_execution():
+    bridge = RobotMCPBridge(
+        "http://127.0.0.1:8765/mcp",
+        server=FakeOnlyLegacyTaskPlanningServer(),
+    )
+    await bridge.connect()
+
+    assert bridge.function_tools() == []
 
 
 @pytest.mark.asyncio

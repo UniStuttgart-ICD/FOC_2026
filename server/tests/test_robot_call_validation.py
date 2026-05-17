@@ -57,6 +57,70 @@ def test_accepts_scene_object_observation_arguments():
     assert "grasp-relevant faces" in agent_tool_description("moveit_get_object_context")
 
 
+def test_accepts_recovery_home_and_sync_arguments() -> None:
+    validate_robot_tool_call("moveit_go_home", {"robot_name": "UR10", "timeout_s": 30.0})
+    validate_robot_tool_call(
+        "moveit_sync_real_robot_state",
+        {"robot_name": "UR10", "timeout_s": 10.0},
+    )
+
+    assert canonical_mcp_tool_name("moveit_remove_scene_object") == "moveit_remove_scene_object"
+    assert "home" in agent_tool_description("moveit_go_home").lower()
+    assert "sync" in agent_tool_description("moveit_sync_real_robot_state").lower()
+    assert "explicit" in agent_tool_description("moveit_remove_scene_object").lower()
+
+
+def test_rejects_standalone_contract_internal_scene_tools() -> None:
+    cases = [
+        (
+            "moveit_release_object",
+            {
+                "robot_name": "UR10",
+                "object_name": "dynamic_5",
+                "object_pose": VALID_POSE,
+                "verified_gripper_open": True,
+            },
+        ),
+        (
+            "moveit_verify_released_object",
+            {"robot_name": "UR10", "object_name": "dynamic_5"},
+        ),
+        (
+            "moveit_remove_scene_object",
+            {"robot_name": "UR10", "object_name": "dynamic_5"},
+        ),
+    ]
+
+    for tool_name, arguments in cases:
+        with pytest.raises(RobotCallValidationError) as exc_info:
+            validate_robot_tool_call(tool_name, arguments)
+        assert exc_info.value.code == "contract_internal_tool"
+        assert "execution_contract" in exc_info.value.correction
+
+
+def test_accepts_contract_internal_scene_tools_for_execution_contract_steps() -> None:
+    validate_robot_tool_call(
+        "moveit_release_object",
+        {
+            "robot_name": "UR10",
+            "object_name": "dynamic_5",
+            "object_pose": VALID_POSE,
+            "verified_gripper_open": True,
+        },
+        allow_contract_internal=True,
+    )
+    validate_robot_tool_call(
+        "moveit_verify_released_object",
+        {"robot_name": "UR10", "object_name": "dynamic_5"},
+        allow_contract_internal=True,
+    )
+    validate_robot_tool_call(
+        "moveit_remove_scene_object",
+        {"robot_name": "UR10", "object_name": "dynamic_5"},
+        allow_contract_internal=True,
+    )
+
+
 def test_accepts_pick_planning_arguments():
     validate_robot_tool_call(
         "moveit_plan_pick",
@@ -98,7 +162,7 @@ def test_accepts_task_solution_pick_planning_arguments() -> None:
 
     assert canonical_mcp_tool_name("moveit_plan_pick_task") == "moveit_plan_pick_task"
     description = agent_tool_description("moveit_plan_pick_task")
-    assert "Primary tool for ordinary pick requests" in description
+    assert "Primary tool for ordinary pick and pick-hold requests" in description
     assert "task solution" in description
     assert "does not execute" in description
 
@@ -127,22 +191,305 @@ def test_accepts_task_solution_place_planning_arguments() -> None:
 
     assert canonical_mcp_tool_name("moveit_plan_place_task") == "moveit_plan_place_task"
     description = agent_tool_description("moveit_plan_place_task")
-    assert "Primary tool for ordinary place requests" in description
+    assert "Primary tool for ordinary place/release requests" in description
     assert "task solution" in description
 
 
 def test_task_tool_descriptions_route_compound_manipulation_tasks() -> None:
-    pick_task = agent_tool_description("moveit_plan_pick_task").lower()
-    place_task = agent_tool_description("moveit_plan_place_task").lower()
+    compound_task = agent_tool_description("moveit_plan_compound_task").lower()
     cartesian = agent_tool_description("moveit_plan_cartesian_motion").lower()
 
-    assert "compound manipulation" in pick_task
-    assert "multiple robot actions" in pick_task
-    assert "compound manipulation" in place_task
-    assert "held or attached object" in place_task
-    assert "release" in place_task
+    assert "compound manipulation task" in compound_task
+    assert "requirements" in compound_task
+    assert "preferences" in compound_task
+    assert "stage_intents" in compound_task
+    assert "optional" in compound_task
+    assert "hints" in compound_task
+    assert "non-executable" in compound_task
+    assert 'backend="mtc"' in compound_task
+    assert "execution_contract" in compound_task
     assert "do not use for compound manipulation tasks" in cartesian
-    assert "moveit_plan_pick_task or moveit_plan_place_task" in cartesian
+    assert "moveit_plan_compound_task" in cartesian
+
+
+def test_accepts_requirements_only_mtc_compound_task_planning_arguments() -> None:
+    validate_robot_tool_call(
+        "moveit_plan_compound_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {"goal": "hold", "object_name": "dynamic_5"},
+            "backend": "mtc",
+            "timeout_s": 10.0,
+        },
+    )
+
+    assert canonical_mcp_tool_name("moveit_plan_compound_task") == "moveit_plan_compound_task"
+
+
+@pytest.mark.parametrize("goal", ["hold", "release"])
+def test_accepts_untargeted_final_compound_task_goals(goal: str) -> None:
+    validate_robot_tool_call(
+        "moveit_plan_compound_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {"goal": goal, "object_name": "dynamic_5"},
+            "backend": "mtc",
+        },
+    )
+
+
+@pytest.mark.parametrize("goal", ["move_and_release", "pick_place"])
+def test_accepts_targeted_final_compound_task_goals(goal: str) -> None:
+    validate_robot_tool_call(
+        "moveit_plan_compound_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {
+                "goal": goal,
+                "object_name": "dynamic_5",
+                "target_position": {"x": 0.75, "y": 0.2, "z": 0.28},
+            },
+            "backend": "mtc",
+        },
+    )
+
+
+@pytest.mark.parametrize("goal", ["pick", "approach_hold_adjust_release"])
+def test_rejects_removed_model_visible_compound_task_goals(goal: str) -> None:
+    with pytest.raises(RobotCallValidationError) as exc:
+        validate_robot_tool_call(
+            "moveit_plan_compound_task",
+            {
+                "robot_name": "UR10",
+                "requirements": {"goal": goal, "object_name": "dynamic_5"},
+                "backend": "mtc",
+            },
+        )
+
+    structured = structured_robot_call_error(exc.value)
+    assert structured["ok"] is False
+    assert "hold, release, move_and_release, or pick_place" in structured["correction"]
+    assert "approach_hold_adjust_release" not in structured["correction"]
+
+
+@pytest.mark.parametrize("lift_distance_m", [0.03, 0.1, 0.2])
+def test_accepts_hold_lift_distance_within_compound_bounds(lift_distance_m: float) -> None:
+    validate_robot_tool_call(
+        "moveit_plan_compound_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {
+                "goal": "hold",
+                "object_name": "dynamic_5",
+                "lift_distance_m": lift_distance_m,
+            },
+            "backend": "mtc",
+        },
+    )
+
+
+@pytest.mark.parametrize("lift_distance_m", [0.0, 0.029, 0.201, "0.1"])
+def test_rejects_hold_lift_distance_outside_compound_bounds(lift_distance_m: object) -> None:
+    with pytest.raises(RobotCallValidationError) as exc:
+        validate_robot_tool_call(
+            "moveit_plan_compound_task",
+            {
+                "robot_name": "UR10",
+                "requirements": {
+                    "goal": "hold",
+                    "object_name": "dynamic_5",
+                    "lift_distance_m": lift_distance_m,
+                },
+                "backend": "mtc",
+            },
+        )
+
+    assert str(exc.value) == "requirements.lift_distance_m is outside supported hold range"
+    assert "0.03 m and 0.20 m" in exc.value.correction
+
+
+def test_accepts_compound_task_preferences_as_non_executable_hints() -> None:
+    validate_robot_tool_call(
+        "moveit_plan_compound_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {
+                "goal": "move_and_release",
+                "object_name": "dynamic_5",
+                "target_position": {"x": 0.75, "y": 0.2, "z": 0.28},
+            },
+            "preferences": {
+                "grasp_face": "top",
+                "orientation_mode": "keep",
+                "retreat_distance_m": 0.08,
+                "release_behavior": "open_then_detach",
+            },
+            "backend": "mtc",
+        },
+    )
+
+
+def test_accepts_optional_valid_stage_intents_as_compound_task_hints() -> None:
+    validate_robot_tool_call(
+        "moveit_plan_compound_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {
+                "goal": "move_and_release",
+                "object_name": "dynamic_5",
+                "target_position": {"x": 0.75, "y": 0.2, "z": 0.28},
+            },
+            "stage_intents": [
+                "observe_current_state",
+                "move_to_pose",
+                "open_gripper",
+                "release_object",
+                "verify_released",
+            ],
+            "backend": "mtc",
+        },
+    )
+
+    description = agent_tool_description("moveit_plan_compound_task").lower()
+    assert "stage_intents" in description
+    assert "optional" in description
+    assert "hints" in description
+
+
+def test_rejects_compound_task_planning_without_requirements() -> None:
+    with pytest.raises(RobotCallValidationError) as exc:
+        validate_robot_tool_call(
+            "moveit_plan_compound_task",
+            {"robot_name": "UR10", "backend": "mtc"},
+        )
+
+    assert "requirements" in str(exc.value)
+    structured = structured_robot_call_error(exc.value)
+    assert structured["ok"] is False
+    assert structured["correction"]
+    assert "requirements.goal" in structured["correction"]
+    assert "requirements.object_name" in structured["correction"]
+
+
+@pytest.mark.parametrize(
+    ("requirements", "message"),
+    [
+        ({"object_name": "dynamic_5"}, "requirements.goal"),
+        ({"goal": "hold"}, "requirements.object_name"),
+        ({"goal": "hold", "object_name": " "}, "requirements.object_name"),
+    ],
+)
+def test_rejects_compound_task_planning_without_required_requirement_fields(
+    requirements: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(RobotCallValidationError) as exc:
+        validate_robot_tool_call(
+            "moveit_plan_compound_task",
+            {"robot_name": "UR10", "requirements": requirements, "backend": "mtc"},
+        )
+
+    assert message in str(exc.value)
+
+
+@pytest.mark.parametrize("goal", ["move_and_release", "pick_place"])
+def test_rejects_targeted_compound_goals_without_target_pose_or_position(goal: str) -> None:
+    with pytest.raises(RobotCallValidationError) as exc:
+        validate_robot_tool_call(
+            "moveit_plan_compound_task",
+            {
+                "robot_name": "UR10",
+                "requirements": {"goal": goal, "object_name": "dynamic_5"},
+                "backend": "mtc",
+            },
+        )
+
+    assert str(exc.value) == "Expected requirements.target_pose or requirements.target_position"
+
+
+@pytest.mark.parametrize("goal", ["hold", "release"])
+def test_untargeted_compound_goals_do_not_require_target_pose_or_position(goal: str) -> None:
+    validate_robot_tool_call(
+        "moveit_plan_compound_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {"goal": goal, "object_name": "dynamic_5"},
+            "backend": "mtc",
+        },
+    )
+
+
+def test_rejects_unsupported_compound_task_goal() -> None:
+    with pytest.raises(RobotCallValidationError) as exc:
+        validate_robot_tool_call(
+            "moveit_plan_compound_task",
+            {
+                "robot_name": "UR10",
+                "requirements": {"goal": "slide", "object_name": "dynamic_5"},
+                "backend": "mtc",
+            },
+        )
+
+    assert "Unsupported" in str(exc.value)
+    assert "requirements.goal" in str(exc.value)
+
+
+def test_structured_compound_object_failure_includes_stable_code() -> None:
+    with pytest.raises(RobotCallValidationError) as exc:
+        validate_robot_tool_call(
+            "moveit_plan_compound_task",
+            {
+                "robot_name": "UR10",
+                "requirements": {"goal": "hold", "object_name": " "},
+                "backend": "mtc",
+            },
+        )
+
+    structured = structured_robot_call_error(exc.value)
+    assert structured["code"] == "object_not_found"
+    assert structured["suggested_next_tool"] == "moveit_list_scene_objects"
+
+
+def test_rejects_compound_task_planning_without_mtc_backend() -> None:
+    with pytest.raises(RobotCallValidationError) as exc:
+        validate_robot_tool_call(
+            "moveit_plan_compound_task",
+            {
+                "robot_name": "UR10",
+                "requirements": {
+                    "goal": "move_and_release",
+                    "object_name": "dynamic_5",
+                    "target_position": {"x": 0.75, "y": 0.2, "z": 0.28},
+                },
+                "backend": "emulated",
+            },
+        )
+
+    assert str(exc.value) == 'moveit_plan_compound_task requires backend="mtc"'
+
+
+@pytest.mark.parametrize(
+    "hint",
+    ["slide", "push", "run_python_code", "script", "raw_waypoints", "waypoints", "unknown_hint"],
+)
+def test_rejects_unsafe_or_unknown_compound_stage_intent_hint(hint: str) -> None:
+    with pytest.raises(RobotCallValidationError) as exc:
+        validate_robot_tool_call(
+            "moveit_plan_compound_task",
+            {
+                "robot_name": "UR10",
+                "requirements": {
+                    "goal": "move_and_release",
+                    "object_name": "dynamic_5",
+                    "target_position": {"x": 0.75, "y": 0.2, "z": 0.28},
+                },
+                "stage_intents": [hint],
+                "backend": "mtc",
+            },
+        )
+
+    assert "Unsupported compound stage intent" in str(exc.value)
+    assert hint in str(exc.value)
 
 
 def test_accepts_task_solution_execution_arguments() -> None:
@@ -173,6 +520,10 @@ def test_accepts_task_plan_execution_arguments() -> None:
     description = agent_tool_description("moveit_execute_task_plan")
     assert "Verified Real Robot Execution" in description
     assert "task_solution_id" in description
+    assert "supported" in description
+    assert "execution_contract" in description
+    assert "pick-only" not in description.lower()
+    assert "pick only" not in description.lower()
 
 
 def test_rejects_task_solution_execution_without_id() -> None:
@@ -209,6 +560,9 @@ def test_blocks_task_solution_execution_without_matching_approval() -> None:
         )
 
     assert str(exc.value) == "Task solution execution requires explicit approval"
+    structured = structured_robot_call_error(exc.value)
+    assert structured["code"] == "approval_missing"
+    assert "suggested_next_tool" not in structured
 
 
 def test_allows_task_solution_execution_with_matching_current_approval() -> None:
@@ -243,6 +597,93 @@ def test_allows_task_solution_execution_with_matching_current_approval() -> None
             "timeout_s": 30.0,
         },
     )
+
+
+def test_blocks_task_solution_execution_when_approval_expires_after_60_seconds() -> None:
+    now = 100.0
+    store = RobotContextStore(time_fn=lambda: now)
+    store.remember_task_solution_approval_candidate(
+        target_kind="task_solution",
+        task_solution_id="compound_task_dynamic_5_001",
+        source_tool="moveit_plan_compound_task",
+        object_name="dynamic_5",
+        expected_movement="hold object",
+        scene_snapshot_id="scene_20260515_001",
+    )
+    store.record_task_solution_approval(
+        "compound_task_dynamic_5_001",
+        approval_turn_id="turn-1",
+        approved_at=100.0,
+    )
+    store.remember_task_solution(
+        task_solution_id="compound_task_dynamic_5_001",
+        task_kind="hold",
+        object_name="dynamic_5",
+        backend="mtc",
+        scene_snapshot_id="scene_20260515_001",
+        approval_required=True,
+        raw={
+            "execution_contract": {
+                "steps": [
+                    {
+                        "handler": "verify_attached_object",
+                        "source_stage": "verify_attached_object",
+                        "object_name": "dynamic_5",
+                        "required_proof": "attachment_check",
+                    }
+                ]
+            }
+        },
+    )
+
+    now = 161.0
+
+    with pytest.raises(RobotCallValidationError) as exc:
+        ensure_task_solution_execution_allowed(
+            store,
+            {
+                "robot_name": "UR10",
+                "task_solution_id": "compound_task_dynamic_5_001",
+                "timeout_s": 30.0,
+            },
+        )
+
+    assert "expired" in str(exc.value)
+    structured = structured_robot_call_error(exc.value)
+    assert structured["code"] == "approval_expired"
+    assert "suggested_next_tool" not in structured
+
+
+def test_blocks_task_solution_execution_when_approval_is_stale_after_new_user_intent() -> None:
+    store = RobotContextStore(time_fn=lambda: 100.0)
+    store.remember_task_solution_approval_candidate(
+        target_kind="task_solution",
+        task_solution_id="compound_task_dynamic_5_001",
+        source_tool="moveit_plan_compound_task",
+        object_name="dynamic_5",
+        expected_movement="hold object",
+        scene_snapshot_id="scene_20260515_001",
+    )
+    store.record_task_solution_approval(
+        "compound_task_dynamic_5_001",
+        approval_turn_id="turn-1",
+        approved_at=100.0,
+    )
+    store.mark_new_user_intent()
+
+    with pytest.raises(RobotCallValidationError) as exc:
+        ensure_task_solution_execution_allowed(
+            store,
+            {
+                "robot_name": "UR10",
+                "task_solution_id": "compound_task_dynamic_5_001",
+                "timeout_s": 30.0,
+            },
+        )
+
+    structured = structured_robot_call_error(exc.value)
+    assert structured["code"] == "approval_stale_after_new_user_intent"
+    assert "suggested_next_tool" not in structured
 
 
 def test_blocks_task_solution_execution_when_scene_snapshot_changed() -> None:
@@ -280,6 +721,142 @@ def test_blocks_task_solution_execution_when_scene_snapshot_changed() -> None:
         )
 
     assert "scene snapshot changed" in str(exc.value)
+    structured = structured_robot_call_error(exc.value)
+    assert structured["code"] == "stale_scene"
+    assert "suggested_next_tool" not in structured
+
+
+def test_blocks_compound_task_plan_execution_without_recent_solution_evidence() -> None:
+    store = RobotContextStore(time_fn=lambda: 100.0)
+    store.remember_task_solution_approval_candidate(
+        target_kind="task_solution",
+        task_solution_id="compound_task_dynamic_5_001",
+        source_tool="moveit_plan_compound_task",
+        object_name="dynamic_5",
+        expected_movement="hold object",
+        scene_snapshot_id="scene_20260515_001",
+    )
+    store.record_task_solution_approval(
+        "compound_task_dynamic_5_001",
+        approval_turn_id="turn-1",
+        approved_at=100.0,
+    )
+
+    with pytest.raises(RobotCallValidationError) as exc:
+        ensure_task_solution_execution_allowed(
+            store,
+            {
+                "robot_name": "UR10",
+                "task_solution_id": "compound_task_dynamic_5_001",
+            },
+        )
+
+    assert str(exc.value) == "Task solution execution requires recent task solution evidence"
+
+
+def test_allows_compound_task_plan_execution_with_supported_cached_contract() -> None:
+    store = RobotContextStore(time_fn=lambda: 100.0)
+    store.remember_task_solution_approval_candidate(
+        target_kind="task_solution",
+        task_solution_id="compound_task_dynamic_5_001",
+        source_tool="moveit_plan_compound_task",
+        object_name="dynamic_5",
+        expected_movement="hold object",
+        scene_snapshot_id="scene_20260515_001",
+    )
+    store.record_task_solution_approval(
+        "compound_task_dynamic_5_001",
+        approval_turn_id="turn-1",
+        approved_at=100.0,
+    )
+    store.remember_task_solution(
+        task_solution_id="compound_task_dynamic_5_001",
+        task_kind="hold",
+        object_name="dynamic_5",
+        backend="mtc",
+        scene_snapshot_id="scene_20260515_001",
+        approval_required=True,
+        raw={
+            "execution_contract": {
+                "steps": [
+                    {
+                        "handler": "motion",
+                        "name": "approach",
+                        "source_stage": "approach",
+                        "object_name": "dynamic_5",
+                        "target_pose": VALID_POSE,
+                        "required_proof": "plan_execution_verified",
+                    },
+                    {
+                        "handler": "verify_attached_object",
+                        "source_stage": "verify_attached_object",
+                        "object_name": "dynamic_5",
+                        "required_proof": "attachment_check",
+                    },
+                ]
+            }
+        },
+    )
+
+    ensure_task_solution_execution_allowed(
+        store,
+        {
+            "robot_name": "UR10",
+            "task_solution_id": "compound_task_dynamic_5_001",
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    "execution_contract",
+    [
+        {"steps": [{"handler": "execute_plan", "source_stage": "approach", "required_proof": "plan"}]},
+        {"steps": [{"handler": "motion", "source_stage": "approach", "required_proof": "plan"}]},
+        {"steps": [{"handler": "motion", "source_stage": "approach"}]},
+        {"steps": [{"handler": "motion", "required_proof": "plan_execution_verified"}]},
+        {"steps": []},
+    ],
+)
+def test_blocks_compound_task_plan_execution_with_invalid_cached_contract(
+    execution_contract: dict[str, object],
+) -> None:
+    store = RobotContextStore(time_fn=lambda: 100.0)
+    store.remember_task_solution_approval_candidate(
+        target_kind="task_solution",
+        task_solution_id="compound_task_dynamic_5_001",
+        source_tool="moveit_plan_compound_task",
+        object_name="dynamic_5",
+        expected_movement="hold object",
+        scene_snapshot_id="scene_20260515_001",
+    )
+    store.record_task_solution_approval(
+        "compound_task_dynamic_5_001",
+        approval_turn_id="turn-1",
+        approved_at=100.0,
+    )
+    store.remember_task_solution(
+        task_solution_id="compound_task_dynamic_5_001",
+        task_kind="hold",
+        object_name="dynamic_5",
+        backend="mtc",
+        scene_snapshot_id="scene_20260515_001",
+        approval_required=True,
+        raw={"execution_contract": execution_contract},
+    )
+
+    with pytest.raises(RobotCallValidationError) as exc:
+        ensure_task_solution_execution_allowed(
+            store,
+            {
+                "robot_name": "UR10",
+                "task_solution_id": "compound_task_dynamic_5_001",
+            },
+        )
+
+    structured = structured_robot_call_error(exc.value)
+    assert structured["ok"] is False
+    assert structured["retryable"] is False
+    assert structured.get("suggested_next_tool") is None
 
 
 @pytest.mark.parametrize("strategy", ["auto", "cartesian", "sampled_approach"])

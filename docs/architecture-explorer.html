@@ -875,6 +875,10 @@
       font-family: Consolas, "Cascadia Mono", monospace;
     }
 
+    .llm-flow-diagram.job-board-flow-diagram {
+      min-width: 820px;
+    }
+
     .llm-flow-diagram .node-box {
       fill: var(--white);
       stroke: rgba(28, 36, 36, 0.34);
@@ -1008,6 +1012,12 @@
       border-top-style: dashed;
     }
 
+    .diagram-legend .legend-note {
+      flex: 1 1 100%;
+      display: block;
+      line-height: 1.35;
+    }
+
     .context-pipeline-heading {
       margin-top: 22px;
     }
@@ -1035,6 +1045,126 @@
     .detail-note p {
       color: #3e4845;
       font-size: 0.92rem;
+    }
+
+    .dynamic-pick-section {
+      margin-top: 22px;
+      scroll-margin-top: 88px;
+    }
+
+    .dynamic-pick-diagram {
+      display: block;
+      width: 100%;
+      min-width: 1120px;
+      height: auto;
+      font-family: Consolas, "Cascadia Mono", monospace;
+    }
+
+    .dynamic-pick-diagram .lane-title {
+      fill: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .dynamic-pick-diagram .lane-rule {
+      stroke: rgba(28, 36, 36, 0.18);
+      stroke-width: 1;
+    }
+
+    .dynamic-pick-diagram .node-box {
+      fill: var(--white);
+      stroke: rgba(28, 36, 36, 0.34);
+      stroke-width: 1.4;
+    }
+
+    .dynamic-pick-diagram .node-agent {
+      stroke: var(--agent);
+      stroke-width: 2;
+    }
+
+    .dynamic-pick-diagram .node-robot {
+      stroke: var(--robot);
+      stroke-width: 2;
+    }
+
+    .dynamic-pick-diagram .node-mtc {
+      stroke: var(--sense);
+      stroke-width: 2;
+    }
+
+    .dynamic-pick-diagram .node-fail {
+      stroke: var(--alert);
+      stroke-width: 2;
+    }
+
+    .dynamic-pick-diagram .node-dark {
+      fill: var(--ink);
+      stroke: var(--ink);
+    }
+
+    .dynamic-pick-diagram .node-soft {
+      fill: rgba(232, 220, 195, 0.54);
+    }
+
+    .dynamic-pick-diagram .flow-solid,
+    .dynamic-pick-diagram .flow-muted,
+    .dynamic-pick-diagram .flow-fail {
+      fill: none;
+      stroke-width: 1;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .dynamic-pick-diagram .flow-solid {
+      stroke: #817d70;
+    }
+
+    .dynamic-pick-diagram .flow-muted {
+      stroke: rgba(28, 36, 36, 0.34);
+    }
+
+    .dynamic-pick-diagram .flow-fail {
+      stroke: var(--alert);
+      stroke-dasharray: 5 4;
+    }
+
+    .dynamic-pick-diagram text {
+      fill: var(--ink);
+      font-size: 12px;
+    }
+
+    .dynamic-pick-diagram .node-title {
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .dynamic-pick-diagram .node-subtitle {
+      fill: var(--muted);
+      font-size: 11px;
+    }
+
+    .dynamic-pick-diagram .node-light-text {
+      fill: var(--paper);
+    }
+
+    .dynamic-pick-diagram .flow-label {
+      fill: #6f756f;
+      font-size: 11px;
+      paint-order: stroke;
+      stroke: var(--paper);
+      stroke-linejoin: round;
+      stroke-width: 4px;
+    }
+
+    .dynamic-pick-diagram .flow-label-hot {
+      fill: var(--alert);
+      font-size: 11px;
+      paint-order: stroke;
+      stroke: var(--paper);
+      stroke-linejoin: round;
+      stroke-width: 4px;
     }
 
     @media (max-width: 1080px) {
@@ -1310,7 +1440,7 @@
         <div>
           <p class="module-kicker">API-key LangChain backend</p>
           <h2>Agent Control</h2>
-          <p class="module-summary">Builds the native chat model, renders the robot agent prompt, collects Robot Context, User Sensing, and Robot Job Blackboard summaries, runs the LangGraph loop, and returns assistant text through the Voice Runtime Agent Turn seam.</p>
+          <p class="module-summary">Builds the native chat model, renders the robot agent prompt, collects Robot Context, User Sensing, and Job Board prompt summaries, runs the LangGraph loop, and returns assistant text through the Voice Runtime Agent Turn seam.</p>
         </div>
         <div class="path-chip">server/agent_control/</div>
       </div>
@@ -1320,7 +1450,7 @@
           <div class="module-flow" style="--flow-count: 7;">
             <div class="flow-node" tabindex="0" data-tip="The typed input from Voice Runtime into Agent Control. Example: latest_user_text='move up a bit' plus any available turn metadata."><b>AgentTurnInput</b><span>from voice</span></div>
             <div class="flow-node" tabindex="0" role="button" aria-controls="agent-llm-input" data-scroll-target="agent-llm-input" data-tip="This assembles the instructions the model sees before it answers. Example: for 'move up a bit,' it combines the robot contract, response style, current user-sensing summary, and tool rules so the model knows to observe pose, plan, execute only the returned plan, then answer briefly."><b>Prompt render</b><span>LLM input stack</span></div>
-            <div class="flow-node" tabindex="0" role="button" aria-controls="agent-llm-input" data-scroll-target="agent-llm-input" data-tip="A compact model-facing bundle rendered before each model turn. Example: Robot Context plus Robot Job Blackboard shows that an execution job completed without forcing the model to infer job state from raw tool payloads."><b>Context bundle</b><span>robot + jobs</span></div>
+            <div class="flow-node" tabindex="0" role="button" aria-controls="agent-llm-input" data-scroll-target="agent-llm-input" data-tip="A compact model-facing bundle rendered before each model turn. Example: Robot Context plus the Job Board prompt summary shows that an execution job completed without forcing the model to infer job state from raw tool payloads."><b>Context bundle</b><span>robot + jobs</span></div>
             <div class="flow-node" tabindex="0" data-tip="The provider-backed LLM selected by the runtime profile. Example: Gemini receives the rendered prompt and may choose a MoveIt tool call instead of plain text."><b>Chat model</b><span>provider API</span></div>
             <div class="flow-node" tabindex="0" data-tip="The state machine around the model and tools. Example: if validation says 'need current pose,' LangGraph feeds that correction back to the model and lets it try the right observation tool."><b>LangGraph</b><span>decide/retry</span></div>
             <div class="flow-node" tabindex="0" data-tip="The seam that turns model tool calls into Robot Control execution. Example: a model call to plan a cartesian move becomes a validated MoveIt MCP request."><b>Robot adapter</b><span>tool calls</span></div>
@@ -1331,7 +1461,7 @@
               <p>Agent Control drilldown</p>
               <h4 id="agent-llm-input-title">LLM Input Stack</h4>
             </div>
-            <p class="detail-summary">One model call is not just the transcript. Agent Control builds a typed turn, refreshes advisory context, records completed worker results into Robot Context, renders the Robot Job Blackboard summary, filters task-solution execution tools for the active mode, then sends a system message, user message, current context blocks, and tool schemas into the provider-backed chat model.</p>
+            <p class="detail-summary">One model call is not just the transcript. Agent Control builds a typed turn, refreshes advisory context, records completed worker results into Robot Context, renders the Job Board prompt summary, filters task-solution execution tools for the active mode, then sends a system message, user message, current context blocks, and tool schemas into the provider-backed chat model.</p>
             <div class="llm-flow-panel">
               <svg class="llm-flow-diagram" viewBox="0 0 1160 520" role="img" aria-labelledby="llm-flow-title llm-flow-desc">
                 <title id="llm-flow-title">Agent Control LLM data flow</title>
@@ -1424,14 +1554,14 @@
               </div>
             </div>
             <div class="llm-detail-heading context-pipeline-heading">
-              <p>Context collection</p>
-              <h4>Robot Context And Job Blackboard Pipeline</h4>
+              <p>Async job lifecycle</p>
+              <h4>Robot Job Board Lifecycle</h4>
             </div>
-            <p class="detail-summary">Before each model turn, Agent Control makes recent robot state explicit. Terminal job events are first applied to Robot Context, while the Blackboard renders current queued, running, completed, failed, and cancelled jobs as a compact <code>Robot Job Blackboard:</code> block. The model sees concise state; spoken status stays human-sized.</p>
+            <p class="detail-summary">When the model calls a queueable robot action, Agent Control submits the exact tool call to the Job Board. The Job Worker claims queued work, executes it through MoveIt MCP or verified execution, records a terminal event, and the next turn sees a compact prompt summary block.</p>
             <div class="llm-flow-panel">
-              <svg class="llm-flow-diagram" viewBox="0 0 1160 430" role="img" aria-labelledby="context-flow-title context-flow-desc">
-                <title id="context-flow-title">Context collection pipeline</title>
-                <desc id="context-flow-desc">A diagram showing completed job events, Robot Context, Robot Job Blackboard, user sensing, prompt assembly, provider model input, short speech output, and Process Trace observation.</desc>
+              <svg class="llm-flow-diagram job-board-flow-diagram" viewBox="0 0 900 390" role="img" aria-labelledby="context-flow-title context-flow-desc">
+                <title id="context-flow-title">Robot Job Board lifecycle</title>
+                <desc id="context-flow-desc">A diagram showing an LLM robot tool call submitted to the Job Board queue, claimed by the Job Worker, executed through MoveIt MCP or verified execution, recorded as a terminal event, and summarized for notification plus the next model turn.</desc>
                 <defs>
                   <marker id="arrow-solid-context" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
                     <path d="M 0 0 L 10 5 L 0 10 z" fill="#817d70"></path>
@@ -1445,83 +1575,77 @@
                 </defs>
 
                 <g aria-hidden="true">
-                  <rect class="node-box node-robot" x="48" y="50" width="190" height="66" rx="8"></rect>
-                  <text class="node-title" x="143" y="79" text-anchor="middle">Terminal job event</text>
-                  <text class="node-subtitle" x="143" y="100" text-anchor="middle">completed / failed</text>
+                  <rect class="node-box node-agent" x="30" y="60" width="135" height="74" rx="8"></rect>
+                  <text class="node-title" x="98" y="89" text-anchor="middle">LLM tool call</text>
+                  <text class="node-subtitle" x="98" y="111" text-anchor="middle">queueable action</text>
 
-                  <rect class="node-box node-robot" x="48" y="178" width="190" height="66" rx="8"></rect>
-                  <text class="node-title" x="143" y="207" text-anchor="middle">Robot Context</text>
-                  <text class="node-subtitle" x="143" y="228" text-anchor="middle">pose / plan / result</text>
+                  <rect class="node-box node-agent" x="190" y="60" width="145" height="74" rx="8"></rect>
+                  <text class="node-title" x="263" y="89" text-anchor="middle">Job Submitter</text>
+                  <text class="node-subtitle" x="263" y="111" text-anchor="middle">exact tool + args</text>
 
-                  <rect class="node-box node-robot" x="48" y="306" width="190" height="66" rx="8"></rect>
-                  <text class="node-title" x="143" y="335" text-anchor="middle">Job Blackboard</text>
-                  <text class="node-subtitle" x="143" y="356" text-anchor="middle">recent job summary</text>
+                  <rect class="node-box node-robot" x="360" y="60" width="155" height="74" rx="8"></rect>
+                  <text class="node-title" x="438" y="89" text-anchor="middle">Job Board queue</text>
+                  <text class="node-subtitle" x="438" y="111" text-anchor="middle">queued / running</text>
 
-                  <rect class="node-box node-sense" x="320" y="178" width="190" height="66" rx="8"></rect>
-                  <text class="node-title" x="415" y="207" text-anchor="middle">User Sensing</text>
-                  <text class="node-subtitle" x="415" y="228" text-anchor="middle">gaze / target / pose</text>
+                  <rect class="node-box node-robot" x="540" y="60" width="145" height="74" rx="8"></rect>
+                  <text class="node-title" x="613" y="89" text-anchor="middle">Job Worker</text>
+                  <text class="node-subtitle" x="613" y="111" text-anchor="middle">claims next job</text>
 
-                  <rect class="node-box node-agent" x="592" y="118" width="220" height="110" rx="8"></rect>
-                  <text class="node-title" x="702" y="151" text-anchor="middle">Prompt composer</text>
-                  <text class="node-subtitle" x="702" y="174" text-anchor="middle">Robot Context block</text>
-                  <text class="node-subtitle" x="702" y="194" text-anchor="middle">+ Robot Job Blackboard</text>
-                  <text class="node-subtitle" x="702" y="214" text-anchor="middle">+ User Sensing block</text>
+                  <rect class="node-box node-robot" x="690" y="60" width="200" height="74" rx="8"></rect>
+                  <text class="node-title" x="790" y="89" text-anchor="middle">MoveIt MCP / verified</text>
+                  <text class="node-subtitle" x="790" y="111" text-anchor="middle">runs submitted call</text>
 
-                  <rect class="node-box node-agent" x="908" y="122" width="205" height="84" rx="8"></rect>
-                  <text class="node-title" x="1010" y="154" text-anchor="middle">Provider model</text>
-                  <text class="node-subtitle" x="1010" y="176" text-anchor="middle">state is explicit</text>
-                  <text class="node-subtitle" x="1010" y="194" text-anchor="middle">tool schemas bound</text>
+                  <rect class="node-box node-dark" x="535" y="265" width="180" height="74" rx="8"></rect>
+                  <text class="node-title node-light-text" x="625" y="294" text-anchor="middle">Terminal event</text>
+                  <text class="node-subtitle node-light-text" x="625" y="316" text-anchor="middle">complete / fail / cancel</text>
 
-                  <rect class="node-box node-speech" x="908" y="286" width="205" height="66" rx="8"></rect>
-                  <text class="node-title" x="1010" y="315" text-anchor="middle">Speech output</text>
-                  <text class="node-subtitle" x="1010" y="336" text-anchor="middle">Plan ready / complete</text>
+                  <rect class="node-box node-speech" x="725" y="265" width="160" height="74" rx="8"></rect>
+                  <text class="node-title" x="805" y="294" text-anchor="middle">Notification</text>
+                  <text class="node-subtitle" x="805" y="316" text-anchor="middle">Plan ready / complete</text>
 
-                  <rect class="node-box node-trace" x="592" y="306" width="220" height="66" rx="8"></rect>
-                  <text class="node-title" x="702" y="335" text-anchor="middle">Process Trace</text>
-                  <text class="node-subtitle" x="702" y="356" text-anchor="middle">job lifecycle events</text>
+                  <rect class="node-box node-soft" x="340" y="265" width="180" height="74" rx="8"></rect>
+                  <text class="node-title" x="430" y="294" text-anchor="middle">Prompt summary block</text>
+                  <text class="node-subtitle" x="430" y="316" text-anchor="middle">next-turn job state</text>
 
-                  <path class="flow-dashed" marker-end="url(#arrow-dashed-context)" d="M143 116 V178"></path>
-                  <text class="flow-label-hot" x="157" y="150">record result first</text>
+                  <path class="flow-solid" marker-end="url(#arrow-solid-context)" d="M165 97 H190"></path>
+                  <text class="flow-label" x="168" y="48">tool call</text>
 
-                  <path class="flow-solid" marker-end="url(#arrow-solid-context)" d="M238 211 H592"></path>
-                  <text class="flow-label" x="250" y="164">Robot Context block</text>
+                  <path class="flow-solid" marker-end="url(#arrow-solid-context)" d="M335 97 H360"></path>
+                  <text class="flow-label" x="338" y="48">submit</text>
 
-                  <path class="flow-solid" marker-end="url(#arrow-solid-context)" d="M238 339 H552 V205 H592"></path>
-                  <text class="flow-label" x="286" y="292">Robot Job Blackboard:</text>
+                  <path class="flow-solid" marker-end="url(#arrow-solid-context)" d="M515 97 H540"></path>
+                  <text class="flow-label" x="518" y="48">queue</text>
 
-                  <path class="flow-muted" marker-end="url(#arrow-muted-context)" d="M510 211 H592"></path>
-                  <text class="flow-label" x="520" y="264">advisory block</text>
+                  <path class="flow-solid" marker-end="url(#arrow-solid-context)" d="M685 97 H690"></path>
+                  <text class="flow-label" x="682" y="48">execute</text>
 
-                  <path class="flow-solid" marker-end="url(#arrow-solid-context)" d="M812 164 H908"></path>
-                  <text class="flow-label" x="826" y="112">SystemMessage</text>
+                  <path class="flow-solid" marker-end="url(#arrow-solid-context)" d="M790 134 V202 H625 V265"></path>
+                  <text class="flow-label" x="644" y="190">result returns to board</text>
 
-                  <path class="flow-solid" marker-end="url(#arrow-solid-context)" d="M1010 206 V286"></path>
-                  <text class="flow-label" x="1024" y="249">short final text</text>
+                  <path class="flow-dashed" marker-end="url(#arrow-dashed-context)" d="M535 302 H520"></path>
+                  <text class="flow-label-hot" x="356" y="250">next-turn summary</text>
 
-                  <path class="flow-muted" marker-end="url(#arrow-muted-context)" d="M238 339 H592"></path>
-                  <text class="flow-label" x="260" y="391">robot.job.*</text>
-
-                  <path class="flow-muted" marker-end="url(#arrow-muted-context)" d="M702 306 V228"></path>
-                  <text class="flow-label" x="720" y="269">observes only</text>
+                  <path class="flow-dashed" marker-end="url(#arrow-dashed-context)" d="M715 302 H725"></path>
+                  <text class="flow-label-hot" x="714" y="250">spoken status</text>
                 </g>
               </svg>
               <div class="diagram-legend">
-                <span><i></i> Solid path = context rendered into the next model request.</span>
-                <span class="dashed"><i></i> Dashed path = terminal job event applied before the turn.</span>
+                <span><i></i> Solid path = job submission, queueing, and execution.</span>
+                <span class="dashed"><i></i> Dashed path = terminal state reused for notification and next-turn context.</span>
               </div>
             </div>
             <div class="detail-note-grid">
               <div class="detail-note">
-                <strong>Freshness rule</strong>
-                <p>Relative motion, retries, and safety-sensitive actions should observe current pose before movement.</p>
+                <strong>Robot Context</strong>
+                <p>Records completed job results after terminal events; it is advisory state, not the queue.</p>
               </div>
               <div class="detail-note">
-                <strong>Safety boundary</strong>
-                <p>Local context helps the model reason, but movement safety remains with MoveIt planning and execution.</p>
+                <strong>Process Trace</strong>
+                <p>Observes job lifecycle events for review without controlling job execution.</p>
               </div>
               <div class="detail-note">
-                <strong>Key code path</strong>
-                <p><code>LangChainAgentProcessor._record_terminal_job_events()</code> and <code>LangGraphRobotAgent._instructions()</code> build the current context blocks before the model call.</p>
+                <strong>User Sensing</strong>
+                <p>Renders separate advisory context for references like this, that, and there.</p>
               </div>
               <div class="detail-note">
                 <strong>Task execution mode</strong>
@@ -1532,7 +1656,7 @@
           <div class="two-column">
             <div class="fact">
               <strong>Owns</strong>
-              <p>Provider-specific LangChain model construction, robot prompt composition, LangGraph orchestration, Robot Job Blackboard summary injection, clean robot-status speech, and optional robot job submission.</p>
+              <p>Provider-specific LangChain model construction, robot prompt composition, LangGraph orchestration, Job Board prompt summary injection, clean robot-status speech, and optional robot job submission.</p>
             </div>
             <div class="fact">
               <strong>Depends On</strong>
@@ -1566,26 +1690,26 @@
         <div>
           <p class="module-kicker">Robot-side control concerns</p>
           <h2>Robot Control</h2>
-          <p class="module-summary">Owns the deterministic robot-side vocabulary: task policy, tool-call validation, context, MCP bridging, LangChain tool-message adaptation, job blackboard, and job worker.</p>
+          <p class="module-summary">Owns the deterministic robot-side vocabulary: task policy, tool-call validation, context, MCP bridging, LangChain tool-message adaptation, job board, and job worker.</p>
         </div>
         <div class="path-chip">server/robot_control/</div>
       </div>
       <div class="module-layout">
         <section class="module-section">
-          <h3>Policy To Execution</h3>
+          <h3>Validated Tools And Async Jobs</h3>
           <div class="module-flow" style="--flow-count: 7;">
             <div class="flow-node" tabindex="0" data-tip="A tool request produced by the model. Example: call moveit_get_current_pose or request a cartesian plan with a pose target."><b>LangChain tool call</b><span>from agent</span></div>
             <div class="flow-node" tabindex="0" data-tip="Checks obvious ordering before tool validation. Example: block a motion plan when Robot Context has no fresh current pose."><b>Task Policy</b><span>preconditions</span></div>
             <div class="flow-node" tabindex="0" data-tip="Checks the concrete tool name and arguments. Example: make sure robot_name is UR10 and a pose contains finite x, y, z values."><b>Call Validation</b><span>tool shape</span></div>
-            <div class="flow-node" tabindex="0" data-tip="Calls the host-side MoveIt MCP server. Example: send a validated plan request over MCP and serialize the returned tool result."><b>MCP Bridge</b><span>MoveIt tools</span></div>
-            <div class="flow-node" tabindex="0" data-tip="Advisory memory of recent robot facts. Example: last current pose, last successful plan_name, gripper state, and last execution result."><b>Robot Context</b><span>advisory state</span></div>
-            <div class="flow-node" tabindex="0" data-tip="A typed board for long-running robot work. Example: Agent Control queues a robot job, later events mark it started/completed/failed, and a concise summary is rendered back into the next model turn."><b>Job Board</b><span>long actions</span></div>
-            <div class="flow-node" tabindex="0" data-tip="A deterministic executor for queued robot jobs. Example: it runs the exact submitted MoveIt tool call; it does not invent repairs or new tool calls."><b>Job Worker</b><span>deterministic run</span></div>
+            <div class="flow-node" tabindex="0" role="button" aria-controls="dynamic-pick-mtc-contract" data-scroll-target="dynamic-pick-mtc-contract" data-tip="After validation, simple tools can run inline while long robot actions enter the async job path. Example: a dynamic pick plan can be queued instead of blocking the model turn."><b>Execution path</b><span>inline or queued</span></div>
+            <div class="flow-node" tabindex="0" data-tip="A typed queue for long-running robot work. Example: Agent Control submits the exact tool call and arguments; the board tracks queued, running, and terminal status."><b>Job Board queue</b><span>async state</span></div>
+            <div class="flow-node" tabindex="0" data-tip="A deterministic executor for queued robot jobs. Example: it claims the next job and runs the exact submitted call; it does not invent repairs or new tool calls."><b>Job Worker</b><span>deterministic run</span></div>
+            <div class="flow-node" tabindex="0" data-tip="The worker executes through the MoveIt MCP bridge or verified execution client, then writes completed, failed, or cancelled state back to the board."><b>MoveIt / verified</b><span>execution target</span></div>
           </div>
           <div class="two-column">
             <div class="fact">
               <strong>Owns</strong>
-              <p>Allowed MoveIt tool names, UR10 argument checks, target bounds, executable plan names, task-policy feedback, robot job lifecycle events, and the rendered Blackboard summary consumed by Agent Control.</p>
+              <p>Allowed MoveIt tool names, UR10 argument checks, target bounds, executable plan names, Robot Context advisory state, job lifecycle events, and the prompt summary consumed by Agent Control.</p>
             </div>
             <div class="fact">
               <strong>Does Not Claim</strong>
@@ -1616,6 +1740,260 @@
           </section>
         </aside>
       </div>
+      <section class="module-section dynamic-pick-section" id="dynamic-pick-mtc-contract" tabindex="-1">
+        <div class="llm-detail-heading">
+          <span>task-solution contracts</span>
+          <h4>MTC-backed planning and compound execution</h4>
+        </div>
+        <p class="detail-summary">Dynamic pick stays on the semantic task path. Compound manipulation adds the same discipline: the model requests <code>moveit_plan_compound_task</code> with hard <code>requirements</code> and optional <code>preferences</code>; <code>stage_intents</code> are hints only. MCP/MTC compiles and solves the task. Pipecat executes only a recent approved <code>task_solution_id</code> with a supported proof-backed <code>execution_contract</code>.</p>
+        <div class="llm-flow-panel">
+          <svg class="dynamic-pick-diagram" viewBox="0 0 1320 760" role="img" aria-labelledby="dynamic-pick-title dynamic-pick-desc">
+            <title id="dynamic-pick-title">Dynamic pick and MTC backend execution contract</title>
+            <desc id="dynamic-pick-desc">A hand-routed diagram showing the semantic agent path, the emulated and explicit MTC planning backends, fail-closed MTC behavior, task-stage retry, verified execution, gripper close, MoveIt attachment, and attachment verification.</desc>
+            <defs>
+              <marker id="dyn-arrow-solid" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 Z" fill="#817d70"></path>
+              </marker>
+              <marker id="dyn-arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 Z" fill="rgba(28, 36, 36, 0.34)"></path>
+              </marker>
+              <marker id="dyn-arrow-fail" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 Z" fill="#c2482f"></path>
+              </marker>
+            </defs>
+
+            <text class="lane-title" x="40" y="30">agent-facing task path</text>
+            <line class="lane-rule" x1="40" y1="44" x2="1280" y2="44"></line>
+            <text class="lane-title" x="40" y="205">MoveIt MCP planning backend</text>
+            <line class="lane-rule" x1="40" y1="219" x2="1280" y2="219"></line>
+            <text class="lane-title" x="40" y="442">verified task execution bridge</text>
+            <line class="lane-rule" x1="40" y1="456" x2="1280" y2="456"></line>
+
+            <rect class="node-box node-agent" x="40" y="70" width="180" height="74" rx="8"></rect>
+            <text class="node-title" x="130" y="100" text-anchor="middle">plan pick task</text>
+            <text class="node-subtitle" x="130" y="121" text-anchor="middle">semantic request</text>
+
+            <rect class="node-box node-agent" x="260" y="70" width="180" height="74" rx="8"></rect>
+            <text class="node-title" x="350" y="100" text-anchor="middle">explicit approval</text>
+            <text class="node-subtitle" x="350" y="121" text-anchor="middle">same solution id</text>
+
+            <rect class="node-box node-agent" x="480" y="70" width="190" height="74" rx="8"></rect>
+            <text class="node-title" x="575" y="100" text-anchor="middle">execute task plan</text>
+            <text class="node-subtitle" x="575" y="121" text-anchor="middle">Pipecat bridge</text>
+
+            <rect class="node-box node-dark" x="710" y="70" width="180" height="74" rx="8"></rect>
+            <text class="node-title node-light-text" x="800" y="100" text-anchor="middle">bounded response</text>
+            <text class="node-subtitle node-light-text" x="800" y="121" text-anchor="middle">status/correction</text>
+
+            <rect class="node-box node-robot" x="40" y="250" width="180" height="74" rx="8"></rect>
+            <text class="node-title" x="130" y="280" text-anchor="middle">object context</text>
+            <text class="node-subtitle" x="130" y="301" text-anchor="middle">scene grounding</text>
+
+            <rect class="node-box node-robot" x="260" y="250" width="180" height="74" rx="8"></rect>
+            <text class="node-title" x="350" y="280" text-anchor="middle">backend selector</text>
+            <text class="node-subtitle" x="350" y="301" text-anchor="middle">configured mode</text>
+
+            <rect class="node-box node-robot" x="500" y="180" width="190" height="74" rx="8"></rect>
+            <text class="node-title" x="595" y="210" text-anchor="middle">emulated default</text>
+            <text class="node-subtitle" x="595" y="231" text-anchor="middle">multi-candidate search</text>
+
+            <rect class="node-box node-mtc" x="500" y="320" width="190" height="74" rx="8"></rect>
+            <text class="node-title" x="595" y="350" text-anchor="middle">explicit MTC</text>
+            <text class="node-subtitle" x="595" y="371" text-anchor="middle">ROS-side task stages</text>
+
+            <rect class="node-box node-robot" x="740" y="180" width="190" height="74" rx="8"></rect>
+            <text class="node-title" x="835" y="210" text-anchor="middle">TaskSolution</text>
+            <text class="node-subtitle" x="835" y="231" text-anchor="middle">backend=emulated</text>
+
+            <rect class="node-box node-mtc" x="740" y="320" width="190" height="74" rx="8"></rect>
+            <text class="node-title" x="835" y="350" text-anchor="middle">TaskSolution</text>
+            <text class="node-subtitle" x="835" y="371" text-anchor="middle">backend=mtc solved</text>
+
+            <rect class="node-box node-fail" x="980" y="320" width="220" height="74" rx="8"></rect>
+            <text class="node-title" x="1090" y="350" text-anchor="middle">ok=false</text>
+            <text class="node-subtitle" x="1090" y="371" text-anchor="middle">failed_stage + blocker</text>
+
+            <rect class="node-box node-fail node-soft" x="980" y="180" width="220" height="74" rx="8"></rect>
+            <text class="node-title" x="1090" y="210" text-anchor="middle">no silent fallback</text>
+            <text class="node-subtitle" x="1090" y="231" text-anchor="middle">no task_solution_id</text>
+
+            <rect class="node-box node-robot" x="40" y="500" width="180" height="74" rx="8"></rect>
+            <text class="node-title" x="130" y="530" text-anchor="middle">stage planning</text>
+            <text class="node-subtitle" x="130" y="551" text-anchor="middle">attempt-scoped names</text>
+
+            <rect class="node-box node-robot" x="260" y="500" width="180" height="74" rx="8"></rect>
+            <text class="node-title" x="350" y="530" text-anchor="middle">verified execute</text>
+            <text class="node-subtitle" x="350" y="551" text-anchor="middle">returned plan_name</text>
+
+            <rect class="node-box node-robot" x="500" y="500" width="190" height="74" rx="8"></rect>
+            <text class="node-title" x="595" y="530" text-anchor="middle">gripper close</text>
+            <text class="node-subtitle" x="595" y="551" text-anchor="middle">verified execution</text>
+
+            <rect class="node-box node-robot" x="740" y="500" width="190" height="74" rx="8"></rect>
+            <text class="node-title" x="835" y="530" text-anchor="middle">attach scene</text>
+            <text class="node-subtitle" x="835" y="551" text-anchor="middle">MoveIt state sync</text>
+
+            <rect class="node-box node-dark" x="980" y="500" width="220" height="74" rx="8"></rect>
+            <text class="node-title node-light-text" x="1090" y="530" text-anchor="middle">verify attachment</text>
+            <text class="node-subtitle node-light-text" x="1090" y="551" text-anchor="middle">only then held object</text>
+
+            <rect class="node-box node-fail" x="500" y="650" width="430" height="60" rx="8"></rect>
+            <text class="node-title" x="715" y="675" text-anchor="middle">structured failure path</text>
+            <text class="node-subtitle" x="715" y="696" text-anchor="middle">retry same stage path or report no held-object state</text>
+
+            <path class="flow-solid" marker-end="url(#dyn-arrow-solid)" d="M220 107 H260"></path>
+            <path class="flow-solid" marker-end="url(#dyn-arrow-solid)" d="M440 107 H480"></path>
+            <path class="flow-solid" marker-end="url(#dyn-arrow-solid)" d="M670 107 H710"></path>
+
+            <path class="flow-muted" marker-end="url(#dyn-arrow-muted)" d="M130 144 V250"></path>
+            <text class="flow-label" x="144" y="190">tool executes planning only</text>
+            <path class="flow-solid" marker-end="url(#dyn-arrow-solid)" d="M220 287 H260"></path>
+            <path class="flow-solid" marker-end="url(#dyn-arrow-solid)" d="M440 287 H468 V217 H500"></path>
+            <text class="flow-label" x="454" y="235">default</text>
+            <path class="flow-muted" marker-end="url(#dyn-arrow-muted)" d="M440 287 H500"></path>
+            <text class="flow-label" x="452" y="279">explicit opt-in</text>
+            <path class="flow-solid" marker-end="url(#dyn-arrow-solid)" d="M690 217 H740"></path>
+            <path class="flow-solid" marker-end="url(#dyn-arrow-solid)" d="M690 357 H740"></path>
+            <path class="flow-fail" marker-end="url(#dyn-arrow-fail)" d="M690 357 H700 V421 H1090 V394"></path>
+            <text class="flow-label-hot" x="720" y="421">MTC unavailable or unsolved</text>
+            <path class="flow-fail" marker-end="url(#dyn-arrow-fail)" d="M1090 320 V254"></path>
+
+            <path class="flow-solid" marker-end="url(#dyn-arrow-solid)" d="M575 144 V160 H1240 V448 H130 V500"></path>
+            <text class="flow-label" x="1010" y="438">execute approved solution</text>
+            <path class="flow-solid" marker-end="url(#dyn-arrow-solid)" d="M220 537 H260"></path>
+            <path class="flow-solid" marker-end="url(#dyn-arrow-solid)" d="M440 537 H500"></path>
+            <path class="flow-solid" marker-end="url(#dyn-arrow-solid)" d="M690 537 H740"></path>
+            <path class="flow-solid" marker-end="url(#dyn-arrow-solid)" d="M930 537 H980"></path>
+            <path class="flow-solid" marker-end="url(#dyn-arrow-solid)" d="M1090 500 V466 H1240 V107 H890"></path>
+            <text class="flow-label" x="1098" y="456">success text</text>
+
+            <path class="flow-fail" marker-end="url(#dyn-arrow-fail)" d="M130 574 V680 H500"></path>
+            <path class="flow-fail" marker-end="url(#dyn-arrow-fail)" d="M350 574 V650"></path>
+            <path class="flow-fail" marker-end="url(#dyn-arrow-fail)" d="M595 574 V650"></path>
+            <path class="flow-fail" marker-end="url(#dyn-arrow-fail)" d="M835 574 V650"></path>
+            <text class="flow-label-hot" x="152" y="665">bounded failure</text>
+          </svg>
+          <div class="diagram-legend">
+            <span><i></i> configured success path</span>
+            <span class="dashed"><i></i> fail-closed or retry path</span>
+            <span class="legend-note">Stage retry stays inside <code>moveit_execute_task_plan</code>; it is not fallback to another backend.</span>
+          </div>
+        </div>
+        <div class="detail-note-grid">
+          <div class="detail-note">
+            <strong>Default is not fallback</strong>
+            <p><code>backend="emulated"</code> remains the default configuration. If MTC is configured and fails, the response is structured failure, not emulated planning.</p>
+          </div>
+          <div class="detail-note">
+            <strong>Why dynamic_1 changes</strong>
+            <p>Dynamic or vertical objects now expose multiple candidate attempts across grasp faces and distances, so one low side/back approach no longer represents the whole search.</p>
+          </div>
+          <div class="detail-note">
+            <strong>When the agent may say success</strong>
+            <p>Success requires verified execution, physical gripper close, MoveIt attachment sync, and attachment verification evidence. Otherwise Robot Context does not mark the object held.</p>
+          </div>
+        </div>
+        <div class="llm-flow-panel">
+          <svg class="dynamic-pick-diagram" viewBox="0 0 1260 520" role="img" aria-labelledby="compound-task-title compound-task-desc">
+            <title id="compound-task-title">Verified compound task execution contract</title>
+            <desc id="compound-task-desc">A hand-routed diagram showing LLM hard requirements, optional preferences, optional stage-intent hints, MTC compile and solve, explicit approval, typed execution handlers, proof rules, and structured rejection for unsupported hints.</desc>
+            <defs>
+              <marker id="compound-arrow-solid" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 Z" fill="#817d70"></path>
+              </marker>
+              <marker id="compound-arrow-fail" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 Z" fill="#c2482f"></path>
+              </marker>
+            </defs>
+
+            <text class="lane-title" x="40" y="32">planning: requirements, preferences, backend solved</text>
+            <line class="lane-rule" x1="40" y1="46" x2="1220" y2="46"></line>
+            <text class="lane-title" x="40" y="264">execution: typed handlers, verified proof</text>
+            <line class="lane-rule" x1="40" y1="278" x2="1220" y2="278"></line>
+
+            <rect class="node-box node-agent" x="40" y="78" width="180" height="78" rx="8"></rect>
+            <text class="node-title" x="130" y="108" text-anchor="middle">LLM request</text>
+            <text class="node-subtitle" x="130" y="130" text-anchor="middle">requirements + prefs</text>
+
+            <rect class="node-box node-mtc" x="270" y="78" width="200" height="78" rx="8"></rect>
+            <text class="node-title" x="370" y="108" text-anchor="middle">MTC compile</text>
+            <text class="node-subtitle" x="370" y="130" text-anchor="middle">backend="mtc"</text>
+
+            <rect class="node-box node-mtc" x="520" y="78" width="210" height="78" rx="8"></rect>
+            <text class="node-title" x="625" y="108" text-anchor="middle">TaskSolution</text>
+            <text class="node-subtitle" x="625" y="130" text-anchor="middle">execution_contract</text>
+
+            <rect class="node-box node-agent" x="780" y="78" width="190" height="78" rx="8"></rect>
+            <text class="node-title" x="875" y="108" text-anchor="middle">approval</text>
+            <text class="node-subtitle" x="875" y="130" text-anchor="middle">same scene snapshot</text>
+
+            <rect class="node-box node-fail" x="1010" y="78" width="210" height="78" rx="8"></rect>
+            <text class="node-title" x="1115" y="108" text-anchor="middle">plan-time reject</text>
+            <text class="node-subtitle" x="1115" y="130" text-anchor="middle">slide, push, raw code</text>
+
+            <rect class="node-box node-robot" x="40" y="315" width="175" height="76" rx="8"></rect>
+            <text class="node-title" x="128" y="345" text-anchor="middle">motion</text>
+            <text class="node-subtitle" x="128" y="367" text-anchor="middle">plan + verified execute</text>
+
+            <rect class="node-box node-robot" x="260" y="315" width="175" height="76" rx="8"></rect>
+            <text class="node-title" x="348" y="345" text-anchor="middle">gripper</text>
+            <text class="node-subtitle" x="348" y="367" text-anchor="middle">verified open/close</text>
+
+            <rect class="node-box node-robot" x="480" y="315" width="175" height="76" rx="8"></rect>
+            <text class="node-title" x="568" y="345" text-anchor="middle">attach/release</text>
+            <text class="node-subtitle" x="568" y="367" text-anchor="middle">MCP scene sync</text>
+
+            <rect class="node-box node-dark" x="700" y="315" width="185" height="76" rx="8"></rect>
+            <text class="node-title node-light-text" x="792" y="345" text-anchor="middle">verify proof</text>
+            <text class="node-subtitle node-light-text" x="792" y="367" text-anchor="middle">attached or released</text>
+
+            <rect class="node-box node-dark" x="930" y="315" width="190" height="76" rx="8"></rect>
+            <text class="node-title node-light-text" x="1025" y="345" text-anchor="middle">Robot Context</text>
+            <text class="node-subtitle node-light-text" x="1025" y="367" text-anchor="middle">held state from proof</text>
+
+            <rect class="node-box node-fail" x="360" y="435" width="500" height="56" rx="8"></rect>
+            <text class="node-title" x="610" y="458" text-anchor="middle">structured correction</text>
+            <text class="node-subtitle" x="610" y="478" text-anchor="middle">unknown kind, handler, stale approval, or missing proof fields</text>
+
+            <path class="flow-solid" marker-end="url(#compound-arrow-solid)" d="M220 117 H270"></path>
+            <path class="flow-solid" marker-end="url(#compound-arrow-solid)" d="M470 117 H520"></path>
+            <path class="flow-solid" marker-end="url(#compound-arrow-solid)" d="M730 117 H780"></path>
+            <path class="flow-fail" marker-end="url(#compound-arrow-fail)" d="M370 156 V208 H1115 V156"></path>
+            <text class="flow-label-hot" x="694" y="202">unsupported hint or MTC unavailable</text>
+
+            <path class="flow-solid" marker-end="url(#compound-arrow-solid)" d="M875 156 V230 H128 V315"></path>
+            <text class="flow-label" x="148" y="236">moveit_execute_task_plan</text>
+            <path class="flow-solid" marker-end="url(#compound-arrow-solid)" d="M215 353 H260"></path>
+            <path class="flow-solid" marker-end="url(#compound-arrow-solid)" d="M435 353 H480"></path>
+            <path class="flow-solid" marker-end="url(#compound-arrow-solid)" d="M655 353 H700"></path>
+            <path class="flow-solid" marker-end="url(#compound-arrow-solid)" d="M885 353 H930"></path>
+
+            <path class="flow-fail" marker-end="url(#compound-arrow-fail)" d="M128 391 V463 H360"></path>
+            <path class="flow-fail" marker-end="url(#compound-arrow-fail)" d="M348 391 V435"></path>
+            <path class="flow-fail" marker-end="url(#compound-arrow-fail)" d="M568 391 V435"></path>
+            <path class="flow-fail" marker-end="url(#compound-arrow-fail)" d="M792 391 V435"></path>
+          </svg>
+          <div class="diagram-legend">
+            <span><i></i> supported contract path</span>
+            <span class="dashed"><i></i> fail-closed correction path</span>
+            <span class="legend-note">The LLM states requirements/preferences; MCP/MTC owns compilation and solving.</span>
+          </div>
+        </div>
+        <div class="detail-note-grid">
+          <div class="detail-note">
+            <strong>Current service boundary</strong>
+            <p><code>/vizor_mtc/plan_compound_task</code> is wired as the ROS/MTC compound boundary. It must fail closed until real typed compound task construction returns solved stage evidence.</p>
+          </div>
+          <div class="detail-note">
+            <strong>Contract fields</strong>
+            <p>Each step needs a handler, source stage, required proof, object context, scene snapshot, and motion or release evidence where that handler needs it.</p>
+          </div>
+          <div class="detail-note">
+            <strong>Unsupported actions</strong>
+            <p>Contact manipulation such as slide or push is rejected at plan time. The executor only runs supported task kinds and typed handlers.</p>
+          </div>
+        </div>
+      </section>
     </section>
 
     <section class="tab-panel" id="panel-real-robot" role="tabpanel" aria-labelledby="tab-real-robot" data-panel="real-robot" style="--module-color: var(--robot);">
@@ -1655,7 +2033,7 @@
             <h3>Channel Rules</h3>
             <ul class="bullet-list">
               <li>Plan through MoveIt MCP before physical execution.</li>
-              <li>Use <code>moveit_execute_task_plan</code> for verified pick task solutions.</li>
+              <li>Use <code>moveit_execute_task_plan</code> for verified supported task solutions.</li>
               <li>Keep <code>moveit_execute_task_solution</code> for sim/emulated task execution only.</li>
               <li>Execute only a recent plan name or explicit operator command.</li>
               <li>Send arm motion/home as URScript over <code>30002</code>.</li>

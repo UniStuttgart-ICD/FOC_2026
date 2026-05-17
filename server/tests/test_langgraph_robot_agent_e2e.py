@@ -46,7 +46,7 @@ class PickTaskE2EBridge:
     def function_tools(self) -> list[dict[str, Any]]:
         return [
             _function_tool("moveit_get_current_pose"),
-            _function_tool("moveit_plan_pick_task"),
+            _function_tool("moveit_plan_compound_task"),
             _function_tool("moveit_execute_task_plan"),
             _function_tool("moveit_execute_task_solution"),
             _function_tool("moveit_plan_free_motion"),
@@ -78,9 +78,14 @@ class PickTaskE2EBridge:
                     }
                 }
             )
-        if name == "moveit_plan_pick_task":
-            assert arguments["object_name"] == "dynamic_5"
-            return _pick_task_solution_output()
+        if name == "moveit_plan_compound_task":
+            assert arguments["backend"] == "mtc"
+            assert arguments["requirements"] == {
+                "goal": "hold",
+                "object_name": "dynamic_5",
+                "lift_distance_m": 0.10,
+            }
+            return _compound_hold_task_solution_output()
         if name in {"moveit_plan_free_motion", "moveit_plan_cartesian_motion"}:
             return json.dumps(
                 {
@@ -99,6 +104,12 @@ class PickTaskE2EBridge:
                         "ok": True,
                         "object_name": arguments["object_name"],
                         "verification": {"result": "pass"},
+                        "raw": {
+                            "object_name": arguments["object_name"],
+                            "mcp_attached_object": arguments["object_name"],
+                            "mcp_gripper_holds_object": True,
+                            "planning_scene_state": "attached",
+                        },
                     }
                 }
             )
@@ -145,6 +156,27 @@ class FakeVerifiedExecutionClient:
                     "tool": "moveit_close_gripper",
                     "phase": "gripper",
                     "status": "gripper_closed",
+                    "verification": {"result": "pass"},
+                },
+                "is_error": False,
+            }
+        )
+
+    async def open_gripper(
+        self,
+        *,
+        robot_name: str,
+        timeout_s: float,
+    ) -> str:
+        self.gripper_calls.append((robot_name, "open", timeout_s))
+        return json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "robot": robot_name,
+                    "tool": "moveit_open_gripper",
+                    "phase": "gripper",
+                    "status": "gripper_open",
                     "verification": {"result": "pass"},
                 },
                 "is_error": False,
@@ -217,7 +249,19 @@ def _last_tool_output(model: FakeChatModel) -> dict[str, Any]:
     return json.loads(content)
 
 
-def _pick_task_solution_output() -> str:
+def _latest_state_tool_output(fixture: GraphFixture) -> dict[str, Any]:
+    tool_messages = [
+        message
+        for message in fixture.graph.latest_state()["messages"]
+        if isinstance(message, ToolMessage)
+    ]
+    assert tool_messages
+    content = tool_messages[-1].content
+    assert isinstance(content, str)
+    return json.loads(content)
+
+
+def _compound_hold_task_solution_output() -> str:
     return json.dumps(
         {
             "structured_content": {
@@ -225,12 +269,17 @@ def _pick_task_solution_output() -> str:
                 "robot": "UR10",
                 "feedback": {"can_execute": True, "execution_target": "task_solution"},
                 "raw": {
-                    "task_solution_id": "pick_task_dynamic_5_001",
-                    "task_kind": "pick",
-                    "backend": "emulated",
+                    "task_solution_id": "compound_hold_dynamic_5_001",
+                    "task_kind": "hold",
+                    "backend": "mtc",
                     "object_name": "dynamic_5",
                     "robot_name": "UR10",
-                    "created_from_tool": "moveit_plan_pick_task",
+                    "created_from_tool": "moveit_plan_compound_task",
+                    "requirements": {
+                        "goal": "hold",
+                        "object_name": "dynamic_5",
+                        "lift_distance_m": 0.10,
+                    },
                     "scene_snapshot_id": "scene_dynamic_5_loaded",
                     "plan_name": "internal_approach_only_plan",
                     "waypoints": [
@@ -247,22 +296,59 @@ def _pick_task_solution_output() -> str:
                             "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
                         },
                     ],
-                    "workflow_steps": [
-                        {"kind": "motion", "name": "approach", "waypoint_index": 0},
-                        {"kind": "motion", "name": "pre_grasp", "waypoint_index": 1},
-                        {"kind": "gripper", "name": "close"},
-                        {"kind": "scene", "name": "attach_object"},
-                        {"kind": "motion", "name": "lift", "waypoint_index": 2},
-                    ],
+                    "execution_contract": {
+                        "backend": "mtc",
+                        "steps": [
+                            {
+                                "name": "approach",
+                                "handler": "motion",
+                                "waypoint_index": 0,
+                                "source_stage": "approach_grasp",
+                                "required_proof": "verified_motion_plan",
+                            },
+                            {
+                                "name": "pre_grasp",
+                                "handler": "motion",
+                                "waypoint_index": 1,
+                                "source_stage": "connect_to_pre_grasp",
+                                "required_proof": "verified_motion_plan",
+                            },
+                            {
+                                "name": "close_gripper",
+                                "handler": "close_gripper",
+                                "source_stage": "close_gripper",
+                                "required_proof": "verified_gripper_closed",
+                            },
+                            {
+                                "name": "attach_object",
+                                "handler": "attach_object",
+                                "object_name": "dynamic_5",
+                                "source_stage": "attach_object",
+                                "required_proof": "planning_scene_attached",
+                            },
+                            {
+                                "name": "lift",
+                                "handler": "motion",
+                                "waypoint_index": 2,
+                                "source_stage": "lift_object",
+                                "required_proof": "verified_motion_plan",
+                            },
+                            {
+                                "name": "verify_attached_object",
+                                "handler": "verify_attached_object",
+                                "object_name": "dynamic_5",
+                                "source_stage": "verify_attached_object",
+                                "required_proof": "attached_object",
+                            },
+                        ],
+                    },
                     "approval": {
                         "required": True,
                         "target_kind": "task_solution",
-                        "task_solution_id": "pick_task_dynamic_5_001",
-                        "source_tool": "moveit_plan_pick_task",
+                        "task_solution_id": "compound_hold_dynamic_5_001",
+                        "source_tool": "moveit_plan_compound_task",
                         "object_name": "dynamic_5",
-                        "expected_movement": (
-                            "approach grasp, close gripper, attach object, lift object"
-                        ),
+                        "expected_movement": "hold dynamic_5 with a 0.10 m lift",
                         "scene_snapshot_id": "scene_dynamic_5_loaded",
                     },
                 },
@@ -303,49 +389,78 @@ def _live_agent_profile_from_env() -> AgentProfile:
 
 
 @pytest.mark.asyncio
-async def test_dynamic_5_pick_task_plans_then_executes_verified_task_plan() -> None:
+async def test_dynamic_5_compound_pick_plans_then_executes_verified_task_plan() -> None:
     fixture = make_graph(
         [
             _ai_tool_call(
-                "moveit_plan_pick_task",
-                {"robot_name": "UR10", "object_name": "dynamic_5", "timeout_s": 9.0},
-                "plan-pick-task",
+                "moveit_plan_compound_task",
+                {
+                    "robot_name": "UR10",
+                    "backend": "mtc",
+                    "requirements": {
+                        "goal": "hold",
+                        "object_name": "dynamic_5",
+                        "lift_distance_m": 0.10,
+                    },
+                    "timeout_s": 9.0,
+                },
+                "plan-compound-task",
             ),
-            _ai_text("Pick task planned for dynamic_5."),
+            _ai_text("Compound pick task planned for dynamic_5."),
             _ai_tool_call(
                 "moveit_execute_task_plan",
                 {
                     "robot_name": "UR10",
-                    "task_solution_id": "pick_task_dynamic_5_001",
+                    "task_solution_id": "compound_hold_dynamic_5_001",
                     "timeout_s": 9.0,
                 },
                 "execute-task-plan",
             ),
-            _ai_text("Verified pick task executed."),
+            _ai_text("Verified compound task executed."),
         ]
     )
 
     planned_text = await fixture.graph.run_turn(_turn("pick up dynamic_5"))
 
-    assert planned_text == "Pick task planned for dynamic_5."
+    assert planned_text == "Compound pick task planned for dynamic_5."
     assert fixture.verified_execution_client.calls == []
     assert fixture.robot_context.pending_plan is None
 
     executed_text = await fixture.graph.run_turn(
-        _turn("yes, execute the dynamic_5 pick task")
+        _turn("yes, execute the dynamic_5 compound task")
     )
 
-    assert executed_text == "Verified pick task executed."
+    assert executed_text == "Execution complete."
     tool_names = [name for name, _ in fixture.bridge.calls]
-    assert "moveit_plan_pick_task" in tool_names
+    assert "moveit_plan_compound_task" in tool_names
+    assert "moveit_plan_pick_task" not in tool_names
     assert "moveit_execute_task_plan" not in tool_names
     assert "moveit_execute_task_solution" not in tool_names
     assert "moveit_execute_plan" not in tool_names
+    compound_calls = [
+        args for name, args in fixture.bridge.calls if name == "moveit_plan_compound_task"
+    ]
+    assert compound_calls == [
+        {
+            "robot_name": "UR10",
+            "backend": "mtc",
+            "requirements": {
+                "goal": "hold",
+                "object_name": "dynamic_5",
+                "lift_distance_m": 0.10,
+            },
+            "timeout_s": 9.0,
+        }
+    ]
     bound_tool_name_batches = [
         {tool["function"]["name"] for tool in batch}
         for batch in fixture.model.bound_tool_batches
     ]
     assert bound_tool_name_batches
+    assert any(
+        "moveit_plan_compound_task" in names
+        for names in bound_tool_name_batches
+    )
     assert any(
         "moveit_execute_task_plan" in names
         for names in bound_tool_name_batches
@@ -383,16 +498,17 @@ async def test_dynamic_5_pick_task_plans_then_executes_verified_task_plan() -> N
             "verified_gripper_closed": True,
         }
     ]
-    assert verified_plan_names[0].startswith("pick_task_dynamic_5_001_approach_")
-    assert verified_plan_names[1].startswith("pick_task_dynamic_5_001_pre_grasp_")
-    assert verified_plan_names[2].startswith("pick_task_dynamic_5_001_lift_")
+    assert verified_plan_names[0].startswith("compound_hold_dynamic_5_001_approach_")
+    assert verified_plan_names[1].startswith("compound_hold_dynamic_5_001_pre_grasp_")
+    assert verified_plan_names[2].startswith("compound_hold_dynamic_5_001_lift_")
     assert "internal_approach_only_plan" not in verified_plan_names
     assert fixture.robot_context.pending_plan is None
 
-    output = _last_tool_output(fixture.model)
+    output = _latest_state_tool_output(fixture)
     assert output["structured_content"]["tool"] == "moveit_execute_task_plan"
     assert output["structured_content"]["object_name"] == "dynamic_5"
     assert output["structured_content"]["verified_plan_names"] == verified_plan_names
+    assert "held object: dynamic_5" in fixture.robot_context.render_instruction_block()
 
 
 @pytest.mark.asyncio
@@ -403,7 +519,7 @@ async def test_dynamic_5_pick_task_plans_then_executes_verified_task_plan() -> N
     os.getenv(RUN_LIVE_DYNAMIC_5_PICK_DUMMY_E2E) != "1",
     reason=f"set {RUN_LIVE_DYNAMIC_5_PICK_DUMMY_E2E}=1",
 )
-async def test_live_llm_dynamic_5_pick_task_uses_dummy_verified_execution() -> None:
+async def test_live_llm_dynamic_5_compound_pick_uses_dummy_verified_execution() -> None:
     from agent_control.langgraph_robot_agent import LangGraphRobotAgent
     from agent_control.model_factory import build_agent_chat_model
 
@@ -419,12 +535,18 @@ async def test_live_llm_dynamic_5_pick_task_uses_dummy_verified_execution() -> N
     )
 
     await graph.run_turn(_turn("pick up dynamic_5"))
-    await graph.run_turn(_turn("yes, execute the planned dynamic_5 pick task"))
+    await graph.run_turn(_turn("yes, execute the planned dynamic_5 compound task"))
 
     tool_names = [name for name, _ in bridge.calls]
-    pick_calls = [args for name, args in bridge.calls if name == "moveit_plan_pick_task"]
-    assert pick_calls
-    assert pick_calls[-1]["object_name"] == "dynamic_5"
+    compound_calls = [args for name, args in bridge.calls if name == "moveit_plan_compound_task"]
+    assert compound_calls
+    assert compound_calls[-1]["backend"] == "mtc"
+    assert compound_calls[-1]["requirements"] == {
+        "goal": "hold",
+        "object_name": "dynamic_5",
+        "lift_distance_m": 0.10,
+    }
+    assert "moveit_plan_pick_task" not in tool_names
     assert "moveit_execute_task_solution" not in tool_names
     assert "moveit_execute_plan" not in tool_names
     assert "moveit_close_gripper" not in tool_names
@@ -432,7 +554,7 @@ async def test_live_llm_dynamic_5_pick_task_uses_dummy_verified_execution() -> N
 
     verified_plan_names = [plan_name for _, plan_name, _ in verified_client.calls]
     assert len(verified_plan_names) == 3
-    assert verified_plan_names[0].startswith("pick_task_dynamic_5_001_approach_")
-    assert verified_plan_names[1].startswith("pick_task_dynamic_5_001_pre_grasp_")
-    assert verified_plan_names[2].startswith("pick_task_dynamic_5_001_lift_")
+    assert verified_plan_names[0].startswith("compound_hold_dynamic_5_001_approach_")
+    assert verified_plan_names[1].startswith("compound_hold_dynamic_5_001_pre_grasp_")
+    assert verified_plan_names[2].startswith("compound_hold_dynamic_5_001_lift_")
     assert "internal_approach_only_plan" not in verified_plan_names
