@@ -100,13 +100,9 @@ Voice Runtime emits wake, speech capture, STT, Agent Turn, and TTS spans. Agent 
 
 **API Boundary:** pure `process_trace` core modules must not import Pipecat, LangGraph, LangChain, MCP, Voice Runtime, Agent Control, or Robot Control. Pipecat-specific tracing lives in a thin adapter.
 
-### `model_eval`
+### Archived Model Benchmarking
 
-`model_eval` is the reusable Testing Module for comparing API-backed LangGraph model candidates against robot-agent scenario packs.
-
-It owns model-candidate parsing, scenario packs, validators, scoring, timing, evidence writing, and the deterministic simulated MoveIt eval adapter. It can also run against live MCP when a developer explicitly opts in.
-
-**API Boundary:** `model_eval` evaluates Agent Control and Robot Control through existing seams: Agent Turn, Robot Tool Adapter, Recording Robot Tool Adapter, and Live Eval Evidence. It must not own the Robot Agent Prompt, Task Policy Layer, Robot Call Validation, MoveIt Safety Boundary, Pipecat transport, wake handling, STT, TTS, or runtime pipeline ordering.
+Historical model-candidate benchmarking lives under `archive/model-benchmarking/`. It is not part of the workshop runtime.
 
 ### Task Policy Layer
 
@@ -136,7 +132,7 @@ The live MoveIt MCP runs as the `moveit-mcp` service in the ROS/Vizor Docker Com
 
 The source package lives in `server/moveit_mcp`. It exposes FastMCP tools. The main entrypoint is `moveit_mcp.server`, the agent-facing tool wrappers live in `moveit_mcp.tools`, and the ROS 1 topic/service adapter lives in `moveit_mcp.vizor_client`.
 
-The Vizor ROS 1 container owns the downstream MoveIt node and robot control code. In the running `vizor-demo` container, the MoveIt server is `/UR10/move_group`, the app-facing control node is `/vizor_robot_control`, and the robot logic is under `/root/catkin_ws/src/vizor_lib/src/vizor_lib/`. Treat container paths as runtime locators; persistent fixes belong in the Docker image source. The local RViz/Vizor image build context is `docker/vizor-rviz`; its `patch-vizor-robot.py` applies the ROS 1 `compute_cartesian_path(..., avoid_collisions=True)` compatibility patch inherited from `cxy201/noetic-vizor`. For the original-vs-current Docker stack comparison, see [docs/docker-vizor-rviz-comparison.html](docs/docker-vizor-rviz-comparison.html).
+The Vizor ROS 1 container owns the downstream MoveIt node and robot control code. In the running `vizor-demo` container, the MoveIt server is `/UR10/move_group`, the app-facing control node is `/vizor_robot_control`, and the robot logic is under `/root/catkin_ws/src/vizor_lib/src/vizor_lib/`. Treat container paths as runtime locators; persistent fixes belong in the Docker image source. The local RViz/Vizor image build context is `docker/vizor-rviz`; its `patch-vizor-robot.py` applies the ROS 1 `compute_cartesian_path(..., avoid_collisions=True)` compatibility patch inherited from `cxy201/noetic-vizor`.
 
 RViz is a Planning Scene consumer, not an agent boundary. The RViz config in the Vizor image must subscribe to the namespaced MoveIt scene stream, typically `/UR10/move_group/monitored_planning_scene`, through the MoveIt MotionPlanning display. For MTC visualization, the same RViz config must also load `moveit_task_constructor/Motion Planning Tasks` against the conventional `robot_description` parameter and subscribe to `/solution`; the Vizor desktop startup aliases `/UR10/robot_description*` params to the global MoveIt names before launching RViz. The MTC display only animates when an MTC backend publishes `moveit_task_constructor_msgs/Solution` on `/solution`; otherwise it is expected to remain present but idle. The geometry path is ROSBridge topic input, `/vizor_robot_control`, MoveIt planning scene, then RViz visualization.
 
@@ -311,7 +307,7 @@ Default providers are adapter choices, not architecture. The architecture names 
 
 ### Repository docs are the system of record
 
-Agent-facing knowledge must live in repository-local, versioned files. `AGENTS.md` is a map; `CONTEXT.md` defines domain language; this file defines target architecture.
+Shared knowledge must live in repository-local, versioned files. `CONTEXT.md` defines domain language; this file defines target architecture. Agent-only instructions are local handover material and are ignored by the workshop repo.
 
 ## Cross-Cutting Concerns
 

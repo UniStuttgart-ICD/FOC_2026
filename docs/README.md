@@ -10,13 +10,12 @@ This directory mixes live project references, design notes, research material, a
 
 ## Operations
 
-- [`testing.md`](testing.md): deterministic tests, manual live robot smoke tests, and model eval commands.
+- [`testing.md`](testing.md): deterministic test commands.
 - [`benchmarking.md`](benchmarking.md): current voice timing run notes for the bundled runtime profile.
 - [`operator-dashboard.md`](operator-dashboard.md): how to launch the MAVE operator dashboard.
 
-## Visual Companions And Design Notes
+## Design Notes
 
-- [`architecture-explorer.html`](architecture-explorer.html): live visual companion for the current architecture.
 - [`design-notes/`](design-notes/): focused HTML reports and proposal companions.
   - [`ground-plane-safety-fix.html`](design-notes/ground-plane-safety-fix.html)
   - [`robot-tooling-foundations.html`](design-notes/robot-tooling-foundations.html)
@@ -36,8 +35,4 @@ This directory mixes live project references, design notes, research material, a
 
 Historical files may mention old providers, profile matrices, or stale robot tool names. Use `ARCHITECTURE.md`, `CONTEXT.md`, and `server/runtime_profiles.toml` for current behavior.
 
-## Agent Process Notes
-
-- [`agents/domain.md`](agents/domain.md): how agents should consume domain docs.
-- [`agents/issue-tracker.md`](agents/issue-tracker.md): GitHub Enterprise issue tracker conventions.
-- [`agents/triage-labels.md`](agents/triage-labels.md): canonical triage labels.
+Agent process notes are local-only and ignored for workshop handover.

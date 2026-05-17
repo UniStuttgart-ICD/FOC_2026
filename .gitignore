@@ -228,6 +228,7 @@ __marimo__/
 # Local agent scratch
 .pi/
 .superpowers/
+.cursor/
 
 # Rhino lock files
 *.rhl
@@ -242,7 +243,18 @@ __marimo__/
 # Runtime voice metrics
 server/logs/
 
-# Manual live smoke evidence
-server/evidence/live_smoke/
-server/evidence/model_eval/
-server/evidence/model_eval_sharded/
+# Generated proof/evidence artifacts
+server/evidence/
+
+# Generated standalone docs
+docs/architecture-explorer.html
+docs/docker-vizor-rviz-comparison.html
+docs/geometry-grounded-pick-place.html
+docs/llm-mtc-compound-task-contract.html
+docs/plan.html
+
+# Agent-only repo instructions
+AGENTS.md
+docs/AGENTS.md
+docs/agents/
+tasks.md

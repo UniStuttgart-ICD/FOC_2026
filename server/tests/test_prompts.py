@@ -315,13 +315,6 @@ def test_prompt_maps_gaze_to_scene_object_before_grasp_and_delivery() -> None:
     assert "do not pretend the pickup or delivery happened" in example
 
 
-def test_agent_instructions_match_current_moveit_observation_tool() -> None:
-    agent_instructions = (Path(__file__).parents[2] / "AGENTS.md").read_text(encoding="utf-8")
-
-    assert "moveit_get_current_pose" in agent_instructions
-    assert "moveit_get_robot_status" not in agent_instructions
-
-
 def test_prompt_defines_kibbitz_as_robot_inhabiting_controller() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
