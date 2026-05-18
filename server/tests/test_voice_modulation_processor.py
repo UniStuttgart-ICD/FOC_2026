@@ -21,7 +21,7 @@ from voice_modulation.processor import VoiceModulationProcessor
 from voice_modulation.settings import VoiceModulationSettings
 
 PCM_20MS_24K_MONO = b"\x01\x00" * 480
-PCM_10MS_24K_MONO = b"\x01\x00" * 240
+PCM_200MS_24K_MONO = PCM_20MS_24K_MONO * 10
 
 
 class MemoryVoiceStreamTracer:
@@ -79,7 +79,7 @@ async def test_enabled_clean_settings_push_original_tts_audio_object_unchanged(
 
 
 @pytest.mark.asyncio
-async def test_enabled_settings_process_complete_blocks_via_thread_and_preserve_metadata(
+async def test_enabled_settings_process_full_chunks_via_thread_and_preserve_metadata(
     monkeypatch,
 ) -> None:
     calls: list[dict[str, Any]] = []
@@ -102,7 +102,7 @@ async def test_enabled_settings_process_complete_blocks_via_thread_and_preserve_
                 "state": state,
             }
         )
-        return b"\x03\x00" * 480
+        return b"\x03\x00" * (len(audio) // 2)
 
     async def fake_to_thread(func: Any, /, *args: Any, **kwargs: Any) -> Any:
         thread_calls.append((func, args, kwargs))
@@ -113,7 +113,7 @@ async def test_enabled_settings_process_complete_blocks_via_thread_and_preserve_
     settings = VoiceModulationSettings(enabled=True, gain_db=3.0)
     processor = CapturingVoiceModulationProcessor(settings)
     frame = TTSAudioRawFrame(
-        audio=PCM_20MS_24K_MONO,
+        audio=PCM_200MS_24K_MONO,
         sample_rate=24000,
         num_channels=1,
         context_id="tts-context",
@@ -125,7 +125,7 @@ async def test_enabled_settings_process_complete_blocks_via_thread_and_preserve_
     pushed = processor.pushed[0]
     assert isinstance(pushed, TTSAudioRawFrame)
     assert pushed is not frame
-    assert pushed.audio == b"\x03\x00" * 480
+    assert pushed.audio == b"\x03\x00" * 4800
     assert len(pushed.audio) == len(frame.audio)
     assert pushed.sample_rate == 24000
     assert pushed.num_channels == 1
@@ -134,7 +134,7 @@ async def test_enabled_settings_process_complete_blocks_via_thread_and_preserve_
     assert len(thread_calls) == 1
     assert calls == [
         {
-            "audio": PCM_20MS_24K_MONO,
+            "audio": PCM_200MS_24K_MONO,
             "sample_rate": 24000,
             "num_channels": 1,
             "settings": settings,
@@ -144,7 +144,7 @@ async def test_enabled_settings_process_complete_blocks_via_thread_and_preserve_
 
 
 @pytest.mark.asyncio
-async def test_streaming_audio_is_buffered_into_20ms_blocks(monkeypatch) -> None:
+async def test_startup_tiny_fragments_are_combined_with_first_useful_chunk(monkeypatch) -> None:
     calls: list[bytes] = []
 
     def fake_process_pcm16(
@@ -160,16 +160,25 @@ async def test_streaming_audio_is_buffered_into_20ms_blocks(monkeypatch) -> None
 
     monkeypatch.setattr("voice_modulation.processor.dsp.process_pcm16", fake_process_pcm16)
     processor = CapturingVoiceModulationProcessor(VoiceModulationSettings(enabled=True, gain_db=3.0))
-    first = TTSAudioRawFrame(audio=PCM_10MS_24K_MONO, sample_rate=24000, num_channels=1)
-    second = TTSAudioRawFrame(audio=PCM_10MS_24K_MONO, sample_rate=24000, num_channels=1)
+    start_frame = TTSStartedFrame()
+    first = TTSAudioRawFrame(audio=b"\x00\x00", sample_rate=24000, num_channels=1)
+    second = TTSAudioRawFrame(audio=b"\x00\x00", sample_rate=24000, num_channels=1)
+    useful = TTSAudioRawFrame(audio=PCM_20MS_24K_MONO, sample_rate=24000, num_channels=1)
 
+    await processor.process_frame(start_frame, FrameDirection.DOWNSTREAM)
     await processor.process_frame(first, FrameDirection.DOWNSTREAM)
     await processor.process_frame(second, FrameDirection.DOWNSTREAM)
 
+    assert processor.pushed == []
+    assert calls == []
+
+    await processor.process_frame(useful, FrameDirection.DOWNSTREAM)
+
     audio_frames = [frame for frame in processor.pushed if isinstance(frame, TTSAudioRawFrame)]
+    assert processor.pushed[0] is start_frame
     assert len(audio_frames) == 1
-    assert audio_frames[0].audio == PCM_20MS_24K_MONO
-    assert calls == [PCM_20MS_24K_MONO]
+    assert audio_frames[0].audio == b"\x00\x00\x00\x00" + PCM_20MS_24K_MONO
+    assert calls == [b"\x00\x00\x00\x00" + PCM_20MS_24K_MONO]
 
 
 @pytest.mark.asyncio
@@ -200,21 +209,10 @@ async def test_active_modulation_holds_tts_started_until_startup_prebuffer_ready
         TTSAudioRawFrame(audio=PCM_20MS_24K_MONO, sample_rate=24000, num_channels=1),
         FrameDirection.DOWNSTREAM,
     )
-    await processor.process_frame(
-        TTSAudioRawFrame(audio=PCM_20MS_24K_MONO, sample_rate=24000, num_channels=1),
-        FrameDirection.DOWNSTREAM,
-    )
-
-    assert processor.pushed == []
-
-    await processor.process_frame(
-        TTSAudioRawFrame(audio=PCM_20MS_24K_MONO, sample_rate=24000, num_channels=1),
-        FrameDirection.DOWNSTREAM,
-    )
 
     audio_frames = [frame for frame in processor.pushed if isinstance(frame, TTSAudioRawFrame)]
     assert processor.pushed[0] is start_frame
-    assert [frame.audio[:2] for frame in audio_frames] == [b"\x01\x00", b"\x02\x00", b"\x03\x00"]
+    assert [frame.audio[:2] for frame in audio_frames] == [b"\x01\x00"]
 
     await processor.process_frame(
         TTSAudioRawFrame(audio=PCM_20MS_24K_MONO, sample_rate=24000, num_channels=1),
@@ -225,13 +223,13 @@ async def test_active_modulation_holds_tts_started_until_startup_prebuffer_ready
     assert [frame.audio[:2] for frame in audio_frames] == [
         b"\x01\x00",
         b"\x02\x00",
-        b"\x03\x00",
-        b"\x04\x00",
     ]
 
 
 @pytest.mark.asyncio
-async def test_tts_stopped_force_releases_short_startup_prebuffer(monkeypatch) -> None:
+async def test_tts_stopped_drops_only_tiny_startup_fragments(monkeypatch) -> None:
+    calls: list[bytes] = []
+
     def fake_process_pcm16(
         audio: bytes,
         *,
@@ -240,6 +238,7 @@ async def test_tts_stopped_force_releases_short_startup_prebuffer(monkeypatch) -
         settings: VoiceModulationSettings,
         state: object,
     ) -> bytes:
+        calls.append(audio)
         return b"\x07\x00" * (len(audio) // 2)
 
     monkeypatch.setattr("voice_modulation.processor.dsp.process_pcm16", fake_process_pcm16)
@@ -251,7 +250,7 @@ async def test_tts_stopped_force_releases_short_startup_prebuffer(monkeypatch) -
 
     await processor.process_frame(start_frame, FrameDirection.DOWNSTREAM)
     await processor.process_frame(
-        TTSAudioRawFrame(audio=PCM_20MS_24K_MONO, sample_rate=24000, num_channels=1),
+        TTSAudioRawFrame(audio=b"\x00\x00", sample_rate=24000, num_channels=1),
         FrameDirection.DOWNSTREAM,
     )
 
@@ -260,10 +259,9 @@ async def test_tts_stopped_force_releases_short_startup_prebuffer(monkeypatch) -
     await processor.process_frame(stop_frame, FrameDirection.DOWNSTREAM)
 
     audio_frames = [frame for frame in processor.pushed if isinstance(frame, TTSAudioRawFrame)]
-    assert processor.pushed[0] is start_frame
-    assert len(audio_frames) == 1
-    assert audio_frames[0].audio == b"\x07\x00" * 480
-    assert processor.pushed[-1] is stop_frame
+    assert processor.pushed == [stop_frame]
+    assert audio_frames == []
+    assert calls == []
 
 
 @pytest.mark.asyncio
@@ -291,7 +289,7 @@ async def test_cancel_and_end_drop_held_startup_audio(monkeypatch) -> None:
 
         await processor.process_frame(start_frame, FrameDirection.DOWNSTREAM)
         await processor.process_frame(
-            TTSAudioRawFrame(audio=PCM_20MS_24K_MONO, sample_rate=24000, num_channels=1),
+            TTSAudioRawFrame(audio=b"\x00\x00", sample_rate=24000, num_channels=1),
             FrameDirection.DOWNSTREAM,
         )
         await processor.process_frame(reset_frame, FrameDirection.DOWNSTREAM)
@@ -326,15 +324,14 @@ async def test_stream_trace_records_prebuffer_dsp_tail_and_stop_events(monkeypat
     start_frame.metadata["voice_stream_utterance_id"] = "utterance-1"
 
     await processor.process_frame(start_frame, FrameDirection.DOWNSTREAM)
-    for _ in range(3):
-        await processor.process_frame(
-            TTSAudioRawFrame(
-                audio=PCM_20MS_24K_MONO,
-                sample_rate=24000,
-                num_channels=1,
-            ),
-            FrameDirection.DOWNSTREAM,
-        )
+    await processor.process_frame(
+        TTSAudioRawFrame(
+            audio=PCM_200MS_24K_MONO,
+            sample_rate=24000,
+            num_channels=1,
+        ),
+        FrameDirection.DOWNSTREAM,
+    )
     await processor.process_frame(TTSStoppedFrame(), FrameDirection.DOWNSTREAM)
 
     events = [record["event"] for record in tracer.records]
@@ -354,6 +351,11 @@ async def test_stream_trace_records_prebuffer_dsp_tail_and_stop_events(monkeypat
     assert any(
         record["event"] == "modulation.audio_push"
         and record["release_mode"] == "tail"
+        for record in tracer.records
+    )
+    assert any(
+        record["event"] == "modulation.dsp_start"
+        and record["input_bytes"] == len(PCM_200MS_24K_MONO)
         for record in tracer.records
     )
     assert all("audio" not in record for record in tracer.records)
@@ -395,7 +397,7 @@ async def test_stream_trace_records_passthrough_and_cancel_end_drops(monkeypatch
         )
         await processor.process_frame(TTSStartedFrame(), FrameDirection.DOWNSTREAM)
         await processor.process_frame(
-            TTSAudioRawFrame(audio=PCM_20MS_24K_MONO, sample_rate=24000, num_channels=1),
+            TTSAudioRawFrame(audio=b"\x00\x00", sample_rate=24000, num_channels=1),
             FrameDirection.DOWNSTREAM,
         )
         await processor.process_frame(reset_frame, FrameDirection.DOWNSTREAM)
@@ -404,7 +406,8 @@ async def test_stream_trace_records_passthrough_and_cancel_end_drops(monkeypatch
             record["event"] == "modulation.reset_frame"
             and record["frame_type"] == type(reset_frame).__name__
             and record["dropped_start_frame"] is True
-            and record["dropped_startup_frames"] == 1
+            and record["raw_buffer_bytes"] == 2
+            and record["dropped_startup_frames"] == 0
             for record in tracer.records
         )
 

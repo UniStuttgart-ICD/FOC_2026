@@ -31,7 +31,6 @@ _BLOCK_DURATION_S = 0.02
 _TAIL_MAX_DURATION_S = 0.24
 _TAIL_SILENCE_RMS = 0.0005
 _TAIL_SILENT_BLOCKS = 2
-_STARTUP_PREBUFFER_BLOCKS = 3
 
 
 class VoiceModulationProcessor(FrameProcessor):
@@ -68,6 +67,8 @@ class VoiceModulationProcessor(FrameProcessor):
             self._dsp_block_sequence = 0
             if self._should_process_audio():
                 self._pending_start_frame = frame
+                self._audio_buffer.clear()
+                self._buffer_template = None
                 self._startup_frames.clear()
                 self._startup_released = False
                 self._trace(
@@ -152,30 +153,41 @@ class VoiceModulationProcessor(FrameProcessor):
         direction: FrameDirection,
     ) -> None:
         await self._ensure_stream_format(frame, direction)
-        self._audio_buffer.extend(frame.audio)
-        self._buffer_template = frame
         self._tail_template = frame
+        if self._pending_start_frame is not None and not self._startup_released:
+            self._audio_buffer.extend(frame.audio)
+            self._buffer_template = frame
+            self._trace_buffer(frame, raw_buffer_bytes=len(self._audio_buffer))
+            if len(self._audio_buffer) < self._block_size_bytes(
+                frame.sample_rate,
+                frame.num_channels,
+            ):
+                return
+            await self._flush_buffer(direction)
+            return
+
         self._trace(
             "modulation.buffer",
             utterance_id=self._ensure_utterance_id(frame),
             chunk_seq=self._frame_chunk_sequence(frame, advance=False),
-            raw_buffer_bytes=len(self._audio_buffer),
+            raw_buffer_bytes=len(frame.audio),
             block_size_bytes=self._block_size_bytes(frame.sample_rate, frame.num_channels),
         )
-        await self._push_complete_blocks(frame, direction)
+        await self._push_processed_audio(frame.audio, frame, direction)
 
-    async def _push_complete_blocks(
+    def _trace_buffer(
         self,
         frame: TTSAudioRawFrame,
-        direction: FrameDirection,
+        *,
+        raw_buffer_bytes: int,
     ) -> None:
-        block_size = self._block_size_bytes(frame.sample_rate, frame.num_channels)
-        while len(self._audio_buffer) >= block_size:
-            block = bytes(self._audio_buffer[:block_size])
-            del self._audio_buffer[:block_size]
-            await self._push_processed_audio(block, frame, direction)
-        if not self._audio_buffer:
-            self._buffer_template = None
+        self._trace(
+            "modulation.buffer",
+            utterance_id=self._ensure_utterance_id(frame),
+            chunk_seq=self._frame_chunk_sequence(frame, advance=False),
+            raw_buffer_bytes=raw_buffer_bytes,
+            block_size_bytes=self._block_size_bytes(frame.sample_rate, frame.num_channels),
+        )
 
     async def _push_processed_audio(
         self,
@@ -240,8 +252,7 @@ class VoiceModulationProcessor(FrameProcessor):
             queued_audio_bytes=sum(len(item.audio) for item, _ in self._startup_frames),
             release_mode=release_mode,
         )
-        if len(self._startup_frames) >= _STARTUP_PREBUFFER_BLOCKS:
-            await self._release_startup_prebuffer(direction)
+        await self._release_startup_prebuffer(direction)
 
     async def _release_startup_prebuffer(
         self,
@@ -251,10 +262,7 @@ class VoiceModulationProcessor(FrameProcessor):
     ) -> None:
         if self._startup_released:
             return
-        if (
-            not force
-            and len(self._startup_frames) < _STARTUP_PREBUFFER_BLOCKS
-        ):
+        if not force and not self._startup_frames:
             return
         self._trace(
             "modulation.prebuffer_release",
@@ -264,9 +272,9 @@ class VoiceModulationProcessor(FrameProcessor):
             queued_audio_bytes=sum(len(item.audio) for item, _ in self._startup_frames),
             pending_start_frame=self._pending_start_frame is not None,
         )
-        if self._pending_start_frame is not None:
+        if self._pending_start_frame is not None and self._startup_frames:
             await self.push_frame(self._pending_start_frame, direction)
-            self._pending_start_frame = None
+        self._pending_start_frame = None
         for frame, release_mode in self._startup_frames:
             queued_mode = "prebuffer" if release_mode == "immediate" else release_mode
             await self._push_audio_frame(frame, direction, release_mode=queued_mode)
@@ -295,9 +303,20 @@ class VoiceModulationProcessor(FrameProcessor):
     async def _flush_buffer(self, direction: FrameDirection) -> None:
         if not self._audio_buffer or self._buffer_template is None:
             return
+        template = self._buffer_template
+        block_size = self._block_size_bytes(template.sample_rate, template.num_channels)
+        if len(self._audio_buffer) < block_size:
+            self._trace(
+                "modulation.buffer_drop",
+                utterance_id=self._ensure_utterance_id(template),
+                raw_buffer_bytes=len(self._audio_buffer),
+                block_size_bytes=block_size,
+            )
+            self._audio_buffer.clear()
+            self._buffer_template = None
+            return
         block = bytes(self._audio_buffer)
         self._audio_buffer.clear()
-        template = self._buffer_template
         self._buffer_template = None
         await self._push_processed_audio(block, template, direction)
 
