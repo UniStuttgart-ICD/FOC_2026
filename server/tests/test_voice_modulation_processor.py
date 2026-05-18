@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any
 
 import pytest
@@ -23,9 +24,22 @@ PCM_20MS_24K_MONO = b"\x01\x00" * 480
 PCM_10MS_24K_MONO = b"\x01\x00" * 240
 
 
+class MemoryVoiceStreamTracer:
+    def __init__(self) -> None:
+        self.records: list[dict[str, Any]] = []
+
+    def event(self, event: str, **attributes: Any) -> None:
+        self.records.append({"event": event, **attributes})
+
+
 class CapturingVoiceModulationProcessor(VoiceModulationProcessor):
-    def __init__(self, settings: VoiceModulationSettings) -> None:
-        super().__init__(settings=settings)
+    def __init__(
+        self,
+        settings: VoiceModulationSettings,
+        *,
+        voice_stream_tracer: MemoryVoiceStreamTracer | None = None,
+    ) -> None:
+        super().__init__(settings=settings, voice_stream_tracer=voice_stream_tracer)
         self.pushed: list[Frame] = []
 
     async def push_frame(
@@ -283,6 +297,116 @@ async def test_cancel_and_end_drop_held_startup_audio(monkeypatch) -> None:
         await processor.process_frame(reset_frame, FrameDirection.DOWNSTREAM)
 
         assert processor.pushed == [reset_frame]
+
+
+@pytest.mark.asyncio
+async def test_stream_trace_records_prebuffer_dsp_tail_and_stop_events(monkeypatch) -> None:
+    def fake_process_pcm16(
+        audio: bytes,
+        *,
+        sample_rate: int,
+        num_channels: int,
+        settings: VoiceModulationSettings,
+        state: object,
+    ) -> bytes:
+        return audio
+
+    monkeypatch.setattr("voice_modulation.processor.dsp.process_pcm16", fake_process_pcm16)
+    tracer = MemoryVoiceStreamTracer()
+    processor = CapturingVoiceModulationProcessor(
+        VoiceModulationSettings(
+            enabled=True,
+            gain_db=3.0,
+            echo_delay_ms=20.0,
+            echo_mix=0.5,
+        ),
+        voice_stream_tracer=tracer,
+    )
+    start_frame = TTSStartedFrame()
+    start_frame.metadata["voice_stream_utterance_id"] = "utterance-1"
+
+    await processor.process_frame(start_frame, FrameDirection.DOWNSTREAM)
+    for _ in range(3):
+        await processor.process_frame(
+            TTSAudioRawFrame(
+                audio=PCM_20MS_24K_MONO,
+                sample_rate=24000,
+                num_channels=1,
+            ),
+            FrameDirection.DOWNSTREAM,
+        )
+    await processor.process_frame(TTSStoppedFrame(), FrameDirection.DOWNSTREAM)
+
+    events = [record["event"] for record in tracer.records]
+    assert events.index("modulation.tts_start") < events.index("modulation.prebuffer_release")
+    assert "modulation.audio_receive" in events
+    assert "modulation.buffer" in events
+    assert "modulation.dsp_start" in events
+    assert "modulation.dsp_end" in events
+    assert "modulation.tts_stop" in events
+    assert "modulation.reset" in events
+    assert any(
+        record["event"] == "modulation.audio_push"
+        and record["release_mode"] == "prebuffer"
+        and record["utterance_id"] == "utterance-1"
+        for record in tracer.records
+    )
+    assert any(
+        record["event"] == "modulation.audio_push"
+        and record["release_mode"] == "tail"
+        for record in tracer.records
+    )
+    assert all("audio" not in record for record in tracer.records)
+    assert "0100" not in json.dumps(tracer.records)
+
+
+@pytest.mark.asyncio
+async def test_stream_trace_records_passthrough_and_cancel_end_drops(monkeypatch) -> None:
+    def fail_process_pcm16(*args: Any, **kwargs: Any) -> bytes:
+        raise AssertionError("clean settings must not run DSP")
+
+    monkeypatch.setattr("voice_modulation.processor.dsp.process_pcm16", fail_process_pcm16)
+    passthrough_tracer = MemoryVoiceStreamTracer()
+    passthrough_processor = CapturingVoiceModulationProcessor(
+        VoiceModulationSettings(enabled=True, preset_name="clean"),
+        voice_stream_tracer=passthrough_tracer,
+    )
+
+    await passthrough_processor.process_frame(
+        TTSAudioRawFrame(audio=PCM_20MS_24K_MONO, sample_rate=24000, num_channels=1),
+        FrameDirection.DOWNSTREAM,
+    )
+
+    assert any(
+        record["event"] == "modulation.audio_push"
+        and record["release_mode"] == "passthrough"
+        for record in passthrough_tracer.records
+    )
+
+    async def fake_to_thread(func: Any, /, *args: Any, **kwargs: Any) -> Any:
+        return args[0]
+
+    monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
+    for reset_frame in (CancelFrame(), EndFrame()):
+        tracer = MemoryVoiceStreamTracer()
+        processor = CapturingVoiceModulationProcessor(
+            VoiceModulationSettings(enabled=True, gain_db=3.0),
+            voice_stream_tracer=tracer,
+        )
+        await processor.process_frame(TTSStartedFrame(), FrameDirection.DOWNSTREAM)
+        await processor.process_frame(
+            TTSAudioRawFrame(audio=PCM_20MS_24K_MONO, sample_rate=24000, num_channels=1),
+            FrameDirection.DOWNSTREAM,
+        )
+        await processor.process_frame(reset_frame, FrameDirection.DOWNSTREAM)
+
+        assert any(
+            record["event"] == "modulation.reset_frame"
+            and record["frame_type"] == type(reset_frame).__name__
+            and record["dropped_start_frame"] is True
+            and record["dropped_startup_frames"] == 1
+            for record in tracer.records
+        )
 
 
 @pytest.mark.asyncio

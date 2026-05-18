@@ -33,6 +33,12 @@ from process_trace import (
 )
 from voice_modulation.processor import VoiceModulationProcessor
 from voice_modulation.settings import VoiceModulationSettings
+from voice_modulation.stream_trace import (
+    VOICE_STREAM_TRACE_BASE_PATH,
+    JsonlVoiceStreamTraceWriter,
+    VoiceStreamTracer,
+    VoiceStreamTracerProtocol,
+)
 from voice_runtime.assembly import VoiceRuntimeParts, ordered_voice_runtime_processors
 from voice_runtime.providers import create_stt_service, create_tts_service
 from voice_runtime.response_coordination import (
@@ -58,10 +64,18 @@ class BuiltPipeline:
 
 def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipeline:
     stt = create_stt_service(config.stt)
-    tts = create_tts_service(_tts_with_default_speech_delivery(config.tts))
-    voice_modulation = _create_voice_modulation_processor(config.voice_modulation)
     session_id = _new_session_id()
     session_started_at = _utc_now()
+    voice_stream_tracer = _build_voice_stream_tracer(config, session_id, session_started_at)
+    tts_config = _tts_with_default_speech_delivery(config.tts)
+    if voice_stream_tracer is None:
+        tts = create_tts_service(tts_config)
+    else:
+        tts = create_tts_service(tts_config, voice_stream_tracer=voice_stream_tracer)
+    voice_modulation = _create_voice_modulation_processor(
+        config.voice_modulation,
+        voice_stream_tracer=voice_stream_tracer,
+    )
     process_tracer = _build_process_tracer(config, session_id, session_started_at)
     session_context = process_tracer.start_session(
         config.profile_name,
@@ -198,10 +212,12 @@ def session_log_path(base_path: Path, started_at: datetime, session_id: str) -> 
 
 def _create_voice_modulation_processor(
     settings: object | None,
+    *,
+    voice_stream_tracer: VoiceStreamTracerProtocol | None = None,
 ) -> VoiceModulationProcessor | None:
     if not isinstance(settings, VoiceModulationSettings) or not settings.enabled:
         return None
-    return VoiceModulationProcessor(settings=settings)
+    return VoiceModulationProcessor(settings=settings, voice_stream_tracer=voice_stream_tracer)
 
 
 def _tts_with_default_speech_delivery(tts: TTSConfig) -> TTSConfig:
@@ -288,6 +304,22 @@ def _build_process_tracer(
     return ProcessTracer(
         JsonlTraceWriter(session_log_path(config.process_trace.path, session_started_at, session_id)),
         options,
+    )
+
+
+def _build_voice_stream_tracer(
+    config: RuntimeConfig,
+    session_id: str,
+    session_started_at: datetime,
+) -> VoiceStreamTracerProtocol | None:
+    if not isinstance(config.voice_modulation, VoiceModulationSettings):
+        return None
+    if not config.voice_modulation.enabled:
+        return None
+    base_path = config.server_dir / VOICE_STREAM_TRACE_BASE_PATH
+    return VoiceStreamTracer(
+        JsonlVoiceStreamTraceWriter(session_log_path(base_path, session_started_at, session_id)),
+        session_id=session_id,
     )
 
 

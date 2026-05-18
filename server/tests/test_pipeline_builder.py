@@ -53,6 +53,21 @@ class FakeJsonlTraceWriter:
         self.path = path
 
 
+class FakeJsonlVoiceStreamTraceWriter:
+    def __init__(self, path: Path):
+        self.path = path
+
+
+class FakeVoiceStreamTracer:
+    def __init__(self, writer, *, session_id: str):
+        self.writer = writer
+        self.session_id = session_id
+        self.records: list[dict[str, Any]] = []
+
+    def event(self, event: str, **attributes: Any) -> None:
+        self.records.append({"event": event, **attributes})
+
+
 class FakeProcessTracer:
     def __init__(self, writer, options):
         self.writer = writer
@@ -143,7 +158,7 @@ def _config(
 
 def _patch_pipeline_dependencies(monkeypatch, *, agent_processor_kwargs: dict[str, Any] | None = None):
     monkeypatch.setattr("pipeline_builder.create_stt_service", lambda config: FrameProcessor())
-    monkeypatch.setattr("pipeline_builder.create_tts_service", lambda config: FrameProcessor())
+    monkeypatch.setattr("pipeline_builder.create_tts_service", lambda config, **kwargs: FrameProcessor())
 
     def fake_agent_processor(config, *, mcp_server_url, **kwargs):
         if agent_processor_kwargs is not None:
@@ -161,9 +176,15 @@ def _patch_pipeline_dependencies(monkeypatch, *, agent_processor_kwargs: dict[st
     monkeypatch.setattr("pipeline_builder.Pipeline", FakePipeline)
     monkeypatch.setattr("pipeline_builder.PipelineTask", FakePipelineTask)
     monkeypatch.setattr("pipeline_builder.JsonlTraceWriter", FakeJsonlTraceWriter, raising=False)
+    monkeypatch.setattr(
+        "pipeline_builder.JsonlVoiceStreamTraceWriter",
+        FakeJsonlVoiceStreamTraceWriter,
+        raising=False,
+    )
     monkeypatch.setattr("pipeline_builder.ProcessTracer", FakeProcessTracer, raising=False)
     monkeypatch.setattr("pipeline_builder.NoopProcessTracer", FakeNoopProcessTracer, raising=False)
     monkeypatch.setattr("pipeline_builder.TraceOptions", FakeTraceOptions, raising=False)
+    monkeypatch.setattr("pipeline_builder.VoiceStreamTracer", FakeVoiceStreamTracer, raising=False)
     monkeypatch.setattr(
         "pipeline_builder._create_process_trace_observer",
         lambda tracer, session_context: FakeProcessTraceObserver(
@@ -477,6 +498,82 @@ def test_logs_use_session_scoped_paths(monkeypatch, tmp_path: Path):
     ]
 
 
+def test_voice_modulation_stream_trace_uses_session_path_and_shared_tracer(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    _patch_pipeline_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        "pipeline_builder._utc_now",
+        lambda: datetime(2026, 5, 7, 12, 34, 56, tzinfo=timezone.utc),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "pipeline_builder._new_session_id",
+        lambda: "0123456789abcdef0123456789abcdef",
+        raising=False,
+    )
+    tts = FrameProcessor()
+    seen_tts_tracers: list[FakeVoiceStreamTracer | None] = []
+
+    def fake_create_tts_service(config, *, voice_stream_tracer=None):
+        seen_tts_tracers.append(voice_stream_tracer)
+        return tts
+
+    monkeypatch.setattr("pipeline_builder.create_tts_service", fake_create_tts_service)
+
+    built = build_pipeline(
+        _config(
+            tmp_path,
+            metrics_enabled=False,
+            voice_modulation=VoiceModulationSettings(enabled=True, gain_db=3.0),
+        ),
+        cast(BaseTransport, FakeTransport()),
+    )
+    processors = cast(FakePipeline, built.pipeline).processors
+    voice_modulation = next(
+        processor
+        for processor in processors
+        if isinstance(processor, VoiceModulationProcessor)
+    )
+    stream_tracer = seen_tts_tracers[0]
+
+    assert isinstance(stream_tracer, FakeVoiceStreamTracer)
+    assert stream_tracer.writer.path == (
+        tmp_path
+        / "logs"
+        / "voice_modulation_stream_trace"
+        / "voice_modulation_stream_trace-20260507T123456Z-01234567.jsonl"
+    )
+    assert stream_tracer.session_id == "0123456789abcdef0123456789abcdef"
+    assert voice_modulation._voice_stream_tracer is stream_tracer
+
+
+def test_voice_modulation_stream_trace_is_not_created_when_modulation_disabled(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    _patch_pipeline_dependencies(monkeypatch)
+    seen_tts_kwargs: list[dict[str, Any]] = []
+
+    def fake_create_tts_service(config, **kwargs):
+        seen_tts_kwargs.append(kwargs)
+        return FrameProcessor()
+
+    monkeypatch.setattr("pipeline_builder.create_tts_service", fake_create_tts_service)
+
+    build_pipeline(
+        _config(
+            tmp_path,
+            metrics_enabled=False,
+            voice_modulation=VoiceModulationSettings(enabled=False),
+        ),
+        cast(BaseTransport, FakeTransport()),
+    )
+
+    assert seen_tts_kwargs == [{}]
+
+
 def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tmp_path: Path):
     stt = FrameProcessor()
     tts = FrameProcessor()
@@ -487,7 +584,7 @@ def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tm
 
     _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
     monkeypatch.setattr("pipeline_builder.create_stt_service", lambda config: stt)
-    monkeypatch.setattr("pipeline_builder.create_tts_service", lambda config: tts)
+    monkeypatch.setattr("pipeline_builder.create_tts_service", lambda config, **kwargs: tts)
     monkeypatch.setattr(
         "pipeline_builder.logger",
         Mock(info=lambda message, *args: wake_config_logs.append(message.format(*args))),
@@ -590,7 +687,7 @@ def test_enabled_voice_modulation_is_wired_between_tts_and_transport_output(
     _patch_pipeline_dependencies(monkeypatch)
     tts = FrameProcessor()
     transport_output = FrameProcessor()
-    monkeypatch.setattr("pipeline_builder.create_tts_service", lambda config: tts)
+    monkeypatch.setattr("pipeline_builder.create_tts_service", lambda config, **kwargs: tts)
 
     class VoiceModulationTransport(FakeTransport):
         def output(self):

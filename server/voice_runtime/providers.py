@@ -12,6 +12,7 @@ from pipecat.services.openai.stt import OpenAIRealtimeSTTService
 from pipecat.services.openai.tts import OpenAITTSService
 from pipecat.services.whisper.stt import WhisperSTTService
 
+from voice_modulation.stream_trace import VoiceStreamTracerProtocol
 from voice_runtime.gemini_live_speech import (
     DEFAULT_GEMINI_LIVE_MODEL,
     DEFAULT_GEMINI_LIVE_VOICE,
@@ -49,7 +50,11 @@ def create_stt_service(config: STTProfile) -> FrameProcessor:
     raise ValueError(f"Unsupported STT provider: {config.provider}")
 
 
-def create_tts_service(config: TTSProfile) -> FrameProcessor:
+def create_tts_service(
+    config: TTSProfile,
+    *,
+    voice_stream_tracer: VoiceStreamTracerProtocol | None = None,
+) -> FrameProcessor:
     if config.provider == "kokoro":
         return KokoroTTSService(
             settings=KokoroTTSService.Settings(
@@ -91,5 +96,6 @@ def create_tts_service(config: TTSProfile) -> FrameProcessor:
             model=config.model or DEFAULT_GEMINI_LIVE_MODEL,
             voice=config.voice or DEFAULT_GEMINI_LIVE_VOICE,
             instructions=config.instructions,
+            voice_stream_tracer=voice_stream_tracer,
         )
     raise ValueError(f"Unsupported TTS provider: {config.provider}")
