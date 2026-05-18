@@ -297,11 +297,24 @@ def test_prompt_routes_manipulation_tasks_through_requirements_preferences_plann
 def test_prompt_guides_beam_grasp_face_preferences() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
+    assert 'requirements.grasp_face="top"' in prompt
+    assert "explicitly names a grasp face" in prompt
     assert "horizontal beams use preferences.grasp_face=\"top\"" in prompt
     assert "vertical beams use an outer side face" in prompt
     assert "beam_side_preference=\"outer\"" in prompt
     assert "scene_clearance_m" in prompt
     assert "do not choose the vertical top cap or an inner side face" in prompt
+
+
+def test_prompt_maps_explicit_grasp_face_to_requirement() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+    example = _example_region("kibbitz, pick up element 1 from the top")
+
+    assert 'requirements.grasp_face="top"' in prompt
+    assert "explicitly names a grasp face" in prompt
+    assert 'user: "kibbitz, pick up element 1 from the top"' in example
+    assert 'requirements.object_name="dynamic_1"' in example
+    assert 'requirements.grasp_face="top"' in example
 
 
 def test_prompt_describes_geometry_grounded_pick_place_context() -> None:

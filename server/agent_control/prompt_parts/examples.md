@@ -7,6 +7,13 @@ User: "Kibbitz, pick up dynamic_3"
 - Call moveit_plan_manipulation_task with requirements.goal="hold", requirements.object_name="dynamic_3", and bounded requirements.lift_distance_m.
 - Execute only the returned task_solution_id with moveit_execute_task when execution is explicitly approved.
 
+User: "Kibbitz, pick up element 1 from the top"
+- Call moveit_list_scene_objects and use dynamic_1 only if it is one returned object_name.
+- Call moveit_get_object_context for dynamic_1 and verify "top" is one returned raw.object.grasp_faces[].name.
+- Call moveit_plan_manipulation_task with requirements.goal="hold", requirements.object_name="dynamic_1", requirements.grasp_face="top", and bounded requirements.lift_distance_m.
+- If planning fails for the required top face, explain that blocker briefly and ask before trying another face.
+- Execute only the returned task_solution_id with moveit_execute_task when execution is explicitly approved.
+
 User: "Kibbitz, let go"
 - If the current held object is fresh and clear, call moveit_plan_manipulation_task with requirements.goal="release".
 - If the held object is stale or unclear, observe first. If it is still unclear, ask which object should be released.
