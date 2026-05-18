@@ -967,13 +967,14 @@ class MoveItMcpTools:
             )
 
         try:
-            workflow = build_oriented_pick_workflow(
+            candidate_workflows = build_pick_candidates(
                 object_feedback.object_context,
                 requested_grasp_face=requested_grasp_face,
                 required_grasp_face=required_grasp_face_active,
                 approach_distance_m=float(normalized_preferences.get("approach_distance_m", 0.08)),
                 grasp_standoff_m=float(normalized_preferences.get("grasp_standoff_m", 0.01)),
                 lift_distance_m=float(requirements.get("lift_distance_m", normalized_preferences.get("lift_distance_m", 0.1))),
+                max_candidates=8,
             )
         except (KeyError, TypeError, ValueError, PickPlanInputError) as exc:
             return self._invalid_task_workflow_result(
@@ -984,59 +985,71 @@ class MoveItMcpTools:
                 correction=getattr(exc, "correction", PICK_OBJECT_CORRECTION),
             )
 
-        params = _safe_dict(workflow.get("parameters"))
-        selected_face = _safe_dict(workflow.get("selected_grasp_face"))
-        contract_steps = _contract_hold_execution_steps(
-            object_name=object_name,
-            scene_snapshot_id="",
-        )
-        selected_candidate = {
-            "attempt_index": 1,
-            "status": "contract",
-            "grasp_face": params.get("grasp_face") or selected_face.get("name"),
-            "approach_distance_m": params.get("approach_distance_m"),
-            "grasp_standoff_m": params.get("grasp_standoff_m"),
-            "lift_distance_m": params.get("lift_distance_m"),
-        }
-        solution = self._build_task_solution(
+        candidate_attempts: list[dict[str, Any]] = []
+        best_failure: dict[str, Any] | None = None
+        for attempt_index, workflow in enumerate(candidate_workflows[:8], start=1):
+            attempt = self._try_staged_hold_candidate(
+                robot=robot,
+                object_name=object_name,
+                attempt_index=attempt_index,
+                workflow=workflow,
+                timeout_s=timeout_s,
+            )
+            candidate_attempts.append(attempt)
+            if attempt["status"] != "selected":
+                if best_failure is None or len(attempt.get("motion_stages", [])) > len(best_failure.get("motion_stages", [])):
+                    best_failure = attempt
+                continue
+            solution = self._build_task_solution(
+                robot=robot,
+                object_name=object_name,
+                task_kind="hold",
+                created_from_tool="moveit_plan_manipulation_task",
+                planning_frame=workflow.get("planning_frame"),
+                object_context=object_feedback.object_context,
+                observed_at=observed_at,
+                stages=_staged_hold_task_stages(attempt["motion_stages"]),
+                expected_movement=f"hold {object_name}: approach grasp, attach, and lift object",
+                raw={
+                    "requirements": dict(requirements),
+                    "preferences": normalized_preferences,
+                    "selected_grasp_face": workflow["selected_grasp_face"],
+                    "selected_candidate": _staged_candidate_public_summary(attempt),
+                    "candidate_attempts": candidate_attempts,
+                    "waypoints": workflow["waypoints"],
+                    "workflow_steps": workflow["workflow_steps"],
+                    "parameters": workflow["parameters"],
+                    "object": object_feedback.object_context,
+                    "preview": _staged_agent_path_preview(attempt["motion_stages"]),
+                },
+                candidate_attempts=candidate_attempts,
+                backend="staged_moveit",
+                solver="staged_moveit",
+                selected_cost=round(float(attempt_index) + 0.1 * len(attempt["motion_stages"]), 3),
+            )
+            solution.raw["execution_contract"] = _staged_hold_execution_contract(
+                task_solution_id=solution.task_solution_id,
+                object_name=object_name,
+                scene_snapshot_id=solution.scene_snapshot_id,
+                motion_stages=attempt["motion_stages"],
+            )
+            solution.raw["scene_snapshot"] = {
+                "id": solution.scene_snapshot_id,
+                "planning_frame": object_feedback.planning_frame,
+                "object_count": len(object_feedback.available_objects),
+            }
+            self._task_solutions[solution.task_solution_id] = solution
+            return self._task_solution_planned_result(solution)
+
+        failed_stage = str((best_failure or {}).get("failed_stage") or "connect_to_pre_grasp")
+        return self._manipulation_task_failed_result(
             robot=robot,
             object_name=object_name,
-            task_kind="hold",
-            created_from_tool="moveit_plan_manipulation_task",
-            planning_frame=workflow.get("planning_frame"),
-            object_context=object_feedback.object_context,
-            observed_at=observed_at,
-            stages=_contract_hold_task_stages(),
-            expected_movement=f"hold {object_name}: approach grasp, attach, and lift object",
-            raw={
-                "requirements": dict(requirements),
-                "preferences": normalized_preferences,
-                "selected_grasp_face": workflow["selected_grasp_face"],
-                "selected_candidate": selected_candidate,
-                "candidate_attempts": [],
-                "waypoints": workflow["waypoints"],
-                "workflow_steps": workflow["workflow_steps"],
-                "parameters": workflow["parameters"],
-                "object": object_feedback.object_context,
-                "preview": _staged_waypoint_agent_path_preview(workflow["waypoints"], contract_steps),
-            },
-            candidate_attempts=[],
-            backend="staged_moveit",
-            solver="contract_moveit",
-            selected_cost=1.0,
+            requirements=dict(requirements),
+            preferences=normalized_preferences,
+            failed_stage=failed_stage,
+            candidate_attempts=candidate_attempts,
         )
-        solution.raw["execution_contract"] = _contract_hold_execution_contract(
-            task_solution_id=solution.task_solution_id,
-            object_name=object_name,
-            scene_snapshot_id=solution.scene_snapshot_id,
-        )
-        solution.raw["scene_snapshot"] = {
-            "id": solution.scene_snapshot_id,
-            "planning_frame": object_feedback.planning_frame,
-            "object_count": len(object_feedback.available_objects),
-        }
-        self._task_solutions[solution.task_solution_id] = solution
-        return self._task_solution_planned_result(solution)
 
     def _plan_staged_release_manipulation_task(
         self,
@@ -4216,36 +4229,6 @@ def _staged_manipulation_plan_name(task_kind: str, object_name: str, attempt_ind
     return f"manipulation_{task_kind}_{_slug(object_name)}_c{attempt_index:02d}_{_slug(stage_name)}"
 
 
-def _contract_hold_task_stages() -> list[TaskStage]:
-    return [
-        TaskStage("observe_current_state", "observation", "solved", [{"kind": "scene_snapshot"}]),
-        TaskStage(
-            "connect_to_pre_grasp",
-            "motion_plan",
-            "solved",
-            [{"kind": "task_contract_waypoint", "waypoint_index": 0}],
-            {"waypoint_index": 0},
-        ),
-        TaskStage(
-            "approach_to_pre_grasp",
-            "motion_plan",
-            "solved",
-            [{"kind": "task_contract_waypoint", "waypoint_index": 1}],
-            {"waypoint_index": 1},
-        ),
-        TaskStage("close_gripper", "gripper", "solved", [{"kind": "gripper_command"}]),
-        TaskStage("attach_object", "scene_update", "solved", [{"kind": "planning_scene_update"}]),
-        TaskStage(
-            "post_grasp_lift",
-            "motion_plan",
-            "solved",
-            [{"kind": "task_contract_waypoint", "waypoint_index": 2}],
-            {"waypoint_index": 2},
-        ),
-        TaskStage("verify_attached_object", "verification", "solved", [{"kind": "attachment_check"}]),
-    ]
-
-
 def _staged_hold_task_stages(motion_stages: list[dict[str, Any]]) -> list[TaskStage]:
     motion_by_name = {str(stage.get("name")): stage for stage in motion_stages}
     return [
@@ -4325,30 +4308,6 @@ def _staged_agent_path_preview(motion_stages: list[dict[str, Any]]) -> dict[str,
     }
 
 
-def _staged_waypoint_agent_path_preview(
-    waypoints: list[dict[str, Any]],
-    stages: list[dict[str, Any]],
-) -> dict[str, Any]:
-    return {
-        "kind": "AgentPath",
-        "name": "AgentPath",
-        "motion_stages": [
-            {
-                "name": stage.get("name"),
-                "waypoint_index": stage.get("waypoint_index"),
-                "trajectory_points": 1,
-                "evidence": {
-                    "kind": "waypoint_preview",
-                    "waypoint": waypoints[int(stage["waypoint_index"])],
-                },
-            }
-            for stage in stages
-            if isinstance(stage.get("waypoint_index"), int)
-            and 0 <= int(stage["waypoint_index"]) < len(waypoints)
-        ],
-    }
-
-
 def _staged_candidate_public_summary(attempt: dict[str, Any]) -> dict[str, Any]:
     return {
         "attempt_index": attempt.get("attempt_index"),
@@ -4356,96 +4315,6 @@ def _staged_candidate_public_summary(attempt: dict[str, Any]) -> dict[str, Any]:
         "approach_distance_m": attempt.get("approach_distance_m"),
         "grasp_standoff_m": attempt.get("grasp_standoff_m"),
         "lift_distance_m": attempt.get("lift_distance_m"),
-    }
-
-
-def _contract_hold_execution_steps(
-    *,
-    object_name: str,
-    scene_snapshot_id: str,
-) -> list[dict[str, Any]]:
-    return [
-        {
-            "step": 1,
-            "handler": "motion",
-            "name": "connect_to_pre_grasp",
-            "waypoint_index": 0,
-            "source_stage": "connect_to_pre_grasp",
-            "object_name": object_name,
-            "scene_snapshot_id": scene_snapshot_id,
-            "required_proof": "verified_motion_plan",
-        },
-        {
-            "step": 2,
-            "handler": "motion",
-            "name": "approach_to_pre_grasp",
-            "waypoint_index": 1,
-            "source_stage": "approach_to_pre_grasp",
-            "object_name": object_name,
-            "scene_snapshot_id": scene_snapshot_id,
-            "required_proof": "verified_motion_plan",
-        },
-        {
-            "step": 3,
-            "handler": "close_gripper",
-            "name": "close_gripper",
-            "tool": "moveit_close_gripper",
-            "source_stage": "close_gripper",
-            "object_name": object_name,
-            "scene_snapshot_id": scene_snapshot_id,
-            "required_proof": "verified_gripper_closed",
-        },
-        {
-            "step": 4,
-            "handler": "attach_object",
-            "name": "attach_object",
-            "tool": "moveit_attach_object",
-            "source_stage": "attach_object",
-            "object_name": object_name,
-            "scene_snapshot_id": scene_snapshot_id,
-            "required_proof": "planning_scene_attached",
-            "arguments": {"verified_gripper_closed": True},
-        },
-        {
-            "step": 5,
-            "handler": "motion",
-            "name": "post_grasp_lift",
-            "waypoint_index": 2,
-            "source_stage": "post_grasp_lift",
-            "object_name": object_name,
-            "scene_snapshot_id": scene_snapshot_id,
-            "required_proof": "verified_motion_plan",
-        },
-        {
-            "step": 6,
-            "handler": "verify_attached_object",
-            "name": "verify_attached_object",
-            "tool": "moveit_verify_attached_object",
-            "source_stage": "verify_attached_object",
-            "object_name": object_name,
-            "scene_snapshot_id": scene_snapshot_id,
-            "required_proof": "attachment_check",
-        },
-    ]
-
-
-def _contract_hold_execution_contract(
-    *,
-    task_solution_id: str,
-    object_name: str,
-    scene_snapshot_id: str,
-) -> dict[str, Any]:
-    return {
-        "target_kind": "task_solution",
-        "task_solution_id": task_solution_id,
-        "object_name": object_name,
-        "scene_snapshot_id": scene_snapshot_id,
-        "requires_explicit_approval": True,
-        "can_execute": True,
-        "steps": _contract_hold_execution_steps(
-            object_name=object_name,
-            scene_snapshot_id=scene_snapshot_id,
-        ),
     }
 
 
