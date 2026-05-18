@@ -48,6 +48,33 @@ PLANNING_SCENE = {
 }
 
 
+VERTICAL_BEAM_SCENE = {
+    "scene": {
+        "robot_model_name": "UR10",
+        "world": {
+            "collision_objects": [
+                {
+                    "id": "vertical_beam",
+                    "header": {"frame_id": "base_link"},
+                    "operation": 0,
+                    "primitives": [{"type": 1, "dimensions": [0.04, 0.04, 0.30]}],
+                    "primitive_poses": [
+                        {
+                            "position": {"x": 0.4, "y": 0.2, "z": 0.16},
+                            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+                        }
+                    ],
+                    "meshes": [],
+                    "mesh_poses": [],
+                }
+            ]
+        },
+        "robot_state": {"attached_collision_objects": []},
+        "object_colors": [],
+    }
+}
+
+
 ATTACHED_PLANNING_SCENE = {
     "scene": {
         "robot_model_name": "UR10",
@@ -68,6 +95,30 @@ ATTACHED_PLANNING_SCENE = {
         "object_colors": [],
     }
 }
+
+
+def _vertical_beam_object_context() -> dict:
+    transport = FakeRosbridgeTransport()
+    transport.set_planning_scene("UR10", VERTICAL_BEAM_SCENE, planning_frame="base_link")
+    tools = MoveItMcpTools.with_fake_transport(transport)
+    object_context = tools.client.get_object_context(robot="UR10", object_name="vertical_beam").object_context
+    assert object_context is not None
+    return object_context
+
+
+def _queue_successful_hold_preview(transport: FakeRosbridgeTransport, object_name: str = "vertical_beam") -> None:
+    for plan_name in [
+        f"manipulation_hold_{object_name}_c01_connect_to_pre_grasp",
+        f"manipulation_hold_{object_name}_c01_approach_to_pre_grasp",
+        f"manipulation_hold_{object_name}_c01_post_grasp_lift",
+    ]:
+        transport.queue_status_after_publish("/UR10/request/status", "success! ")
+        transport.queue_planned_path_after_publish(
+            "/UR10/request/planned_path",
+            name=plan_name,
+            points=5,
+            final_positions=FINAL_POSITIONS,
+        )
 
 
 def test_get_current_pose_returns_read_only_pose_feedback():
@@ -287,38 +338,15 @@ def test_auto_pick_candidates_allow_explicit_horizontal_side_preference():
     assert all(candidate["waypoints"] for candidate in candidates)
 
 
-def test_auto_pick_candidates_use_side_faces_for_vertical_beams():
-    vertical_scene = {
-        "scene": {
-            "world": {
-                "collision_objects": [
-                    {
-                        "id": "vertical_beam",
-                        "operation": 0,
-                        "primitives": [
-                            {"type": 1, "dimensions": [0.04, 0.04, 0.30]},
-                        ],
-                        "primitive_poses": [
-                            {
-                                "position": {"x": 0.4, "y": 0.2, "z": 0.16},
-                                "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
-                            },
-                        ],
-                    },
-                ],
-            },
-        },
-    }
-    transport = FakeRosbridgeTransport()
-    transport.set_planning_scene("UR10", vertical_scene, planning_frame="base_link")
-    tools = MoveItMcpTools.with_fake_transport(transport)
-    object_context = tools.client.get_object_context(robot="UR10", object_name="vertical_beam").object_context
+def test_auto_pick_candidates_use_side_faces_for_vertical_beams_without_required_face():
+    object_context = _vertical_beam_object_context()
 
     from moveit_mcp.pick import build_pick_candidates
 
     candidates = build_pick_candidates(
         object_context,
         requested_grasp_face="top",
+        required_grasp_face=False,
         approach_distance_m=0.08,
         grasp_standoff_m=0.01,
         lift_distance_m=0.1,
@@ -330,6 +358,24 @@ def test_auto_pick_candidates_use_side_faces_for_vertical_beams():
     assert "top" not in candidate_faces
     assert set(candidate_faces) <= {"front", "back", "left", "right"}
     assert all(candidate["waypoints"] for candidate in candidates)
+
+
+def test_pick_candidates_respect_required_vertical_top_face():
+    object_context = _vertical_beam_object_context()
+
+    from moveit_mcp.pick import build_pick_candidates
+
+    candidates = build_pick_candidates(
+        object_context,
+        requested_grasp_face="top",
+        required_grasp_face=True,
+        approach_distance_m=0.08,
+        grasp_standoff_m=0.01,
+        lift_distance_m=0.1,
+        max_candidates=8,
+    )
+
+    assert [candidate["parameters"]["grasp_face"] for candidate in candidates] == ["top", "top", "top"]
 
 
 def test_auto_pick_candidates_skip_vertical_inner_side_facing_neighbor():
@@ -493,6 +539,31 @@ def test_plan_pick_task_returns_emulated_task_solution_with_stage_evidence():
     assert raw["task_solution_id"] in tools._task_solutions
     assert not any(event[0] == "plan_mtc_pick_task" for event in transport.events)
     assert transport.published == []
+
+
+def test_plan_manipulation_task_hold_uses_required_grasp_face() -> None:
+    transport = FakeRosbridgeTransport()
+    transport.set_planning_scene("UR10", VERTICAL_BEAM_SCENE, planning_frame="base_link")
+    _queue_successful_hold_preview(transport)
+    tools = MoveItMcpTools.with_fake_transport(transport)
+
+    result = tools.plan_manipulation_task(
+        "UR10",
+        requirements={
+            "goal": "hold",
+            "object_name": "vertical_beam",
+            "grasp_face": "top",
+            "lift_distance_m": 0.1,
+        },
+        backend="staged_moveit",
+        timeout_s=0.1,
+    )
+
+    assert result["ok"] is True
+    raw = result["raw"]
+    assert raw["requirements"]["grasp_face"] == "top"
+    assert raw["selected_grasp_face"]["name"] == "top"
+    assert raw["selected_candidate"]["grasp_face"] == "top"
 
 
 def test_plan_manipulation_task_hold_returns_contract_without_candidate_preview_search():

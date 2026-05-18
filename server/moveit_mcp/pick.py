@@ -116,12 +116,17 @@ def build_pick_candidates(
     object_context: dict[str, Any],
     *,
     requested_grasp_face: str | None,
+    required_grasp_face: bool = False,
     approach_distance_m: float = DEFAULT_APPROACH_DISTANCE_M,
     grasp_standoff_m: float = DEFAULT_GRASP_STANDOFF_M,
     lift_distance_m: float = DEFAULT_LIFT_DISTANCE_M,
     max_candidates: int = AUTO_MAX_PICK_CANDIDATES,
 ) -> list[dict[str, Any]]:
-    face_names = _ranked_face_names(object_context, requested_grasp_face=requested_grasp_face)
+    face_names = _ranked_face_names(
+        object_context,
+        requested_grasp_face=requested_grasp_face,
+        required_grasp_face=required_grasp_face,
+    )
     candidates: list[dict[str, Any]] = []
     seen: set[tuple[str, float, float, float]] = set()
 
@@ -153,11 +158,16 @@ def build_oriented_pick_workflow(
     object_context: dict[str, Any],
     *,
     requested_grasp_face: str | None,
+    required_grasp_face: bool = False,
     approach_distance_m: float = DEFAULT_APPROACH_DISTANCE_M,
     grasp_standoff_m: float = DEFAULT_GRASP_STANDOFF_M,
     lift_distance_m: float = DEFAULT_LIFT_DISTANCE_M,
 ) -> dict[str, Any]:
-    face_names = _ranked_face_names(object_context, requested_grasp_face=requested_grasp_face)
+    face_names = _ranked_face_names(
+        object_context,
+        requested_grasp_face=requested_grasp_face,
+        required_grasp_face=required_grasp_face,
+    )
     if not face_names:
         raise PickPlanInputError(
             status="grasp face not available",
@@ -173,7 +183,12 @@ def build_oriented_pick_workflow(
     )
 
 
-def _ranked_face_names(object_context: dict[str, Any], *, requested_grasp_face: str | None) -> list[str]:
+def _ranked_face_names(
+    object_context: dict[str, Any],
+    *,
+    requested_grasp_face: str | None,
+    required_grasp_face: bool = False,
+) -> list[str]:
     faces = [face for face in object_context.get("grasp_faces") or [] if isinstance(face, dict)]
     by_name = {str(face.get("name")): face for face in faces if face.get("name")}
     if requested_grasp_face and requested_grasp_face not in by_name:
@@ -182,6 +197,8 @@ def _ranked_face_names(object_context: dict[str, Any], *, requested_grasp_face: 
             correction=GRASP_FACE_CORRECTION,
             raw={"available_grasp_faces": list(by_name)},
         )
+    if required_grasp_face and requested_grasp_face:
+        return [requested_grasp_face]
 
     allowed_names = _allowed_auto_face_names(
         object_context,

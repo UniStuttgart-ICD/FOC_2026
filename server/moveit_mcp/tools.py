@@ -948,6 +948,14 @@ class MoveItMcpTools:
                 timeout_s=timeout_s,
             )
 
+        required_grasp_face = requirements.get("grasp_face")
+        requested_grasp_face = (
+            required_grasp_face
+            if isinstance(required_grasp_face, str) and required_grasp_face.strip()
+            else normalized_preferences.get("grasp_face")
+        )
+        required_grasp_face_active = isinstance(required_grasp_face, str) and bool(required_grasp_face.strip())
+
         observed_at = datetime.now(timezone.utc)
         object_feedback = self.client.get_object_context(robot=robot, object_name=object_name, timeout_s=timeout_s)
         if not object_feedback.ok or object_feedback.object_context is None:
@@ -961,7 +969,8 @@ class MoveItMcpTools:
         try:
             workflow = build_oriented_pick_workflow(
                 object_feedback.object_context,
-                requested_grasp_face=normalized_preferences.get("grasp_face"),
+                requested_grasp_face=requested_grasp_face,
+                required_grasp_face=required_grasp_face_active,
                 approach_distance_m=float(normalized_preferences.get("approach_distance_m", 0.08)),
                 grasp_standoff_m=float(normalized_preferences.get("grasp_standoff_m", 0.01)),
                 lift_distance_m=float(requirements.get("lift_distance_m", normalized_preferences.get("lift_distance_m", 0.1))),
@@ -1299,10 +1308,18 @@ class MoveItMcpTools:
                 object_name=object_name,
                 feedback=object_feedback,
             )
+        required_grasp_face = requirements.get("grasp_face")
+        requested_grasp_face = (
+            required_grasp_face
+            if isinstance(required_grasp_face, str) and required_grasp_face.strip()
+            else preferences.get("grasp_face")
+        )
+        required_grasp_face_active = isinstance(required_grasp_face, str) and bool(required_grasp_face.strip())
         try:
             candidate_workflows = build_pick_candidates(
                 object_feedback.object_context,
-                requested_grasp_face=preferences.get("grasp_face"),
+                requested_grasp_face=requested_grasp_face,
+                required_grasp_face=required_grasp_face_active,
                 approach_distance_m=float(preferences.get("approach_distance_m", 0.08)),
                 grasp_standoff_m=float(preferences.get("grasp_standoff_m", 0.01)),
                 lift_distance_m=float(requirements.get("lift_distance_m", preferences.get("lift_distance_m", 0.1))),
