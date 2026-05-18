@@ -432,6 +432,7 @@ def _manipulation_hold_task_solution_output() -> str:
                             {
                                 "name": "approach",
                                 "handler": "motion",
+                                "plan_handle": "manipulation_hold_dynamic_5_c01_connect_to_pre_grasp",
                                 "waypoint_index": 0,
                                 "source_stage": "approach_grasp",
                                 "required_proof": "verified_motion_plan",
@@ -439,6 +440,7 @@ def _manipulation_hold_task_solution_output() -> str:
                             {
                                 "name": "pre_grasp",
                                 "handler": "motion",
+                                "plan_handle": "manipulation_hold_dynamic_5_c01_approach_to_pre_grasp",
                                 "waypoint_index": 1,
                                 "source_stage": "connect_to_pre_grasp",
                                 "required_proof": "verified_motion_plan",
@@ -459,6 +461,7 @@ def _manipulation_hold_task_solution_output() -> str:
                             {
                                 "name": "lift",
                                 "handler": "motion",
+                                "plan_handle": "manipulation_hold_dynamic_5_c01_post_grasp_lift",
                                 "waypoint_index": 2,
                                 "source_stage": "lift_object",
                                 "required_proof": "verified_motion_plan",

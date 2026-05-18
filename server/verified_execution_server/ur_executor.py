@@ -273,7 +273,7 @@ class URRTDETrajectoryExecutor:
             get_current_position = getattr(gripper, "get_current_position", None)
             if not callable(get_current_position):
                 raise RuntimeError("Robot gripper does not expose current position")
-            raw_position = get_current_position()
+            raw_position = cast(Any, get_current_position())
         try:
             position = int(raw_position)
         except (TypeError, ValueError) as exc:

@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from typing import Any, cast
 
 import pytest
 from mcp.types import CallToolResult, TextContent, Tool
@@ -314,6 +315,13 @@ MANIPULATION_TASK_PLANNING_PARAMETERS = {
                 "object_name": {"type": "string"},
                 "target_pose": TARGET_POSE_SCHEMA,
                 "target_position": COORDINATE_SCHEMA,
+                "grasp_face": {
+                    "type": "string",
+                    "description": (
+                        "Hard grasp-face requirement copied from explicit user wording, such as "
+                        "'from the top'. Use preferences.grasp_face only for agent-chosen planner hints."
+                    ),
+                },
                 "goal": {
                     "type": "string",
                     "enum": ["hold", "place", "release", "move_and_release", "pick_place"],
@@ -403,7 +411,7 @@ async def test_streamable_http_mcp_server_passes_per_call_read_timeout(
 ):
     session = FakeClientSession()
     server = StreamableHttpMCPServer("http://127.0.0.1:8765/mcp")
-    server._session = session
+    server._session = cast(Any, session)
 
     await server.call_tool("moveit_plan_free_motion", arguments)
 
