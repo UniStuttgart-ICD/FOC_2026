@@ -227,6 +227,37 @@ def test_accepts_requirements_only_manipulation_task_planning_arguments() -> Non
     assert canonical_mcp_tool_name("moveit_plan_manipulation_task") == "moveit_plan_manipulation_task"
 
 
+def test_accepts_manipulation_required_grasp_face() -> None:
+    validate_robot_tool_call(
+        "moveit_plan_manipulation_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {
+                "goal": "hold",
+                "object_name": "dynamic_1",
+                "grasp_face": "top",
+            },
+        },
+    )
+
+
+def test_rejects_empty_manipulation_required_grasp_face() -> None:
+    with pytest.raises(RobotCallValidationError) as exc_info:
+        validate_robot_tool_call(
+            "moveit_plan_manipulation_task",
+            {
+                "robot_name": "UR10",
+                "requirements": {
+                    "goal": "hold",
+                    "object_name": "dynamic_1",
+                    "grasp_face": "",
+                },
+            },
+        )
+
+    assert "requirements.grasp_face" in str(exc_info.value)
+
+
 @pytest.mark.parametrize("goal", ["hold", "release"])
 def test_accepts_untargeted_final_manipulation_task_goals(goal: str) -> None:
     validate_robot_tool_call(

@@ -748,6 +748,14 @@ def validate_robot_tool_call(
                 code="object_not_found",
                 suggested_next_tool="moveit_list_scene_objects",
             )
+        required_grasp_face = requirements.get("grasp_face")
+        if required_grasp_face is not None and (
+            not isinstance(required_grasp_face, str) or not required_grasp_face.strip()
+        ):
+            raise RobotCallValidationError(
+                "Expected non-empty requirements.grasp_face",
+                correction="Omit requirements.grasp_face or retry with one raw.object.grasp_faces name.",
+            )
         _validate_manipulation_lift_distance(requirements.get("lift_distance_m"))
         target = requirements.get("target_pose", requirements.get("target_position"))
         if goal in MANIPULATION_TASK_GOALS_REQUIRING_TARGET and target is None:

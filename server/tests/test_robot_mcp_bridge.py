@@ -712,6 +712,8 @@ async def test_manipulation_task_schema_overrides_goal_enum_from_upstream_schema
     assert requirement_properties["target_pose"] == TARGET_POSE_SCHEMA
     assert "orientation" not in TARGET_POSE_SCHEMA["required"]
     assert requirement_properties["target_position"] == COORDINATE_SCHEMA
+    assert requirement_properties["grasp_face"]["type"] == "string"
+    assert "hard" in requirement_properties["grasp_face"]["description"].lower()
     assert goal["enum"] == ["hold", "place", "release", "move_and_release", "pick_place"]
     assert "slide" not in goal["enum"]
     assert requirement_properties["lift_distance_m"] == {

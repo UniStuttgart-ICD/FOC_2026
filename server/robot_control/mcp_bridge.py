@@ -483,6 +483,13 @@ def _manipulation_task_planning_schema(input_schema: dict[str, Any]) -> dict[str
         "object_name": {"type": "string"},
         "target_pose": deepcopy(_TARGET_POSE_SCHEMA),
         "target_position": deepcopy(_COORDINATE_SCHEMA),
+        "grasp_face": {
+            "type": "string",
+            "description": (
+                "Hard grasp-face requirement copied from explicit user wording, such as "
+                "'from the top'. Use preferences.grasp_face only for agent-chosen planner hints."
+            ),
+        },
         "goal": {
             "type": "string",
             "enum": list(MANIPULATION_TASK_GOAL_VALUES),
