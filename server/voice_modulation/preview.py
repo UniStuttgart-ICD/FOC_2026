@@ -277,14 +277,18 @@ class _GeminiLivePreviewService:
             transcript=text,
             instructions=self.instructions,
         )
-        async for audio in stream_gemini_live_audio(
+        async for chunk in stream_gemini_live_audio(
             api_key=self.api_key,
             model=self.model,
             voice=self.voice,
             prompt=prompt,
             client_factory=genai.Client,
         ):
-            yield TTSAudioRawFrame(audio=audio, sample_rate=PREVIEW_SAMPLE_RATE, num_channels=1)
+            yield TTSAudioRawFrame(
+                audio=chunk.audio,
+                sample_rate=PREVIEW_SAMPLE_RATE,
+                num_channels=1,
+            )
 
     def __init__(self, *, api_key: str, model: str, voice: str, instructions: str | None) -> None:
         self.api_key = api_key

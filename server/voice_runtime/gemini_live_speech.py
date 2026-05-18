@@ -80,22 +80,14 @@ async def stream_gemini_live_audio(
     voice: str,
     prompt: str,
     client_factory: Callable[..., Any] | None = None,
-) -> AsyncIterator[bytes]:
+) -> AsyncIterator[GeminiLiveAudioChunk]:
     factory = client_factory or genai.Client
     client = factory(api_key=api_key)
     async with client.aio.live.connect(
         model=model,
         config=_live_audio_config(voice),
     ) as session:
-        await session.send_client_content(
-            turns=[
-                types.Content(
-                    role="user",
-                    parts=[types.Part.from_text(text=prompt)],
-                )
-            ],
-            turn_complete=True,
-        )
+        await session.send_realtime_input(text=prompt)
         message_seq = 0
         async for message in session.receive():
             message_seq += 1
@@ -154,19 +146,19 @@ class GeminiLiveSpeechRendererService(FrameProcessor):
         if isinstance(frame, LLMTextFrame):
             self._text_buffer += frame.text
             await self.push_frame(frame, direction)
-            segments, self._text_buffer = pop_speakable_segments(self._text_buffer)
-            for segment in segments:
-                await self._speak_segment(segment, direction)
             return
 
         if isinstance(frame, LLMFullResponseEndFrame):
-            segments, self._text_buffer = pop_speakable_segments(
-                self._text_buffer,
-                flush=True,
-            )
-            for segment in segments:
-                await self._speak_segment(segment, direction)
-            await self._finish_tts_lifecycle(direction)
+            transcript = self._text_buffer.strip()
+            self._text_buffer = ""
+            try:
+                if transcript:
+                    await self._speak_response(transcript, direction)
+                await self._finish_tts_lifecycle(direction)
+            except BaseException:
+                await self.push_frame(frame, direction)
+                self._reset_response_state()
+                raise
             await self.push_frame(frame, direction)
             self._reset_response_state()
             return
@@ -180,7 +172,7 @@ class GeminiLiveSpeechRendererService(FrameProcessor):
 
         await self.push_frame(frame, direction)
 
-    async def _speak_segment(
+    async def _speak_response(
         self,
         transcript: str,
         direction: FrameDirection = FrameDirection.DOWNSTREAM,
@@ -190,7 +182,7 @@ class GeminiLiveSpeechRendererService(FrameProcessor):
             instructions=self.instructions,
         )
         try:
-            await self._stream_segment_audio(prompt, direction)
+            await self._stream_response_audio(prompt, direction)
         except BaseException:
             await self._finish_tts_lifecycle(direction)
             raise
@@ -204,7 +196,7 @@ class GeminiLiveSpeechRendererService(FrameProcessor):
         if standalone:
             self._reset_response_state(allocate_utterance=True)
         try:
-            await self._stream_segment_audio(prompt, direction)
+            await self._stream_response_audio(prompt, direction)
         except BaseException:
             await self._finish_tts_lifecycle(direction)
             raise
@@ -215,7 +207,7 @@ class GeminiLiveSpeechRendererService(FrameProcessor):
             if standalone:
                 self._reset_response_state()
 
-    async def _stream_segment_audio(
+    async def _stream_response_audio(
         self,
         prompt: str,
         direction: FrameDirection,

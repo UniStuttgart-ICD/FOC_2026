@@ -90,7 +90,7 @@ class CapturingGeminiRenderer(GeminiLiveSpeechRendererService):
         self.sent_prompts: list[str] = []
         self.pushed: list[Frame] = []
 
-    async def _stream_segment_audio(
+    async def _stream_response_audio(
         self,
         prompt: str,
         direction: FrameDirection,
@@ -135,16 +135,15 @@ class CapturingVoiceModulationProcessor(VoiceModulationProcessor):
 
 
 @pytest.mark.asyncio
-async def test_renderer_streams_complete_sentence_before_final_flush():
+async def test_renderer_buffers_response_text_until_final_flush():
     renderer = CapturingGeminiRenderer()
 
     await renderer.process_frame(LLMTextFrame("Hello there. This is"), FrameDirection.DOWNSTREAM)
     await renderer.process_frame(LLMTextFrame(" still forming"), FrameDirection.DOWNSTREAM)
     await renderer.process_frame(LLMFullResponseEndFrame(), FrameDirection.DOWNSTREAM)
 
-    assert len(renderer.sent_prompts) == 2
-    assert "Hello there." in renderer.sent_prompts[0]
-    assert "This is still forming" in renderer.sent_prompts[1]
+    assert len(renderer.sent_prompts) == 1
+    assert "Hello there. This is still forming" in renderer.sent_prompts[0]
     text_frames = [frame for frame in renderer.pushed if isinstance(frame, LLMTextFrame)]
     assert [frame.text for frame in text_frames] == ["Hello there. This is", " still forming"]
     assert any(isinstance(frame, TTSAudioRawFrame) for frame in renderer.pushed)
@@ -156,10 +155,8 @@ async def test_renderer_uses_one_tts_lifecycle_for_multiple_segments(monkeypatch
 
     async def fake_stream(**kwargs: Any):
         prompts.append(kwargs["prompt"])
-        if len(prompts) == 1:
-            yield b"segment-1-audio"
-            return
-        yield b"segment-2-audio"
+        yield b"response-audio-1"
+        yield b"response-audio-2"
 
     monkeypatch.setattr(
         "voice_runtime.gemini_live_speech.stream_gemini_live_audio",
@@ -187,13 +184,12 @@ async def test_renderer_uses_one_tts_lifecycle_for_multiple_segments(monkeypatch
     )
     await renderer.process_frame(LLMFullResponseEndFrame(), FrameDirection.DOWNSTREAM)
 
-    assert len(prompts) == 2
-    assert "Hello there." in prompts[0]
-    assert "This is complete." in prompts[1]
+    assert len(prompts) == 1
+    assert "Hello there. This is complete." in prompts[0]
     assert sum(isinstance(frame, TTSStartedFrame) for frame in pushed) == 1
     assert sum(isinstance(frame, TTSStoppedFrame) for frame in pushed) == 1
     audio_frames = [frame for frame in pushed if isinstance(frame, TTSAudioRawFrame)]
-    assert [frame.audio for frame in audio_frames] == [b"segment-1-audio", b"segment-2-audio"]
+    assert [frame.audio for frame in audio_frames] == [b"response-audio-1", b"response-audio-2"]
     start_index = next(i for i, frame in enumerate(pushed) if isinstance(frame, TTSStartedFrame))
     stop_index = next(i for i, frame in enumerate(pushed) if isinstance(frame, TTSStoppedFrame))
     audio_indexes = [i for i, frame in enumerate(pushed) if isinstance(frame, TTSAudioRawFrame)]
@@ -299,7 +295,7 @@ async def test_gemini_stream_failure_does_not_leave_response_coordinator_locked(
     await renderer.process_frame(LLMFullResponseStartFrame(), FrameDirection.DOWNSTREAM)
     with pytest.raises(RuntimeError, match="stream failed"):
         await renderer.process_frame(LLMTextFrame("Execution complete."), FrameDirection.DOWNSTREAM)
-    await renderer.process_frame(LLMFullResponseEndFrame(), FrameDirection.DOWNSTREAM)
+        await renderer.process_frame(LLMFullResponseEndFrame(), FrameDirection.DOWNSTREAM)
 
     assert coordinator.is_response_active is False
     await asyncio.wait_for(coordinator.begin_response(), timeout=0.1)
@@ -366,11 +362,15 @@ class FakeMessage:
 class FakeSession:
     def __init__(self) -> None:
         self.turns: list[Any] = []
+        self.realtime_texts: list[str] = []
 
     async def send_client_content(self, *, turns, turn_complete: bool):
-        assert not isinstance(turns, str)
         self.turns.append(turns)
-        assert turn_complete is True
+        raise AssertionError("Gemini speech rendering should use send_realtime_input")
+
+    async def send_realtime_input(self, *, text: str | None = None, **_: Any) -> None:
+        assert text is not None
+        self.realtime_texts.append(text)
 
     async def receive(self):
         yield FakeMessage(data=b"audio-1", turn_complete=False, generation_complete=True)
@@ -428,9 +428,8 @@ async def test_stream_prompt_audio_pushes_live_audio_frames():
     audio_frames = [frame for frame in pushed if isinstance(frame, TTSAudioRawFrame)]
     assert [frame.audio for frame in audio_frames] == [b"audio-1", b"audio-2"]
     assert all(frame.sample_rate == 24000 for frame in audio_frames)
-    assert session.turns
-    assert session.turns[0][0].role == "user"
-    assert session.turns[0][0].parts[0].text == "Speak this"
+    assert session.realtime_texts == ["Speak this"]
+    assert session.turns == []
 
 
 @pytest.mark.asyncio
@@ -614,10 +613,11 @@ async def test_stream_prompt_audio_traces_chunks_and_attaches_metadata_without_p
 
 @pytest.mark.asyncio
 async def test_renderer_trace_uses_one_utterance_for_multiple_segments(monkeypatch) -> None:
+    prompts: list[str] = []
+
     async def fake_stream(**kwargs: Any):
-        if "Hello there." in kwargs["prompt"]:
-            yield b"\x01\x00" * 480
-            return
+        prompts.append(kwargs["prompt"])
+        yield b"\x01\x00" * 480
         yield b"\x02\x00" * 480
 
     monkeypatch.setattr(
@@ -649,18 +649,20 @@ async def test_renderer_trace_uses_one_utterance_for_multiple_segments(monkeypat
     await renderer.process_frame(LLMFullResponseEndFrame(), FrameDirection.DOWNSTREAM)
 
     events = [record["event"] for record in tracer.records]
-    assert events.count("gemini.segment_start") == 2
+    assert len(prompts) == 1
+    assert "Hello there. This is complete." in prompts[0]
+    assert events.count("gemini.segment_start") == 1
     assert events.count("gemini.tts_start") == 1
     assert events.count("gemini.tts_stop") == 1
     segment_records = [record for record in tracer.records if record["event"] == "gemini.segment_start"]
-    assert [record["segment_seq"] for record in segment_records] == [1, 2]
+    assert [record["segment_seq"] for record in segment_records] == [1]
     audio_frames = [frame for frame in pushed if isinstance(frame, TTSAudioRawFrame)]
     utterance_ids = {frame.metadata["voice_stream_utterance_id"] for frame in audio_frames}
     assert len(utterance_ids) == 1
     assert next(iter(utterance_ids)).startswith("gemini-live-")
     assert [frame.metadata["voice_stream_chunk_seq"] for frame in audio_frames] == [1, 2]
     chunk_records = [record for record in tracer.records if record["event"] == "gemini.audio_chunk"]
-    assert [record["segment_seq"] for record in chunk_records] == [1, 2]
+    assert [record["segment_seq"] for record in chunk_records] == [1, 1]
     assert [record["chunk_seq"] for record in chunk_records] == [1, 2]
 
 
@@ -669,11 +671,10 @@ async def test_renderer_two_segments_only_restarts_modulation_once(
     monkeypatch,
 ) -> None:
     async def fake_stream(**kwargs: Any):
-        if "Hello there." in kwargs["prompt"]:
-            yield PCM_20MS_24K_MONO
-            yield PCM_20MS_24K_MONO
-            yield PCM_20MS_24K_MONO
-            return
+        assert "Hello there. This is complete." in kwargs["prompt"]
+        yield PCM_20MS_24K_MONO
+        yield PCM_20MS_24K_MONO
+        yield PCM_20MS_24K_MONO
         yield PCM_20MS_24K_MONO
 
     def fake_process_pcm16(
