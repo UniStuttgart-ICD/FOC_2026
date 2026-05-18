@@ -107,7 +107,7 @@ def test_bundled_default_profile_uses_gemini_live_tts():
     assert profile.stt.model == "gpt-realtime-whisper"
     assert profile.tts.provider == "gemini_live"
     assert profile.tts.model == "gemini-3.1-flash-live-preview"
-    assert profile.tts.voice == "Orus"
+    assert profile.tts.voice == "Enceladus"
     assert profile.agent.provider == "gemini_api"
     assert profile.agent.model == "gemini-3.1-flash-lite-preview"
     assert profile.agent.reasoning_effort == "high"
@@ -126,12 +126,15 @@ def test_hybrid_gemini_live_tts_profile_is_available():
     assert profile.stt.provider == "openai_realtime"
     assert profile.tts.provider == "gemini_live"
     assert profile.tts.model == "gemini-3.1-flash-live-preview"
-    assert profile.tts.voice == "Orus"
+    assert profile.tts.voice == "Enceladus"
     assert profile.tts.instructions is None
     assert profile.agent.provider == "gemini_api"
     assert profile.agent.temperature == 0.7
     assert profile.robot_execution.simulation_only is False
     assert profile.robot_execution.verified_execution_url == "http://127.0.0.1:8770"
+    assert profile.voice_modulation is not None
+    assert profile.voice_modulation["enabled"] is True
+    assert profile.voice_modulation["preset_name"] == "ai_core"
     assert profile.required_env_names() == ("OPENAI_API_KEY", "GOOGLE_API_KEY")
 
 
@@ -983,4 +986,4 @@ def test_default_profile_path_and_name_load_current_app_profile():
     assert profile.wake.model_path.name == "mave.onnx"
     assert profile.stt.provider == "openai_realtime"
     assert profile.tts.provider == "gemini_live"
-    assert profile.tts.voice == "Orus"
+    assert profile.tts.voice == "Enceladus"

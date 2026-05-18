@@ -1,3 +1,5 @@
+import inspect
+
 from moveit_mcp.tools import MoveItMcpTools
 from moveit_mcp.vizor_client import FakeRosbridgeTransport
 
@@ -82,6 +84,12 @@ def test_execute_task_solution_rejects_unknown_id_without_publishing():
     assert result["retryable"] is False
     assert result["raw"]["task_solution_id"] == "missing_solution"
     assert not any(topic == "/UR10/command/execute" for topic, _ in transport.published)
+
+
+def test_execute_task_solution_default_timeout_is_sixty_seconds():
+    timeout_param = inspect.signature(MoveItMcpTools.execute_task_solution).parameters["timeout_s"]
+
+    assert timeout_param.default == 60.0
 
 
 def test_execute_rejects_planned_plan_when_can_execute_was_false():

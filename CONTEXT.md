@@ -167,7 +167,7 @@ A compact Agent Orchestration instruction block rendered from the **Geometry Wor
 A single compound pick-place task that moves one physical `dynamic_*` object to its matching **Hologram Target Pose**.
 
 **Hold Compound Goal**:
-The `requirements.goal="hold"` **Compound Task Plan** for natural requests such as "pick up" or "grab and lift". It grasps and attaches the object, then includes an agent-specified, bounded post-grasp lift so the object is visibly held; default lift is `0.10` m and v1 accepts `0.03`-`0.20` m. It does not relocate the object to a hologram target pose.
+The `requirements.goal="hold"` **Compound Task Plan** for natural requests such as "pick up", "grab and lift", or explicit hold/support without lifting. It grasps and attaches the object, then includes an agent-specified, bounded post-grasp lift; default lift is `0.10` m and v1 accepts `0.00`-`0.20` m. `lift_distance_m=0.0` means grasp/attach in place with no post-grasp lift, not proof of structural or load-bearing support. It does not relocate the object to a hologram target pose.
 
 **Canonical Dynamic Name**:
 The unpadded `dynamic_1`-style object name used to pair MoveIt scene objects with shared geometry bodies.
@@ -179,7 +179,7 @@ A deterministic pre-tool layer for obvious robot-step preconditions before Robot
 The structured allow/block result from the Task Policy Layer, with correction text and a suggested next tool when a step is blocked.
 
 **Robot Call Validation**:
-Lightweight local validation for allowed MoveIt tool names, UR10 robot name, argument shape, bounded task parameters such as v1 hold lift distance from `0.03` to `0.20` m, target bounds, timeouts, canonical-to-legacy tool names, executable plan names, and clearer error text; it is not a task policy layer and is not the source of movement safety.
+Lightweight local validation for allowed MoveIt tool names, UR10 robot name, argument shape, bounded task parameters such as v1 hold lift distance from `0.00` to `0.20` m, target bounds, timeouts, canonical-to-legacy tool names, executable plan names, and clearer error text; it is not a task policy layer and is not the source of movement safety.
 
 **Robot Tool Adapter**:
 The Agent/Robot Control seam that exposes and executes robot tools while routing movement through MoveIt workflows and normalizing MCP timeouts/exceptions.
@@ -434,7 +434,7 @@ A compact local artifact recording tool order, typed tool outputs, policy decisi
 - MTC compound planning uses the live MoveIt planning scene for current object geometry and **Geometry World Context** for any **Hologram Target Pose** selected by Agent Orchestration.
 - Supported MTC beam grasping must satisfy **Beam Orientation Grasp Coverage** before the workflow is considered complete for construction beams.
 - Agent Orchestration maps natural "pick up" requests to the **Hold Compound Goal**; it must not call or invent a separate `pick` compound goal.
-- Agent Orchestration chooses the **Hold Compound Goal** lift distance through bounded `requirements.lift_distance_m`; prompt default is `0.10` m, and Robot Control validates the v1 `0.03`-`0.20` m bounds before planning.
+- Agent Orchestration chooses the **Hold Compound Goal** lift distance through bounded `requirements.lift_distance_m`; prompt default is `0.10` m, explicit zero-lift hold/support may use `0.0`, and Robot Control validates the v1 `0.00`-`0.20` m bounds before planning.
 - Missing or invalid **Hologram Target Pose** data blocks **Geometry-Grounded Pick-Place** with structured feedback; it must not fall back to the physical model or current object pose.
 - **Geometry-Grounded Pick-Place** is planned through the **Task-Level Manipulation Planner**, not by exposing separate pick and place task planners to the model.
 - **Task Policy Layer** runs before **Robot Call Validation**.
@@ -511,7 +511,7 @@ A compact local artifact recording tool order, typed tool outputs, policy decisi
 - AR gripper control is resolved: `/Robot/gripper` is a debug-only operator surface for this workflow; it is not normal task execution, HITL recovery, attachment proof, or release proof.
 - Preview/approval boundary is resolved: visible preview is required before `ok=true`, but physical execution still requires explicit spoken approval or an explicit AR execute action bound to the current `AgentPath` and cached **Task Solution**.
 - Partial planning is resolved: if any required task stage cannot be planned or previewed, planning returns `ok=false` with no `task_solution_id`; partial stages are diagnostics only.
-- Hold lift ownership is resolved: Agent Orchestration supplies `lift_distance_m`; prompt default is `0.10` m, v1 bounds are `0.03`-`0.20` m, and Robot Control rejects out-of-bounds values.
+- Hold lift ownership is resolved: Agent Orchestration supplies `lift_distance_m`; prompt default is `0.10` m, explicit zero-lift hold/support may use `0.0`, v1 bounds are `0.00`-`0.20` m, and Robot Control rejects out-of-bounds values.
 - AR preview shape is resolved: composed **AR Planned Trajectory Preview** is preferred, explicit staged preview publishes one ordered `PlannedTrajectory` per motion stage when composition is unavailable.
 - AR preview publication failure is resolved: publication failure for a motion-bearing task fails planning, while zero AR subscribers remain advisory.
 - Grasp control is resolved: Agent Orchestration may pass grasp-face preferences when fresh object context makes the choice clear; the staged backend still filters impossible beam faces, ranks candidates from scene evidence, and reports selected-candidate evidence.

@@ -79,6 +79,26 @@ async def test_output_coordinator_releases_empty_response_on_response_end() -> N
 
 
 @pytest.mark.asyncio
+async def test_output_coordinator_releases_tts_without_audio_on_response_end() -> None:
+    coordinator = BotResponseCoordinator()
+    await coordinator.begin_response()
+    events: list[str] = []
+    processor = CapturingOutputCoordinator(
+        coordinator,
+        on_response_started=lambda: events.append("started"),
+        on_response_finished=lambda: events.append("finished"),
+    )
+
+    await processor.process_frame(LLMFullResponseStartFrame(), FrameDirection.DOWNSTREAM)
+    await processor.process_frame(TTSStartedFrame(), FrameDirection.DOWNSTREAM)
+    await processor.process_frame(TTSStoppedFrame(), FrameDirection.DOWNSTREAM)
+    await processor.process_frame(LLMFullResponseEndFrame(), FrameDirection.DOWNSTREAM)
+
+    assert coordinator.is_response_active is False
+    assert events == ["started", "finished"]
+
+
+@pytest.mark.asyncio
 async def test_output_coordinator_resets_on_end_frame() -> None:
     coordinator = BotResponseCoordinator()
     await coordinator.begin_response()

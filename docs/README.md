@@ -13,6 +13,7 @@ This directory contains workshop-facing project references, design notes, resear
 - [`testing.md`](testing.md): deterministic test commands.
 - [`benchmarking.md`](benchmarking.md): current voice timing run notes for the bundled runtime profile.
 - [`operator-dashboard.md`](operator-dashboard.md): how to launch the MAVE operator dashboard.
+- [`moveit-tweakable-parameters.html`](moveit-tweakable-parameters.html): current UR10 MoveIt tuning knobs from the running Docker stack.
 
 ## Design Notes
 

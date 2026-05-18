@@ -7,7 +7,7 @@ import urllib.request
 from typing import Any, Protocol
 
 VerifiedExecutionOutput = dict[str, Any] | str
-VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S = 30.0
+VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S = 60.0
 
 
 class VerifiedExecutionClient(Protocol):
@@ -569,6 +569,42 @@ def _command_metadata(response: dict[str, Any]) -> dict[str, Any]:
     state_sync_published = response.get("state_sync_published")
     if isinstance(state_sync_published, bool):
         metadata["state_sync_published"] = state_sync_published
+    actual_gripper_position = _int_or_none(response.get("actual_gripper_position"))
+    if actual_gripper_position is not None:
+        metadata["actual_gripper_position"] = actual_gripper_position
+    actual_gripper_joint_position = _float_or_none(
+        response.get("actual_gripper_joint_position")
+    )
+    if actual_gripper_joint_position is not None:
+        metadata["actual_gripper_joint_position"] = actual_gripper_joint_position
+    gripper_joint_state_published = response.get("gripper_joint_state_published")
+    if isinstance(gripper_joint_state_published, bool):
+        metadata["gripper_joint_state_published"] = gripper_joint_state_published
+    for field in ("gripper_joint_name", "gripper_joint_state_topic"):
+        value = response.get(field)
+        if isinstance(value, str):
+            metadata[field] = value
+    gripper_open_threshold_position = _int_or_none(
+        response.get("gripper_open_threshold_position")
+    )
+    if gripper_open_threshold_position is not None:
+        metadata["gripper_open_threshold_position"] = gripper_open_threshold_position
+    for field in (
+        "gripper_considered_open",
+        "attached_object_release_checked",
+        "attached_object_release_published",
+        "attached_object_release_verified",
+    ):
+        value = response.get(field)
+        if isinstance(value, bool):
+            metadata[field] = value
+    for field in ("attached_objects_before_release", "attached_objects_released"):
+        values = _str_list(response.get(field))
+        if values is not None:
+            metadata[field] = values
+    value = response.get("attached_object_release_topic_or_service")
+    if isinstance(value, str):
+        metadata["attached_object_release_topic_or_service"] = value
     return metadata
 
 
@@ -598,6 +634,22 @@ def _float_or_none(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _int_or_none(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _str_list(value: Any) -> list[str] | None:
+    if not isinstance(value, list):
+        return None
+    values = [item for item in value if isinstance(item, str)]
+    return values if len(values) == len(value) else None
 
 
 def verified_execution_output_to_json(output: VerifiedExecutionOutput) -> str:

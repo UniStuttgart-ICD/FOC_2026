@@ -944,7 +944,10 @@ def test_index_page_serves_voice_mod_lab_workbench(tmp_path) -> None:
     assert "https://play.cartesia.ai/voices" in response.text
     assert "https://docs.cloud.google.com/text-to-speech/docs/gemini-tts" in response.text
     assert "personaParts" in response.text
-    assert "saveModulationBtn" in response.text
+    assert "saveModulationBtn" not in response.text
+    assert "Save local override" not in response.text
+    assert "saveModulationDefaultBtn" in response.text
+    assert "Save profile default" in response.text
     assert "sourceBtn" in response.text
     assert "renderBtn" in response.text
     assert "protocol_droid" in response.text
@@ -960,6 +963,20 @@ def test_index_page_serves_voice_mod_lab_workbench(tmp_path) -> None:
         "Limiter",
     ]:
         assert expert_label not in response.text
+
+
+def test_index_page_keeps_voice_modulation_enabled_for_neutral_saves(tmp_path) -> None:
+    from voice_modulation.app import create_app
+
+    _write_profiles(tmp_path / "runtime_profiles.toml")
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "settings.enabled = true;" in response.text
+    assert "next.enabled = true;" in response.text
+    assert "hasAudibleEffect" not in response.text
 
 
 def test_tts_synthesizer_reports_missing_provider_env(monkeypatch) -> None:

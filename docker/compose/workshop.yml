@@ -19,6 +19,8 @@ services:
       - ROS_HOSTNAME=vizor-demo
       - ROS_MASTER_URI=http://ros-core:11311
       - DISPLAY=:1
+    volumes:
+      - ../../server/logs/moveit_planning:/root/catkin_ws/logs/moveit_planning
     ports:
       - "6080:6080"
       - "5901:5901"

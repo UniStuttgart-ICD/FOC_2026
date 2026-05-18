@@ -17,6 +17,7 @@ from moveit_mcp.scene import (
 )
 
 SUCCESS_STATUSES = {"success", "success! "}
+PLAN_WAIT_POLL_INTERVAL_S = 0.05
 PHYSICAL_PARAM = "/vizor_robot_control/physical"
 AGENT_PATH_NAME = "AgentPath"
 MTC_PICK_TASK_SERVICE = "/vizor_mtc/plan_pick_task"
@@ -1688,8 +1689,33 @@ class VizorClient:
                 return observed, True, observed_names
 
     def _wait_for_plan(self, *, robot: str, name: str, timeout_s: float) -> PlanFeedback:
-        path = self.transport.wait_for_planned_path(f"/{robot}/request/planned_path", name, timeout_s)
-        status = self.transport.wait_for_status(f"/{robot}/request/status", timeout_s)
+        status_topic = f"/{robot}/request/status"
+        path_topic = f"/{robot}/request/planned_path"
+        deadline = time.monotonic() + timeout_s
+        path: dict[str, Any] | None = None
+        status: str | None = None
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            poll_timeout_s = min(PLAN_WAIT_POLL_INTERVAL_S, remaining)
+            if path is None:
+                path = self.transport.wait_for_planned_path(path_topic, name, poll_timeout_s)
+
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            if status is None:
+                status = self.transport.wait_for_status(
+                    status_topic,
+                    min(PLAN_WAIT_POLL_INTERVAL_S, remaining),
+                )
+
+            if status is not None and status not in SUCCESS_STATUSES:
+                break
+            if status in SUCCESS_STATUSES and path is not None:
+                break
+
         points_list = ((path or {}).get("joint_trajectory") or {}).get("points") or []
         points = len(points_list)
         final_positions = _final_positions(path)

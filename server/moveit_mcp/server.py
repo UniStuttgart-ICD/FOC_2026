@@ -490,7 +490,7 @@ def build_mcp(*, tools: MoveItMcpTools, host: str = "127.0.0.1", port: int = 800
     def moveit_execute_task_solution(
         task_solution_id: TaskSolutionId,
         robot_name: RobotName = "UR10",
-        timeout_s: TimeoutSeconds = 30.0,
+        timeout_s: TimeoutSeconds = 60.0,
     ) -> dict[str, Any]:
         """Run execute_task_solution for a stored task solution and return stage evidence.
 

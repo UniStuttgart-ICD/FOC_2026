@@ -5,6 +5,10 @@ export DISPLAY="${DISPLAY:-:1}"
 export NOVNC_PORT="${NOVNC_PORT:-6080}"
 export VNC_PORT="${VNC_PORT:-5901}"
 export VIZOR_ENABLE_MTC_PROOF="${VIZOR_ENABLE_MTC_PROOF:-0}"
+export MOVEIT_PLANNING_LOG_PATH="${MOVEIT_PLANNING_LOG_PATH:-/root/catkin_ws/logs/moveit_planning/moveit_planning.jsonl}"
+export ROS_LOG_DIR="${ROS_LOG_DIR:-/root/catkin_ws/logs/moveit_planning/ros}"
+
+mkdir -p "$(dirname "$MOVEIT_PLANNING_LOG_PATH")" "$ROS_LOG_DIR"
 
 Xvfb "$DISPLAY" -screen 0 1600x1000x24 -ac +extension GLX +render -noreset &
 XVFB_PID=$!

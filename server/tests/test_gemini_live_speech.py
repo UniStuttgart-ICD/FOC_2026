@@ -1,11 +1,14 @@
+import asyncio
 from typing import Any
 
 import pytest
 from pipecat.frames.frames import (
     Frame,
     LLMFullResponseEndFrame,
+    LLMFullResponseStartFrame,
     LLMTextFrame,
     TTSAudioRawFrame,
+    TTSStoppedFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection
 
@@ -14,6 +17,7 @@ from voice_runtime.gemini_live_speech import (
     build_strict_speech_prompt,
     pop_speakable_segments,
 )
+from voice_runtime.response_coordination import BotResponseCoordinator, BotSpeechOutputCoordinator
 
 
 def test_build_strict_speech_prompt_keeps_transcript_in_fenced_section():
@@ -80,6 +84,17 @@ class CapturingGeminiRenderer(GeminiLiveSpeechRendererService):
         self.pushed.append(frame)
 
 
+class CapturingOutputCoordinator(BotSpeechOutputCoordinator):
+    def __init__(self, coordinator: BotResponseCoordinator) -> None:
+        super().__init__(coordinator=coordinator, enable_direct_mode=True)
+        self.pushed: list[Frame] = []
+
+    async def push_frame(
+        self, frame: Frame, direction: FrameDirection = FrameDirection.DOWNSTREAM
+    ) -> None:
+        self.pushed.append(frame)
+
+
 @pytest.mark.asyncio
 async def test_renderer_streams_complete_sentence_before_final_flush():
     renderer = CapturingGeminiRenderer()
@@ -94,6 +109,109 @@ async def test_renderer_streams_complete_sentence_before_final_flush():
     text_frames = [frame for frame in renderer.pushed if isinstance(frame, LLMTextFrame)]
     assert [frame.text for frame in text_frames] == ["Hello there. This is", " still forming"]
     assert any(isinstance(frame, TTSAudioRawFrame) for frame in renderer.pushed)
+
+
+@pytest.mark.asyncio
+async def test_stream_prompt_audio_emits_tts_stop_when_stream_raises(monkeypatch):
+    async def broken_stream(**_: Any):
+        yield b"audio-1"
+        raise RuntimeError("stream failed")
+
+    monkeypatch.setattr(
+        "voice_runtime.gemini_live_speech.stream_gemini_live_audio",
+        broken_stream,
+    )
+    renderer = GeminiLiveSpeechRendererService(
+        api_key="fake",
+        model="gemini-3.1-flash-live-preview",
+        voice="Kore",
+        instructions="Speak the transcript exactly.",
+        client_factory=lambda **_: object(),
+        connect_on_start=False,
+    )
+    pushed: list[Frame] = []
+
+    async def capture(frame: Frame, direction: FrameDirection = FrameDirection.DOWNSTREAM):
+        pushed.append(frame)
+
+    renderer.push_frame = capture
+
+    with pytest.raises(RuntimeError, match="stream failed"):
+        await renderer._stream_prompt_audio("Speak this")
+
+    assert any(isinstance(frame, TTSAudioRawFrame) for frame in pushed)
+    assert isinstance(pushed[-1], TTSStoppedFrame)
+
+
+@pytest.mark.asyncio
+async def test_stream_prompt_audio_emits_tts_stop_before_reraising_cancellation(monkeypatch):
+    async def cancelled_stream(**_: Any):
+        yield b"audio-1"
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(
+        "voice_runtime.gemini_live_speech.stream_gemini_live_audio",
+        cancelled_stream,
+    )
+    renderer = GeminiLiveSpeechRendererService(
+        api_key="fake",
+        model="gemini-3.1-flash-live-preview",
+        voice="Kore",
+        instructions="Speak the transcript exactly.",
+        client_factory=lambda **_: object(),
+        connect_on_start=False,
+    )
+    pushed: list[Frame] = []
+
+    async def capture(frame: Frame, direction: FrameDirection = FrameDirection.DOWNSTREAM):
+        pushed.append(frame)
+
+    renderer.push_frame = capture
+
+    with pytest.raises(asyncio.CancelledError):
+        await renderer._stream_prompt_audio("Speak this")
+
+    assert any(isinstance(frame, TTSAudioRawFrame) for frame in pushed)
+    assert isinstance(pushed[-1], TTSStoppedFrame)
+
+
+@pytest.mark.asyncio
+async def test_gemini_stream_failure_does_not_leave_response_coordinator_locked(monkeypatch):
+    async def broken_stream(**_: Any):
+        yield b"audio-1"
+        raise RuntimeError("stream failed")
+
+    monkeypatch.setattr(
+        "voice_runtime.gemini_live_speech.stream_gemini_live_audio",
+        broken_stream,
+    )
+    coordinator = BotResponseCoordinator()
+    output = CapturingOutputCoordinator(coordinator)
+    renderer = GeminiLiveSpeechRendererService(
+        api_key="fake",
+        model="gemini-3.1-flash-live-preview",
+        voice="Kore",
+        instructions="Speak the transcript exactly.",
+        client_factory=lambda **_: object(),
+        connect_on_start=False,
+    )
+
+    async def route_to_output(
+        frame: Frame, direction: FrameDirection = FrameDirection.DOWNSTREAM
+    ) -> None:
+        await output.process_frame(frame, direction)
+
+    renderer.push_frame = route_to_output
+
+    await coordinator.begin_response()
+    await renderer.process_frame(LLMFullResponseStartFrame(), FrameDirection.DOWNSTREAM)
+    with pytest.raises(RuntimeError, match="stream failed"):
+        await renderer.process_frame(LLMTextFrame("Execution complete."), FrameDirection.DOWNSTREAM)
+    await renderer.process_frame(LLMFullResponseEndFrame(), FrameDirection.DOWNSTREAM)
+
+    assert coordinator.is_response_active is False
+    await asyncio.wait_for(coordinator.begin_response(), timeout=0.1)
+    coordinator.finish_response()
 
 
 class FakeInlineData:

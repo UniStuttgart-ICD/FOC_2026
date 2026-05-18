@@ -23,6 +23,7 @@
     refresh: document.getElementById("refresh"),
     copyLogs: document.getElementById("copy-logs"),
     robotHome: document.getElementById("robot-home"),
+    robotSyncState: document.getElementById("robot-sync-state"),
     gripperOpen: document.getElementById("gripper-open"),
     gripperClose: document.getElementById("gripper-close"),
     robotCommandStatus: document.getElementById("robot-command-status"),
@@ -163,6 +164,7 @@
       nodes.stopAll,
       nodes.refresh,
       nodes.robotHome,
+      nodes.robotSyncState,
       nodes.gripperOpen,
       nodes.gripperClose,
     ].forEach((button) => {
@@ -436,7 +438,12 @@
     const service = verifiedExecutionService();
     const isReady = service && service.state === "ready";
     const controlsDisabled = state.busy || !isReady;
-    [nodes.robotHome, nodes.gripperOpen, nodes.gripperClose].forEach((button) => {
+    [
+      nodes.robotHome,
+      nodes.robotSyncState,
+      nodes.gripperOpen,
+      nodes.gripperClose,
+    ].forEach((button) => {
       button.disabled = controlsDisabled;
     });
 
@@ -525,14 +532,14 @@
     }
   }
 
-  async function runRobotCommand(path, label) {
+  async function runRobotCommand(path, label, messages = {}) {
     if (path === "/api/robot/home" && !window.confirm("Move the real robot to home?")) {
       return;
     }
 
     let actionError = null;
     setBusy(true);
-    state.robotCommandStatus = `${label} pending`;
+    state.robotCommandStatus = messages.pending || `${label} pending`;
     renderRobotControls();
     try {
       const result = await api(path, { method: "POST" });
@@ -540,7 +547,7 @@
       state.error = null;
     } catch (error) {
       actionError = error.message || String(error);
-      state.robotCommandStatus = `${label} failed`;
+      state.robotCommandStatus = messages.failed || `${label} failed`;
     } finally {
       setBusy(false);
       await refresh();
@@ -572,6 +579,12 @@
   nodes.refresh.addEventListener("click", refresh);
   nodes.robotHome.addEventListener("click", () =>
     runRobotCommand("/api/robot/home", "Home"),
+  );
+  nodes.robotSyncState.addEventListener("click", () =>
+    runRobotCommand("/api/robot/sync-state", "Align MoveIt", {
+      pending: "Align MoveIt pending",
+      failed: "Align MoveIt failed",
+    }),
   );
   nodes.gripperOpen.addEventListener("click", () =>
     runRobotCommand("/api/robot/gripper/open", "Open gripper"),

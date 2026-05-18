@@ -43,6 +43,25 @@ class VoiceModulationSettings:
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
+    def has_audible_effect(self) -> bool:
+        if not self.enabled or self.wet_mix == 0.0:
+            return False
+        return (
+            self.gain_db != 0.0
+            or self.low_cut_hz > 0.0
+            or self.high_cut_hz > 0.0
+            or self.drive > 0.0
+            or self.bit_depth < 16
+            or self.pitch_shift_semitones != 0.0
+            or self.body_shift != 0.0
+            or self.ring_mod_hz > 0.0
+            or (self.tremolo_hz > 0.0 and self.tremolo_depth > 0.0)
+            or (self.chorus_mix > 0.0 and self.chorus_depth_ms > 0.0)
+            or (self.echo_mix > 0.0 and self.echo_delay_ms > 0.0)
+            or self.noise_mix > 0.0
+            or self.breath_mix > 0.0
+        )
+
     def validate(self) -> None:
         if not self.preset_name.strip():
             raise VoiceModulationError("preset_name must be a non-empty string")

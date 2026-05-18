@@ -348,11 +348,27 @@ def test_dashboard_script_wires_robot_rtde_controls() -> None:
     source = script.read_text(encoding="utf-8")
 
     assert "robotHome" in source
+    assert "robotSyncState" in source
     assert "gripperOpen" in source
     assert "gripperClose" in source
     assert "/api/robot/home" in source
+    assert "/api/robot/sync-state" in source
     assert "/api/robot/gripper/open" in source
     assert "/api/robot/gripper/close" in source
+    assert "Align MoveIt pending" in source
+    assert "Align MoveIt failed" in source
+
+
+def test_index_includes_robot_sync_button(tmp_path: Path) -> None:
+    config = _write_dashboard_config(tmp_path)
+    app = create_app(config, DashboardSecurity(token="secret"))
+    client = TestClient(app)
+
+    response = client.get("/?token=secret")
+
+    assert response.status_code == 200
+    assert 'id="robot-sync-state"' in response.text
+    assert ">Align MoveIt<" in response.text
 
 
 def test_robot_home_proxy_posts_to_verified_execution_server(
@@ -413,8 +429,74 @@ ready_checks = [
     assert requests == [
         (
             "http://127.0.0.1:8770/home",
-            b'{"robot_name": "UR10", "timeout_s": 30.0}',
-            31.0,
+            b'{"robot_name": "UR10", "timeout_s": 60.0}',
+            61.0,
+        )
+    ]
+
+
+def test_robot_sync_state_proxy_posts_to_verified_execution_server(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = tmp_path / "dashboard.toml"
+    config_path.write_text(
+        f"""
+[dashboard]
+host = "127.0.0.1"
+port = 8787
+
+[services.verified_execution]
+label = "Verified Execution"
+cwd = {str(tmp_path)!r}
+command = [{sys.executable!r}, "-c", "print('server')"]
+ready_checks = [
+  {{ type = "http", url = "http://127.0.0.1:8770/health", label = "Verified execution" }},
+]
+""",
+        encoding="utf-8",
+    )
+    requests = []
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self) -> bytes:
+            return (
+                b'{"ok":true,"robot_name":"UR10","command":"sync_state",'
+                b'"status":"state_synced","actual_joint_positions":[0.1,0.2,0.3,0.4,0.5,0.6],'
+                b'"actual_tcp_pose":[0.4,-0.2,0.3,0.0,3.14,0.0],'
+                b'"state_sync_published":true}'
+            )
+
+    def fake_urlopen(request, timeout: float):
+        requests.append((request.full_url, request.data, timeout))
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        dashboard_app_module.urllib.request,
+        "urlopen",
+        fake_urlopen,
+    )
+    app = create_app(
+        load_dashboard_config(config_path), DashboardSecurity(token="secret")
+    )
+    client = TestClient(app)
+
+    response = client.post("/api/robot/sync-state?token=secret")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "state_synced"
+    assert requests == [
+        (
+            "http://127.0.0.1:8770/sync_state",
+            b'{"robot_name": "UR10", "timeout_s": 10.0}',
+            11.0,
         )
     ]
 

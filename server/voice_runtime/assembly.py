@@ -35,9 +35,10 @@ def ordered_voice_runtime_processors(parts: VoiceRuntimeParts) -> list[object]:
     )
     if parts.voice_modulation is not None:
         processors.append(parts.voice_modulation)
-    if parts.bot_speech_output is not None:
-        processors.append(parts.bot_speech_output)
     if parts.wake_tone is not None:
         processors.append(parts.wake_tone)
-    processors.extend([parts.transport_output, parts.assistant_aggregator])
+    processors.append(parts.transport_output)
+    if parts.bot_speech_output is not None:
+        processors.append(parts.bot_speech_output)
+    processors.append(parts.assistant_aggregator)
     return processors

@@ -113,7 +113,7 @@ def test_orders_wake_tone_after_voice_modulation_before_transport_output():
     ]
 
 
-def test_orders_bot_speech_output_before_wake_tone():
+def test_orders_bot_speech_output_after_transport_output():
     parts = VoiceRuntimeParts(
         transport_input="transport.input",
         voice_command_audio="wake.audio",
@@ -138,8 +138,8 @@ def test_orders_bot_speech_output_before_wake_tone():
         "agent_turn",
         "tts",
         "voice_modulation",
-        "bot_speech_output",
         "wake.tone",
         "transport.output",
+        "bot_speech_output",
         "assistant_aggregator",
     ]

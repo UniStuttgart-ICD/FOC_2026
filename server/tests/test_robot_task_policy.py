@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 from robot_control.task_policy import (
     DEFAULT_EXECUTABLE_PLAN_MAX_AGE_S,
-    DEFAULT_FRESH_OBSERVATION_MAX_AGE_S,
     DEFAULT_GRIPPER_STATE_MAX_AGE_S,
     TaskPolicyDecision,
     structured_task_policy_error,
@@ -17,20 +16,14 @@ VALID_TARGET_POSE = {
 
 @dataclass
 class FakeTaskPolicyContext:
-    recent_pose: bool = False
     executable_plans: set[str] | None = None
     gripper: str | None = None
     recent_gripper: bool = False
     held_object: str | None = None
     recent_held_object: bool = True
-    seen_pose_max_age_s: float | None = None
     seen_plan_max_age_s: float | None = None
     seen_gripper_max_age_s: float | None = None
     seen_held_object_max_age_s: float | None = None
-
-    def has_recent_robot_observation(self, *, max_age_s: float) -> bool:
-        self.seen_pose_max_age_s = max_age_s
-        return self.recent_pose
 
     def has_recent_executable_plan(self, plan_name: str, *, max_age_s: float) -> bool:
         self.seen_plan_max_age_s = max_age_s
@@ -65,7 +58,7 @@ def test_policy_rejects_contract_internal_scene_tools_as_standalone_calls() -> N
     decision = validate_task_step(
         "moveit_verify_released_object",
         {"robot_name": "UR10", "object_name": "dynamic_5"},
-        FakeTaskPolicyContext(recent_pose=True, held_object="dynamic_5"),
+        FakeTaskPolicyContext(held_object="dynamic_5"),
         user_text="verify the release",
     )
 
@@ -75,24 +68,21 @@ def test_policy_rejects_contract_internal_scene_tools_as_standalone_calls() -> N
     assert structured_task_policy_error(decision)["code"] == "contract_internal_tool"
 
 
-def test_policy_rejects_motion_without_recent_pose_observation() -> None:
+def test_policy_allows_motion_without_recent_pose_observation() -> None:
     decision = validate_task_step(
         "moveit_plan_free_motion",
         {"robot_name": "UR10", "target_pose": VALID_TARGET_POSE},
         FakeTaskPolicyContext(),
     )
 
-    assert decision.ok is False
-    assert decision.error == "Fresh robot pose is required before motion."
-    assert decision.correction == "Call moveit_get_current_pose, then retry the motion."
-    assert decision.suggested_next_tool == "moveit_get_current_pose"
+    assert decision == TaskPolicyDecision(ok=True)
 
 
-def test_policy_allows_motion_after_recent_pose_observation() -> None:
+def test_policy_allows_cartesian_motion_without_recent_pose_observation() -> None:
     decision = validate_task_step(
-        "moveit_plan_free_motion",
-        {"robot_name": "UR10", "target_pose": VALID_TARGET_POSE},
-        FakeTaskPolicyContext(recent_pose=True),
+        "moveit_plan_cartesian_motion",
+        {"robot_name": "UR10", "waypoints": [VALID_TARGET_POSE]},
+        FakeTaskPolicyContext(),
     )
 
     assert decision == TaskPolicyDecision(ok=True)
@@ -102,7 +92,7 @@ def test_policy_rejects_cartesian_for_move_then_release_compound_task() -> None:
     decision = validate_task_step(
         "moveit_plan_cartesian_motion",
         {"robot_name": "UR10", "waypoints": [VALID_TARGET_POSE]},
-        FakeTaskPolicyContext(recent_pose=True),
+        FakeTaskPolicyContext(),
         user_text="move it 30cm in robot left side and then release the gripper",
     )
 
@@ -119,7 +109,7 @@ def test_policy_rejects_free_motion_for_pick_compound_task() -> None:
     decision = validate_task_step(
         "moveit_plan_free_motion",
         {"robot_name": "UR10", "target_pose": VALID_TARGET_POSE},
-        FakeTaskPolicyContext(recent_pose=True),
+        FakeTaskPolicyContext(),
         user_text="pick up dynamic_5",
     )
 
@@ -127,21 +117,17 @@ def test_policy_rejects_free_motion_for_pick_compound_task() -> None:
     assert decision.suggested_next_tool == "moveit_plan_manipulation_task"
 
 
-def test_policy_rejects_release_goal_without_held_object_evidence() -> None:
+def test_policy_allows_release_goal_without_held_object_evidence() -> None:
     decision = validate_task_step(
         "moveit_plan_manipulation_task",
         {
             "robot_name": "UR10",
             "requirements": {"goal": "release", "object_name": "dynamic_5"},
         },
-        FakeTaskPolicyContext(recent_pose=True),
+        FakeTaskPolicyContext(),
     )
 
-    assert decision.ok is False
-    assert decision.error == "Cannot release an object that is not currently held."
-    assert decision.code == "not_holding_object"
-    assert decision.suggested_next_tool == "moveit_verify_attached_object"
-    assert structured_task_policy_error(decision)["code"] == "not_holding_object"
+    assert decision == TaskPolicyDecision(ok=True)
 
 
 def test_policy_allows_release_goal_with_matching_held_object_evidence() -> None:
@@ -151,13 +137,13 @@ def test_policy_allows_release_goal_with_matching_held_object_evidence() -> None
             "robot_name": "UR10",
             "requirements": {"goal": "release", "object_name": "dynamic_5"},
         },
-        FakeTaskPolicyContext(recent_pose=True, held_object="dynamic_5"),
+        FakeTaskPolicyContext(held_object="dynamic_5"),
     )
 
     assert decision == TaskPolicyDecision(ok=True)
 
 
-def test_policy_rejects_release_goal_with_stale_held_object_evidence() -> None:
+def test_policy_allows_release_goal_with_stale_held_object_evidence() -> None:
     decision = validate_task_step(
         "moveit_plan_manipulation_task",
         {
@@ -165,16 +151,12 @@ def test_policy_rejects_release_goal_with_stale_held_object_evidence() -> None:
             "requirements": {"goal": "release", "object_name": "dynamic_5"},
         },
         FakeTaskPolicyContext(
-            recent_pose=True,
             held_object="dynamic_5",
             recent_held_object=False,
         ),
     )
 
-    assert decision.ok is False
-    assert decision.error == "Cannot release an object without recent held-object evidence."
-    assert decision.code == "stale_held_object"
-    assert decision.suggested_next_tool == "moveit_verify_attached_object"
+    assert decision == TaskPolicyDecision(ok=True)
 
 
 def test_policy_allows_manipulation_hold_goal_without_prior_robot_state() -> None:
@@ -190,7 +172,6 @@ def test_policy_allows_manipulation_hold_goal_without_prior_robot_state() -> Non
     )
 
     assert decision == TaskPolicyDecision(ok=True)
-    assert context.seen_pose_max_age_s is None
 
 
 def test_policy_allows_manipulation_pick_place_goal_without_prior_robot_state() -> None:
@@ -227,7 +208,7 @@ def test_policy_allows_cartesian_for_non_manipulation_multi_point_motion() -> No
     decision = validate_task_step(
         "moveit_plan_cartesian_motion",
         {"robot_name": "UR10", "waypoints": [VALID_TARGET_POSE]},
-        FakeTaskPolicyContext(recent_pose=True),
+        FakeTaskPolicyContext(),
         user_text="draw a square and wave",
     )
 
@@ -245,30 +226,14 @@ def test_policy_treats_place_planning_as_motion() -> None:
         FakeTaskPolicyContext(),
     )
 
-    assert decision.ok is False
-    assert decision.error == "Fresh robot pose is required before motion."
-    assert decision.suggested_next_tool == "moveit_get_current_pose"
-
-
-def test_policy_uses_configured_pose_freshness_window() -> None:
-    context = FakeTaskPolicyContext(recent_pose=True)
-
-    decision = validate_task_step(
-        "moveit_plan_cartesian_motion",
-        {"robot_name": "UR10", "waypoints": [VALID_TARGET_POSE]},
-        context,
-        fresh_observation_max_age_s=DEFAULT_FRESH_OBSERVATION_MAX_AGE_S,
-    )
-
-    assert decision.ok is True
-    assert context.seen_pose_max_age_s == DEFAULT_FRESH_OBSERVATION_MAX_AGE_S
+    assert decision == TaskPolicyDecision(ok=True)
 
 
 def test_policy_rejects_execute_plan_when_plan_was_not_returned_by_planning() -> None:
     decision = validate_task_step(
         "moveit_execute_plan",
         {"robot_name": "UR10", "plan_name": "invented-plan"},
-        FakeTaskPolicyContext(recent_pose=True),
+        FakeTaskPolicyContext(),
         explicit_execute_requested=True,
     )
 
@@ -282,7 +247,7 @@ def test_policy_rejects_execute_plan_without_plan_name() -> None:
     decision = validate_task_step(
         "moveit_execute_plan",
         {"robot_name": "UR10"},
-        FakeTaskPolicyContext(recent_pose=True),
+        FakeTaskPolicyContext(),
         explicit_execute_requested=True,
     )
 
@@ -294,7 +259,7 @@ def test_policy_allows_execute_plan_when_plan_was_recently_recorded() -> None:
     decision = validate_task_step(
         "moveit_execute_plan",
         {"robot_name": "UR10", "plan_name": "plan-1"},
-        FakeTaskPolicyContext(recent_pose=True, executable_plans={"plan-1"}),
+        FakeTaskPolicyContext(executable_plans={"plan-1"}),
         explicit_execute_requested=True,
     )
 
@@ -305,7 +270,7 @@ def test_policy_rejects_execute_plan_without_explicit_user_request() -> None:
     decision = validate_task_step(
         "moveit_execute_plan",
         {"robot_name": "UR10", "plan_name": "plan-1"},
-        FakeTaskPolicyContext(recent_pose=True, executable_plans={"plan-1"}),
+        FakeTaskPolicyContext(executable_plans={"plan-1"}),
     )
 
     assert decision.ok is False
@@ -315,7 +280,7 @@ def test_policy_rejects_execute_plan_without_explicit_user_request() -> None:
 
 
 def test_policy_passes_executable_plan_freshness_window_to_context() -> None:
-    context = FakeTaskPolicyContext(recent_pose=True, executable_plans={"plan-1"})
+    context = FakeTaskPolicyContext(executable_plans={"plan-1"})
 
     decision = validate_task_step(
         "moveit_execute_plan",
@@ -413,16 +378,16 @@ def test_structured_task_policy_error_shape() -> None:
     payload = structured_task_policy_error(
         TaskPolicyDecision(
             ok=False,
-            error="Fresh robot pose is required before motion.",
-            correction="Call moveit_get_current_pose, then retry the motion.",
-            suggested_next_tool="moveit_get_current_pose",
+            error="Cannot attach object before the gripper is known closed.",
+            correction="Close the gripper or observe gripper state before attaching.",
+            suggested_next_tool="moveit_close_gripper",
         )
     )
 
     assert payload == {
         "ok": False,
-        "error": "Fresh robot pose is required before motion.",
-        "correction": "Call moveit_get_current_pose, then retry the motion.",
+        "error": "Cannot attach object before the gripper is known closed.",
+        "correction": "Close the gripper or observe gripper state before attaching.",
         "retryable": True,
-        "suggested_next_tool": "moveit_get_current_pose",
+        "suggested_next_tool": "moveit_close_gripper",
     }

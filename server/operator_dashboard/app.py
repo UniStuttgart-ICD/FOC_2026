@@ -187,8 +187,16 @@ def create_app(config: DashboardConfig, security: DashboardSecurity) -> FastAPI:
     async def home_robot() -> dict:
         return await post_verified_execution(
             "/home",
-            {"robot_name": "UR10", "timeout_s": 30.0},
-            timeout_s=31.0,
+            {"robot_name": "UR10", "timeout_s": 60.0},
+            timeout_s=61.0,
+        )
+
+    @api.post("/robot/sync-state")
+    async def sync_robot_state() -> dict:
+        return await post_verified_execution(
+            "/sync_state",
+            {"robot_name": "UR10", "timeout_s": 10.0},
+            timeout_s=11.0,
         )
 
     @api.post("/robot/gripper/{action}")

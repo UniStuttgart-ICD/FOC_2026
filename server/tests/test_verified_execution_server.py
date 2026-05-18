@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from fastapi.testclient import TestClient
 
 import verified_execution_server.server as server_module
-from verified_execution_server.models import CachedPlan
+from verified_execution_server.models import CachedPlan, ExecutePlanRequest
 from verified_execution_server.plan_cache import RosPlanCache
 from verified_execution_server.server import create_app, create_default_app
 from verified_execution_server.ur_executor import URRTDETrajectoryExecutor
@@ -16,7 +18,22 @@ class FakePlanCache:
         self.stopped = False
         self.plans: dict[tuple[str, str], CachedPlan] = {}
         self.sync_calls: list[tuple[str, list[str], list[float]]] = []
+        self.gripper_sync_calls: list[tuple[str, str, float]] = []
+        self.release_calls: list[tuple[str, float]] = []
         self.sync_result = True
+        self.gripper_sync_result = True
+        self.release_result = SimpleNamespace(
+            ok=True,
+            status="no_attached_objects",
+            error=None,
+            correction=None,
+            checked=True,
+            attached_objects_before_release=[],
+            attached_objects_released=[],
+            published=False,
+            verified=True,
+            topic_or_service="/UR10/apply_planning_scene",
+        )
 
     async def start(self) -> None:
         self.started = True
@@ -42,6 +59,25 @@ class FakePlanCache:
     ) -> bool:
         self.sync_calls.append((robot_name, joint_names, joint_positions))
         return self.sync_result
+
+    def sync_gripper_joint_state(
+        self,
+        robot_name: str,
+        *,
+        joint_name: str,
+        joint_position: float,
+    ) -> bool:
+        self.gripper_sync_calls.append((robot_name, joint_name, joint_position))
+        return self.gripper_sync_result
+
+    def release_attached_objects(
+        self,
+        robot_name: str,
+        *,
+        timeout_s: float,
+    ) -> SimpleNamespace:
+        self.release_calls.append((robot_name, timeout_s))
+        return self.release_result
 
 
 class FailingPlanCache(FakePlanCache):
@@ -140,6 +176,32 @@ def test_default_app_reads_rtde_completion_wait_settings_from_env(
     assert executor_kwargs["completion_poll_interval_s"] == 0.25
     assert executor_kwargs["joint_tolerance_rad"] == 0.015
     assert executor_kwargs["completion_stable_samples"] == 4
+
+
+def test_default_app_uses_sixty_second_rtde_completion_wait_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor_kwargs: dict[str, object] = {}
+
+    class CapturingExecutor:
+        def __init__(self, **kwargs: object) -> None:
+            executor_kwargs.update(kwargs)
+
+    class DummyPlanCache(FakePlanCache):
+        def __init__(self, **_: object) -> None:
+            super().__init__()
+
+    monkeypatch.setattr(server_module, "URRTDETrajectoryExecutor", CapturingExecutor)
+    monkeypatch.setattr(server_module, "RosPlanCache", DummyPlanCache)
+    monkeypatch.delenv("UR_COMPLETION_TIMEOUT_S", raising=False)
+
+    create_default_app()
+
+    assert executor_kwargs["completion_timeout_s"] == 60.0
+
+
+def test_execute_plan_request_defaults_to_sixty_second_timeout() -> None:
+    assert ExecutePlanRequest(plan_name="plan-1").timeout_s == 60.0
 
 
 def test_health_reports_ros_cache_state() -> None:
@@ -414,6 +476,8 @@ def test_sync_state_reads_real_joints_and_publishes_fake_controller_state() -> N
     executor.state_result = {
         "actual_joint_positions": actual_positions,
         "actual_tcp_pose": actual_tcp_pose,
+        "actual_gripper_position": 128,
+        "actual_gripper_joint_position": 128.0 / 255.0 * 0.8,
     }
 
     with TestClient(create_app(plan_cache=cache, executor=executor)) as client:
@@ -426,6 +490,11 @@ def test_sync_state_reads_real_joints_and_publishes_fake_controller_state() -> N
     assert body["actual_joint_positions"] == actual_positions
     assert body["actual_tcp_pose"] == actual_tcp_pose
     assert body["state_sync_published"] is True
+    assert body["actual_gripper_position"] == 128
+    assert body["actual_gripper_joint_position"] == pytest.approx(128.0 / 255.0 * 0.8)
+    assert body["gripper_joint_state_published"] is True
+    assert body["gripper_joint_name"] == "finger_joint"
+    assert body["gripper_joint_state_topic"] == "/UR10/gripper_joint_states"
     assert executor.state_calls == ["UR10"]
     assert cache.sync_calls == [
         (
@@ -441,6 +510,341 @@ def test_sync_state_reads_real_joints_and_publishes_fake_controller_state() -> N
             actual_positions,
         )
     ]
+    assert cache.gripper_sync_calls == [
+        ("UR10", "finger_joint", pytest.approx(128.0 / 255.0 * 0.8))
+    ]
+    assert body["gripper_open_threshold_position"] == 10
+    assert body["gripper_considered_open"] is False
+    assert body["attached_object_release_checked"] is False
+    assert body["attached_objects_before_release"] == []
+    assert body["attached_objects_released"] == []
+    assert body["attached_object_release_published"] is False
+    assert body["attached_object_release_verified"] is False
+    assert body["attached_object_release_topic_or_service"] == "/UR10/apply_planning_scene"
+    assert cache.release_calls == []
+
+
+def test_sync_state_fails_when_rtde_returns_no_joints() -> None:
+    cache = FakePlanCache()
+    executor = FakeExecutor()
+    executor.state_result = {"actual_tcp_pose": [0.4, -0.2, 0.3, 0.0, 3.14, 0.0]}
+
+    with TestClient(create_app(plan_cache=cache, executor=executor)) as client:
+        response = client.post("/sync_state", json={"robot_name": "UR10", "timeout_s": 5.0})
+
+    assert response.status_code == 409
+    body = response.json()
+    assert body["ok"] is False
+    assert body["status"] == "missing_joint_state"
+    assert body["actual_tcp_pose"] == [0.4, -0.2, 0.3, 0.0, 3.14, 0.0]
+    assert body["error"] == "RTDE receive did not return actual joint positions."
+    assert cache.sync_calls == []
+
+
+def test_sync_state_fails_when_fake_controller_state_publish_fails() -> None:
+    cache = FakePlanCache()
+    cache.sync_result = False
+    executor = FakeExecutor()
+    actual_positions = [0.2, -1.4, 1.3, 0.1, 0.0, -0.2]
+    executor.state_result = {
+        "actual_joint_positions": actual_positions,
+        "actual_gripper_position": 255,
+        "actual_gripper_joint_position": 0.8,
+    }
+
+    with TestClient(create_app(plan_cache=cache, executor=executor)) as client:
+        response = client.post("/sync_state", json={"robot_name": "UR10", "timeout_s": 5.0})
+
+    assert response.status_code == 409
+    body = response.json()
+    assert body["ok"] is False
+    assert body["status"] == "state_sync_failed"
+    assert body["actual_joint_positions"] == actual_positions
+    assert body["state_sync_published"] is False
+    assert body["gripper_joint_state_published"] is False
+    assert "fake controller" in body["error"]
+    assert cache.sync_calls == [
+        (
+            "UR10",
+            [
+                "shoulder_pan_joint",
+                "shoulder_lift_joint",
+                "elbow_joint",
+                "wrist_1_joint",
+                "wrist_2_joint",
+                "wrist_3_joint",
+            ],
+            actual_positions,
+        )
+    ]
+    assert cache.gripper_sync_calls == []
+
+
+def test_sync_state_fails_when_gripper_state_is_missing() -> None:
+    cache = FakePlanCache()
+    executor = FakeExecutor()
+    executor.state_result = {
+        "actual_joint_positions": [0.2, -1.4, 1.3, 0.1, 0.0, -0.2],
+    }
+
+    with TestClient(create_app(plan_cache=cache, executor=executor)) as client:
+        response = client.post("/sync_state", json={"robot_name": "UR10", "timeout_s": 5.0})
+
+    assert response.status_code == 409
+    body = response.json()
+    assert body["ok"] is False
+    assert body["status"] == "missing_gripper_state"
+    assert body["state_sync_published"] is False
+    assert body["gripper_joint_state_published"] is False
+    assert "Robotiq gripper" in body["error"]
+    assert cache.sync_calls == []
+    assert cache.gripper_sync_calls == []
+
+
+def test_sync_state_fails_when_gripper_joint_state_publish_fails() -> None:
+    cache = FakePlanCache()
+    cache.gripper_sync_result = False
+    executor = FakeExecutor()
+    actual_positions = [0.2, -1.4, 1.3, 0.1, 0.0, -0.2]
+    executor.state_result = {
+        "actual_joint_positions": actual_positions,
+        "actual_gripper_position": 255,
+        "actual_gripper_joint_position": 0.8,
+    }
+
+    with TestClient(create_app(plan_cache=cache, executor=executor)) as client:
+        response = client.post("/sync_state", json={"robot_name": "UR10", "timeout_s": 5.0})
+
+    assert response.status_code == 409
+    body = response.json()
+    assert body["ok"] is False
+    assert body["status"] == "state_sync_failed"
+    assert body["state_sync_published"] is True
+    assert body["gripper_joint_state_published"] is False
+    assert body["actual_gripper_position"] == 255
+    assert body["actual_gripper_joint_position"] == 0.8
+    assert "gripper joint state sync failed" in body["error"]
+    assert cache.sync_calls == [
+        (
+            "UR10",
+            [
+                "shoulder_pan_joint",
+                "shoulder_lift_joint",
+                "elbow_joint",
+                "wrist_1_joint",
+                "wrist_2_joint",
+                "wrist_3_joint",
+            ],
+            actual_positions,
+        )
+    ]
+    assert cache.gripper_sync_calls == [("UR10", "finger_joint", 0.8)]
+    assert cache.release_calls == []
+
+
+def test_sync_state_releases_attached_objects_when_gripper_is_open() -> None:
+    cache = FakePlanCache()
+    cache.release_result = SimpleNamespace(
+        ok=True,
+        status="released collision objects verified",
+        error=None,
+        correction=None,
+        checked=True,
+        attached_objects_before_release=["held_part"],
+        attached_objects_released=["held_part"],
+        published=True,
+        verified=True,
+        topic_or_service="/UR10/apply_planning_scene",
+    )
+    executor = FakeExecutor()
+    executor.state_result = {
+        "actual_joint_positions": [0.2, -1.4, 1.3, 0.1, 0.0, -0.2],
+        "actual_gripper_position": 0,
+        "actual_gripper_joint_position": 0.0,
+    }
+
+    with TestClient(create_app(plan_cache=cache, executor=executor)) as client:
+        response = client.post("/sync_state", json={"robot_name": "UR10", "timeout_s": 5.0})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["status"] == "state_synced"
+    assert body["state_sync_published"] is True
+    assert body["gripper_joint_state_published"] is True
+    assert body["gripper_open_threshold_position"] == 10
+    assert body["gripper_considered_open"] is True
+    assert body["attached_object_release_checked"] is True
+    assert body["attached_objects_before_release"] == ["held_part"]
+    assert body["attached_objects_released"] == ["held_part"]
+    assert body["attached_object_release_published"] is True
+    assert body["attached_object_release_verified"] is True
+    assert body["attached_object_release_topic_or_service"] == "/UR10/apply_planning_scene"
+    assert cache.release_calls == [("UR10", 5.0)]
+
+
+def test_sync_state_succeeds_with_no_attached_objects_when_gripper_is_open() -> None:
+    cache = FakePlanCache()
+    cache.release_result = SimpleNamespace(
+        ok=True,
+        status="no_attached_objects",
+        error=None,
+        correction=None,
+        checked=True,
+        attached_objects_before_release=[],
+        attached_objects_released=[],
+        published=False,
+        verified=True,
+        topic_or_service="/UR10/apply_planning_scene",
+    )
+    executor = FakeExecutor()
+    executor.state_result = {
+        "actual_joint_positions": [0.2, -1.4, 1.3, 0.1, 0.0, -0.2],
+        "actual_gripper_position": 10,
+        "actual_gripper_joint_position": 10.0 / 255.0 * 0.8,
+    }
+
+    with TestClient(create_app(plan_cache=cache, executor=executor)) as client:
+        response = client.post("/sync_state", json={"robot_name": "UR10", "timeout_s": 5.0})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "state_synced"
+    assert body["gripper_considered_open"] is True
+    assert body["attached_object_release_checked"] is True
+    assert body["attached_objects_before_release"] == []
+    assert body["attached_objects_released"] == []
+    assert body["attached_object_release_published"] is False
+    assert body["attached_object_release_verified"] is True
+    assert cache.release_calls == [("UR10", 5.0)]
+
+
+def test_sync_state_does_not_release_attached_objects_when_gripper_is_not_open() -> None:
+    cache = FakePlanCache()
+    executor = FakeExecutor()
+    executor.state_result = {
+        "actual_joint_positions": [0.2, -1.4, 1.3, 0.1, 0.0, -0.2],
+        "actual_gripper_position": 11,
+        "actual_gripper_joint_position": 11.0 / 255.0 * 0.8,
+    }
+
+    with TestClient(create_app(plan_cache=cache, executor=executor)) as client:
+        response = client.post("/sync_state", json={"robot_name": "UR10", "timeout_s": 5.0})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "state_synced"
+    assert body["gripper_considered_open"] is False
+    assert body["attached_object_release_checked"] is False
+    assert body["attached_objects_before_release"] == []
+    assert body["attached_objects_released"] == []
+    assert body["attached_object_release_published"] is False
+    assert body["attached_object_release_verified"] is False
+    assert cache.release_calls == []
+
+
+def test_sync_state_fails_when_open_gripper_cannot_read_planning_scene() -> None:
+    cache = FakePlanCache()
+    cache.release_result = SimpleNamespace(
+        ok=False,
+        status="planning_scene_unavailable",
+        error="MoveIt planning scene service did not return scene geometry.",
+        correction="Check /UR10/get_planning_scene and retry state sync.",
+        checked=True,
+        attached_objects_before_release=[],
+        attached_objects_released=[],
+        published=False,
+        verified=False,
+        topic_or_service="/UR10/apply_planning_scene",
+    )
+    executor = FakeExecutor()
+    executor.state_result = {
+        "actual_joint_positions": [0.2, -1.4, 1.3, 0.1, 0.0, -0.2],
+        "actual_gripper_position": 0,
+        "actual_gripper_joint_position": 0.0,
+    }
+
+    with TestClient(create_app(plan_cache=cache, executor=executor)) as client:
+        response = client.post("/sync_state", json={"robot_name": "UR10", "timeout_s": 5.0})
+
+    assert response.status_code == 409
+    body = response.json()
+    assert body["ok"] is False
+    assert body["status"] == "attached_object_release_failed"
+    assert body["state_sync_published"] is True
+    assert body["gripper_joint_state_published"] is True
+    assert body["gripper_considered_open"] is True
+    assert body["attached_object_release_checked"] is True
+    assert body["attached_object_release_published"] is False
+    assert body["attached_object_release_verified"] is False
+    assert "planning scene" in body["error"]
+    assert cache.release_calls == [("UR10", 5.0)]
+
+
+def test_sync_state_fails_when_attached_object_release_readback_does_not_verify() -> None:
+    cache = FakePlanCache()
+    cache.release_result = SimpleNamespace(
+        ok=False,
+        status="released_collision_object_unverified",
+        error="MoveIt apply_planning_scene did not verify held_part released.",
+        correction="Check /UR10/get_planning_scene and /UR10/apply_planning_scene.",
+        checked=True,
+        attached_objects_before_release=["held_part"],
+        attached_objects_released=["held_part"],
+        published=True,
+        verified=False,
+        topic_or_service="/UR10/apply_planning_scene",
+    )
+    executor = FakeExecutor()
+    executor.state_result = {
+        "actual_joint_positions": [0.2, -1.4, 1.3, 0.1, 0.0, -0.2],
+        "actual_gripper_position": 0,
+        "actual_gripper_joint_position": 0.0,
+    }
+
+    with TestClient(create_app(plan_cache=cache, executor=executor)) as client:
+        response = client.post("/sync_state", json={"robot_name": "UR10", "timeout_s": 5.0})
+
+    assert response.status_code == 409
+    body = response.json()
+    assert body["status"] == "attached_object_release_failed"
+    assert body["attached_objects_before_release"] == ["held_part"]
+    assert body["attached_objects_released"] == ["held_part"]
+    assert body["attached_object_release_published"] is True
+    assert body["attached_object_release_verified"] is False
+    assert "verify held_part released" in body["error"]
+
+
+def test_sync_state_releases_multiple_attached_objects_when_gripper_is_open() -> None:
+    cache = FakePlanCache()
+    cache.release_result = SimpleNamespace(
+        ok=True,
+        status="released collision objects verified",
+        error=None,
+        correction=None,
+        checked=True,
+        attached_objects_before_release=["held_a", "held_b"],
+        attached_objects_released=["held_a", "held_b"],
+        published=True,
+        verified=True,
+        topic_or_service="/UR10/apply_planning_scene",
+    )
+    executor = FakeExecutor()
+    executor.state_result = {
+        "actual_joint_positions": [0.2, -1.4, 1.3, 0.1, 0.0, -0.2],
+        "actual_gripper_position": 0,
+        "actual_gripper_joint_position": 0.0,
+    }
+
+    with TestClient(create_app(plan_cache=cache, executor=executor)) as client:
+        response = client.post("/sync_state", json={"robot_name": "UR10", "timeout_s": 5.0})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "state_synced"
+    assert body["attached_objects_before_release"] == ["held_a", "held_b"]
+    assert body["attached_objects_released"] == ["held_a", "held_b"]
+    assert body["attached_object_release_verified"] is True
 
 
 def test_gripper_runs_robot_gripper_action_through_executor() -> None:
@@ -527,6 +931,238 @@ def test_ros_plan_cache_records_joint_names_from_moveit_trajectory() -> None:
 
     assert plan is not None
     assert plan.joint_names == ["joint_1", "joint_2"]
+
+
+def test_ros_plan_cache_syncs_gripper_joint_state_to_gripper_topic() -> None:
+    published: list[tuple[str, str, dict]] = []
+
+    class FakeTopic:
+        def __init__(self, _client: object, topic: str, message_type: str) -> None:
+            self.topic = topic
+            self.message_type = message_type
+
+        def publish(self, message: dict) -> None:
+            published.append((self.topic, self.message_type, message))
+
+    fake_roslibpy = SimpleNamespace(Topic=FakeTopic, Message=lambda payload: payload)
+    cache = RosPlanCache(robot_name="UR10", time_fn=lambda: 42.5)
+    cache._roslibpy = fake_roslibpy
+    cache._client = SimpleNamespace(is_connected=True)
+    cache._connected = True
+
+    result = cache.sync_gripper_joint_state(
+        "UR10",
+        joint_name="finger_joint",
+        joint_position=0.4,
+    )
+
+    assert result is True
+    assert published == [
+        (
+            "/UR10/gripper_joint_states",
+            "sensor_msgs/JointState",
+            {
+                "header": {
+                    "stamp": {"secs": 42, "nsecs": 500_000_000},
+                    "frame_id": "",
+                },
+                "name": ["finger_joint"],
+                "position": [0.4],
+                "velocity": [],
+                "effort": [],
+            },
+        )
+    ]
+
+
+def test_ros_plan_cache_releases_attached_objects_to_world_scene() -> None:
+    attached_object = {
+        "id": "held_part",
+        "header": {"frame_id": "tool0"},
+        "primitives": [{"type": 1, "dimensions": [0.05, 0.04, 0.03]}],
+        "primitive_poses": [
+            {
+                "position": {"x": 0.0, "y": 0.0, "z": 0.04},
+                "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+            }
+        ],
+        "meshes": [],
+        "mesh_poses": [],
+    }
+    scenes = [
+        {
+            "scene": {
+                "world": {"collision_objects": []},
+                "robot_state": {
+                    "attached_collision_objects": [
+                        {
+                            "link_name": "tool0",
+                            "object": attached_object,
+                            "touch_links": ["tool0"],
+                        }
+                    ]
+                },
+            }
+        },
+        {
+            "scene": {
+                "world": {"collision_objects": [{**attached_object, "operation": 0}]},
+                "robot_state": {"attached_collision_objects": []},
+            }
+        },
+    ]
+    service_calls: list[tuple[str, str, dict, float]] = []
+
+    class FakeService:
+        def __init__(self, _client: object, name: str, service_type: str) -> None:
+            self.name = name
+            self.service_type = service_type
+
+        def call(self, request: dict | None = None, *, timeout: float) -> dict:
+            payload = dict(request or {})
+            service_calls.append((self.name, self.service_type, payload, timeout))
+            if self.name == "/UR10/get_planning_scene":
+                return scenes.pop(0)
+            if self.name == "/UR10/apply_planning_scene":
+                return {"success": True}
+            raise AssertionError(f"unexpected service: {self.name}")
+
+    fake_roslibpy = SimpleNamespace(
+        Service=FakeService,
+        ServiceRequest=lambda payload=None: dict(payload or {}),
+    )
+    cache = RosPlanCache(robot_name="UR10")
+    cache._roslibpy = fake_roslibpy
+    cache._client = SimpleNamespace(is_connected=True)
+    cache._connected = True
+
+    result = cache.release_attached_objects("UR10", timeout_s=0.1)
+
+    assert result.ok is True
+    assert result.checked is True
+    assert result.attached_objects_before_release == ["held_part"]
+    assert result.attached_objects_released == ["held_part"]
+    assert result.published is True
+    assert result.verified is True
+    apply_request = service_calls[1][2]["scene"]
+    assert apply_request["robot_state"]["attached_collision_objects"] == [
+        {
+            "link_name": "tool0",
+            "object": {"id": "held_part", "operation": 1},
+            "touch_links": ["tool0"],
+        }
+    ]
+    assert apply_request["world"]["collision_objects"] == [{**attached_object, "operation": 0}]
+
+
+def test_ros_plan_cache_reports_release_unverified_when_readback_still_attached() -> None:
+    attached_object = {
+        "id": "held_part",
+        "header": {"frame_id": "tool0"},
+        "primitives": [{"type": 1, "dimensions": [0.05, 0.04, 0.03]}],
+        "primitive_poses": [],
+        "meshes": [],
+        "mesh_poses": [],
+    }
+    attached_scene = {
+        "scene": {
+            "world": {"collision_objects": []},
+            "robot_state": {
+                "attached_collision_objects": [
+                    {"link_name": "tool0", "object": attached_object, "touch_links": ["tool0"]}
+                ]
+            },
+        }
+    }
+    scenes = [attached_scene, attached_scene]
+
+    class FakeService:
+        def __init__(self, _client: object, name: str, _service_type: str) -> None:
+            self.name = name
+
+        def call(self, request: dict | None = None, *, timeout: float) -> dict:
+            if self.name == "/UR10/get_planning_scene":
+                return scenes.pop(0)
+            if self.name == "/UR10/apply_planning_scene":
+                return {"success": True}
+            raise AssertionError(f"unexpected service: {self.name}")
+
+    fake_roslibpy = SimpleNamespace(
+        Service=FakeService,
+        ServiceRequest=lambda payload=None: dict(payload or {}),
+    )
+    cache = RosPlanCache(robot_name="UR10")
+    cache._roslibpy = fake_roslibpy
+    cache._client = SimpleNamespace(is_connected=True)
+    cache._connected = True
+
+    result = cache.release_attached_objects("UR10", timeout_s=0.1)
+
+    assert result.ok is False
+    assert result.checked is True
+    assert result.attached_objects_before_release == ["held_part"]
+    assert result.attached_objects_released == ["held_part"]
+    assert result.published is True
+    assert result.verified is False
+    assert result.status == "released_collision_object_unverified"
+
+
+@pytest.mark.parametrize(
+    ("raw_position", "expected_joint_position"),
+    [(0, 0.0), (255, 0.8), (128, 128.0 / 255.0 * 0.8)],
+)
+def test_ur_rtde_executor_read_state_maps_gripper_position_without_motion(
+    raw_position: int,
+    expected_joint_position: float,
+) -> None:
+    class FakeReceive:
+        def __init__(self, host: str) -> None:
+            self.host = host
+
+        def getActualQ(self) -> list[float]:
+            return [0.0, -1.57, 1.57, 0.0, 0.0, 0.0]
+
+        def getActualTCPPose(self) -> list[float]:
+            return [0.4, -0.2, 0.3, 0.0, 3.14, 0.0]
+
+        def disconnect(self) -> None:
+            pass
+
+    class FakeGripper:
+        def __init__(self) -> None:
+            self.connect_calls: list[tuple[str, int]] = []
+            self.activate_calls = 0
+            self.move_calls: list[tuple[int, int, int]] = []
+
+        def connect(self, host: str, port: int) -> None:
+            self.connect_calls.append((host, port))
+
+        def activate(self, **_: object) -> None:
+            self.activate_calls += 1
+
+        def get_current_position(self) -> int:
+            return raw_position
+
+        def move_and_wait_for_pos(self, position: int, speed: int, force: int) -> None:
+            self.move_calls.append((position, speed, force))
+
+    gripper = FakeGripper()
+    executor = URRTDETrajectoryExecutor(
+        robot_ip="192.0.2.10",
+        rtde_receive_factory=FakeReceive,
+        gripper_factory=lambda: gripper,
+    )
+
+    state = executor.read_state("UR10")
+
+    assert state is not None
+    assert state["actual_joint_positions"] == [0.0, -1.57, 1.57, 0.0, 0.0, 0.0]
+    assert state["actual_tcp_pose"] == [0.4, -0.2, 0.3, 0.0, 3.14, 0.0]
+    assert state["actual_gripper_position"] == raw_position
+    assert state["actual_gripper_joint_position"] == pytest.approx(expected_joint_position)
+    assert gripper.connect_calls == [("192.0.2.10", 63352)]
+    assert gripper.activate_calls == 1
+    assert gripper.move_calls == []
 
 
 def test_ur_rtde_executor_prefers_timed_joint_trajectory() -> None:

@@ -4,6 +4,7 @@ import json
 from contextlib import AsyncExitStack
 from copy import deepcopy
 from datetime import timedelta
+from math import isfinite
 from typing import Any, Protocol
 
 from mcp.client.session import ClientSession
@@ -38,6 +39,8 @@ AGENT_CONTROL_TASK_PLAN_EXECUTION_REQUIRED = {
     "code": "agent_control_execution_required",
 }
 LEGACY_TO_AGENT_TOOL_NAMES = {legacy: agent for agent, legacy in AGENT_TO_LEGACY_MCP_TOOL_NAMES.items()}
+DEFAULT_MCP_CLIENT_READ_TIMEOUT_S = 30.0
+MCP_CLIENT_TIMEOUT_MARGIN_S = 5.0
 TASK_SOLUTION_EXECUTION_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -173,7 +176,8 @@ class StreamableHttpMCPServer:
 
     def __init__(self, url: str, *, client_session_timeout_seconds: float = 30):
         self._url = url
-        self._timeout = timedelta(seconds=client_session_timeout_seconds)
+        self._timeout_s = float(client_session_timeout_seconds)
+        self._timeout = timedelta(seconds=self._timeout_s)
         self._exit_stack: AsyncExitStack | None = None
         self._session: ClientSession | None = None
 
@@ -213,7 +217,15 @@ class StreamableHttpMCPServer:
     async def call_tool(self, tool_name: str, arguments: dict[str, Any] | None) -> CallToolResult:
         if self._session is None:
             raise RobotMCPError("Robot MCP server is not connected")
-        return await self._session.call_tool(tool_name, arguments)
+        read_timeout_s = _mcp_client_read_timeout_s(
+            arguments,
+            default_timeout_s=self._timeout_s,
+        )
+        return await self._session.call_tool(
+            tool_name,
+            arguments,
+            read_timeout_seconds=timedelta(seconds=read_timeout_s),
+        )
 
 
 class RobotMCPBridge:
@@ -347,6 +359,7 @@ class RobotMCPBridge:
         mcp_arguments = _mcp_arguments(name, normalized_arguments)
         call_attributes = self._tool_attributes(name, normalized_arguments)
         call_attributes["mcp.tool.name"] = backing_tool_name
+        call_attributes["mcp.client.read_timeout_s"] = _mcp_client_read_timeout_s(mcp_arguments)
         async with self._tracer.span(
             "robot.mcp.call_tool",
             "robot_control",
@@ -416,6 +429,22 @@ def _mcp_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     return arguments
 
 
+def _mcp_client_read_timeout_s(
+    arguments: dict[str, Any] | None,
+    *,
+    default_timeout_s: float = DEFAULT_MCP_CLIENT_READ_TIMEOUT_S,
+) -> float:
+    timeout_s = arguments.get("timeout_s") if isinstance(arguments, dict) else None
+    if (
+        isinstance(timeout_s, (int, float))
+        and not isinstance(timeout_s, bool)
+        and isfinite(float(timeout_s))
+        and float(timeout_s) > default_timeout_s
+    ):
+        return float(timeout_s) + MCP_CLIENT_TIMEOUT_MARGIN_S
+    return default_timeout_s
+
+
 def _agent_tool_schema(name: str, input_schema: dict[str, Any]) -> dict[str, Any]:
     if name == "moveit_plan_manipulation_task":
         return _manipulation_task_planning_schema(input_schema)
@@ -458,7 +487,17 @@ def _manipulation_task_planning_schema(input_schema: dict[str, Any]) -> dict[str
             "type": "string",
             "enum": list(MANIPULATION_TASK_GOAL_VALUES),
         },
-        "lift_distance_m": {"type": "number", "minimum": 0.03, "maximum": 0.20},
+        "lift_distance_m": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 0.20,
+            "description": (
+                "Post-grasp lift distance. Use requirements.lift_distance_m=0.0 for bare hold, "
+                "support, or hold-in-place requests. Use the default 0.10 m or an explicit positive "
+                "value only when the user asks to pick up, lift, raise, grab and lift, carry, or move "
+                "after grasping."
+            ),
+        },
     }
     requirements["required"] = ["goal"]
     requirements["additionalProperties"] = False

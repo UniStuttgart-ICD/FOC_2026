@@ -378,6 +378,27 @@ def test_vizor_desktop_aliases_ur10_robot_description_for_mtc_rviz():
     assert "/robot_description_planning" in contents
 
 
+def test_vizor_desktop_routes_moveit_planning_logs_to_mounted_log_dir():
+    start_script = Path(__file__).resolve().parents[2] / "docker" / "vizor-rviz" / "start-vizor-desktop.sh"
+
+    contents = start_script.read_text()
+
+    assert "MOVEIT_PLANNING_LOG_PATH" in contents
+    assert "/root/catkin_ws/logs/moveit_planning/moveit_planning.jsonl" in contents
+    assert "ROS_LOG_DIR" in contents
+    assert "/root/catkin_ws/logs/moveit_planning/ros" in contents
+    assert "mkdir -p" in contents
+
+
+def test_workshop_compose_mounts_moveit_planning_logs_into_vizor_demo():
+    compose = Path(__file__).resolve().parents[2] / "docker" / "compose" / "workshop.yml"
+
+    contents = compose.read_text()
+
+    assert "volumes:" in contents
+    assert "../../server/logs/moveit_planning:/root/catkin_ws/logs/moveit_planning" in contents
+
+
 def test_patch_vizor_robot_py_uses_base_link_world_pose(monkeypatch, tmp_path):
     module = _load_patch_module()
     robot_py = tmp_path / "robot.py"
@@ -400,6 +421,11 @@ def plan():
                 result = self.move_group.compute_cartesian_path(target_poses, eef_step, jump_threshold) #default avoid collision
 
 class Robot:
+    def add_ground_plane(self):
+        name = "ground_plane"
+        ground_pose = create_world_pose(z = -0.01)
+        self.scene.add_box(name, ground_pose, size=(5, 5, 0.01))
+
     def init_topics(self):
         rospy.Subscriber(f"{self.name}/request/cartesian", PlanningCartesian, self.planCartesianMotion, callback_args=self.name)
 
@@ -416,6 +442,253 @@ class Robot:
     assert 'header.frame_id = "base_link"' in patched
     assert 'header.frame_id = "base" # GoFa' not in patched
     assert "pose.orientation.w = 1.0" in patched
+    assert "ground_pose = create_world_pose(z = -0.105)" in patched
+    assert "ground_pose = create_world_pose(z = -0.01)" not in patched
+    assert "avoid_collisions=True" in patched
+    assert module.patch_vizor_robot_py() is False
+
+
+def test_patch_vizor_robot_py_injects_moveit_planning_log_helpers(monkeypatch, tmp_path):
+    module = _load_patch_module()
+    robot_py = tmp_path / "robot.py"
+    robot_py.write_text(
+        '''def create_world_pose(z = 0):
+    worldXY = PoseStamped()
+    header = Header()
+    header.frame_id = "base_link"
+    worldXY.header = header
+    pose = Pose()
+    pose.position.z = z
+    pose.orientation.w = 1.0
+    worldXY.pose = pose
+
+class Robot:
+    def __init__(self):
+        rospy.Subscriber(f"{self.name}/request/cartesian", PlanningCartesian, self.planCartesianMotion, callback_args=self.name)
+
+    def add_ground_plane(self):
+        name = "ground_plane"
+        ground_pose = create_world_pose(z = -0.105)
+        self.scene.add_box(name, ground_pose, size=(5, 5, 0.01))
+
+    def planFreeMotion(self, msg, *args):
+        pass
+
+    def _combine_sampled_segments(self, segments):
+        pass
+
+    def planCartesianMotion(self, msg, *args):
+        result = self.move_group.compute_cartesian_path(
+            target_poses,
+            eef_step,
+            avoid_collisions=True,
+        ) #default avoid collision
+''',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "ROBOT_PY", robot_py)
+
+    assert module.patch_vizor_robot_py() is True
+
+    patched = robot_py.read_text(encoding="utf-8")
+    assert "MOVEIT_PLANNING_LOG_PATH" in patched
+    assert "def _write_moveit_planning_log(self, record):" in patched
+    assert '"schema": "moveit_planning_diagnostics.v1"' in patched
+    assert "json.dumps" in patched
+    assert module.patch_vizor_robot_py() is False
+
+
+def test_patch_vizor_robot_py_logs_free_planning_details(monkeypatch, tmp_path):
+    module = _load_patch_module()
+    robot_py = tmp_path / "robot.py"
+    robot_py.write_text(
+        '''def create_world_pose(z = 0):
+    worldXY = PoseStamped()
+    header = Header()
+    header.frame_id = "base_link"
+    worldXY.header = header
+    pose = Pose()
+    pose.position.z = z
+    pose.orientation.w = 1.0
+    worldXY.pose = pose
+
+class Robot:
+    def add_ground_plane(self):
+        name = "ground_plane"
+        ground_pose = create_world_pose(z = -0.105)
+        self.scene.add_box(name, ground_pose, size=(5, 5, 0.01))
+
+    def init_topics(self):
+        rospy.Subscriber(f"{self.name}/request/cartesian", PlanningCartesian, self.planCartesianMotion, callback_args=self.name)
+
+    def planFreeMotion(self, msg, *args):
+        # rospy.wait_for_service('plan_free_motion')
+        name = args[0]
+        self.move_group.set_planner_id("PTP")
+        print (f"planning free {msg.name}")
+        if DEBUG:
+            print (f"   from {self._get_current_pose()}")
+            print (f"   to {msg.target_pose}")
+        rospy.sleep(DELAY)
+        try:
+            target_pose = msg.target_pose
+            result = self.move_group.plan(joints = target_pose)
+            if result[0]:
+                output = result[1]
+                if DEBUG: print (f"   >> planning time {result[2]}")
+                print (f"   >> ptp movement with {len(output.joint_trajectory.points)}")
+            else:
+                print(f"planning failed {result[3]}")
+            code = int(str(result[3]).split(':')[-1])
+            self.planning_status_publisher.publish(String(f"{self.planningResponseForHumans(code)}"))
+        except Exception as e:
+            print(e)
+
+    def _combine_sampled_segments(self, segments):
+        pass
+
+    def planCartesianMotion(self, msg, *args):
+        result = self.move_group.compute_cartesian_path(
+            target_poses,
+            eef_step,
+            avoid_collisions=True,
+        ) #default avoid collision
+''',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "ROBOT_PY", robot_py)
+
+    assert module.patch_vizor_robot_py() is True
+
+    patched = robot_py.read_text(encoding="utf-8")
+    assert '"request_type": "free"' in patched
+    assert '"planner_pipeline": "pilz_industrial_motion_planner"' in patched
+    assert '"planner_id": "PTP"' in patched
+    assert '"target_pose": self._moveit_pose_to_dict(target_pose)' in patched
+    assert '"planning_time": self._moveit_plan_tuple_value(result, 2)' in patched
+    assert '"moveit_error_code": self._moveit_error_code_to_int(self._moveit_plan_tuple_value(result, 3))' in patched
+    assert '"trajectory_points": self._moveit_trajectory_point_count(output)' in patched
+    assert module.patch_vizor_robot_py() is False
+
+
+def test_patch_vizor_robot_py_logs_cartesian_planning_details(monkeypatch, tmp_path):
+    module = _load_patch_module()
+    robot_py = tmp_path / "robot.py"
+    robot_py.write_text(
+        '''def create_world_pose(z = 0):
+    worldXY = PoseStamped()
+    header = Header()
+    header.frame_id = "base_link"
+    worldXY.header = header
+    pose = Pose()
+    pose.position.z = z
+    pose.orientation.w = 1.0
+    worldXY.pose = pose
+
+class Robot:
+    def add_ground_plane(self):
+        name = "ground_plane"
+        ground_pose = create_world_pose(z = -0.105)
+        self.scene.add_box(name, ground_pose, size=(5, 5, 0.01))
+
+    def init_topics(self):
+        rospy.Subscriber(f"{self.name}/request/cartesian", PlanningCartesian, self.planCartesianMotion, callback_args=self.name)
+
+    def planCartesianMotion(self, msg, *args):
+        name = args[0]
+        self.move_group.set_planner_id("LIN")
+        print (f"planning cartesian {msg.name}")
+        rospy.sleep(DELAY)
+        try:
+            eef_step = 0.05 # cartesian path interpolated at the resolution of 5cm
+            target_poses = msg.poses
+            if len(target_poses) == 2: # use linear planner on a single pose
+                result = self.move_group.plan(joints = target_poses[1])
+                output = result[1]
+                print(f"    >> lin movement with {len(output.joint_trajectory.points)} poses")
+            else:
+                result = self.move_group.compute_cartesian_path(
+                    target_poses,
+                    eef_step,
+                    avoid_collisions=True,
+                ) #default avoid collision
+                output = result[0]
+                print (f"   >> fraction {result[1]}")
+            if output:
+                self._publish_trajectory(output.joint_trajectory, msg.name)
+            else:
+                print(f"planning failed {result[1]}")
+        except Exception as e:
+            print(e)
+
+    def plan_transition(self, joint_trajectory_point, name = "transition"):
+        pass
+''',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "ROBOT_PY", robot_py)
+
+    assert module.patch_vizor_robot_py() is True
+
+    patched = robot_py.read_text(encoding="utf-8")
+    assert '"request_type": "cartesian"' in patched
+    assert '"planner_id": "LIN"' in patched
+    assert '"cartesian_branch": "lin_two_pose"' in patched
+    assert '"cartesian_branch": "compute_cartesian_path"' in patched
+    assert '"eef_step": eef_step' in patched
+    assert '"jump_threshold": None' in patched
+    assert '"avoid_collisions": True' in patched
+    assert '"fraction": fraction' in patched
+    assert '"target_poses": self._moveit_pose_list_to_dicts(target_poses)' in patched
+    assert module.patch_vizor_robot_py() is False
+
+
+def test_patch_vizor_robot_py_updates_previous_ground_plane_patch(monkeypatch, tmp_path):
+    module = _load_patch_module()
+    robot_py = tmp_path / "robot.py"
+    robot_py.write_text(
+        '''def create_world_pose(z = 0):
+    worldXY = PoseStamped()
+    header = Header()
+    header.frame_id = "base_link"
+    worldXY.header = header
+    pose = Pose()
+    pose.position.z = z
+    pose.orientation.w = 1.0
+    worldXY.pose = pose
+
+def plan():
+    if True:
+        if True:
+            eef_step = 0.05 # cartesian path interpolated at the resolution of 5cm
+            if True:
+                result = self.move_group.compute_cartesian_path(
+                    target_poses,
+                    eef_step,
+                    avoid_collisions=True,
+                ) #default avoid collision
+
+class Robot:
+    def add_ground_plane(self):
+        name = "ground_plane"
+        ground_pose = create_world_pose(z = -0.095)
+        self.scene.add_box(name, ground_pose, size=(5, 5, 0.01))
+
+    def init_topics(self):
+        rospy.Subscriber(f"{self.name}/request/cartesian", PlanningCartesian, self.planCartesianMotion, callback_args=self.name)
+
+    def planCartesianMotion(self, msg, *args):
+        pass
+''',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "ROBOT_PY", robot_py)
+
+    assert module.patch_vizor_robot_py() is True
+
+    patched = robot_py.read_text(encoding="utf-8")
+    assert "ground_pose = create_world_pose(z = -0.105)" in patched
+    assert "ground_pose = create_world_pose(z = -0.095)" not in patched
     assert "avoid_collisions=True" in patched
     assert module.patch_vizor_robot_py() is False
 
@@ -440,6 +713,11 @@ def create_world_pose(z = 0):
     worldXY.pose = pose
 
 class Robot:
+    def add_ground_plane(self):
+        name = "ground_plane"
+        ground_pose = create_world_pose(z = -0.01)
+        self.scene.add_box(name, ground_pose, size=(5, 5, 0.01))
+
     def __init__(self):
         rospy.Subscriber(f"{self.name}/request/free", PlanningFree, self.planFreeMotion, callback_args=self.name)
         rospy.Subscriber(f"{self.name}/request/cartesian", PlanningCartesian, self.planCartesianMotion, callback_args=self.name)
@@ -462,6 +740,12 @@ class Robot:
     assert "def planSampledApproachMotion(self, msg, *args):" in patched
     assert 'self.move_group.set_planning_pipeline_id("ompl")' in patched
     assert 'self.move_group.set_planner_id("RRTConnect")' in patched
+    assert '"request_type": "sampled"' in patched
+    assert '"planner_pipeline": "ompl"' in patched
+    assert '"planner_id": "RRTConnect"' in patched
+    assert '"planning_time": self._moveit_plan_tuple_value(result, 2)' in patched
+    assert '"moveit_error_code": self._moveit_error_code_to_int(self._moveit_plan_tuple_value(result, 3))' in patched
+    assert '"sampled_segment_index": segment_index' in patched
     assert patched.index("def planSampledApproachMotion") < patched.index("def planCartesianMotion")
     assert module.patch_vizor_robot_py() is False
 
@@ -486,6 +770,11 @@ def create_world_pose(z = 0):
     worldXY.pose = pose
 
 class Robot:
+    def add_ground_plane(self):
+        name = "ground_plane"
+        ground_pose = create_world_pose(z = -0.01)
+        self.scene.add_box(name, ground_pose, size=(5, 5, 0.01))
+
     def __init__(self):
         self.trajectory_data = {}
         rospy.Subscriber(f"{self.name}/request/free", PlanningFree, self.planFreeMotion, callback_args=self.name)
@@ -614,3 +903,26 @@ def test_patch_robotiq_2f85_integration_replaces_fixed_mesh_and_wires_action_ser
     module.patch_robotiq_2f85_integration(root)
 
     assert (root / "moveit_support" / "ur10_moveit_support" / "config" / "ur10_with_gripper.srdf").read_text() == srdf
+
+
+def test_patch_ur10_kinematics_timeout_sets_more_reliable_ik_window(tmp_path):
+    module = _load_patch_module()
+    root = tmp_path / "catkin_ws" / "src"
+    config = root / "moveit_support" / "ur10_moveit_support" / "config"
+    config.mkdir(parents=True)
+    kinematics = config / "kinematics.yaml"
+    kinematics.write_text(
+        """arm:
+  kinematics_solver: trac_ik_kinematics_plugin/TRAC_IKKinematicsPlugin
+  kinematics_solver_timeout: 0.005
+  kinematics_solver_search_resolution: 0.005
+"""
+    )
+
+    assert module.patch_ur10_kinematics_timeout(root) is True
+
+    patched = kinematics.read_text()
+    assert "kinematics_solver_timeout: 0.05" in patched
+    assert "kinematics_solver_search_resolution: 0.005" in patched
+    assert module.patch_ur10_kinematics_timeout(root) is False
+    assert kinematics.read_text() == patched

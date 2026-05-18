@@ -338,6 +338,53 @@ class SchemaRejectingTaskPlannerBridge(TaskPlannerSurfaceBridge):
         return await super().call_tool(name, arguments)
 
 
+class FailingManipulationPlannerBridge(TaskPlannerSurfaceBridge):
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        if name == "moveit_plan_manipulation_task":
+            self.calls.append((name, arguments))
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": False,
+                        "robot": "UR10",
+                        "tool": "moveit_plan_manipulation_task",
+                        "feedback": {
+                            "phase": "planned",
+                            "status": "staged manipulation task planning failed",
+                            "message": (
+                                "Required manipulation stage approach_to_pre_grasp could not be "
+                                "planned with preview evidence."
+                            ),
+                            "can_execute": False,
+                            "correction": (
+                                "Inspect the failed candidate stage, adjust the grasp face or "
+                                "object pose, then retry moveit_plan_manipulation_task."
+                            ),
+                        },
+                        "verification": {
+                            "result": "fail",
+                            "checks": [
+                                {
+                                    "name": "required_motion_stages_planned",
+                                    "passed": False,
+                                    "details": "approach_to_pre_grasp",
+                                }
+                            ],
+                        },
+                        "failed_stage": "approach_to_pre_grasp",
+                        "failure_code": "required_motion_stage_unplanned",
+                        "suggested_next_action": (
+                            "Inspect the failed candidate stage, adjust the grasp face or object "
+                            "pose, then retry moveit_plan_manipulation_task."
+                        ),
+                        "retryable": True,
+                    },
+                    "is_error": False,
+                }
+            )
+        return await super().call_tool(name, arguments)
+
+
 class FakeUserSensingBridge:
     def __init__(self) -> None:
         self.calls: list[float] = []
@@ -1067,6 +1114,57 @@ class StageSynchronizedTaskBridge(CompoundTaskPlanBridge):
         return await super().call_tool(name, arguments)
 
 
+class FailingTaskStageBridge(StageSynchronizedTaskBridge):
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        if name == "moveit_plan_free_motion":
+            self.calls.append((name, arguments))
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": False,
+                        "robot": arguments["robot_name"],
+                        "tool": "plan_free_motion",
+                        "feedback": {
+                            "phase": "planned",
+                            "status": "planning result invalid",
+                            "message": "Plan did not satisfy execution requirements",
+                            "can_execute": False,
+                            "correction": (
+                                "Replan with a smaller or safer target, then execute only "
+                                "a successful returned raw.plan_name."
+                            ),
+                        },
+                        "verification": {"result": "fail"},
+                        "raw": {
+                            "plan_name": arguments["plan_name"],
+                            "trajectory_points": 0,
+                            "can_execute": False,
+                        },
+                    },
+                    "is_error": False,
+                }
+            )
+        if name == "moveit_explain_motion_failure":
+            self.calls.append((name, arguments))
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": True,
+                        "robot": "UR10",
+                        "tool": "moveit_explain_motion_failure",
+                        "correction": (
+                            "Observe current robot state, inspect the failed result, "
+                            "then retry with a narrower plan."
+                        ),
+                        "retryable": True,
+                        "suggested_next_tool": "moveit_get_robot_state",
+                    },
+                    "is_error": False,
+                }
+            )
+        return await super().call_tool(name, arguments)
+
+
 def approved_hold_contract_context(task_solution_id: str = "hold_task_dynamic_5_001") -> RobotContextStore:
     raw = compound_task_raw(
         task_solution_id=task_solution_id,
@@ -1380,6 +1478,43 @@ async def test_graph_routes_model_visible_manipulation_planner_to_native_backend
 
 
 @pytest.mark.asyncio
+async def test_graph_sends_failed_manipulation_planner_result_back_to_model() -> None:
+    args = {
+        "robot_name": "UR10",
+        "requirements": {
+            "goal": "hold",
+            "object_name": "dynamic_5",
+            "lift_distance_m": 0.10,
+        },
+        "timeout_s": 9.0,
+    }
+    planner_correction = (
+        "Inspect the failed candidate stage, adjust the grasp face or object pose, "
+        "then retry moveit_plan_manipulation_task."
+    )
+    reflected_text = (
+        "I could not plan a safe grasp for dynamic_5. I need a different grasp face or "
+        "object pose before retrying."
+    )
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_plan_manipulation_task", args),
+            ai_text(reflected_text),
+        ],
+        bridge=FailingManipulationPlannerBridge(),
+    )
+
+    text = await fixture.graph.run_turn(turn("pick up dynamic_5"))
+
+    assert text == reflected_text
+    assert len(fixture.model.requests) == 2
+    output = json.loads(last_tool_content(fixture.model))
+    assert output["structured_content"]["ok"] is False
+    assert output["structured_content"]["feedback"]["correction"] == planner_correction
+    assert text != planner_correction
+
+
+@pytest.mark.asyncio
 async def test_graph_stops_after_manipulation_planner_timeout() -> None:
     args = {
         "robot_name": "UR10",
@@ -1640,24 +1775,22 @@ async def test_policy_blocked_call_emits_task_policy_and_does_not_call_mcp() -> 
         thread_id="test-session",
         tracer=ProcessTracer(writer),
     )
-    plan_args = {
-        "robot_name": "UR10",
-        "target_pose": {
-            "position": {"x": 0.1, "y": 0.2, "z": 0.35},
-            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
-        },
-    }
+    execute_args = {"robot_name": "UR10", "plan_name": "invented-plan"}
 
-    output = await graph._call_policy_checked_tool("moveit_plan_free_motion", plan_args)
+    output = await graph._call_policy_checked_tool(
+        "moveit_execute_plan",
+        execute_args,
+        allow_execution=True,
+    )
 
     assert bridge.calls == []
     assert json.loads(output)["ok"] is False
     policy_span = records_named(writer, "robot.task_policy")[-1]
     assert policy_span["module"] == "robot_control"
     assert policy_span["status"] == "ok"
-    assert policy_span["attributes"]["tool.name"] == "moveit_plan_free_motion"
+    assert policy_span["attributes"]["tool.name"] == "moveit_execute_plan"
     assert policy_span["attributes"]["decision_ok"] is False
-    assert policy_span["attributes"]["suggested_next_tool"] == "moveit_get_current_pose"
+    assert policy_span["attributes"]["suggested_next_tool"] == "moveit_plan_free_motion"
 
 
 @pytest.mark.asyncio
@@ -1960,7 +2093,7 @@ async def test_explicit_execute_request_queues_latest_pending_plan_with_worker()
     assert job.arguments == {
         "robot_name": "UR10",
         "plan_name": "plan-1",
-        "timeout_s": 30.0,
+        "timeout_s": 60.0,
     }
     assert job.after_success_tool == "moveit_plan_pick"
     assert job.after_success_arguments == {
@@ -2230,7 +2363,7 @@ async def test_graph_stops_after_queuing_first_plan_job_with_worker() -> None:
 
 
 @pytest.mark.asyncio
-async def test_graph_applies_task_policy_before_queued_action_tool() -> None:
+async def test_graph_applies_task_policy_before_queued_execute_tool() -> None:
     from agent_control.robot_job_submission import RobotJobSubmitter
     from robot_control.job_board import RobotJobBoard
 
@@ -2239,39 +2372,36 @@ async def test_graph_applies_task_policy_before_queued_action_tool() -> None:
             return [
                 {
                     "type": "function",
-                    "name": "moveit_plan_free_motion",
+                    "name": "moveit_execute_plan",
                     "parameters": {"type": "object"},
                     "strict": None,
                 }
             ]
 
     board = RobotJobBoard()
-    plan_args = {
-        "robot_name": "UR10",
-        "target_pose": {
-            "position": {"x": 0.1, "y": 0.2, "z": 0.35},
-            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
-        },
-    }
+    execute_args = {"robot_name": "UR10", "plan_name": "invented-plan"}
     fixture = make_graph(
-        [ai_tool_call("moveit_plan_free_motion", plan_args), ai_text("I need a fresh pose.")],
+        [
+            ai_tool_call("moveit_execute_plan", execute_args),
+            ai_text("I need to plan before executing."),
+        ],
         bridge=NoObservationBridge(),
         job_submitter=RobotJobSubmitter(board),
     )
 
-    text = await fixture.graph.run_turn(turn("move up"))
+    text = await fixture.graph.run_turn(turn("execute the plan"))
 
-    assert text == "I need a fresh pose."
+    assert text == "I need to plan before executing."
     assert fixture.bridge.calls == []
     assert await board.claim_next() is None
     assert board.events_since(0) == []
     output = json.loads(last_tool_content(fixture.model))
     assert output == {
         "ok": False,
-        "error": "Fresh robot pose is required before motion.",
-        "correction": "Call moveit_get_current_pose, then retry the motion.",
+        "error": "Cannot execute an unknown or stale plan.",
+        "correction": "Plan first, then execute the returned plan_name.",
         "retryable": True,
-        "suggested_next_tool": "moveit_get_current_pose",
+        "suggested_next_tool": "moveit_plan_free_motion",
     }
 
 
@@ -2434,7 +2564,7 @@ async def test_graph_rejects_additional_tool_calls_after_first_without_executing
 
 
 @pytest.mark.asyncio
-async def test_graph_sends_policy_failure_as_tool_message_when_motion_lacks_fresh_observation() -> None:
+async def test_graph_sends_motion_plan_to_bridge_without_fresh_pose_policy_failure() -> None:
     class NoObservationBridge(FakeBridge):
         def function_tools(self) -> list[dict[str, Any]]:
             return [
@@ -2454,22 +2584,14 @@ async def test_graph_sends_policy_failure_as_tool_message_when_motion_lacks_fres
         },
     }
     fixture = make_graph(
-        [ai_tool_call("moveit_plan_free_motion", plan_args), ai_text("I need a fresh pose.")],
+        [ai_tool_call("moveit_plan_free_motion", plan_args), ai_text("Plan ready.")],
         bridge=NoObservationBridge(),
     )
 
     text = await fixture.graph.run_turn(turn("move up"))
 
-    assert text == "I need a fresh pose."
-    assert fixture.bridge.calls == []
-    output = json.loads(last_tool_content(fixture.model))
-    assert output == {
-        "ok": False,
-        "error": "Fresh robot pose is required before motion.",
-        "correction": "Call moveit_get_current_pose, then retry the motion.",
-        "retryable": True,
-        "suggested_next_tool": "moveit_get_current_pose",
-    }
+    assert text == "Plan ready."
+    assert fixture.bridge.calls == [("moveit_plan_free_motion", plan_args)]
 
 
 @pytest.mark.asyncio
@@ -2697,6 +2819,70 @@ async def test_graph_execute_task_stops_physical_after_readiness_then_failure() 
     assert structured["simulation"]["ok"] is True
     assert structured["real_robot"]["ok"] is False
     assert structured["real_robot"]["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_graph_execute_task_stage_failure_reports_failure_without_model_replan() -> None:
+    execute_args = {
+        "robot_name": "UR10",
+        "task_solution_id": "hold_task_dynamic_5_001",
+        "timeout_s": 9.0,
+    }
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_execute_task", execute_args),
+            ai_text("unexpected model replan"),
+        ],
+        bridge=FailingTaskStageBridge(),
+        robot_context=approved_hold_contract_context(),
+    )
+
+    text = await fixture.graph.run_turn(turn("execute"))
+
+    assert "Execution of hold_task_dynamic_5_001 failed at approach during planning." in text
+    assert "Plan did not satisfy execution requirements" in text
+    assert "No new plan was executed." in text
+    assert "Please approve the next action" in text
+    assert "unexpected model replan" not in text
+    assert len(fixture.model.requests) == 1
+    output = json.loads(latest_state_tool_content(fixture))
+    assert output["ok"] is False
+    assert output["task_solution_id"] == "hold_task_dynamic_5_001"
+    assert output["failed_step"] == "approach"
+    assert output["failed_stage"] == "planning"
+    assert output["correction"] == (
+        "Inspect the failed tool result, then replan before retrying task execution."
+    )
+    assert output["suggested_next_tool"] == "moveit_explain_motion_failure"
+    assert "moveit_explain_motion_failure" in bridge_tool_names(fixture.bridge)
+    planning_call_indexes = [
+        index
+        for index, call in enumerate(fixture.bridge.calls)
+        if call[0] == "moveit_plan_free_motion"
+    ]
+    pose_call_indexes = [
+        index
+        for index, call in enumerate(fixture.bridge.calls)
+        if call[0] == "moveit_get_current_pose"
+    ]
+    assert len(planning_call_indexes) == 2
+    assert any(
+        planning_call_indexes[0] < index < planning_call_indexes[1]
+        for index in pose_call_indexes
+    )
+    task_retry_pose_calls = [
+        fixture.bridge.calls[index]
+        for index in pose_call_indexes
+        if planning_call_indexes[0] < index < planning_call_indexes[1]
+    ]
+    assert all(
+        call[1] == {"robot_name": "UR10", "timeout_s": 2.0}
+        for call in task_retry_pose_calls
+    )
+    explain_calls = [
+        call for call in fixture.bridge.calls if call[0] == "moveit_explain_motion_failure"
+    ]
+    assert explain_calls[0][1]["timeout_s"] == 9.0
 
 
 @pytest.mark.asyncio
@@ -2962,7 +3148,7 @@ async def test_graph_executes_approved_pick_task_plan_through_verified_execution
     assert verified_plan_names[2].endswith("_try1")
     assert fixture.bridge.calls == [
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10", "timeout_s": 2.0}),
         (
             "moveit_plan_free_motion",
             {
@@ -2975,7 +3161,7 @@ async def test_graph_executes_approved_pick_task_plan_through_verified_execution
                 "timeout_s": 9.0,
             },
         ),
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10", "timeout_s": 2.0}),
         (
             "moveit_plan_cartesian_motion",
             {
@@ -2998,7 +3184,7 @@ async def test_graph_executes_approved_pick_task_plan_through_verified_execution
                 "verified_gripper_closed": True,
             },
         ),
-        ("moveit_get_current_pose", {"robot_name": "UR10"}),
+        ("moveit_get_current_pose", {"robot_name": "UR10", "timeout_s": 2.0}),
         (
             "moveit_plan_cartesian_motion",
             {
@@ -3209,10 +3395,24 @@ async def test_graph_retries_pick_task_pre_grasp_with_unique_free_motion_plan() 
     pre_grasp_calls = [
         call for call in planning_calls if "_pre_grasp_" in str(call[1].get("plan_name"))
     ]
+    pose_call_indexes = [
+        index
+        for index, call in enumerate(fixture.bridge.calls)
+        if call[0] == "moveit_get_current_pose"
+    ]
+    pre_grasp_call_indexes = [
+        index
+        for index, call in enumerate(fixture.bridge.calls)
+        if call in pre_grasp_calls
+    ]
     assert [call[0] for call in pre_grasp_calls] == [
         "moveit_plan_cartesian_motion",
         "moveit_plan_free_motion",
     ]
+    assert any(
+        pre_grasp_call_indexes[0] < index < pre_grasp_call_indexes[1]
+        for index in pose_call_indexes
+    )
     assert str(pre_grasp_calls[0][1]["plan_name"]).endswith("_try1")
     assert str(pre_grasp_calls[1][1]["plan_name"]).endswith("_try2")
     verified_plan_names = [call[1] for call in verified_client.calls]
@@ -3284,7 +3484,7 @@ async def test_graph_returns_bounded_failure_for_dynamic_1_first_stage_timeout()
     fixture = make_graph(
         [
             ai_tool_call("moveit_execute_task_plan", execute_args),
-            ai_text("I could not plan the approach for dynamic_1; the planner timed out."),
+            ai_text("unexpected model replan"),
         ],
         bridge=TimeoutFirstStageBridge(),
         robot_context=context,
@@ -3293,8 +3493,12 @@ async def test_graph_returns_bounded_failure_for_dynamic_1_first_stage_timeout()
 
     text = await fixture.graph.run_turn(turn("yes, execute the dynamic_1 pick task"))
 
-    assert text == "I could not plan the approach for dynamic_1; the planner timed out."
-    assert len(fixture.model.requests) == 2
+    assert "Execution of pick_task_dynamic_1_001 failed at approach during planning." in text
+    assert "read timed out" in text
+    assert "No new plan was executed." in text
+    assert "Please approve the next action" in text
+    assert "unexpected model replan" not in text
+    assert len(fixture.model.requests) == 1
     assert verified_client.calls == []
     planning_calls = [
         call for call in fixture.bridge.calls if call[0].startswith("moveit_plan_")
@@ -3303,6 +3507,8 @@ async def test_graph_returns_bounded_failure_for_dynamic_1_first_stage_timeout()
     output = json.loads(latest_state_tool_content(fixture))
     assert output["ok"] is False
     assert output["error"] == "Task plan planning failed at approach."
+    assert output["task_solution_id"] == task_solution_id
+    assert output["failed_step"] == "approach"
     assert output["retryable"] is True
     assert output["correction"] == (
         "Inspect the failed tool result, then replan before retrying task execution."
@@ -3315,9 +3521,119 @@ async def test_graph_returns_bounded_failure_for_dynamic_1_first_stage_timeout()
     )
     assert output["failed_tool_result"]["ok"] is False
     assert "timed out" in output["failed_tool_result"]["error"]
-    tool_feedback = json.loads(last_tool_content(fixture.model))
-    assert tool_feedback["suggested_next_tool"] == "moveit_explain_motion_failure"
     assert "held object: dynamic_1" not in context.render_instruction_block()
+
+
+@pytest.mark.asyncio
+async def test_graph_stops_task_plan_retry_when_pose_refresh_after_planning_failure_fails() -> None:
+    class PoseRefreshFailingRetryBridge(FakeBridge):
+        def __init__(self) -> None:
+            super().__init__()
+            self.failed_pre_grasp_once = False
+            self.pose_refresh_failures_remaining = 0
+
+        def function_tools(self) -> list[dict[str, Any]]:
+            return [
+                *super().function_tools(),
+                {
+                    "type": "function",
+                    "name": "moveit_execute_task_plan",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                },
+                {
+                    "type": "function",
+                    "name": "moveit_close_gripper",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                },
+                {
+                    "type": "function",
+                    "name": "moveit_attach_object",
+                    "parameters": {"type": "object"},
+                    "strict": None,
+                },
+            ]
+
+        async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+            if name == "moveit_get_current_pose":
+                if self.pose_refresh_failures_remaining > 0:
+                    self.pose_refresh_failures_remaining -= 1
+                    self.calls.append((name, arguments))
+                    return json.dumps(
+                        {
+                            "structured_content": {
+                                "ok": False,
+                                "robot": "UR10",
+                                "feedback": {"status": "current pose unavailable"},
+                                "verification": {"result": "unknown"},
+                            }
+                        }
+                    )
+                return await FakeBridge.call_tool(self, name, arguments)
+            self.calls.append((name, arguments))
+            plan_name = str(arguments.get("plan_name") or "")
+            if (
+                name == "moveit_plan_cartesian_motion"
+                and "_pre_grasp_" in plan_name
+                and not self.failed_pre_grasp_once
+            ):
+                self.failed_pre_grasp_once = True
+                self.pose_refresh_failures_remaining = 3
+                return json.dumps(
+                    {
+                        "structured_content": {
+                            "ok": False,
+                            "robot": "UR10",
+                            "feedback": {"status": "incomplete path", "can_execute": False},
+                            "verification": {"result": "fail"},
+                            "raw": {"plan_name": plan_name},
+                        }
+                    }
+                )
+            if name in {"moveit_plan_free_motion", "moveit_plan_cartesian_motion"}:
+                return json.dumps(
+                    {
+                        "structured_content": {
+                            "ok": True,
+                            "robot": "UR10",
+                            "feedback": {"can_execute": True},
+                            "raw": {"plan_name": plan_name},
+                        }
+                    }
+                )
+            return json.dumps({"structured_content": {"ok": True}})
+
+    execute_args = {
+        "robot_name": "UR10",
+        "task_solution_id": "pick_task_dynamic_5_001",
+        "timeout_s": 9.0,
+    }
+    verified_client = FakeVerifiedExecutionClient()
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_execute_task_plan", execute_args),
+            ai_text("I could not refresh the robot pose after planning failed."),
+        ],
+        bridge=PoseRefreshFailingRetryBridge(),
+        robot_context=approved_pick_task_context(),
+        verified_execution_client=verified_client,
+    )
+
+    await fixture.graph.run_turn(turn("yes, execute the pick task"))
+
+    pre_grasp_calls = [
+        call
+        for call in fixture.bridge.calls
+        if call[0] in {"moveit_plan_free_motion", "moveit_plan_cartesian_motion"}
+        and "_pre_grasp_" in str(call[1].get("plan_name"))
+    ]
+    assert [call[0] for call in pre_grasp_calls] == ["moveit_plan_cartesian_motion"]
+    output = json.loads(latest_state_tool_content(fixture))
+    assert output["ok"] is False
+    assert output["failed_stage"] == "observe_current_pose"
+    assert output["failed_tool_name"] == "moveit_get_current_pose"
+    assert output["failed_tool_arguments"] == {"robot_name": "UR10", "timeout_s": 2.0}
 
 
 @pytest.mark.asyncio
@@ -4091,6 +4407,15 @@ async def test_graph_executes_long_hybrid_contract_from_cached_task_plan() -> No
         str(arguments["plan_name"]).startswith(f"{task_solution_id}_{stage}_")
         for (_tool_name, arguments), stage in zip(planning_calls, expected_motion_stages)
     ] == [True, True, True, True, True, True]
+    approach_call = next(
+        call
+        for call in planning_calls
+        if str(call[1]["plan_name"]).startswith(
+            f"{task_solution_id}_approach_to_pre_grasp_"
+        )
+    )
+    assert len(approach_call[1]["waypoints"]) == 1
+    assert approach_call[1]["waypoints"][0] == waypoints[1]
     assert [call[1] for call in verified_client.calls] == [
         arguments["plan_name"] for _tool_name, arguments in planning_calls
     ]
@@ -4661,18 +4986,10 @@ async def test_graph_feeds_place_retreat_failure_back_for_explanation() -> None:
         "task_solution_id": task_solution_id,
         "timeout_s": 9.0,
     }
-    explain_args = {
-        "robot_name": "UR10",
-        "failed_tool_name": "moveit_plan_cartesian_motion",
-        "failed_tool_arguments": {"robot_name": "UR10"},
-        "failed_tool_result": {"ok": False, "feedback": {"status": "incomplete path"}},
-        "user_intent": "release dynamic_5 and retreat",
-    }
     fixture = make_graph(
         [
             ai_tool_call("moveit_execute_task_plan", execute_args),
-            ai_tool_call("moveit_explain_motion_failure", explain_args, call_id="call-2"),
-            ai_text("I released dynamic_5, but the retreat path could not be planned."),
+            ai_text("unexpected model explanation"),
         ],
         bridge=RetreatFailureBridge(release_proof=True),
         robot_context=approved_contract_task_context(
@@ -4686,11 +5003,14 @@ async def test_graph_feeds_place_retreat_failure_back_for_explanation() -> None:
 
     text = await fixture.graph.run_turn(turn("execute"))
 
-    assert text == "I released dynamic_5, but the retreat path could not be planned."
-    assert len(fixture.model.requests) == 3
-    task_failure_message = fixture.model.requests[1][-1]
-    assert isinstance(task_failure_message, ToolMessage)
-    task_failure = json.loads(str(task_failure_message.content))
+    assert (
+        text
+        == "Execution of place_task_dynamic_5_002 failed at retreat during planning. "
+        "MoveIt/tool failure: incomplete path. No new plan was executed. "
+        "Please approve the next action before I retry or replan."
+    )
+    assert len(fixture.model.requests) == 1
+    task_failure = json.loads(latest_state_tool_content(fixture))
     assert task_failure["suggested_next_tool"] == "moveit_explain_motion_failure"
     assert task_failure["failed_tool_name"] == "moveit_plan_cartesian_motion"
     assert "_retreat_" in task_failure["failed_tool_arguments"]["plan_name"]
@@ -4703,8 +5023,8 @@ async def test_graph_feeds_place_retreat_failure_back_for_explanation() -> None:
     assert recovery["completed_steps"][-1]["handler"] == "release_object"
     assert recovery["verified_plan_names"][0].startswith("place_task_dynamic_5_002_")
     assert "recent task failure: place_task_dynamic_5_002" in fixture.graph._robot_context.render_instruction_block()
-    assert ("moveit_explain_motion_failure", explain_args) in fixture.bridge.calls
-    assert text != "Inspect the failed tool result, then replan before retrying task execution."
+    assert "unexpected model explanation" not in text
+    assert "moveit_explain_motion_failure" in bridge_tool_names(fixture.bridge)
 
 
 @pytest.mark.asyncio

@@ -525,9 +525,9 @@ def test_wake_enabled_uses_two_voice_command_adapters_around_stt(monkeypatch, tm
 
     assert isinstance(processors[stt_index - 1], MaveVoiceCommandAudioGate)
     assert isinstance(processors[stt_index + 1], MaveVoiceCommandTranscriptAdapter)
-    assert processors[bot_speech_output_index - 1] is tts
-    assert wake_tone_index == bot_speech_output_index + 1
+    assert processors[wake_tone_index - 1] is tts
     assert processors[wake_tone_index + 1] is transport_output
+    assert processors[bot_speech_output_index - 1] is transport_output
     assert processors[stt_index - 1]._wake_threshold == 0.5
     assert processors[stt_index - 1]._pre_buffer_s == 2.0
     assert processors[stt_index - 1]._candidate_log_threshold == 0.4

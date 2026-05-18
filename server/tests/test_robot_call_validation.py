@@ -206,6 +206,9 @@ def test_task_tool_descriptions_route_staged_manipulation_tasks() -> None:
     assert "place" in manipulation_task
     assert "move_and_release" in manipulation_task
     assert "pick_place" in manipulation_task
+    assert "object target pose, not tcp pose" in manipulation_task
+    assert "geometry world context" in manipulation_task
+    assert "vizor user position" in manipulation_task
     assert "execution_contract" in manipulation_task
     assert "do not use for compound manipulation tasks" in cartesian
     assert "moveit_plan_manipulation_task" in cartesian
@@ -277,7 +280,7 @@ def test_rejects_removed_model_visible_manipulation_task_goals(goal: str) -> Non
     assert "approach_hold_adjust_release" not in structured["correction"]
 
 
-@pytest.mark.parametrize("lift_distance_m", [0.03, 0.1, 0.2])
+@pytest.mark.parametrize("lift_distance_m", [0.0, 0.03, 0.1, 0.2])
 def test_accepts_lift_distance_within_manipulation_bounds(lift_distance_m: float) -> None:
     validate_robot_tool_call(
         "moveit_plan_manipulation_task",
@@ -292,7 +295,7 @@ def test_accepts_lift_distance_within_manipulation_bounds(lift_distance_m: float
     )
 
 
-@pytest.mark.parametrize("lift_distance_m", [0.0, 0.029, 0.201, "0.1"])
+@pytest.mark.parametrize("lift_distance_m", [-0.001, 0.201, "0.1", True, float("nan"), float("inf")])
 def test_rejects_lift_distance_outside_manipulation_bounds(lift_distance_m: object) -> None:
     with pytest.raises(RobotCallValidationError) as exc:
         validate_robot_tool_call(
@@ -308,7 +311,7 @@ def test_rejects_lift_distance_outside_manipulation_bounds(lift_distance_m: obje
         )
 
     assert str(exc.value) == "requirements.lift_distance_m is outside supported manipulation range"
-    assert "0.03 m and 0.20 m" in exc.value.correction
+    assert "0.00 m and 0.20 m" in exc.value.correction
 
 
 def test_accepts_compound_task_preferences_as_non_executable_hints() -> None:
@@ -556,6 +559,7 @@ def test_accepts_task_plan_execution_arguments() -> None:
     assert "task_solution_id" in description
     assert "supported" in description
     assert "execution_contract" in description
+    assert "around 60" in description
     assert "pick-only" not in description.lower()
     assert "pick only" not in description.lower()
 

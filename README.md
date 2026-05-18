@@ -170,7 +170,7 @@ In the dashboard:
 1. Click **Start system**.
 2. Wait until Vizor + RViz, verified execution, and Pipecat report ready.
 3. Open RViz to confirm the UR10 is visible.
-4. Open Pipecat at `http://localhost:7860/client`.
+4. Open Pipecat at `http://localhost:7860/client/`.
 5. Allow microphone access.
 6. Say a wake-word command, for example:
 

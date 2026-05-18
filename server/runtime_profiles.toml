@@ -23,7 +23,31 @@ model = "gpt-realtime-whisper"
 [profiles.hybrid_gemini_live_tts.tts]
 provider = "gemini_live"
 model = "gemini-3.1-flash-live-preview"
-voice = "Orus"
+voice = "Enceladus"
+
+[profiles.hybrid_gemini_live_tts.voice_modulation]
+enabled = true
+preset_name = "ai_core"
+gain_db = 0.0
+wet_mix = 1.0
+low_cut_hz = 0.0
+high_cut_hz = 8200.0
+drive = 0.0
+bit_depth = 16
+pitch_shift_semitones = 0.0
+body_shift = 0.12
+ring_mod_hz = 0.0
+tremolo_hz = 0.0
+tremolo_depth = 0.0
+chorus_rate_hz = 0.35
+chorus_depth_ms = 18.0
+chorus_mix = 0.26
+echo_delay_ms = 110.0
+echo_feedback = 0.18
+echo_mix = 0.16
+noise_mix = 0.0
+breath_mix = 0.0
+limiter = true
 
 [profiles.hybrid_gemini_live_tts.agent]
 provider = "gemini_api"

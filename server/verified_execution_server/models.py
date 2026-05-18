@@ -14,7 +14,7 @@ class CachedPlan(BaseModel):
 class ExecutePlanRequest(BaseModel):
     robot_name: str = "UR10"
     plan_name: str = Field(min_length=1)
-    timeout_s: float = Field(default=10.0, gt=0.0, le=120.0)
+    timeout_s: float = Field(default=60.0, gt=0.0, le=120.0)
 
 
 class ExecutePlanResponse(BaseModel):

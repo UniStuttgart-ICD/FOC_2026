@@ -64,6 +64,7 @@ MAX_AGENT_TOOL_TURNS = 6
 TASK_PLAN_STAGE_MAX_ATTEMPTS = 2
 TASK_PLAN_OBSERVATION_MAX_ATTEMPTS = 3
 TASK_PLAN_OBSERVATION_RETRY_DELAY_S = 0.2
+TASK_PLAN_POSE_OBSERVATION_TIMEOUT_S = 2.0
 VIZOR_ROBOT_NAME = "UR10"
 GEOMETRY_UPDATE_DYNAMIC_ROLE_TOOL_NAME = "geometry_update_dynamic_role"
 MODEL_VISIBLE_TASK_PLANNER_TOOL_NAME = "moveit_plan_manipulation_task"
@@ -1107,7 +1108,7 @@ class LangGraphRobotAgent:
                         step_name=step_name,
                         output=pose_output,
                         failed_tool_name="moveit_get_current_pose",
-                        failed_tool_arguments={"robot_name": robot_name},
+                        failed_tool_arguments=_task_plan_pose_observation_arguments(robot_name),
                         task_solution_id=task_solution_id,
                         recent=recent,
                         completed_steps=completed_steps,
@@ -1148,6 +1149,28 @@ class LangGraphRobotAgent:
                         last_failed_output = plan_output
                         last_failed_tool_name = planning_tool
                         last_failed_tool_arguments = planning_args
+                        if attempt_index < TASK_PLAN_STAGE_MAX_ATTEMPTS:
+                            pose_output = await self._execute_task_plan_pose_observation(
+                                robot_name=robot_name,
+                                user_text=user_text,
+                                allow_execution=allow_execution,
+                            )
+                            if not _tool_ok(pose_output):
+                                return await self._task_plan_stage_failure(
+                                    stage="observe_current_pose",
+                                    step_name=step_name,
+                                    output=pose_output,
+                                    failed_tool_name="moveit_get_current_pose",
+                                    failed_tool_arguments=_task_plan_pose_observation_arguments(robot_name),
+                                    task_solution_id=task_solution_id,
+                                    recent=recent,
+                                    completed_steps=completed_steps,
+                                    verified_plan_names=ar_rviz_plan_names,
+                                    attached_object_verified=attached_object_verified,
+                                    released_object_verified=released_object_verified,
+                                    available_tool_names=available_tool_names,
+                                    user_text=user_text,
+                                )
                         continue
                     executable_name = executable_plan_name(plan_output) or plan_name
                     execute_arguments = {
@@ -1763,7 +1786,7 @@ class LangGraphRobotAgent:
                         step_name=step_name,
                         output=pose_output,
                         failed_tool_name="moveit_get_current_pose",
-                        failed_tool_arguments={"robot_name": robot_name},
+                        failed_tool_arguments=_task_plan_pose_observation_arguments(robot_name),
                         task_solution_id=task_solution_id,
                         recent=recent,
                         completed_steps=completed_steps,
@@ -1804,6 +1827,28 @@ class LangGraphRobotAgent:
                         last_failed_output = plan_output
                         last_failed_tool_name = planning_tool
                         last_failed_tool_arguments = planning_args
+                        if attempt_index < TASK_PLAN_STAGE_MAX_ATTEMPTS:
+                            pose_output = await self._execute_task_plan_pose_observation(
+                                robot_name=robot_name,
+                                user_text=user_text,
+                                allow_execution=allow_execution,
+                            )
+                            if not _tool_ok(pose_output):
+                                return await self._task_plan_stage_failure(
+                                    stage="observe_current_pose",
+                                    step_name=step_name,
+                                    output=pose_output,
+                                    failed_tool_name="moveit_get_current_pose",
+                                    failed_tool_arguments=_task_plan_pose_observation_arguments(robot_name),
+                                    task_solution_id=task_solution_id,
+                                    recent=recent,
+                                    completed_steps=completed_steps,
+                                    verified_plan_names=verified_plan_names,
+                                    attached_object_verified=attached_object_verified,
+                                    released_object_verified=released_object_verified,
+                                    available_tool_names=available_tool_names,
+                                    user_text=user_text,
+                                )
                         continue
                     executable_name = executable_plan_name(plan_output) or plan_name
                     execute_output = await self._execute_verified_plan_tool(
@@ -2200,7 +2245,7 @@ class LangGraphRobotAgent:
         for attempt_index in range(1, TASK_PLAN_OBSERVATION_MAX_ATTEMPTS + 1):
             output = await self._execute_tool(
                 "moveit_get_current_pose",
-                {"robot_name": robot_name},
+                _task_plan_pose_observation_arguments(robot_name),
                 user_text=user_text,
                 allow_execution=allow_execution,
             )
@@ -2306,6 +2351,8 @@ class LangGraphRobotAgent:
             }
             if failed_tool_arguments is not None:
                 explain_args["failed_tool_arguments"] = dict(failed_tool_arguments)
+                if "timeout_s" in failed_tool_arguments:
+                    explain_args["timeout_s"] = failed_tool_arguments["timeout_s"]
             if isinstance(user_text, str) and user_text.strip():
                 explain_args["user_intent"] = user_text
             diagnostic_output = await self._execute_contract_mcp_tool(
@@ -2318,6 +2365,7 @@ class LangGraphRobotAgent:
             stage,
             step_name,
             output,
+            task_solution_id=task_solution_id,
             failed_tool_name=failed_tool_name,
             failed_tool_arguments=failed_tool_arguments,
             recovery=recovery,
@@ -2767,6 +2815,8 @@ def _task_planning_result_text(output: str, *, repair_attempts: int) -> tuple[st
     if structured.get("ok") is False or structured.get("is_error") is True:
         if _repairable_manipulation_planner_schema_error(structured) and repair_attempts < 1:
             return "", repair_attempts + 1
+        if _manipulation_planner_failure_needs_model_feedback(structured):
+            return "", repair_attempts
         return (
             _structured_feedback_text(structured)
             or "Planning failed before a complete task solution was returned.",
@@ -2779,12 +2829,14 @@ def _task_planning_result_text(output: str, *, repair_attempts: int) -> tuple[st
 def _task_plan_execution_result_text(output: str) -> str:
     result = _structured_result_payload(output)
     if result is not None and _task_plan_failure_needs_model_feedback(result):
-        return ""
+        return _task_plan_failure_result_text(result)
     return _execution_result_text(output, "moveit_execute_task_plan")
 
 
 def _task_execution_result_text(output: str) -> str:
     result = _structured_result_payload(output)
+    if result is not None and _task_plan_failure_needs_model_feedback(result):
+        return _task_plan_failure_result_text(result)
     if result is not None:
         simulation = result.get("simulation")
         real_robot = result.get("real_robot")
@@ -2796,6 +2848,47 @@ def _task_execution_result_text(output: str) -> str:
         ):
             return _task_execution_content_text(result)
     return _execution_result_text(output, "moveit_execute_task")
+
+
+def _task_plan_failure_result_text(result: dict[str, Any]) -> str:
+    task_solution_id = _string_value(result.get("task_solution_id")) or "the approved task"
+    failed_step = _string_value(result.get("failed_step")) or "workflow step"
+    failed_stage = _string_value(result.get("failed_stage")) or "execution"
+    text = f"Execution of {task_solution_id} failed at {failed_step} during {failed_stage}."
+    evidence = _task_plan_failure_evidence_text(result)
+    if evidence:
+        text = f"{text} MoveIt/tool failure: {evidence.rstrip('.')}."
+    return f"{text} No new plan was executed. Please approve the next action before I retry or replan."
+
+
+def _task_plan_failure_evidence_text(result: dict[str, Any]) -> str:
+    failed_tool_result = _structured_dict_payload(result.get("failed_tool_result"))
+    if failed_tool_result is not None:
+        feedback = failed_tool_result.get("feedback")
+        if isinstance(feedback, dict):
+            for key in ("message", "status", "error", "correction"):
+                value = feedback.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+        for key in ("error", "message", "correction"):
+            value = failed_tool_result.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    diagnostic = _structured_dict_payload(result.get("diagnostic"))
+    if diagnostic is not None:
+        return _structured_feedback_text(diagnostic)
+    return _structured_feedback_text(result)
+
+
+def _structured_dict_payload(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    structured = value.get("structured_content")
+    return structured if isinstance(structured, dict) else value
+
+
+def _string_value(value: Any) -> str:
+    return value.strip() if isinstance(value, str) and value.strip() else ""
 
 
 def _task_execution_content_text(result: dict[str, Any]) -> str:
@@ -2870,6 +2963,18 @@ def _repairable_manipulation_planner_schema_error(result: dict[str, Any]) -> boo
         "unexpected argument for moveit_plan_manipulation_task: backend" in text
         or "remove backend" in text
     )
+
+
+def _manipulation_planner_failure_needs_model_feedback(result: dict[str, Any]) -> bool:
+    if _repairable_manipulation_planner_schema_error(result):
+        return False
+    if result.get("retryable") is True:
+        return True
+    for key in ("suggested_next_tool", "suggested_next_action", "failed_stage", "failure_code"):
+        value = result.get(key)
+        if isinstance(value, str) and value.strip():
+            return True
+    return False
 
 
 def _structured_feedback_text(result: dict[str, Any]) -> str:
@@ -3517,6 +3622,10 @@ def _task_plan_motion_call(
     )
 
 
+def _task_plan_pose_observation_arguments(robot_name: str) -> dict[str, Any]:
+    return {"robot_name": robot_name, "timeout_s": TASK_PLAN_POSE_OBSERVATION_TIMEOUT_S}
+
+
 def _task_plan_error(
     error: str,
     correction: str,
@@ -3540,6 +3649,7 @@ def _task_plan_stage_error(
     step_name: str,
     output: str,
     *,
+    task_solution_id: str,
     failed_tool_name: str | None = None,
     failed_tool_arguments: dict[str, Any] | None = None,
     recovery: dict[str, Any] | None = None,
@@ -3550,6 +3660,9 @@ def _task_plan_stage_error(
         "error": f"Task plan {stage} failed at {step_name or 'workflow step'}.",
         "correction": "Inspect the failed tool result, then replan before retrying task execution.",
         "retryable": True,
+        "task_solution_id": task_solution_id,
+        "failed_stage": stage,
+        "failed_step": step_name,
         "failed_tool_result": _json_payload(output),
         "suggested_next_tool": "moveit_explain_motion_failure",
     }

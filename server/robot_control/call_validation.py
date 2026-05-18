@@ -11,7 +11,7 @@ VIZOR_ROBOT_NAME = "UR10"
 WORKSPACE_ABS_LIMIT_M = 1.5
 DEFAULT_TIMEOUT_MAX_S = 60.0
 PLANNING_STRATEGIES = {"auto", "cartesian", "sampled_approach"}
-HOLD_LIFT_DISTANCE_MIN_M = 0.03
+HOLD_LIFT_DISTANCE_MIN_M = 0.0
 HOLD_LIFT_DISTANCE_MAX_M = 0.20
 MANIPULATION_TASK_GOAL_VALUES = (
     "hold",
@@ -200,7 +200,13 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "Plan a staged MoveIt manipulation task from requirements. Use requirements.goal "
         "hold, place, release, move_and_release, or pick_place with requirements.object_name "
         "unless release can use the current held object. Use requirements.target_pose or "
-        "requirements.target_position for place, move_and_release, and pick_place. "
+        "requirements.target_position for place, move_and_release, and pick_place; this is an "
+        "object target pose, not TCP pose. Use Geometry World Context for place/there targets "
+        "and a standoff pose derived from fresh Vizor user position for bring-to-me targets. "
+        "requirements.lift_distance_m is post-grasp lift distance: use "
+        "requirements.lift_distance_m=0.0 for bare hold, support, or hold-in-place requests; "
+        "use the default 0.10 m or an explicit positive value only when the user asks to "
+        "pick up, lift, raise, grab and lift, carry, or move after grasping. "
         "Optional preferences are non-executable planner hints. It returns task_solution_id, "
         "execution_contract, preview evidence, scene snapshot evidence, and approval payload. "
         "It does not execute motion or gripper actions."
@@ -220,7 +226,7 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "through Verified Real Robot Execution by planning concrete motion stages, executing "
         "each returned plan_name, running verified gripper actions, attaching or releasing "
         "the object as directed, and verifying required proof. Use only after explicit user "
-        "intent is bound to that exact task_solution_id. Use timeout_s around 30 for real-robot "
+        "intent is bound to that exact task_solution_id. Use timeout_s around 60 for real-robot "
         "execution unless the user asks for a shorter supervised timeout."
     ),
     "moveit_go_home": (

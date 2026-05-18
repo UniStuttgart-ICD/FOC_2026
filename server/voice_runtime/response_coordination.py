@@ -5,7 +5,6 @@ from collections.abc import Callable
 from typing import Any
 
 from pipecat.frames.frames import (
-    BotStoppedSpeakingFrame,
     CancelFrame,
     EndFrame,
     Frame,
@@ -94,7 +93,7 @@ class BotSpeechOutputCoordinator(FrameProcessor):
         if isinstance(frame, LLMFullResponseEndFrame):
             self._response_open = False
             self._finish_if_complete()
-        elif isinstance(frame, (TTSStoppedFrame, BotStoppedSpeakingFrame)):
+        elif isinstance(frame, TTSStoppedFrame):
             self._tts_active = False
             self._finish_if_complete()
 

@@ -18,7 +18,11 @@ from verified_execution_server.models import (
     RobotCommandResponse,
     RobotReadiness,
 )
-from verified_execution_server.plan_cache import PlanCache, RosPlanCache
+from verified_execution_server.plan_cache import (
+    AttachedObjectReleaseResult,
+    PlanCache,
+    RosPlanCache,
+)
 from verified_execution_server.ur_executor import TrajectoryExecutor, URRTDETrajectoryExecutor
 
 LOGGER = logging.getLogger(__name__)
@@ -30,6 +34,8 @@ DEFAULT_UR_JOINT_NAMES = [
     "wrist_2_joint",
     "wrist_3_joint",
 ]
+DEFAULT_GRIPPER_JOINT_NAME = "finger_joint"
+GRIPPER_OPEN_THRESHOLD_POSITION = 10
 
 
 def create_app(
@@ -230,7 +236,7 @@ def create_default_app() -> FastAPI:
             joint_blend=_float_from_env("UR_TRAJECTORY_BLEND_RADIUS", 0.02),
             servo_lookahead_time=_float_from_env("UR_SERVO_LOOKAHEAD_TIME", 0.1),
             servo_gain=_float_from_env("UR_SERVO_GAIN", 300.0),
-            completion_timeout_s=_float_from_env("UR_COMPLETION_TIMEOUT_S", 30.0),
+            completion_timeout_s=_float_from_env("UR_COMPLETION_TIMEOUT_S", 60.0),
             completion_poll_interval_s=_float_from_env(
                 "UR_COMPLETION_POLL_INTERVAL_S",
                 0.1,
@@ -319,6 +325,16 @@ def _command_metadata(command_result: Any) -> dict[str, Any]:
             metadata[field] = float(value)
         except (TypeError, ValueError):
             pass
+    gripper_position = _int_or_none(
+        _execution_result_value(command_result, "actual_gripper_position")
+    )
+    if gripper_position is not None:
+        metadata["actual_gripper_position"] = gripper_position
+    gripper_joint_position = _float_or_none(
+        _execution_result_value(command_result, "actual_gripper_joint_position")
+    )
+    if gripper_joint_position is not None:
+        metadata["actual_gripper_joint_position"] = gripper_joint_position
     return metadata
 
 
@@ -335,6 +351,24 @@ def _float_list(value: Any) -> list[float] | None:
         return None
     try:
         return [float(item) for item in value]
+    except (TypeError, ValueError):
+        return None
+
+
+def _float_or_none(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _int_or_none(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
     except (TypeError, ValueError):
         return None
 
@@ -490,12 +524,26 @@ async def _sync_robot_state(
             command="sync_state",
             status="command_failed",
             error=str(exc),
-            correction="Check the UR RTDE receive connection and robot state, then retry.",
+            correction="Check the UR RTDE receive connection, Robotiq gripper connection, and robot state, then retry.",
         )
         _log_command_response(response)
         return JSONResponse(status_code=500, content=response.model_dump())
 
     metadata = _command_metadata(state_result)
+    metadata["state_sync_published"] = False
+    metadata["gripper_joint_state_published"] = False
+    metadata["gripper_joint_name"] = DEFAULT_GRIPPER_JOINT_NAME
+    metadata["gripper_joint_state_topic"] = _gripper_joint_state_topic(request.robot_name)
+    metadata["gripper_open_threshold_position"] = GRIPPER_OPEN_THRESHOLD_POSITION
+    metadata["gripper_considered_open"] = False
+    metadata["attached_object_release_checked"] = False
+    metadata["attached_objects_before_release"] = []
+    metadata["attached_objects_released"] = []
+    metadata["attached_object_release_published"] = False
+    metadata["attached_object_release_verified"] = False
+    metadata["attached_object_release_topic_or_service"] = _attached_object_release_service(
+        request.robot_name
+    )
     actual_positions = metadata.get("actual_joint_positions")
     if not isinstance(actual_positions, list):
         response = RobotCommandResponse(
@@ -510,6 +558,27 @@ async def _sync_robot_state(
         _log_command_response(response)
         return JSONResponse(status_code=409, content=response.model_dump())
 
+    actual_gripper_position = metadata.get("actual_gripper_position")
+    actual_gripper_joint_position = metadata.get("actual_gripper_joint_position")
+    if not isinstance(actual_gripper_position, int) or not isinstance(
+        actual_gripper_joint_position,
+        float,
+    ):
+        response = RobotCommandResponse(
+            ok=False,
+            robot_name=request.robot_name,
+            command="sync_state",
+            status="missing_gripper_state",
+            error="Robotiq gripper state was not returned.",
+            correction="Check the Robotiq gripper connection, then retry state sync.",
+            **metadata,
+        )
+        _log_command_response(response)
+        return JSONResponse(status_code=409, content=response.model_dump())
+
+    metadata["gripper_considered_open"] = (
+        actual_gripper_position <= GRIPPER_OPEN_THRESHOLD_POSITION
+    )
     sync_published = plan_cache.sync_joint_state(
         request.robot_name,
         joint_names=joint_names,
@@ -528,6 +597,72 @@ async def _sync_robot_state(
         )
         _log_command_response(response)
         return JSONResponse(status_code=409, content=response.model_dump())
+
+    gripper_sync_published = plan_cache.sync_gripper_joint_state(
+        request.robot_name,
+        joint_name=DEFAULT_GRIPPER_JOINT_NAME,
+        joint_position=actual_gripper_joint_position,
+    )
+    metadata["gripper_joint_state_published"] = gripper_sync_published
+    if not gripper_sync_published:
+        response = RobotCommandResponse(
+            ok=False,
+            robot_name=request.robot_name,
+            command="sync_state",
+            status="state_sync_failed",
+            error="Read real robot state, but gripper joint state sync failed.",
+            correction=(
+                f"Check rosbridge and {_gripper_joint_state_topic(request.robot_name)}, "
+                "then retry state sync before planning again."
+            ),
+            **metadata,
+        )
+        _log_command_response(response)
+        return JSONResponse(status_code=409, content=response.model_dump())
+
+    if metadata["gripper_considered_open"] is True:
+        try:
+            release_result = await asyncio.to_thread(
+                plan_cache.release_attached_objects,
+                request.robot_name,
+                timeout_s=request.timeout_s,
+            )
+        except Exception as exc:
+            response = RobotCommandResponse(
+                ok=False,
+                robot_name=request.robot_name,
+                command="sync_state",
+                status="attached_object_release_failed",
+                error=str(exc),
+                correction=(
+                    f"Check /{request.robot_name}/get_planning_scene and "
+                    f"{_attached_object_release_service(request.robot_name)}, then retry state sync."
+                ),
+                **metadata,
+            )
+            _log_command_response(response)
+            return JSONResponse(status_code=409, content=response.model_dump())
+
+        metadata.update(_release_result_metadata(release_result))
+        if not release_result.ok:
+            response = RobotCommandResponse(
+                ok=False,
+                robot_name=request.robot_name,
+                command="sync_state",
+                status="attached_object_release_failed",
+                error=release_result.error or "Attached object release reconciliation failed.",
+                correction=(
+                    release_result.correction
+                    or (
+                        f"Check /{request.robot_name}/get_planning_scene and "
+                        f"{_attached_object_release_service(request.robot_name)}, "
+                        "then retry state sync."
+                    )
+                ),
+                **metadata,
+            )
+            _log_command_response(response)
+            return JSONResponse(status_code=409, content=response.model_dump())
 
     response = RobotCommandResponse(
         ok=True,
@@ -560,6 +695,25 @@ def _failed_command_response(
 
 def _log_command_response(response: RobotCommandResponse) -> None:
     LOGGER.info("verified_robot_command.response %s", response.model_dump())
+
+
+def _gripper_joint_state_topic(robot_name: str) -> str:
+    return f"/{robot_name}/gripper_joint_states"
+
+
+def _attached_object_release_service(robot_name: str) -> str:
+    return f"/{robot_name}/apply_planning_scene"
+
+
+def _release_result_metadata(result: AttachedObjectReleaseResult) -> dict[str, Any]:
+    return {
+        "attached_object_release_checked": bool(result.checked),
+        "attached_objects_before_release": list(result.attached_objects_before_release),
+        "attached_objects_released": list(result.attached_objects_released),
+        "attached_object_release_published": bool(result.published),
+        "attached_object_release_verified": bool(result.verified),
+        "attached_object_release_topic_or_service": result.topic_or_service,
+    }
 
 
 def _int_from_env(name: str, default: int) -> int:

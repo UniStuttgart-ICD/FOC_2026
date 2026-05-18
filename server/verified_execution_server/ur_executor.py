@@ -6,6 +6,9 @@ from collections.abc import Callable
 from threading import RLock
 from typing import Any, Protocol, cast
 
+GRIPPER_MAX_RAW_POSITION = 255
+GRIPPER_MAX_JOINT_POSITION = 0.8
+
 
 class TrajectoryExecutor(Protocol):
     def execute(self, robot_name: str, frames: list[dict]) -> dict[str, object] | None: ...
@@ -56,7 +59,7 @@ class URRTDETrajectoryExecutor:
         gripper_factory: Callable[..., Any] | None = None,
         rtde_receive_factory: Callable[..., Any] | None = None,
         script_sender: URScriptProgramSender | None = None,
-        completion_timeout_s: float = 30.0,
+        completion_timeout_s: float = 60.0,
         completion_poll_interval_s: float = 0.1,
         joint_tolerance_rad: float = 0.03,
         completion_stable_samples: int = 2,
@@ -174,7 +177,13 @@ class URRTDETrajectoryExecutor:
             actual_q = _float_list(rtde_r.getActualQ())
             if not actual_q:
                 raise RuntimeError("RTDE receive returned no joints")
-            state: dict[str, object] = {"actual_joint_positions": actual_q}
+            gripper_position = self._read_gripper_position()
+            gripper_joint_position = _gripper_joint_position(gripper_position)
+            state: dict[str, object] = {
+                "actual_joint_positions": actual_q,
+                "actual_gripper_position": gripper_position,
+                "actual_gripper_joint_position": gripper_joint_position,
+            }
             get_actual_tcp_pose = getattr(rtde_r, "getActualTCPPose", None)
             if callable(get_actual_tcp_pose):
                 actual_tcp_pose = _float_list(get_actual_tcp_pose())
@@ -255,6 +264,23 @@ class URRTDETrajectoryExecutor:
                 self.gripper_speed,
                 self.gripper_force,
             )
+
+    def _read_gripper_position(self) -> int:
+        if self.skip_gripper:
+            raise RuntimeError("Robot gripper is disabled")
+        with self._gripper_lock:
+            gripper = self._direct_gripper()
+            get_current_position = getattr(gripper, "get_current_position", None)
+            if not callable(get_current_position):
+                raise RuntimeError("Robot gripper does not expose current position")
+            raw_position = get_current_position()
+        try:
+            position = int(raw_position)
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError(f"Robotiq gripper returned invalid position: {raw_position!r}") from exc
+        if position < 0 or position > GRIPPER_MAX_RAW_POSITION:
+            raise RuntimeError(f"Robotiq gripper returned out-of-range position: {position}")
+        return position
 
     def _direct_gripper(self):
         with self._gripper_lock:
@@ -416,3 +442,7 @@ def _float_list(value: Any) -> list[float] | None:
         return [float(item) for item in value]
     except (TypeError, ValueError):
         return None
+
+
+def _gripper_joint_position(raw_position: int) -> float:
+    return float(raw_position) / GRIPPER_MAX_RAW_POSITION * GRIPPER_MAX_JOINT_POSITION

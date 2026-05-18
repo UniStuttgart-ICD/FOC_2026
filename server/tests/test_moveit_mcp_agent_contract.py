@@ -95,6 +95,15 @@ async def test_agent_contract_task_solution_tool_descriptions_explain_plan_execu
 
 
 @pytest.mark.asyncio
+async def test_agent_contract_task_solution_execution_default_timeout_is_sixty_seconds():
+    registered = await _registered_tools()
+
+    timeout_schema = registered["moveit_execute_task_solution"].inputSchema["properties"]["timeout_s"]
+
+    assert timeout_schema["default"] == 60.0
+
+
+@pytest.mark.asyncio
 async def test_agent_contract_descriptions_teach_safe_planning_workflow():
     registered = await _registered_tools()
 

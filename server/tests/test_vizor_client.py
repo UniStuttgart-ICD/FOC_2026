@@ -1,5 +1,7 @@
 import json
 import sys
+import time
+from copy import deepcopy
 
 from moveit_mcp.vizor_client import (
     FakeRosbridgeTransport,
@@ -216,6 +218,28 @@ def test_get_object_context_returns_bounds_faces_and_clearance_for_named_object(
     assert {"top", "front", "right"}.issubset(face_names)
     top_face = next(face for face in result.object_context["grasp_faces"] if face["name"] == "top")
     assert top_face["alignment_axis"] == {"x": 1.0, "y": 0.0, "z": 0.0}
+
+
+def test_scene_summary_applies_collision_object_pose_to_shape_bounds():
+    scene = deepcopy(PLANNING_SCENE)
+    ground = scene["scene"]["world"]["collision_objects"][1]
+    ground["pose"] = {
+        "position": {"x": 0.0, "y": 0.0, "z": -0.105},
+        "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+    }
+    ground["primitive_poses"][0]["position"]["z"] = 0.0
+    transport = FakeRosbridgeTransport()
+    transport.set_planning_scene("UR10", scene, planning_frame="base_link")
+    client = VizorClient(transport=transport)
+
+    objects = client.list_scene_objects(robot="UR10", timeout_s=0.1).objects
+    ground_context = next(obj for obj in objects if obj["name"] == "ground_plane")
+    beam_context = client.get_object_context(robot="UR10", object_name="beam_001", timeout_s=0.1).object_context
+
+    assert ground_context["pose"]["position"]["z"] == -0.105
+    assert ground_context["bounds"]["center"]["z"] == -0.105
+    assert ground_context["bounds"]["max"]["z"] == -0.1
+    assert beam_context["clearance"]["z_m"] == 0.2
 
 
 def test_get_object_context_reports_missing_object_with_available_names():
@@ -850,6 +874,28 @@ def test_wait_for_planned_path_loops_past_non_matching_names():
     assert result.trajectory_points == 2
     assert result.final_joint_positions == [2, 2, 2]
     assert result.can_execute is True
+
+
+def test_plan_returns_failure_status_without_waiting_for_missing_planned_path():
+    transport = FakeRosbridgeTransport()
+    client = VizorClient(transport=transport)
+    transport.queue_status_after_publish("/UR10/request/status", "planning failed: no IK solution")
+
+    started_at = time.monotonic()
+    result = client.plan_free_motion(
+        robot="UR10",
+        name="plan_failed",
+        pose=Pose.position_only(0.5, 0.0, 0.3),
+        timeout_s=0.5,
+    )
+    elapsed_s = time.monotonic() - started_at
+
+    assert elapsed_s < 0.25
+    assert result.status == "planning failed: no IK solution"
+    assert result.trajectory_points == 0
+    assert result.raw_path is None
+    assert result.final_joint_positions is None
+    assert result.can_execute is False
 
 
 def test_plan_sampled_motion_publishes_sampled_request_and_stores_final_positions():

@@ -146,19 +146,21 @@ class GeminiLiveSpeechRendererService(FrameProcessor):
 
     async def _stream_prompt_audio(self, prompt: str) -> None:
         audio_started = False
-        async for audio in stream_gemini_live_audio(
-            api_key=self.api_key,
-            model=self.model,
-            voice=self.voice,
-            prompt=prompt,
-            client_factory=self._client_factory,
-        ):
-            if not audio_started:
-                audio_started = True
-                await self.push_frame(TTSStartedFrame())
-            await self.push_frame(TTSAudioRawFrame(audio=audio, sample_rate=24000, num_channels=1))
-        if audio_started:
-            await self.push_frame(TTSStoppedFrame())
+        try:
+            async for audio in stream_gemini_live_audio(
+                api_key=self.api_key,
+                model=self.model,
+                voice=self.voice,
+                prompt=prompt,
+                client_factory=self._client_factory,
+            ):
+                if not audio_started:
+                    audio_started = True
+                    await self.push_frame(TTSStartedFrame())
+                await self.push_frame(TTSAudioRawFrame(audio=audio, sample_rate=24000, num_channels=1))
+        finally:
+            if audio_started:
+                await self.push_frame(TTSStoppedFrame())
 
     def _client(self):
         factory = self._client_factory or genai.Client

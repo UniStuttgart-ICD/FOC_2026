@@ -415,6 +415,19 @@ async def test_sync_real_robot_state_posts_to_verified_execution_server() -> Non
             "actual_joint_positions": [0.2, -1.4, 1.3, 0.1, 0.0, -0.2],
             "actual_tcp_pose": [0.4, -0.2, 0.3, 0.0, 3.14, 0.0],
             "state_sync_published": True,
+            "actual_gripper_position": 128,
+            "actual_gripper_joint_position": 128.0 / 255.0 * 0.8,
+            "gripper_joint_state_published": True,
+            "gripper_joint_name": "finger_joint",
+            "gripper_joint_state_topic": "/UR10/gripper_joint_states",
+            "gripper_open_threshold_position": 10,
+            "gripper_considered_open": True,
+            "attached_object_release_checked": True,
+            "attached_objects_before_release": ["held_part"],
+            "attached_objects_released": ["held_part"],
+            "attached_object_release_published": True,
+            "attached_object_release_verified": True,
+            "attached_object_release_topic_or_service": "/UR10/apply_planning_scene",
         }
     )
 
@@ -441,3 +454,21 @@ async def test_sync_real_robot_state_posts_to_verified_execution_server() -> Non
         -0.2,
     ]
     assert structured_content["feedback"]["state_sync_published"] is True
+    assert structured_content["feedback"]["actual_gripper_position"] == 128
+    assert structured_content["feedback"]["actual_gripper_joint_position"] == pytest.approx(
+        128.0 / 255.0 * 0.8
+    )
+    assert structured_content["feedback"]["gripper_joint_state_published"] is True
+    assert structured_content["feedback"]["gripper_joint_name"] == "finger_joint"
+    assert structured_content["feedback"]["gripper_joint_state_topic"] == "/UR10/gripper_joint_states"
+    assert structured_content["feedback"]["gripper_open_threshold_position"] == 10
+    assert structured_content["feedback"]["gripper_considered_open"] is True
+    assert structured_content["feedback"]["attached_object_release_checked"] is True
+    assert structured_content["feedback"]["attached_objects_before_release"] == ["held_part"]
+    assert structured_content["feedback"]["attached_objects_released"] == ["held_part"]
+    assert structured_content["feedback"]["attached_object_release_published"] is True
+    assert structured_content["feedback"]["attached_object_release_verified"] is True
+    assert (
+        structured_content["feedback"]["attached_object_release_topic_or_service"]
+        == "/UR10/apply_planning_scene"
+    )

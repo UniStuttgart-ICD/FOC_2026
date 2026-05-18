@@ -106,10 +106,13 @@ def test_prompt_uses_user_position_for_deictic_human_destination_with_standoff()
     assert "deictic" in prompt
     assert "bring it here" in prompt
     assert "fresh user position" in prompt
+    assert "fresh vizor user position" in prompt
     assert "0.40 m" in prompt
     assert "standoff" in prompt
     assert "target object pose" in prompt
     assert "do not target the exact human position" in prompt
+    assert 'if the object is free, use requirements.goal="pick_place"' in prompt
+    assert 'if the object is already held or attached, use requirements.goal="move_and_release"' in prompt
 
 
 def test_prompt_distinguishes_pose_observation_from_robot_state_observation() -> None:
@@ -129,6 +132,16 @@ def test_prompt_describes_scene_object_grounding_flow() -> None:
     assert "pick" in prompt
     assert "attached/free state" in prompt
     assert "grasp-relevant faces" in prompt
+
+
+def test_prompt_maps_element_number_language_to_dynamic_scene_objects() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "element 01" in prompt
+    assert "dynamic_01" in prompt
+    assert "element 2" in prompt
+    assert "dynamic_02" in prompt
+    assert "exact returned object_name" in prompt
 
 
 def test_prompt_describes_manipulation_planning_gate() -> None:
@@ -174,6 +187,19 @@ def test_prompt_describes_semantic_place_planning_gate() -> None:
     assert "moveit_execute_task" in prompt
 
 
+def test_prompt_routes_plain_place_language_to_geometry_world_context_by_object_state() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert '"place element x"' in prompt
+    assert '"put it there"' in prompt
+    assert 'user does not need to say "hologram"' in prompt
+    assert "target pose for placement comes from geometry world context by default" in prompt
+    assert 'if the object is free, use requirements.goal="pick_place"' in prompt
+    assert 'if the object is already held or attached, use requirements.goal="move_and_release"' in prompt
+    assert "same geometry world context target" in prompt
+    assert "ask for an updated target" in prompt
+
+
 def test_prompt_routes_held_object_release_to_staged_manipulation_planning() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
@@ -196,12 +222,38 @@ def test_prompt_maps_pick_up_and_drop_language_to_manipulation_requirements() ->
     assert 'requirements.goal="hold"' in prompt
     assert "requirements.lift_distance_m" in prompt
     assert "default 0.10 m" in prompt
-    assert "0.03" in prompt
+    assert "0.0" in prompt
     assert "0.20" in prompt
     assert '"drop it"' in prompt
     assert '"let go"' in prompt
     assert 'requirements.goal="release"' in prompt
     assert "release in place" in prompt
+
+
+def test_prompt_clarifies_zero_lift_hold_is_not_structural_support() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "bare hold/support" in prompt
+    assert "hold element 2" in prompt
+    assert "hold dynamic_2" in prompt
+    assert "support element 2" in prompt
+    assert "hold it" in prompt
+    assert "hold in place" in prompt
+    assert "requirements.lift_distance_m=0.0" in prompt
+    assert "not proof of structural or load-bearing support" in prompt
+
+
+def test_prompt_uses_positive_lift_only_for_explicit_lift_language() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "only when the user explicitly asks" in prompt
+    assert "pick up" in prompt
+    assert "lift" in prompt
+    assert "raise" in prompt
+    assert "grab and lift" in prompt
+    assert "carry" in prompt
+    assert "move after grasping" in prompt
+    assert "default 0.10 m" in prompt
 
 
 def test_prompt_bounds_verified_manipulation_task_execution_contract() -> None:
@@ -315,14 +367,29 @@ def test_prompt_maps_gaze_to_scene_object_before_grasp_and_delivery() -> None:
     assert "do not pretend the pickup or delivery happened" in example
 
 
-def test_prompt_defines_kibbitz_as_robot_inhabiting_controller() -> None:
+def test_prompt_examples_show_place_and_bring_state_dependent_routes() -> None:
+    place_example = _example_region("kibbitz, place element 2 there")
+    bring_example = _example_region("kibbitz, bring element 2 to me")
+
+    assert 'requirements.goal="pick_place"' in place_example
+    assert 'requirements.goal="move_and_release"' in place_example
+    assert "geometry world context" in place_example
+    assert "without saying hologram" in place_example
+
+    assert 'requirements.goal="pick_place"' in bring_example
+    assert 'requirements.goal="move_and_release"' in bring_example
+    assert "fresh vizor user position" in bring_example
+    assert "0.40 m standoff" in bring_example
+
+
+def test_prompt_defines_kibbitz_as_separate_digital_controller() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
     assert "you are kibbitz" in prompt
     assert "digital agent" in prompt
-    assert "robot-inhabiting agent" in prompt
-    assert "visible body" in prompt
-    assert "inhabiting and operating the robot body" in prompt
+    assert "ar hologram" in prompt
+    assert "not the robot" in prompt
+    assert "agent controlling the robot" in prompt
     assert "robot arm is your body" not in prompt
     assert "users are speaking to the robot itself" not in prompt
     assert "tcp" in prompt
@@ -379,7 +446,9 @@ def test_speech_delivery_style_is_separate_from_reasoning_prompt() -> None:
     assert "japanese elder-scholar cadence" in delivery
     assert "fictional goblin rasp" in delivery
     assert "do not imitate a real accent" in delivery
-    assert "agent inhabiting the robot body" in delivery
+    assert "separate digital agent operating a robot" in delivery
+    assert "not the robot itself" in delivery
+    assert "ar hologram" in delivery
     assert "do not add, remove, summarize, or rephrase words" in delivery
 
 

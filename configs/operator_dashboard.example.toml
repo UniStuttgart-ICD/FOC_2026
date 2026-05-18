@@ -36,11 +36,11 @@ command = ["uv", "run", "bot.py"]
 env = { MCP_VIZOR_URL = "http://127.0.0.1:8001/mcp", VERIFIED_EXECUTION_URL = "http://127.0.0.1:8770", ROBOT_JOB_MONITOR_HOST = "127.0.0.1", ROBOT_JOB_MONITOR_PORT = "8898" }
 startup_timeout_s = 60
 ready_checks = [
-  { type = "http", url = "http://localhost:7860/client", label = "Pipecat client" },
+  { type = "http", url = "http://localhost:7860/client/", label = "Pipecat client" },
   { type = "http", url = "http://127.0.0.1:8898", label = "Blackboard monitor" },
 ]
 links = [
-  { label = "Open Pipecat", url = "http://localhost:7860/client" },
+  { label = "Open Pipecat", url = "http://localhost:7860/client/" },
   { label = "Open Blackboard", url = "http://127.0.0.1:8898" },
 ]
 

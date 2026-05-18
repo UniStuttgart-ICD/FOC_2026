@@ -1,11 +1,12 @@
 import json
+from datetime import timedelta
 
 import pytest
 from mcp.types import CallToolResult, TextContent, Tool
 
 from process_trace import MemoryTraceWriter, ProcessTracer, TraceOptions
 from robot_control.call_validation import WORKSPACE_ABS_LIMIT_M, agent_tool_description
-from robot_control.mcp_bridge import RobotMCPBridge, RobotMCPError
+from robot_control.mcp_bridge import RobotMCPBridge, RobotMCPError, StreamableHttpMCPServer
 
 
 class FakeServer:
@@ -58,6 +59,23 @@ class FakeExceptionServer(FakeServer):
     async def call_tool(self, tool_name, arguments):
         self.called.append((tool_name, arguments))
         raise self.exc
+
+
+class FakeClientSession:
+    def __init__(self):
+        self.called = []
+
+    async def call_tool(
+        self,
+        tool_name,
+        arguments,
+        read_timeout_seconds=None,
+    ):
+        self.called.append((tool_name, arguments, read_timeout_seconds))
+        return CallToolResult(
+            content=[TextContent(type="text", text="ok")],
+            structuredContent={"ok": True},
+        )
 
 
 def _trace_record_names(writer):
@@ -280,6 +298,12 @@ MANIPULATION_PREFERENCES_SCHEMA = {
     },
     "additionalProperties": True,
 }
+LIFT_DISTANCE_DESCRIPTION = (
+    "Post-grasp lift distance. Use requirements.lift_distance_m=0.0 for bare hold, "
+    "support, or hold-in-place requests. Use the default 0.10 m or an explicit positive "
+    "value only when the user asks to pick up, lift, raise, grab and lift, carry, or move "
+    "after grasping."
+)
 MANIPULATION_TASK_PLANNING_PARAMETERS = {
     "type": "object",
     "properties": {
@@ -294,7 +318,12 @@ MANIPULATION_TASK_PLANNING_PARAMETERS = {
                     "type": "string",
                     "enum": ["hold", "place", "release", "move_and_release", "pick_place"],
                 },
-                "lift_distance_m": {"type": "number", "minimum": 0.03, "maximum": 0.2},
+                "lift_distance_m": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 0.2,
+                    "description": LIFT_DISTANCE_DESCRIPTION,
+                },
             },
             "required": ["goal"],
             "additionalProperties": False,
@@ -339,6 +368,48 @@ async def test_valid_call_tool_emits_validation_and_mcp_call_spans():
     assert mcp_call["attributes"]["tool.name"] == "moveit_get_current_pose"
     assert mcp_call["attributes"]["mcp.tool.name"] == "get_current_pose"
     assert mcp_call["attributes"]["tool.arguments"] == {"robot_name": "UR10"}
+    assert mcp_call["attributes"]["mcp.client.read_timeout_s"] == 30.0
+
+
+@pytest.mark.asyncio
+async def test_call_tool_trace_records_extended_mcp_client_timeout():
+    writer = MemoryTraceWriter()
+    tracer = ProcessTracer(writer)
+    server = FakeServer()
+    bridge = RobotMCPBridge("http://127.0.0.1:8765/mcp", server=server, tracer=tracer)
+    await bridge.connect()
+
+    await bridge.call_tool(
+        "moveit_get_current_pose",
+        {"robot_name": "UR10", "timeout_s": 60.0},
+    )
+
+    mcp_call = _trace_record(writer, "robot.mcp.call_tool")
+    assert mcp_call["attributes"]["mcp.client.read_timeout_s"] == 65.0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("arguments", "expected_timeout"),
+    [
+        ({}, timedelta(seconds=30)),
+        ({"timeout_s": 10.0}, timedelta(seconds=30)),
+        ({"timeout_s": 60.0}, timedelta(seconds=65)),
+    ],
+)
+async def test_streamable_http_mcp_server_passes_per_call_read_timeout(
+    arguments,
+    expected_timeout,
+):
+    session = FakeClientSession()
+    server = StreamableHttpMCPServer("http://127.0.0.1:8765/mcp")
+    server._session = session
+
+    await server.call_tool("moveit_plan_free_motion", arguments)
+
+    assert session.called == [
+        ("moveit_plan_free_motion", arguments, expected_timeout),
+    ]
 
 
 @pytest.mark.asyncio
@@ -645,8 +716,9 @@ async def test_manipulation_task_schema_overrides_goal_enum_from_upstream_schema
     assert "slide" not in goal["enum"]
     assert requirement_properties["lift_distance_m"] == {
         "type": "number",
-        "minimum": 0.03,
+        "minimum": 0.0,
         "maximum": 0.2,
+        "description": LIFT_DISTANCE_DESCRIPTION,
     }
     preferences = parameters["properties"]["preferences"]
     assert preferences["additionalProperties"] is True
@@ -931,3 +1003,18 @@ async def test_bridge_advertises_agent_friendly_descriptions():
     assert "current end-effector pose" in tools["moveit_get_current_pose"]["description"]
     assert "moveit_plan_free_motion" not in tools
     assert "moveit_execute_plan" not in tools
+
+
+def test_manipulation_task_description_explains_hold_lift_semantics():
+    description = agent_tool_description("moveit_plan_manipulation_task")
+
+    assert "post-grasp lift" in description
+    assert "requirements.lift_distance_m=0.0" in description
+    assert "bare hold" in description
+    assert "support" in description
+    assert "hold-in-place" in description
+    assert "default 0.10 m" in description
+    assert "pick up" in description
+    assert "raise" in description
+    assert "grab and lift" in description
+    assert "carry" in description

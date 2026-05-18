@@ -17,7 +17,8 @@ AUTO_DISTANCE_VARIANTS = (
 SIDE_GRASP_FACES = {"front", "back", "left", "right"}
 
 PICK_DISTANCE_CORRECTION = (
-    "Retry with positive finite approach_distance_m, grasp_standoff_m, and lift_distance_m values."
+    "Retry with positive finite approach_distance_m and grasp_standoff_m values, "
+    "and non-negative finite lift_distance_m."
 )
 GRASP_FACE_CORRECTION = "Call moveit_get_object_context, then retry with one raw.object.grasp_faces[].name."
 
@@ -56,7 +57,6 @@ def build_pick_workflow(
     for name, value in {
         "approach_distance_m": approach_distance_m,
         "grasp_standoff_m": grasp_standoff_m,
-        "lift_distance_m": lift_distance_m,
     }.items():
         if not _positive_finite(value):
             raise PickPlanInputError(
@@ -64,6 +64,12 @@ def build_pick_workflow(
                 correction=PICK_DISTANCE_CORRECTION,
                 raw={name: value},
             )
+    if not _non_negative_finite(lift_distance_m):
+        raise PickPlanInputError(
+            status="invalid pick distance",
+            correction=PICK_DISTANCE_CORRECTION,
+            raw={"lift_distance_m": lift_distance_m},
+        )
 
     face_center = _point(selected["center"])
     normal = _point(selected["normal"])
@@ -423,6 +429,10 @@ def _optional_point(value: Any) -> dict[str, float] | None:
 
 def _positive_finite(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value)) and value > 0.0
+
+
+def _non_negative_finite(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value)) and value >= 0.0
 
 
 def _clean(value: float) -> float:

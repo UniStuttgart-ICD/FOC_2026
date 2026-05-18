@@ -8,7 +8,7 @@
   "coordinate_system": {
     "frame": "rhino_world",
     "up_axis": "z",
-    "notes": "The axis start/end points define the beam centerline. The C span bottom face bears on the top faces of the two A verticals. Inventory beams lie horizontally on z=-0.09 with 5 cm centerline spacing along negative Y, starting at y=-0.90 m."
+    "notes": "The axis start/end points define the beam centerline. The C span bottom face bears on the top faces of the two A verticals. Inventory beams lie horizontally on z=-0.10 with 5 cm centerline spacing along negative Y, starting at y=-0.90 m."
   },
   "source": {
     "visual_template": "pipecat-agent/docs/research/shared-geometry-model-explainer.html",
@@ -79,12 +79,12 @@
         "start_xyz": [
           0,
           -0.7,
-          -0.09
+          -0.1
         ],
         "end_xyz": [
           0,
           -0.7,
-          0.02
+          0.01
         ]
       },
       "pose": {
@@ -92,7 +92,7 @@
         "xyz": [
           0,
           -0.7,
-          -0.035
+          -0.045
         ],
         "quat_xyzw": [
           0.5,
@@ -107,7 +107,7 @@
           "world_xyz": [
             0,
             -0.7,
-            -0.09
+            -0.1
           ]
         },
         "end_end": {
@@ -115,14 +115,14 @@
           "world_xyz": [
             0,
             -0.7,
-            0.02
+            0.01
           ]
         },
         "face_bottom": {
           "center_xyz": [
             0,
             -0.7,
-            -0.09
+            -0.1
           ],
           "normal_xyz": [
             0,
@@ -134,7 +134,7 @@
           "center_xyz": [
             0,
             -0.7,
-            0.02
+            0.01
           ],
           "normal_xyz": [
             0,
@@ -169,12 +169,12 @@
         "start_xyz": [
           0.3,
           -0.7,
-          -0.09
+          -0.1
         ],
         "end_xyz": [
           0.3,
           -0.7,
-          0.02
+          0.01
         ]
       },
       "pose": {
@@ -182,7 +182,7 @@
         "xyz": [
           0.3,
           -0.7,
-          -0.035
+          -0.045
         ],
         "quat_xyzw": [
           0.5,
@@ -197,7 +197,7 @@
           "world_xyz": [
             0.3,
             -0.7,
-            -0.09
+            -0.1
           ]
         },
         "end_end": {
@@ -205,14 +205,14 @@
           "world_xyz": [
             0.3,
             -0.7,
-            0.02
+            0.01
           ]
         },
         "face_bottom": {
           "center_xyz": [
             0.3,
             -0.7,
-            -0.09
+            -0.1
           ],
           "normal_xyz": [
             0,
@@ -224,7 +224,7 @@
           "center_xyz": [
             0.3,
             -0.7,
-            0.02
+            0.01
           ],
           "normal_xyz": [
             0,
@@ -259,12 +259,12 @@
         "start_xyz": [
           -0.015,
           -0.7,
-          0.04
+          0.03
         ],
         "end_xyz": [
           0.315,
           -0.7,
-          0.04
+          0.03
         ]
       },
       "pose": {
@@ -272,7 +272,7 @@
         "xyz": [
           0.15,
           -0.7,
-          0.04
+          0.03
         ],
         "quat_xyzw": [
           0,
@@ -287,7 +287,7 @@
           "world_xyz": [
             -0.015,
             -0.7,
-            0.04
+            0.03
           ]
         },
         "end_end": {
@@ -295,14 +295,14 @@
           "world_xyz": [
             0.315,
             -0.7,
-            0.04
+            0.03
           ]
         },
         "face_bottom": {
           "center_xyz": [
             0.15,
             -0.7,
-            0.02
+            0.01
           ],
           "normal_xyz": [
             0,
@@ -314,7 +314,7 @@
           "center_xyz": [
             0.15,
             -0.7,
-            0.06
+            0.05
           ],
           "normal_xyz": [
             0,
@@ -349,12 +349,12 @@
         "start_xyz": [
           0.095,
           -0.9,
-          -0.07
+          -0.08
         ],
         "end_xyz": [
           0.205,
           -0.9,
-          -0.07
+          -0.08
         ]
       },
       "pose": {
@@ -362,7 +362,7 @@
         "xyz": [
           0.15,
           -0.9,
-          -0.07
+          -0.08
         ],
         "quat_xyzw": [
           0,
@@ -377,7 +377,7 @@
           "world_xyz": [
             0.095,
             -0.9,
-            -0.07
+            -0.08
           ]
         },
         "end_end": {
@@ -385,14 +385,14 @@
           "world_xyz": [
             0.205,
             -0.9,
-            -0.07
+            -0.08
           ]
         },
         "face_bottom": {
           "center_xyz": [
             0.15,
             -0.9,
-            -0.09
+            -0.1
           ],
           "normal_xyz": [
             0,
@@ -404,7 +404,7 @@
           "center_xyz": [
             0.15,
             -0.9,
-            -0.05
+            -0.06
           ],
           "normal_xyz": [
             0,
@@ -441,12 +441,12 @@
         "start_xyz": [
           0.04,
           -0.95,
-          -0.07
+          -0.08
         ],
         "end_xyz": [
           0.26,
           -0.95,
-          -0.07
+          -0.08
         ]
       },
       "pose": {
@@ -454,7 +454,7 @@
         "xyz": [
           0.15,
           -0.95,
-          -0.07
+          -0.08
         ],
         "quat_xyzw": [
           0,
@@ -469,7 +469,7 @@
           "world_xyz": [
             0.04,
             -0.95,
-            -0.07
+            -0.08
           ]
         },
         "end_end": {
@@ -477,14 +477,14 @@
           "world_xyz": [
             0.26,
             -0.95,
-            -0.07
+            -0.08
           ]
         },
         "face_bottom": {
           "center_xyz": [
             0.15,
             -0.95,
-            -0.09
+            -0.1
           ],
           "normal_xyz": [
             0,
@@ -496,7 +496,7 @@
           "center_xyz": [
             0.15,
             -0.95,
-            -0.05
+            -0.06
           ],
           "normal_xyz": [
             0,
@@ -533,12 +533,12 @@
         "start_xyz": [
           0.04,
           -1,
-          -0.07
+          -0.08
         ],
         "end_xyz": [
           0.26,
           -1,
-          -0.07
+          -0.08
         ]
       },
       "pose": {
@@ -546,7 +546,7 @@
         "xyz": [
           0.15,
           -1,
-          -0.07
+          -0.08
         ],
         "quat_xyzw": [
           0,
@@ -561,7 +561,7 @@
           "world_xyz": [
             0.04,
             -1,
-            -0.07
+            -0.08
           ]
         },
         "end_end": {
@@ -569,14 +569,14 @@
           "world_xyz": [
             0.26,
             -1,
-            -0.07
+            -0.08
           ]
         },
         "face_bottom": {
           "center_xyz": [
             0.15,
             -1,
-            -0.09
+            -0.1
           ],
           "normal_xyz": [
             0,
@@ -588,7 +588,7 @@
           "center_xyz": [
             0.15,
             -1,
-            -0.05
+            -0.06
           ],
           "normal_xyz": [
             0,
@@ -625,12 +625,12 @@
         "start_xyz": [
           0.04,
           -1.05,
-          -0.07
+          -0.08
         ],
         "end_xyz": [
           0.26,
           -1.05,
-          -0.07
+          -0.08
         ]
       },
       "pose": {
@@ -638,7 +638,7 @@
         "xyz": [
           0.15,
           -1.05,
-          -0.07
+          -0.08
         ],
         "quat_xyzw": [
           0,
@@ -653,7 +653,7 @@
           "world_xyz": [
             0.04,
             -1.05,
-            -0.07
+            -0.08
           ]
         },
         "end_end": {
@@ -661,14 +661,14 @@
           "world_xyz": [
             0.26,
             -1.05,
-            -0.07
+            -0.08
           ]
         },
         "face_bottom": {
           "center_xyz": [
             0.15,
             -1.05,
-            -0.09
+            -0.1
           ],
           "normal_xyz": [
             0,
@@ -680,7 +680,7 @@
           "center_xyz": [
             0.15,
             -1.05,
-            -0.05
+            -0.06
           ],
           "normal_xyz": [
             0,
@@ -717,12 +717,12 @@
         "start_xyz": [
           -0.015,
           -1.1,
-          -0.07
+          -0.08
         ],
         "end_xyz": [
           0.315,
           -1.1,
-          -0.07
+          -0.08
         ]
       },
       "pose": {
@@ -730,7 +730,7 @@
         "xyz": [
           0.15,
           -1.1,
-          -0.07
+          -0.08
         ],
         "quat_xyzw": [
           0,
@@ -745,7 +745,7 @@
           "world_xyz": [
             -0.015,
             -1.1,
-            -0.07
+            -0.08
           ]
         },
         "end_end": {
@@ -753,14 +753,14 @@
           "world_xyz": [
             0.315,
             -1.1,
-            -0.07
+            -0.08
           ]
         },
         "face_bottom": {
           "center_xyz": [
             0.15,
             -1.1,
-            -0.09
+            -0.1
           ],
           "normal_xyz": [
             0,
@@ -772,7 +772,7 @@
           "center_xyz": [
             0.15,
             -1.1,
-            -0.05
+            -0.06
           ],
           "normal_xyz": [
             0,
@@ -809,12 +809,12 @@
         "start_xyz": [
           -0.015,
           -1.15,
-          -0.07
+          -0.08
         ],
         "end_xyz": [
           0.315,
           -1.15,
-          -0.07
+          -0.08
         ]
       },
       "pose": {
@@ -822,7 +822,7 @@
         "xyz": [
           0.15,
           -1.15,
-          -0.07
+          -0.08
         ],
         "quat_xyzw": [
           0,
@@ -837,7 +837,7 @@
           "world_xyz": [
             -0.015,
             -1.15,
-            -0.07
+            -0.08
           ]
         },
         "end_end": {
@@ -845,14 +845,14 @@
           "world_xyz": [
             0.315,
             -1.15,
-            -0.07
+            -0.08
           ]
         },
         "face_bottom": {
           "center_xyz": [
             0.15,
             -1.15,
-            -0.09
+            -0.1
           ],
           "normal_xyz": [
             0,
@@ -864,7 +864,7 @@
           "center_xyz": [
             0.15,
             -1.15,
-            -0.05
+            -0.06
           ],
           "normal_xyz": [
             0,

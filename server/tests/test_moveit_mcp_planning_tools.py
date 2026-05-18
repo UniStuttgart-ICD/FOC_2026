@@ -538,6 +538,26 @@ def test_plan_manipulation_task_hold_returns_contract_without_candidate_preview_
     assert not any(topic == "/UR10/request/sampled" for topic, _ in transport.published)
 
 
+def test_plan_manipulation_task_hold_accepts_zero_lift_distance():
+    transport = FakeRosbridgeTransport()
+    transport.set_planning_scene("UR10", PLANNING_SCENE, planning_frame="base_link")
+    tools = MoveItMcpTools.with_fake_transport(transport)
+
+    result = tools.plan_manipulation_task(
+        "UR10",
+        requirements={"goal": "hold", "object_name": "beam_001", "lift_distance_m": 0.0},
+        backend="staged_moveit",
+        timeout_s=0.1,
+    )
+
+    assert result["ok"] is True
+    raw = result["raw"]
+    assert raw["parameters"]["lift_distance_m"] == 0.0
+    assert raw["selected_candidate"]["lift_distance_m"] == 0.0
+    assert raw["waypoints"][2]["position"]["z"] == raw["waypoints"][1]["position"]["z"]
+    assert raw["execution_contract"]["can_execute"] is True
+
+
 def test_plan_manipulation_task_hold_returns_contract_without_preview_planning():
     dynamic_2_scene = {
         "scene": {
@@ -2099,6 +2119,10 @@ def test_plan_free_motion_returns_pass_feedback_when_status_and_path_observed():
     assert result["ok"] is True
     assert result["feedback"]["can_execute"] is True
     assert result["raw"]["plan_name"] == "pick_a"
+    assert result["raw"]["planning_diagnostics"] == {
+        "log_dir": "server/logs/moveit_planning",
+        "join_key": "pick_a",
+    }
     assert result["verification"]["result"] == "pass"
     assert {c["name"] for c in result["verification"]["checks"]} == {"status_success", "trajectory_observed"}
     assert any("pick_a" in item["summary"] for item in result["evidence"])

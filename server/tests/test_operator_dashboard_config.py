@@ -128,12 +128,12 @@ def test_example_config_starts_vizor_first_and_uses_default_pipecat_command() ->
     assert pipecat.env["ROBOT_JOB_MONITOR_HOST"] == "127.0.0.1"
     assert pipecat.env["ROBOT_JOB_MONITOR_PORT"] == "8898"
     assert [check.url for check in pipecat.ready_checks] == [
-        "http://localhost:7860/client",
+        "http://localhost:7860/client/",
         "http://127.0.0.1:8898",
     ]
     assert all(check.type is CheckType.HTTP for check in pipecat.ready_checks)
     assert [link.url for link in pipecat.links] == [
-        "http://localhost:7860/client",
+        "http://localhost:7860/client/",
         "http://127.0.0.1:8898",
     ]
     wake_tuning = config.services["wake_tuning"]

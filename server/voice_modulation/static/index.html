@@ -703,8 +703,7 @@
             </div>
             <div id="controls" class="controls"></div>
             <div class="save-row">
-              <button id="saveModulationBtn">Save local override</button>
-              <button id="saveModulationDefaultBtn" class="ghost">Save profile default</button>
+              <button id="saveModulationDefaultBtn">Save profile default</button>
             </div>
           </aside>
         </div>
@@ -969,22 +968,6 @@
       return "Clean";
     }
 
-    function hasAudibleEffect(settings) {
-      return Math.abs(settings.gain_db || 0) > 0.001
-        || Math.abs(settings.pitch_shift_semitones || 0) > 0.001
-        || Math.abs(settings.body_shift || 0) > 0.001
-        || (settings.low_cut_hz || 0) > 0
-        || (settings.high_cut_hz || 0) > 0
-        || (settings.drive || 0) > 0
-        || (settings.bit_depth || 16) < 16
-        || (settings.ring_mod_hz || 0) > 0
-        || ((settings.tremolo_hz || 0) > 0 && (settings.tremolo_depth || 0) > 0)
-        || (settings.chorus_mix || 0) > 0
-        || (settings.echo_mix || 0) > 0
-        || (settings.noise_mix || 0) > 0
-        || (settings.breath_mix || 0) > 0;
-    }
-
     function normalizeMacroSettings(settings) {
       return {
         ...settings,
@@ -1026,7 +1009,7 @@
         const amount = clamp(value, 0, 1);
         next.breath_mix = rounded(amount * 0.08, 3);
       }
-      next.enabled = hasAudibleEffect(next);
+      next.enabled = true;
       return next;
     }
 
@@ -1042,7 +1025,7 @@
 
     function readSettings() {
       const settings = { ...state.settings };
-      settings.enabled = hasAudibleEffect(settings);
+      settings.enabled = true;
       return settings;
     }
 
@@ -1239,7 +1222,6 @@
       $("profileSelect").disabled = !hasProfiles;
       $("sourceBtn").disabled = !hasProfiles;
       setRenderEnabled();
-      $("saveModulationBtn").disabled = !hasProfiles;
       $("saveModulationDefaultBtn").disabled = !hasProfiles;
       syncGeminiVoiceControls();
       if (!hasProfiles) {
@@ -1374,29 +1356,6 @@
       }
     }
 
-    async function saveModulation() {
-      const profileName = $("profileSelect").value;
-      if (!profileName) {
-        setStatus("Select a runtime profile first.", "hot");
-        return;
-      }
-      $("saveModulationBtn").disabled = true;
-      try {
-        const data = await api(`/api/settings/${encodeURIComponent(profileName)}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(readSettings())
-        });
-        writeSettings(data.settings);
-        $("saveStatus").textContent = "Saved";
-        setStatus("Settings saved.", "ok");
-      } catch (error) {
-        setStatus(error.message, "hot");
-      } finally {
-        $("saveModulationBtn").disabled = state.profiles.length === 0;
-      }
-    }
-
     async function saveModulationDefault() {
       const profileName = $("profileSelect").value;
       if (!profileName) {
@@ -1510,7 +1469,6 @@
     $("renderBtn").addEventListener("click", renderModulation);
     $("saveGeminiVoiceBtn").addEventListener("click", saveGeminiVoice);
     $("saveSpeechDeliveryBtn").addEventListener("click", saveSpeechDeliveryPart);
-    $("saveModulationBtn").addEventListener("click", saveModulation);
     $("saveModulationDefaultBtn").addEventListener("click", saveModulationDefault);
     $("personaParts").addEventListener("click", (event) => {
       const button = event.target.closest("[data-save-part]");

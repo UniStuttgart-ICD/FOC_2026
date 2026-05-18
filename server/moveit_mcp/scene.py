@@ -84,13 +84,15 @@ def _summarize_collision_object(
 
     shapes: list[dict[str, Any]] = []
     shape_bounds: list[dict[str, Any]] = []
+    object_pose_value = collision_object.get("pose")
+    object_pose = _pose(object_pose_value if isinstance(object_pose_value, dict) else _IDENTITY_POSE)
 
     primitives = collision_object.get("primitives") or []
     primitive_poses = collision_object.get("primitive_poses") or []
     for index, primitive in enumerate(primitives):
         if not isinstance(primitive, dict):
             continue
-        pose = _pose_at(primitive_poses, index)
+        pose = _compose_pose(object_pose, _pose_at(primitive_poses, index))
         summary = _primitive_summary(primitive, pose)
         shapes.append(summary)
         if summary.get("bounds") is not None:
@@ -101,7 +103,7 @@ def _summarize_collision_object(
     for index, mesh in enumerate(meshes):
         if not isinstance(mesh, dict):
             continue
-        pose = _pose_at(mesh_poses, index)
+        pose = _compose_pose(object_pose, _pose_at(mesh_poses, index))
         summary = _mesh_summary(mesh, pose)
         shapes.append(summary)
         if summary.get("bounds") is not None:
@@ -112,7 +114,7 @@ def _summarize_collision_object(
     for index, plane in enumerate(planes):
         if not isinstance(plane, dict):
             continue
-        shapes.append(_plane_summary(plane, _pose_at(plane_poses, index)))
+        shapes.append(_plane_summary(plane, _compose_pose(object_pose, _pose_at(plane_poses, index))))
 
     bounds = _merge_bounds(shape_bounds)
     header_value = collision_object.get("header")
@@ -528,6 +530,29 @@ def _pose_at(poses: list[Any], index: int) -> dict[str, Any]:
     if index < len(poses) and isinstance(poses[index], dict):
         return _pose(poses[index])
     return _pose(_IDENTITY_POSE)
+
+
+def _compose_pose(parent: dict[str, Any], child: dict[str, Any]) -> dict[str, Any]:
+    parent_position = parent["position"]
+    rotated_child = _rotate(child["position"], parent["orientation"])
+    return {
+        "position": {
+            axis: _clean(parent_position[axis] + rotated_child[axis])
+            for axis in ("x", "y", "z")
+        },
+        "orientation": _multiply_quaternions(parent["orientation"], child["orientation"]),
+    }
+
+
+def _multiply_quaternions(first: dict[str, float], second: dict[str, float]) -> dict[str, float]:
+    ax, ay, az, aw = (first[axis] for axis in ("x", "y", "z", "w"))
+    bx, by, bz, bw = (second[axis] for axis in ("x", "y", "z", "w"))
+    return {
+        "x": _clean(aw * bx + ax * bw + ay * bz - az * by),
+        "y": _clean(aw * by - ax * bz + ay * bw + az * bx),
+        "z": _clean(aw * bz + ax * by - ay * bx + az * bw),
+        "w": _clean(aw * bw - ax * bx - ay * by - az * bz),
+    }
 
 
 def _pose(value: dict[str, Any]) -> dict[str, Any]:
