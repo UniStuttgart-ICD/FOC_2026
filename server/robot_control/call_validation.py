@@ -1025,6 +1025,15 @@ def _validate_recent_task_solution_execution_evidence(
                 retryable=False,
                 suggested_next_tool=None,
             )
+        if handler == "motion" and required_proof.strip() == "verified_motion_plan":
+            plan_handle = step.get("plan_handle")
+            if not isinstance(plan_handle, str) or not plan_handle.strip():
+                raise RobotCallValidationError(
+                    "Task plan execution_contract motion step is missing plan_handle",
+                    correction="Plan the manipulation task again with MoveIt preview evidence.",
+                    retryable=False,
+                    suggested_next_tool=None,
+                )
 
 
 def _task_plan_contract_steps(execution_contract: Any) -> list[Any] | None:

@@ -5255,6 +5255,58 @@ async def test_graph_rejects_contract_step_missing_proof_fields() -> None:
 
 
 @pytest.mark.asyncio
+async def test_graph_rejects_verified_motion_contract_without_plan_handle() -> None:
+    raw = {
+        "task_solution_id": "hold_task_dynamic_1_003",
+        "task_kind": "hold",
+        "object_name": "dynamic_1",
+        "scene_snapshot_id": "scene_20260518_003",
+        "execution_contract": {
+            "steps": [
+                {
+                    "handler": "motion",
+                    "name": "connect_to_pre_grasp",
+                    "source_stage": "connect_to_pre_grasp",
+                    "required_proof": "verified_motion_plan",
+                    "waypoint_index": 0,
+                },
+            ],
+        },
+    }
+    execute_args = {
+        "robot_name": "UR10",
+        "task_solution_id": "hold_task_dynamic_1_003",
+        "timeout_s": 9.0,
+    }
+    verified_client = FakeVerifiedExecutionClient()
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_execute_task_plan", execute_args),
+            ai_text("I need a proof-backed task contract."),
+        ],
+        bridge=TaskExecutionBridge(),
+        robot_context=approved_contract_task_context(
+            task_solution_id="hold_task_dynamic_1_003",
+            task_kind="hold",
+            object_name="dynamic_1",
+            raw=raw,
+        ),
+        verified_execution_client=verified_client,
+    )
+
+    await fixture.graph.run_turn(turn("yes, execute the hold task"))
+
+    assert verified_client.calls == []
+    output = json.loads(latest_state_tool_content(fixture))
+    assert output == {
+        "ok": False,
+        "error": "Task plan execution_contract motion step is missing plan_handle.",
+        "correction": "Plan the manipulation task again with MoveIt preview evidence.",
+        "retryable": False,
+    }
+
+
+@pytest.mark.asyncio
 async def test_graph_rejects_unknown_task_kind_execution() -> None:
     context = RobotContextStore(time_fn=lambda: 100.0)
     context.remember_task_solution(

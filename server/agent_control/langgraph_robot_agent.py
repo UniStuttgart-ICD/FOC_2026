@@ -3275,6 +3275,20 @@ def _task_plan_execution_steps(
                     retryable=False,
                     suggested_next_tool=None,
                 )
+            if (
+                normalized.get("handler") == "motion"
+                and normalized.get("required_proof") == "verified_motion_plan"
+                and (
+                    not isinstance(normalized.get("plan_handle"), str)
+                    or not str(normalized.get("plan_handle")).strip()
+                )
+            ):
+                return None, _task_plan_error(
+                    "Task plan execution_contract motion step is missing plan_handle.",
+                    "Plan the manipulation task again with MoveIt preview evidence.",
+                    retryable=False,
+                    suggested_next_tool=None,
+                )
             steps.append(normalized)
         return steps, None
 

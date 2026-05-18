@@ -991,6 +991,53 @@ def test_allows_long_hybrid_task_plan_execution_contract() -> None:
     )
 
 
+def test_blocks_verified_motion_contract_without_plan_handle() -> None:
+    store = RobotContextStore(time_fn=lambda: 100.0)
+    task_solution_id = "hold_task_dynamic_1_003"
+    store.remember_task_solution_approval_candidate(
+        target_kind="task_solution",
+        task_solution_id=task_solution_id,
+        source_tool="moveit_plan_manipulation_task",
+        object_name="dynamic_1",
+        expected_movement="hold object",
+        scene_snapshot_id="scene_20260518_003",
+    )
+    store.record_task_solution_approval(
+        task_solution_id,
+        approval_turn_id="turn-1",
+        approved_at=100.0,
+    )
+    store.remember_task_solution(
+        task_solution_id=task_solution_id,
+        task_kind="hold",
+        object_name="dynamic_1",
+        backend="staged_moveit",
+        scene_snapshot_id="scene_20260518_003",
+        approval_required=True,
+        raw={
+            "execution_contract": {
+                "can_execute": True,
+                "steps": [
+                    {
+                        "handler": "motion",
+                        "source_stage": "connect_to_pre_grasp",
+                        "required_proof": "verified_motion_plan",
+                        "waypoint_index": 0,
+                    }
+                ],
+            }
+        },
+    )
+
+    with pytest.raises(RobotCallValidationError) as exc_info:
+        ensure_task_solution_execution_allowed(
+            store,
+            {"robot_name": "UR10", "task_solution_id": task_solution_id},
+        )
+
+    assert "plan_handle" in str(exc_info.value)
+
+
 @pytest.mark.parametrize(
     "execution_contract",
     [
