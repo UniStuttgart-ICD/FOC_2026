@@ -9,6 +9,7 @@ from pipecat.frames.frames import (
     CancelFrame,
     EndFrame,
     Frame,
+    InterruptionFrame,
     LLMFullResponseEndFrame,
     LLMFullResponseStartFrame,
     TTSAudioRawFrame,
@@ -69,6 +70,11 @@ class BotSpeechOutputCoordinator(FrameProcessor):
         await super().process_frame(frame, direction)
 
         if isinstance(frame, (CancelFrame, EndFrame)):
+            self._finish_output(reset=True)
+            await self.push_frame(frame, direction)
+            return
+
+        if isinstance(frame, InterruptionFrame):
             self._finish_output(reset=True)
             await self.push_frame(frame, direction)
             return

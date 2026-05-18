@@ -6,6 +6,7 @@ import pytest
 from pipecat.frames.frames import (
     EndFrame,
     Frame,
+    InterruptionFrame,
     LLMFullResponseEndFrame,
     LLMFullResponseStartFrame,
     TTSAudioRawFrame,
@@ -90,6 +91,26 @@ async def test_output_coordinator_resets_on_end_frame() -> None:
 
     await processor.process_frame(LLMFullResponseStartFrame(), FrameDirection.DOWNSTREAM)
     await processor.process_frame(EndFrame(), FrameDirection.DOWNSTREAM)
+
+    assert coordinator.is_response_active is False
+    assert events == ["started", "finished"]
+
+
+@pytest.mark.asyncio
+async def test_output_coordinator_resets_on_interruption_before_response_end() -> None:
+    coordinator = BotResponseCoordinator()
+    await coordinator.begin_response()
+    events: list[str] = []
+    processor = CapturingOutputCoordinator(
+        coordinator,
+        on_response_started=lambda: events.append("started"),
+        on_response_finished=lambda: events.append("finished"),
+        enable_direct_mode=True,
+    )
+
+    await processor.process_frame(LLMFullResponseStartFrame(), FrameDirection.DOWNSTREAM)
+    await processor.process_frame(TTSStartedFrame(), FrameDirection.DOWNSTREAM)
+    await processor.process_frame(InterruptionFrame(), FrameDirection.DOWNSTREAM)
 
     assert coordinator.is_response_active is False
     assert events == ["started", "finished"]
