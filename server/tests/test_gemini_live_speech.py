@@ -307,28 +307,60 @@ async def test_gemini_stream_failure_does_not_leave_response_coordinator_locked(
 
 
 class FakeInlineData:
-    mime_type = "audio/pcm;rate=24000"
-    data = b"audio-2"
+    def __init__(
+        self,
+        data: bytes,
+        *,
+        mime_type: str = "audio/pcm;rate=24000",
+    ) -> None:
+        self.mime_type = mime_type
+        self.data = data
 
 
 class FakePart:
-    inline_data = FakeInlineData()
+    def __init__(
+        self,
+        *,
+        inline_data: FakeInlineData | None = None,
+        text: str | None = None,
+    ) -> None:
+        self.inline_data = inline_data
+        self.text = text
 
 
 class FakeModelTurn:
-    parts = [FakePart()]
+    def __init__(self, parts: list[FakePart]) -> None:
+        self.parts = parts
 
 
 class FakeServerContent:
-    model_turn = FakeModelTurn()
-    turn_complete = True
-    generation_complete = True
+    def __init__(
+        self,
+        parts: list[FakePart],
+        *,
+        turn_complete: bool,
+        generation_complete: bool,
+    ) -> None:
+        self.model_turn = FakeModelTurn(parts)
+        self.turn_complete = turn_complete
+        self.generation_complete = generation_complete
 
 
 class FakeMessage:
-    def __init__(self, data: bytes | None = None) -> None:
+    def __init__(
+        self,
+        data: bytes | None = None,
+        *,
+        parts: list[FakePart] | None = None,
+        turn_complete: bool = True,
+        generation_complete: bool = True,
+    ) -> None:
         self.data = data
-        self.server_content = FakeServerContent() if data is None else None
+        self.server_content = FakeServerContent(
+            parts or [],
+            turn_complete=turn_complete,
+            generation_complete=generation_complete,
+        )
 
 
 class FakeSession:
@@ -341,8 +373,12 @@ class FakeSession:
         assert turn_complete is True
 
     async def receive(self):
-        yield FakeMessage(data=b"audio-1")
-        yield FakeMessage(data=None)
+        yield FakeMessage(data=b"audio-1", turn_complete=False, generation_complete=True)
+        yield FakeMessage(
+            parts=[FakePart(inline_data=FakeInlineData(b"audio-2"))],
+            turn_complete=True,
+            generation_complete=True,
+        )
 
 
 class FakeLive:
@@ -395,6 +431,127 @@ async def test_stream_prompt_audio_pushes_live_audio_frames():
     assert session.turns
     assert session.turns[0][0].role == "user"
     assert session.turns[0][0].parts[0].text == "Speak this"
+
+
+@pytest.mark.asyncio
+async def test_stream_prompt_audio_emits_all_audio_parts_in_one_message():
+    session = FakeSession()
+
+    async def receive():
+        yield FakeMessage(
+            parts=[
+                FakePart(inline_data=FakeInlineData(b"audio-1")),
+                FakePart(inline_data=FakeInlineData(b"audio-2")),
+            ],
+            turn_complete=True,
+            generation_complete=True,
+        )
+
+    session.receive = receive
+    renderer = GeminiLiveSpeechRendererService(
+        api_key="fake",
+        model="gemini-3.1-flash-live-preview",
+        voice="Kore",
+        instructions="Speak the transcript exactly.",
+        client_factory=lambda **_: FakeClient(session),
+        connect_on_start=False,
+    )
+    pushed: list[Frame] = []
+
+    async def capture(frame: Frame, direction: FrameDirection = FrameDirection.DOWNSTREAM):
+        pushed.append(frame)
+
+    renderer.push_frame = capture
+
+    await renderer._stream_prompt_audio("Speak this")
+
+    audio_frames = [frame for frame in pushed if isinstance(frame, TTSAudioRawFrame)]
+    assert [frame.audio for frame in audio_frames] == [b"audio-1", b"audio-2"]
+
+
+@pytest.mark.asyncio
+async def test_stream_prompt_audio_traces_multipart_messages_without_text_payloads():
+    session = FakeSession()
+
+    async def receive():
+        yield FakeMessage(
+            parts=[
+                FakePart(text="sensitive transcript text"),
+                FakePart(inline_data=FakeInlineData(b"\x01\x00" * 480)),
+                FakePart(inline_data=FakeInlineData(b"\x02\x00" * 240)),
+            ],
+            turn_complete=True,
+            generation_complete=True,
+        )
+
+    session.receive = receive
+    tracer = MemoryVoiceStreamTracer()
+    renderer = GeminiLiveSpeechRendererService(
+        api_key="fake",
+        model="gemini-3.1-flash-live-preview",
+        voice="Kore",
+        instructions="Speak the transcript exactly.",
+        client_factory=lambda **_: FakeClient(session),
+        connect_on_start=False,
+        voice_stream_tracer=tracer,
+    )
+    pushed: list[Frame] = []
+
+    async def capture(frame: Frame, direction: FrameDirection = FrameDirection.DOWNSTREAM):
+        pushed.append(frame)
+
+    renderer.push_frame = capture
+
+    await renderer._stream_prompt_audio("Speak this")
+
+    audio_frames = [frame for frame in pushed if isinstance(frame, TTSAudioRawFrame)]
+    assert [frame.audio for frame in audio_frames] == [b"\x01\x00" * 480, b"\x02\x00" * 240]
+    chunk_records = [record for record in tracer.records if record["event"] == "gemini.audio_chunk"]
+    assert [record["message_seq"] for record in chunk_records] == [1, 1]
+    assert [record["audio_part_seq"] for record in chunk_records] == [1, 2]
+    assert [record["audio_parts_in_message"] for record in chunk_records] == [2, 2]
+    assert [record["non_audio_parts_in_message"] for record in chunk_records] == [1, 1]
+    trace_json = json.dumps(tracer.records)
+    assert "sensitive transcript text" not in trace_json
+    assert "0100" not in trace_json
+
+
+@pytest.mark.asyncio
+async def test_stream_prompt_audio_waits_for_turn_complete_after_generation_complete():
+    session = FakeSession()
+
+    async def receive():
+        yield FakeMessage(
+            data=b"audio-1",
+            turn_complete=False,
+            generation_complete=True,
+        )
+        yield FakeMessage(
+            data=b"audio-2",
+            turn_complete=True,
+            generation_complete=True,
+        )
+
+    session.receive = receive
+    renderer = GeminiLiveSpeechRendererService(
+        api_key="fake",
+        model="gemini-3.1-flash-live-preview",
+        voice="Kore",
+        instructions="Speak the transcript exactly.",
+        client_factory=lambda **_: FakeClient(session),
+        connect_on_start=False,
+    )
+    pushed: list[Frame] = []
+
+    async def capture(frame: Frame, direction: FrameDirection = FrameDirection.DOWNSTREAM):
+        pushed.append(frame)
+
+    renderer.push_frame = capture
+
+    await renderer._stream_prompt_audio("Speak this")
+
+    audio_frames = [frame for frame in pushed if isinstance(frame, TTSAudioRawFrame)]
+    assert [frame.audio for frame in audio_frames] == [b"audio-1", b"audio-2"]
 
 
 @pytest.mark.asyncio

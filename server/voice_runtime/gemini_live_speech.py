@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import AsyncIterator, Callable
+from dataclasses import dataclass
 from typing import Any
 
 from google import genai
@@ -31,6 +32,17 @@ DEFAULT_GEMINI_LIVE_MODEL = "gemini-3.1-flash-live-preview"
 DEFAULT_GEMINI_LIVE_VOICE = "Kore"
 
 _SENTENCE_BOUNDARY = re.compile(r"(.+?[.!?])(\s+|$)", re.DOTALL)
+
+
+@dataclass(frozen=True)
+class GeminiLiveAudioChunk:
+    audio: bytes
+    message_seq: int
+    audio_part_seq: int
+    audio_parts_in_message: int
+    non_audio_parts_in_message: int
+    generation_complete: bool
+    turn_complete: bool
 
 
 def build_strict_speech_prompt(*, transcript: str, instructions: str | None) -> str:
@@ -84,11 +96,22 @@ async def stream_gemini_live_audio(
             ],
             turn_complete=True,
         )
+        message_seq = 0
         async for message in session.receive():
-            audio = _extract_audio(message)
-            if audio:
-                yield audio
-            if _message_is_complete(message):
+            message_seq += 1
+            audio_parts, non_audio_parts = _extract_audio_parts(message)
+            complete = _message_completion(message)
+            for audio_part_seq, audio in enumerate(audio_parts, start=1):
+                yield GeminiLiveAudioChunk(
+                    audio=audio,
+                    message_seq=message_seq,
+                    audio_part_seq=audio_part_seq,
+                    audio_parts_in_message=len(audio_parts),
+                    non_audio_parts_in_message=non_audio_parts,
+                    generation_complete=complete["generation_complete"],
+                    turn_complete=complete["turn_complete"],
+                )
+            if complete["turn_complete"]:
                 break
 
 
@@ -209,13 +232,14 @@ class GeminiLiveSpeechRendererService(FrameProcessor):
             model=self.model,
             voice=self.voice,
         )
-        async for audio in stream_gemini_live_audio(
+        async for item in stream_gemini_live_audio(
             api_key=self.api_key,
             model=self.model,
             voice=self.voice,
             prompt=prompt,
             client_factory=self._client_factory,
         ):
+            audio, chunk_trace = _audio_chunk_payload_and_trace(item)
             segment_chunk_sequence += 1
             self._chunk_sequence += 1
             chunk_sequence = self._chunk_sequence
@@ -228,6 +252,7 @@ class GeminiLiveSpeechRendererService(FrameProcessor):
                 segment_chunk_seq=segment_chunk_sequence,
                 chunk_seq=chunk_sequence,
                 source="gemini_live",
+                **chunk_trace,
                 **pcm16_audio_metrics(audio, sample_rate=24000, num_channels=1),
             )
             audio_frame = TTSAudioRawFrame(audio=audio, sample_rate=24000, num_channels=1)
@@ -323,26 +348,45 @@ def _live_audio_config(voice: str):
     )
 
 
-def _extract_audio(message: object) -> bytes | None:
+def _audio_chunk_payload_and_trace(
+    item: bytes | GeminiLiveAudioChunk,
+) -> tuple[bytes, dict[str, Any]]:
+    if isinstance(item, GeminiLiveAudioChunk):
+        return item.audio, {
+            "message_seq": item.message_seq,
+            "audio_part_seq": item.audio_part_seq,
+            "audio_parts_in_message": item.audio_parts_in_message,
+            "non_audio_parts_in_message": item.non_audio_parts_in_message,
+            "generation_complete": item.generation_complete,
+            "turn_complete": item.turn_complete,
+        }
+    return item, {}
+
+
+def _extract_audio_parts(message: object) -> tuple[list[bytes], int]:
+    audio_parts: list[bytes] = []
+    non_audio_parts = 0
     data = getattr(message, "data", None)
     if data:
-        return data
+        audio_parts.append(data)
     server_content = getattr(message, "server_content", None)
     model_turn = getattr(server_content, "model_turn", None)
     parts = getattr(model_turn, "parts", None) or []
     for part in parts:
         inline_data = getattr(part, "inline_data", None)
-        mime_type = getattr(inline_data, "mime_type", "")
+        mime_type = getattr(inline_data, "mime_type", "") if inline_data is not None else ""
         if mime_type.startswith("audio/pcm"):
             audio = getattr(inline_data, "data", None)
             if audio:
-                return audio
-    return None
+                audio_parts.append(audio)
+                continue
+        non_audio_parts += 1
+    return audio_parts, non_audio_parts
 
 
-def _message_is_complete(message: object) -> bool:
+def _message_completion(message: object) -> dict[str, bool]:
     server_content = getattr(message, "server_content", None)
-    return bool(
-        getattr(server_content, "turn_complete", False)
-        or getattr(server_content, "generation_complete", False)
-    )
+    return {
+        "turn_complete": bool(getattr(server_content, "turn_complete", False)),
+        "generation_complete": bool(getattr(server_content, "generation_complete", False)),
+    }
