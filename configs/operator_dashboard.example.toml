@@ -10,12 +10,13 @@ stop_command = ["docker", "compose", "-f", "docker/compose/workshop.yml", "down"
 startup_timeout_s = 240
 ready_checks = [
   { type = "tcp", host = "127.0.0.1", port = 9090, label = "rosbridge" },
-  { type = "http", url = "http://127.0.0.1:6080", label = "noVNC" },
+  { type = "http", url = "http://127.0.0.1:6080/vnc_auto.html?host=127.0.0.1&port=6080&path=websockify&autoconnect=true&resize=remote", label = "noVNC" },
+  { type = "tcp", host = "127.0.0.1", port = 5901, label = "VNC backend" },
   { type = "tcp", host = "127.0.0.1", port = 8001, label = "Vizor MCP port" },
   { type = "tcp", host = "127.0.0.1", port = 8765, label = "MoveIt MCP port" },
 ]
 links = [
-  { label = "Open RViz", url = "http://localhost:6080/vnc_auto.html?host=localhost&port=6080&autoconnect=true&resize=remote" },
+  { label = "Open RViz", url = "http://127.0.0.1:6080/vnc_auto.html?host=127.0.0.1&port=6080&path=websockify&autoconnect=true&resize=remote" },
 ]
 
 [services.verified_execution]

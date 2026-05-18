@@ -58,7 +58,7 @@ Ready to take commands for planning group arm.
 Open the browser UI:
 
 ```text
-http://localhost:6080/vnc_auto.html?host=localhost&port=6080&autoconnect=true&resize=remote
+http://127.0.0.1:6080/vnc_auto.html?host=127.0.0.1&port=6080&path=websockify&autoconnect=true&resize=remote
 ```
 
 Use `vnc_auto.html`; the older `vnc.html` page can fail with a noVNC JavaScript error (`can't access property "type", ctrl is null`).
@@ -369,7 +369,7 @@ can't access property "type", ctrl is null
 Use:
 
 ```text
-http://localhost:6080/vnc_auto.html?host=localhost&port=6080&autoconnect=true&resize=remote
+http://127.0.0.1:6080/vnc_auto.html?host=127.0.0.1&port=6080&path=websockify&autoconnect=true&resize=remote
 ```
 
 Do not use plain `vnc.html` for this image.

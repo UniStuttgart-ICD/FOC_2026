@@ -98,10 +98,15 @@ def test_example_config_starts_vizor_first_and_uses_default_pipecat_command() ->
     vizor = config.services["vizor"]
     assert (
         vizor.links[0].url
-        == "http://localhost:6080/vnc_auto.html?host=localhost&port=6080&autoconnect=true&resize=remote"
+        == "http://127.0.0.1:6080/vnc_auto.html?host=127.0.0.1&port=6080&path=websockify&autoconnect=true&resize=remote"
+    )
+    assert (
+        next(check.url for check in vizor.ready_checks if check.type is CheckType.HTTP)
+        == "http://127.0.0.1:6080/vnc_auto.html?host=127.0.0.1&port=6080&path=websockify&autoconnect=true&resize=remote"
     )
     assert [check.port for check in vizor.ready_checks if check.type is CheckType.TCP] == [
         9090,
+        5901,
         8001,
         8765,
     ]
