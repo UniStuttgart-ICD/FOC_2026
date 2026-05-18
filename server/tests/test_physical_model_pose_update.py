@@ -7,13 +7,13 @@ def test_updates_pose_axis_feature_endpoints_and_feature_centers(tmp_path) -> No
     model_path = tmp_path / "physical_model.json"
     model_path.write_text(json.dumps(_model()), encoding="utf-8")
     evidence = _pose_evidence(
-        "dynamic_1",
+        "dynamic_0",
         position={"x": 0.0, "y": -0.8, "z": 0.1},
         orientation={"x": 0.5, "y": 0.5, "z": -0.5, "w": 0.5},
     )
 
     result = update_physical_model_pose(
-        "dynamic_1",
+        "dynamic_0",
         "verified_pick_place_release",
         evidence,
         model_path=model_path,
@@ -21,7 +21,7 @@ def test_updates_pose_axis_feature_endpoints_and_feature_centers(tmp_path) -> No
 
     assert result == {
         "ok": True,
-        "object_name": "dynamic_1",
+        "object_name": "dynamic_0",
         "reason": "verified_pick_place_release",
         "source": "moveit_get_object_context",
     }
@@ -43,15 +43,15 @@ def test_normalizes_padded_dynamic_name(tmp_path) -> None:
     model_path.write_text(json.dumps(_model()), encoding="utf-8")
 
     result = update_physical_model_pose(
-        "dynamic_01",
+        "dynamic_00",
         "operator_sync",
-        _pose_evidence("dynamic_01"),
+        _pose_evidence("dynamic_00"),
         model_path=model_path,
     )
 
     data = json.loads(model_path.read_text(encoding="utf-8"))
     assert result["ok"] is True
-    assert result["object_name"] == "dynamic_1"
+    assert result["object_name"] == "dynamic_0"
     assert data["bodies"][0]["pose"]["xyz"] == [0.2, -0.6, 0.3]
 
 
@@ -60,13 +60,13 @@ def test_rejects_missing_quaternion(tmp_path) -> None:
     original = json.dumps(_model())
     model_path.write_text(original, encoding="utf-8")
     evidence = {
-        "object_name": "dynamic_1",
+        "object_name": "dynamic_0",
         "source": "moveit_get_object_context",
         "pose": {"position": {"x": 0.0, "y": -0.8, "z": 0.1}},
     }
 
     result = update_physical_model_pose(
-        "dynamic_1",
+        "dynamic_0",
         "verified_place_release",
         evidence,
         model_path=model_path,
@@ -83,13 +83,13 @@ def test_rejects_bounds_only_evidence(tmp_path) -> None:
     original = json.dumps(_model())
     model_path.write_text(original, encoding="utf-8")
     evidence = {
-        "object_name": "dynamic_1",
+        "object_name": "dynamic_0",
         "source": "moveit_get_object_context",
         "bounds": {"min": {"x": 0.0}, "max": {"x": 1.0}},
     }
 
     result = update_physical_model_pose(
-        "dynamic_1",
+        "dynamic_0",
         "verified_place_release",
         evidence,
         model_path=model_path,
@@ -107,9 +107,9 @@ def test_rejects_disallowed_reason(tmp_path) -> None:
     model_path.write_text(original, encoding="utf-8")
 
     result = update_physical_model_pose(
-        "dynamic_1",
+        "dynamic_0",
         "unverified_guess",
-        _pose_evidence("dynamic_1"),
+        _pose_evidence("dynamic_0"),
         model_path=model_path,
     )
 
@@ -122,14 +122,14 @@ def test_rejects_disallowed_reason(tmp_path) -> None:
 def test_leaves_unrelated_bodies_untouched(tmp_path) -> None:
     model_path = tmp_path / "physical_model.json"
     model = _model()
-    model["bodies"].append(_body("dynamic_2"))
+    model["bodies"].append(_body("dynamic_1"))
     original_second_body = json.loads(json.dumps(model["bodies"][1]))
     model_path.write_text(json.dumps(model), encoding="utf-8")
 
     update_physical_model_pose(
-        "dynamic_1",
+        "dynamic_0",
         "operator_sync",
-        _pose_evidence("dynamic_1"),
+        _pose_evidence("dynamic_0"),
         model_path=model_path,
     )
 
@@ -140,10 +140,10 @@ def test_leaves_unrelated_bodies_untouched(tmp_path) -> None:
 def test_appends_compact_operation_history(tmp_path) -> None:
     model_path = tmp_path / "physical_model.json"
     model_path.write_text(json.dumps(_model()), encoding="utf-8")
-    evidence = _pose_evidence("dynamic_1")
+    evidence = _pose_evidence("dynamic_0")
 
     update_physical_model_pose(
-        "dynamic_1",
+        "dynamic_0",
         "operator_sync",
         evidence,
         model_path=model_path,
@@ -154,7 +154,7 @@ def test_appends_compact_operation_history(tmp_path) -> None:
         {
             "op": "physical_model_pose_update",
             "status": "applied",
-            "object_name": "dynamic_1",
+            "object_name": "dynamic_0",
             "reason": "operator_sync",
             "source": "moveit_get_object_context",
             "pose": evidence["pose"],
@@ -168,9 +168,9 @@ def test_failed_update_does_not_corrupt_json(tmp_path) -> None:
     model_path.write_text(json.dumps(original_data), encoding="utf-8")
 
     result = update_physical_model_pose(
-        "dynamic_3",
+        "dynamic_2",
         "operator_sync",
-        _pose_evidence("dynamic_3"),
+        _pose_evidence("dynamic_2"),
         model_path=model_path,
     )
 
@@ -184,7 +184,7 @@ def _model() -> dict:
         "version": "0.1.0",
         "name": "physical_frame",
         "units": "meters",
-        "bodies": [_body("dynamic_1")],
+        "bodies": [_body("dynamic_0")],
         "operation_history": [],
     }
 

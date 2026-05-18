@@ -15,16 +15,16 @@ def test_geometry_world_context_renders_physical_role_and_hologram_target_pose(t
                 "physical_frame",
                 [
                     _body(
-                        "dynamic_1",
+                        "dynamic_0",
                         label="B vertical at shared vertex",
                         family="B",
                         group="vertical",
                         status="built",
-                        role={"type": "supporting_column", "supports": ["dynamic_3"]},
+                        role={"type": "supporting_column", "supports": ["dynamic_2"]},
                         xyz=[9.0, 9.0, 9.0],
                         quat=[0.5, 0.5, -0.5, 0.5],
                     ),
-                    _body("dynamic_3", role={"type": "unassigned"}),
+                    _body("dynamic_2", role={"type": "unassigned"}),
                 ],
             )
         ),
@@ -36,7 +36,7 @@ def test_geometry_world_context_renders_physical_role_and_hologram_target_pose(t
                 "hologram_frame",
                 [
                     _body(
-                        "dynamic_1",
+                        "dynamic_0",
                         label="B vertical hologram target",
                         family="B",
                         group="vertical",
@@ -44,7 +44,7 @@ def test_geometry_world_context_renders_physical_role_and_hologram_target_pose(t
                         xyz=[0.0, -0.8, 0.1],
                         quat=[0.5, 0.5, -0.5, 0.5],
                     ),
-                    _body("dynamic_3", role={"type": "hologram_only"}),
+                    _body("dynamic_2", role={"type": "hologram_only"}),
                 ],
             )
         ),
@@ -60,10 +60,10 @@ def test_geometry_world_context_renders_physical_role_and_hologram_target_pose(t
     assert "Geometry World Context" in text
     assert '"physical_model_name": "physical_frame"' in text
     assert '"hologram_model_name": "hologram_frame"' in text
-    assert '"object_name": "dynamic_1"' in text
+    assert '"object_name": "dynamic_0"' in text
     assert '"label": "B vertical at shared vertex"' in text
     assert '"family": "B"' in text
-    assert '"role": {"type": "supporting_column", "supports": ["dynamic_3"]}' in text
+    assert '"role": {"type": "supporting_column", "supports": ["dynamic_2"]}' in text
     assert '"position": {"x": 0.0, "y": -0.8, "z": 0.1}' in text
     assert '"orientation": {"x": 0.5, "y": 0.5, "z": -0.5, "w": 0.5}' in text
     assert '"group"' not in text
@@ -81,7 +81,7 @@ def test_geometry_world_context_reloads_hologram_file_each_render(tmp_path) -> N
                 "physical_frame",
                 [
                     _body(
-                        "dynamic_1",
+                        "dynamic_0",
                         role={"type": "unassigned"},
                         xyz=[0.0, 0.0, 0.1],
                     )
@@ -91,7 +91,7 @@ def test_geometry_world_context_reloads_hologram_file_each_render(tmp_path) -> N
         encoding="utf-8",
     )
     hologram_path.write_text(
-        json.dumps(_model("hologram_frame", [_body("dynamic_1", xyz=[0.0, 0.0, 0.1])])),
+        json.dumps(_model("hologram_frame", [_body("dynamic_0", xyz=[0.0, 0.0, 0.1])])),
         encoding="utf-8",
     )
     store = GeometryWorldContextStore(
@@ -102,7 +102,7 @@ def test_geometry_world_context_reloads_hologram_file_each_render(tmp_path) -> N
     assert '"position": {"x": 0.0, "y": 0.0, "z": 0.1}' in store.render_instruction_block()
 
     hologram_path.write_text(
-        json.dumps(_model("hologram_frame", [_body("dynamic_1", xyz=[0.2, 0.3, 0.4])])),
+        json.dumps(_model("hologram_frame", [_body("dynamic_0", xyz=[0.2, 0.3, 0.4])])),
         encoding="utf-8",
     )
 
@@ -116,7 +116,7 @@ def test_geometry_world_context_blocks_missing_hologram_body(tmp_path) -> None:
         json.dumps(
             _model(
                 "physical_frame",
-                [_body("dynamic_1", role={"type": "unassigned"})],
+                [_body("dynamic_0", role={"type": "unassigned"})],
             )
         ),
         encoding="utf-8",
@@ -130,7 +130,7 @@ def test_geometry_world_context_blocks_missing_hologram_body(tmp_path) -> None:
     text = store.render_instruction_block()
 
     assert "BLOCKED" in text
-    assert "dynamic_1 is missing from hologram model" in text
+    assert "dynamic_0 is missing from hologram model" in text
     assert "must not infer a fallback target" in text
     assert '"target_pose"' not in text
 
@@ -142,12 +142,12 @@ def test_geometry_world_context_blocks_invalid_hologram_pose(tmp_path) -> None:
         json.dumps(
             _model(
                 "physical_frame",
-                [_body("dynamic_1", role={"type": "unassigned"})],
+                [_body("dynamic_0", role={"type": "unassigned"})],
             )
         ),
         encoding="utf-8",
     )
-    hologram_body = _body("dynamic_1")
+    hologram_body = _body("dynamic_0")
     hologram_body["pose"] = {"frame": "rhino_world", "xyz": [0.0, 0.0]}
     hologram_path.write_text(
         json.dumps(_model("hologram_frame", [hologram_body])),
@@ -161,7 +161,7 @@ def test_geometry_world_context_blocks_invalid_hologram_pose(tmp_path) -> None:
     text = store.render_instruction_block()
 
     assert "BLOCKED" in text
-    assert "invalid hologram target pose for dynamic_1" in text
+    assert "invalid hologram target pose for dynamic_0" in text
     assert "must not infer a fallback target" in text
     assert '"target_pose"' not in text
 
@@ -170,10 +170,10 @@ def test_geometry_world_context_blocks_invalid_physical_role_payload(tmp_path) -
     physical_path = tmp_path / "physical_model.json"
     hologram_path = tmp_path / "hologram_model.json"
     physical_path.write_text(
-        json.dumps(_model("physical_frame", [_body("dynamic_1", role="left_support")])),
+        json.dumps(_model("physical_frame", [_body("dynamic_0", role="left_support")])),
         encoding="utf-8",
     )
-    hologram_path.write_text(json.dumps(_model("hologram_frame", [_body("dynamic_1")])), encoding="utf-8")
+    hologram_path.write_text(json.dumps(_model("hologram_frame", [_body("dynamic_0")])), encoding="utf-8")
     store = GeometryWorldContextStore(
         physical_model_path=physical_path,
         hologram_model_path=hologram_path,
@@ -182,7 +182,7 @@ def test_geometry_world_context_blocks_invalid_physical_role_payload(tmp_path) -
     text = store.render_instruction_block()
 
     assert "BLOCKED" in text
-    assert "invalid physical role payload for dynamic_1" in text
+    assert "invalid physical role payload for dynamic_0" in text
     assert '"target_pose"' not in text
 
 
@@ -193,12 +193,12 @@ def test_geometry_world_context_blocks_unknown_physical_role_reference(tmp_path)
         json.dumps(
             _model(
                 "physical_frame",
-                [_body("dynamic_1", role={"type": "supporting_column", "supports": ["dynamic_99"]})],
+                [_body("dynamic_0", role={"type": "supporting_column", "supports": ["dynamic_99"]})],
             )
         ),
         encoding="utf-8",
     )
-    hologram_path.write_text(json.dumps(_model("hologram_frame", [_body("dynamic_1")])), encoding="utf-8")
+    hologram_path.write_text(json.dumps(_model("hologram_frame", [_body("dynamic_0")])), encoding="utf-8")
     store = GeometryWorldContextStore(
         physical_model_path=physical_path,
         hologram_model_path=hologram_path,
@@ -207,7 +207,7 @@ def test_geometry_world_context_blocks_unknown_physical_role_reference(tmp_path)
     text = store.render_instruction_block()
 
     assert "BLOCKED" in text
-    assert "invalid physical role payload for dynamic_1" in text
+    assert "invalid physical role payload for dynamic_0" in text
     assert '"target_pose"' not in text
 
 
@@ -215,7 +215,7 @@ def test_geometry_world_context_ignores_hologram_role_payload(tmp_path) -> None:
     physical_path = tmp_path / "physical_model.json"
     hologram_path = tmp_path / "hologram_model.json"
     physical_path.write_text(
-        json.dumps(_model("physical_frame", [_body("dynamic_1", role={"type": "unassigned"})])),
+        json.dumps(_model("physical_frame", [_body("dynamic_0", role={"type": "unassigned"})])),
         encoding="utf-8",
     )
     hologram_path.write_text(
@@ -224,7 +224,7 @@ def test_geometry_world_context_ignores_hologram_role_payload(tmp_path) -> None:
                 "hologram_frame",
                 [
                     _body(
-                        "dynamic_1",
+                        "dynamic_0",
                         role={"type": "hologram_only", "sentinel": "do_not_render"},
                     )
                 ],
@@ -246,8 +246,8 @@ def test_geometry_world_context_ignores_hologram_role_payload(tmp_path) -> None:
 
 
 def test_canonical_dynamic_name_normalizes_padded_dynamic_names() -> None:
-    assert canonical_dynamic_name("dynamic_1") == "dynamic_1"
-    assert canonical_dynamic_name("dynamic_01") == "dynamic_1"
+    assert canonical_dynamic_name("dynamic_0") == "dynamic_0"
+    assert canonical_dynamic_name("dynamic_00") == "dynamic_0"
     assert canonical_dynamic_name("beam_1") == "beam_1"
 
 

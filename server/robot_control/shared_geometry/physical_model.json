@@ -60,7 +60,7 @@
   },
   "bodies": [
     {
-      "id": "dynamic_1",
+      "id": "dynamic_0",
       "label": "A 11 cm vertical left support",
       "family": "A",
       "solid": {
@@ -147,13 +147,13 @@
         "role": {
           "type": "supporting_column",
           "supports": [
-            "dynamic_3"
+            "dynamic_2"
           ]
         }
       }
     },
     {
-      "id": "dynamic_2",
+      "id": "dynamic_1",
       "label": "A 11 cm vertical right support",
       "family": "A",
       "solid": {
@@ -240,13 +240,13 @@
         "role": {
           "type": "supporting_column",
           "supports": [
-            "dynamic_3"
+            "dynamic_2"
           ]
         }
       }
     },
     {
-      "id": "dynamic_3",
+      "id": "dynamic_2",
       "label": "C 33 cm horizontal span across supports",
       "family": "C",
       "solid": {
@@ -333,14 +333,14 @@
         "role": {
           "type": "beam_supported_by",
           "supported_by": [
-            "dynamic_1",
-            "dynamic_2"
+            "dynamic_0",
+            "dynamic_1"
           ]
         }
       }
     },
     {
-      "id": "dynamic_4",
+      "id": "dynamic_3",
       "label": "A 11 cm inventory beam",
       "family": "A",
       "solid": {
@@ -432,7 +432,7 @@
       }
     },
     {
-      "id": "dynamic_5",
+      "id": "dynamic_4",
       "label": "B 22 cm inventory beam 1",
       "family": "B",
       "solid": {
@@ -524,7 +524,7 @@
       }
     },
     {
-      "id": "dynamic_6",
+      "id": "dynamic_5",
       "label": "B 22 cm inventory beam 2",
       "family": "B",
       "solid": {
@@ -616,7 +616,7 @@
       }
     },
     {
-      "id": "dynamic_7",
+      "id": "dynamic_6",
       "label": "B 22 cm inventory beam 3",
       "family": "B",
       "solid": {
@@ -708,7 +708,7 @@
       }
     },
     {
-      "id": "dynamic_8",
+      "id": "dynamic_7",
       "label": "C 33 cm inventory beam 1",
       "family": "C",
       "solid": {
@@ -800,7 +800,7 @@
       }
     },
     {
-      "id": "dynamic_9",
+      "id": "dynamic_8",
       "label": "C 33 cm inventory beam 2",
       "family": "C",
       "solid": {
@@ -898,9 +898,9 @@
         "id": "built_gate_frame",
         "type": "subassembly",
         "members": [
+          "dynamic_0",
           "dynamic_1",
-          "dynamic_2",
-          "dynamic_3"
+          "dynamic_2"
         ],
         "status": "built"
       },
@@ -908,12 +908,12 @@
         "id": "inventory_stack",
         "type": "inventory",
         "members": [
+          "dynamic_3",
           "dynamic_4",
           "dynamic_5",
           "dynamic_6",
           "dynamic_7",
-          "dynamic_8",
-          "dynamic_9"
+          "dynamic_8"
         ],
         "status": "inventory"
       }
@@ -922,24 +922,24 @@
       {
         "id": "rel_001",
         "relation_type": "bearing_contact",
-        "a": "dynamic_1.face_top",
-        "b": "dynamic_3.face_bottom",
+        "a": "dynamic_0.face_top",
+        "b": "dynamic_2.face_bottom",
         "role": "left_span_support",
         "status": "built"
       },
       {
         "id": "rel_002",
         "relation_type": "bearing_contact",
-        "a": "dynamic_2.face_top",
-        "b": "dynamic_3.face_bottom",
+        "a": "dynamic_1.face_top",
+        "b": "dynamic_2.face_bottom",
         "role": "right_span_support",
         "status": "built"
       },
       {
         "id": "rel_003",
         "relation_type": "ordered_inventory_layout",
-        "a": "dynamic_4",
-        "b": "dynamic_9",
+        "a": "dynamic_3",
+        "b": "dynamic_8",
         "role": "5_cm_centerline_spacing_toward_positive_x",
         "status": "inventory"
       }

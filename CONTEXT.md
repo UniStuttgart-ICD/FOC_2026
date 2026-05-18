@@ -157,6 +157,9 @@ The **Shared Geometry Model** view of user-positioned AR target elements that ex
 **Hologram Target Pose**:
 The desired beam/object pose from the **Hologram Geometry Model**, not a robot TCP pose.
 
+**Hologram ModelTracker Sync**:
+The immediate Grasshopper-side update of one **Hologram Target Pose** from a single ModelTracker change event for a **Canonical Dynamic Name**.
+
 **Beam Orientation Grasp Coverage**:
 The requirement that supported dynamic-beam manipulation can solve grasps for both horizontal beams and vertical beams when the live MoveIt planning scene exposes the object geometry.
 
@@ -170,7 +173,7 @@ A single compound pick-place task that moves one physical `dynamic_*` object to 
 The `requirements.goal="hold"` **Compound Task Plan** for natural requests such as "pick up", "grab and lift", or explicit hold/support without lifting. It grasps and attaches the object, then includes an agent-specified, bounded post-grasp lift; default lift is `0.10` m and v1 accepts `0.00`-`0.20` m. `lift_distance_m=0.0` means grasp/attach in place with no post-grasp lift, not proof of structural or load-bearing support. It does not relocate the object to a hologram target pose.
 
 **Canonical Dynamic Name**:
-The unpadded `dynamic_1`-style object name used to pair MoveIt scene objects with shared geometry bodies.
+The unpadded `dynamic_0`-style object name used to pair MoveIt scene objects with shared geometry bodies.
 
 **Task Policy Layer**:
 A deterministic pre-tool layer for obvious robot-step preconditions before Robot Call Validation and MoveIt; v1 covers fresh pose before motion, no blind execute, and basic gripper/attach ordering.
@@ -398,12 +401,15 @@ A compact local artifact recording tool order, typed tool outputs, policy decisi
 - **Shared Geometry Model** may inform agent spatial reasoning, but the **MoveIt Safety Boundary** remains authoritative for planning and execution safety.
 - The **Geometry World Model** consists of the **Physical Geometry Model** and **Hologram Geometry Model**.
 - **Physical Geometry Model** and **Hologram Geometry Model** pair bodies by **Canonical Dynamic Name**.
-- Padded names such as `dynamic_01` may be accepted at tool boundaries, but tool results and planning calls should use the **Canonical Dynamic Name**.
+- Padded names such as `dynamic_00` may be accepted at tool boundaries, but tool results and planning calls should use the **Canonical Dynamic Name**.
 - **Geometry World Context** exposes semantic placement only as **Dynamic Role Payload** at `role`.
 - **Dynamic Role** values are structural/contact semantics: `unassigned`, `supporting_column`, or `beam_supported_by`.
 - View-dependent placement labels such as left/right are not **Dynamic Role** values; use `unassigned` until a structural/contact role is known.
 - **Dynamic Role Payload** lives in the **Physical Geometry Model**, not the **Hologram Geometry Model**.
 - `geometry_update_dynamic_role` accepts a **Dynamic Role Payload**, not a free-text role string.
+- **Hologram ModelTracker Sync** updates the **Hologram Geometry Model** immediately for each single-element ModelTracker change event.
+- **Hologram ModelTracker Sync** uses ModelTracker transforms as the orientation authority and transformed mesh evidence as the observed center/check.
+- **Hologram ModelTracker Sync** mutates only pose-derived target fields; operation history is optional and minimal if used. It must not write **Dynamic Role Payload** fields.
 - **Dynamic Role Update Tool** is local to LangGraph/Agent Control, not an MCP tool.
 - `geometry_update_dynamic_role` rewrites only **Dynamic Role Payload** plus operation history.
 - `geometry_update_dynamic_role` validates referenced canonical dynamic names against `physical_model.json`.
@@ -526,7 +532,7 @@ A compact local artifact recording tool order, typed tool outputs, policy decisi
 - Missing hologram target data is resolved as a hard blocker, not an opportunity to infer a fallback target.
 - "Use TCP pose to update the physical model" is ambiguous; resolved: raw TCP pose is not an element pose and must not directly mutate the **Physical Geometry Model**.
 - "Frame conversion between Grasshopper and RViz" is resolved as **Calibrated Workspace Coordinates**; no transform is applied while the Grasshopper-to-RViz component keeps coordinates aligned.
-- `element_01` versus `dynamic_01` is resolved: use unpadded **Canonical Dynamic Name** such as `dynamic_1`; accept padded `dynamic_01` only at input boundaries when normalized.
+- `element_00` versus `dynamic_00` is resolved: use unpadded **Canonical Dynamic Name** such as `dynamic_0`; accept padded `dynamic_00` only at input boundaries when normalized.
 - "Drop it" is resolved as **Release Intent** for the currently held or attached object, not an uncontrolled physical drop.
 
 ## Current limitation

@@ -230,6 +230,37 @@ def test_prompt_maps_pick_up_and_drop_language_to_manipulation_requirements() ->
     assert "release in place" in prompt
 
 
+def test_prompt_does_not_route_move_only_held_object_to_move_and_release() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+    move_only_example = _example_region("kibbitz, good, just move 20 cm to your body")
+
+    assert "move-only held-object requests" in prompt
+    assert '"just move it"' in prompt
+    assert '"move it closer"' in prompt
+    assert '"move it toward your body"' in prompt
+    assert '"keep holding it"' in prompt
+    assert "must not call requirements.goal=\"move_and_release\"" in prompt
+
+    assert "unsupported/clarify" in move_only_example
+    assert "not requirements.goal=\"move_and_release\"" in move_only_example
+
+
+def test_prompt_examples_keep_release_and_pick_place_routes_explicit() -> None:
+    release_example = _example_region("kibbitz, hold element 2, then release it")
+    move_release_example = _example_region("kibbitz, move it there and release it")
+    pick_place_example = _example_region("kibbitz, pick element 2 and place it there")
+
+    assert 'requirements.goal="hold"' in release_example
+    assert 'requirements.lift_distance_m=0.0' in release_example
+    assert 'requirements.goal="release"' in release_example
+
+    assert "explicit release intent" in move_release_example
+    assert 'requirements.goal="move_and_release"' in move_release_example
+
+    assert "free" in pick_place_example
+    assert 'requirements.goal="pick_place"' in pick_place_example
+
+
 def test_prompt_clarifies_zero_lift_hold_is_not_structural_support() -> None:
     prompt = SYSTEM_PROMPT.lower()
 

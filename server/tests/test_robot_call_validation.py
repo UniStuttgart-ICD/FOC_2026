@@ -207,6 +207,9 @@ def test_task_tool_descriptions_route_staged_manipulation_tasks() -> None:
     assert "move_and_release" in manipulation_task
     assert "pick_place" in manipulation_task
     assert "object target pose, not tcp pose" in manipulation_task
+    assert "move-only held-object requests" in manipulation_task
+    assert "must not use move_and_release" in manipulation_task
+    assert "ask for clarification" in manipulation_task
     assert "geometry world context" in manipulation_task
     assert "vizor user position" in manipulation_task
     assert "execution_contract" in manipulation_task

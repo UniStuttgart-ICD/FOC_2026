@@ -2,13 +2,13 @@
   "schema": "pipecat.shared_geometry.common_model.v0.1",
   "version": "0.1.0",
   "name": "three_dynamic_a_c_gate_with_inventory",
-  "description": "Physical scene with two 11 cm A beams vertical at the sides, one 33 cm C beam spanning horizontally across them, and six inventory beams laid out toward positive X. All beams have a 4 cm by 4 cm rectangular section.",
+  "description": "Physical scene with two 11 cm A beams vertical at the sides, one 33 cm C beam spanning horizontally across them, and six inventory beams laid out toward negative Y. All beams have a 4 cm by 4 cm rectangular section.",
   "units": "meters",
   "owner_module": "robot_control.shared_geometry",
   "coordinate_system": {
     "frame": "rhino_world",
     "up_axis": "z",
-    "notes": "The axis start/end points define the beam centerline. The C span bottom face bears on the top faces of the two A verticals. Inventory beams lie horizontally on z=-0.10 with 5 cm centerline spacing along positive X, starting at x=0.90 m."
+    "notes": "The axis start/end points define the beam centerline. The C span bottom face bears on the top faces of the two A verticals. Inventory beams lie horizontally on z=-0.10 with 5 cm centerline spacing along negative Y, starting at y=-0.90 m."
   },
   "source": {
     "visual_template": "pipecat-agent/docs/research/shared-geometry-model-explainer.html",
@@ -60,9 +60,10 @@
   },
   "bodies": [
     {
-      "id": "dynamic_1",
+      "id": "dynamic_0",
       "label": "A 11 cm vertical left support",
       "family": "A",
+      "group": "built_frame",
       "solid": {
         "type": "box",
         "origin": "center",
@@ -75,168 +76,92 @@
       "axis": {
         "start_label": "bottom",
         "end_label": "top",
-        "start_xyz": [
-          0.7,
-          0,
-          -0.1
-        ],
-        "end_xyz": [
-          0.7,
-          0,
-          0.01
-        ]
+        "start_xyz": [0, -0.7, -0.1],
+        "end_xyz": [0, -0.7, 0.01]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          0.7,
-          0,
-          -0.045
-        ],
-        "quat_xyzw": [
-          0,
-          0.707106781187,
-          0,
-          0.707106781187
-        ]
+        "xyz": [0, -0.7, -0.045],
+        "quat_xyzw": [0.5, 0.5, -0.5, 0.5]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            0.7,
-            0,
-            -0.1
-          ]
+          "world_xyz": [0, -0.7, -0.1]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            0.7,
-            0,
-            0.01
-          ]
+          "world_xyz": [0, -0.7, 0.01]
         },
         "face_bottom": {
-          "center_xyz": [
-            0.7,
-            0,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0, -0.7, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            0.7,
-            0,
-            0.01
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0, -0.7, 0.01],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
-        "alignment": "vertical"
+        "status": "built",
+        "alignment": "vertical",
+        "role": "left_support"
+      }
+    },
+    {
+      "id": "dynamic_1",
+      "label": "A 11 cm vertical right support",
+      "family": "A",
+      "group": "built_frame",
+      "solid": {
+        "type": "box",
+        "origin": "center",
+        "dimensions": {
+          "x": 0.11,
+          "y": 0.04,
+          "z": 0.04
+        }
+      },
+      "axis": {
+        "start_label": "bottom",
+        "end_label": "top",
+        "start_xyz": [0.3, -0.7, -0.1],
+        "end_xyz": [0.3, -0.7, 0.01]
+      },
+      "pose": {
+        "frame": "rhino_world",
+        "xyz": [0.3, -0.7, -0.045],
+        "quat_xyzw": [0.5, 0.5, -0.5, 0.5]
+      },
+      "features": {
+        "end_start": {
+          "alias": "end_neg_x",
+          "world_xyz": [0.3, -0.7, -0.1]
+        },
+        "end_end": {
+          "alias": "end_pos_x",
+          "world_xyz": [0.3, -0.7, 0.01]
+        },
+        "face_bottom": {
+          "center_xyz": [0.3, -0.7, -0.1],
+          "normal_xyz": [0, 0, -1]
+        },
+        "face_top": {
+          "center_xyz": [0.3, -0.7, 0.01],
+          "normal_xyz": [0, 0, 1]
+        }
+      },
+      "state": {
+        "status": "built",
+        "alignment": "vertical",
+        "role": "right_support"
       }
     },
     {
       "id": "dynamic_2",
-      "label": "A 11 cm vertical right support",
-      "family": "A",
-      "solid": {
-        "type": "box",
-        "origin": "center",
-        "dimensions": {
-          "x": 0.11,
-          "y": 0.04,
-          "z": 0.04
-        }
-      },
-      "axis": {
-        "start_label": "bottom",
-        "end_label": "top",
-        "start_xyz": [
-          0.7,
-          0.3,
-          -0.1
-        ],
-        "end_xyz": [
-          0.7,
-          0.3,
-          0.01
-        ]
-      },
-      "pose": {
-        "frame": "rhino_world",
-        "xyz": [
-          0.7,
-          0.3,
-          -0.045
-        ],
-        "quat_xyzw": [
-          0,
-          0.707106781187,
-          0,
-          0.707106781187
-        ]
-      },
-      "features": {
-        "end_start": {
-          "alias": "end_neg_x",
-          "world_xyz": [
-            0.7,
-            0.3,
-            -0.1
-          ]
-        },
-        "end_end": {
-          "alias": "end_pos_x",
-          "world_xyz": [
-            0.7,
-            0.3,
-            0.01
-          ]
-        },
-        "face_bottom": {
-          "center_xyz": [
-            0.7,
-            0.3,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
-        },
-        "face_top": {
-          "center_xyz": [
-            0.7,
-            0.3,
-            0.01
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
-        }
-      },
-      "state": {
-        "alignment": "vertical"
-      }
-    },
-    {
-      "id": "dynamic_3",
       "label": "C 33 cm horizontal span across supports",
       "family": "C",
+      "group": "built_frame",
       "solid": {
         "type": "box",
         "origin": "center",
@@ -249,81 +174,43 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [
-          0.7,
-          -0.015,
-          0.03
-        ],
-        "end_xyz": [
-          0.7,
-          0.315,
-          0.03
-        ]
+        "start_xyz": [-0.015, -0.7, 0.03],
+        "end_xyz": [0.315, -0.7, 0.03]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          0.7,
-          0.15,
-          0.03
-        ],
-        "quat_xyzw": [
-          0,
-          0,
-          0.707106781187,
-          0.707106781187
-        ]
+        "xyz": [0.15, -0.7, 0.03],
+        "quat_xyzw": [0, 0, 0, 1]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            0.7,
-            -0.015,
-            0.03
-          ]
+          "world_xyz": [-0.015, -0.7, 0.03]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            0.7,
-            0.315,
-            0.03
-          ]
+          "world_xyz": [0.315, -0.7, 0.03]
         },
         "face_bottom": {
-          "center_xyz": [
-            0.7,
-            0.15,
-            0.01
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.15, -0.7, 0.01],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            0.7,
-            0.15,
-            0.05
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.15, -0.7, 0.05],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
-        "alignment": "horizontal"
+        "status": "built",
+        "alignment": "horizontal",
+        "role": "top_span"
       }
     },
     {
-      "id": "dynamic_4",
+      "id": "dynamic_3",
       "label": "A 11 cm inventory beam",
       "family": "A",
+      "group": "inventory",
       "solid": {
         "type": "box",
         "origin": "center",
@@ -336,83 +223,45 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [
-          0.9,
-          0.095,
-          -0.08
-        ],
-        "end_xyz": [
-          0.9,
-          0.205,
-          -0.08
-        ]
+        "start_xyz": [0.095, -0.9, -0.08],
+        "end_xyz": [0.205, -0.9, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          0.9,
-          0.15,
-          -0.08
-        ],
-        "quat_xyzw": [
-          0,
-          0,
-          0.707106781187,
-          0.707106781187
-        ]
+        "xyz": [0.15, -0.9, -0.08],
+        "quat_xyzw": [0, 0, 0, 1]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            0.9,
-            0.095,
-            -0.08
-          ]
+          "world_xyz": [0.095, -0.9, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            0.9,
-            0.205,
-            -0.08
-          ]
+          "world_xyz": [0.205, -0.9, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [
-            0.9,
-            0.15,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.15, -0.9, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            0.9,
-            0.15,
-            -0.06
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.15, -0.9, -0.06],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
+        "status": "inventory",
         "alignment": "horizontal",
+        "role": "inventory_slot_01",
         "inventory_index": 1,
         "inventory_spacing_m": 0.05
       }
     },
     {
-      "id": "dynamic_5",
+      "id": "dynamic_4",
       "label": "B 22 cm inventory beam 1",
       "family": "B",
+      "group": "inventory",
       "solid": {
         "type": "box",
         "origin": "center",
@@ -425,83 +274,45 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [
-          0.95,
-          0.04,
-          -0.08
-        ],
-        "end_xyz": [
-          0.95,
-          0.26,
-          -0.08
-        ]
+        "start_xyz": [0.04, -0.95, -0.08],
+        "end_xyz": [0.26, -0.95, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          0.95,
-          0.15,
-          -0.08
-        ],
-        "quat_xyzw": [
-          0,
-          0,
-          0.707106781187,
-          0.707106781187
-        ]
+        "xyz": [0.15, -0.95, -0.08],
+        "quat_xyzw": [0, 0, 0, 1]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            0.95,
-            0.04,
-            -0.08
-          ]
+          "world_xyz": [0.04, -0.95, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            0.95,
-            0.26,
-            -0.08
-          ]
+          "world_xyz": [0.26, -0.95, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [
-            0.95,
-            0.15,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.15, -0.95, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            0.95,
-            0.15,
-            -0.06
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.15, -0.95, -0.06],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
+        "status": "inventory",
         "alignment": "horizontal",
+        "role": "inventory_slot_02",
         "inventory_index": 2,
         "inventory_spacing_m": 0.05
       }
     },
     {
-      "id": "dynamic_6",
+      "id": "dynamic_5",
       "label": "B 22 cm inventory beam 2",
       "family": "B",
+      "group": "inventory",
       "solid": {
         "type": "box",
         "origin": "center",
@@ -514,83 +325,45 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [
-          1,
-          0.04,
-          -0.08
-        ],
-        "end_xyz": [
-          1,
-          0.26,
-          -0.08
-        ]
+        "start_xyz": [0.04, -1, -0.08],
+        "end_xyz": [0.26, -1, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          1,
-          0.15,
-          -0.08
-        ],
-        "quat_xyzw": [
-          0,
-          0,
-          0.707106781187,
-          0.707106781187
-        ]
+        "xyz": [0.15, -1, -0.08],
+        "quat_xyzw": [0, 0, 0, 1]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            1,
-            0.04,
-            -0.08
-          ]
+          "world_xyz": [0.04, -1, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            1,
-            0.26,
-            -0.08
-          ]
+          "world_xyz": [0.26, -1, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [
-            1,
-            0.15,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.15, -1, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            1,
-            0.15,
-            -0.06
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.15, -1, -0.06],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
+        "status": "inventory",
         "alignment": "horizontal",
+        "role": "inventory_slot_03",
         "inventory_index": 3,
         "inventory_spacing_m": 0.05
       }
     },
     {
-      "id": "dynamic_7",
+      "id": "dynamic_6",
       "label": "B 22 cm inventory beam 3",
       "family": "B",
+      "group": "inventory",
       "solid": {
         "type": "box",
         "origin": "center",
@@ -603,83 +376,45 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [
-          1.05,
-          0.04,
-          -0.08
-        ],
-        "end_xyz": [
-          1.05,
-          0.26,
-          -0.08
-        ]
+        "start_xyz": [0.04, -1.05, -0.08],
+        "end_xyz": [0.26, -1.05, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          1.05,
-          0.15,
-          -0.08
-        ],
-        "quat_xyzw": [
-          0,
-          0,
-          0.707106781187,
-          0.707106781187
-        ]
+        "xyz": [0.15, -1.05, -0.08],
+        "quat_xyzw": [0, 0, 0, 1]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            1.05,
-            0.04,
-            -0.08
-          ]
+          "world_xyz": [0.04, -1.05, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            1.05,
-            0.26,
-            -0.08
-          ]
+          "world_xyz": [0.26, -1.05, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [
-            1.05,
-            0.15,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.15, -1.05, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            1.05,
-            0.15,
-            -0.06
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.15, -1.05, -0.06],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
+        "status": "inventory",
         "alignment": "horizontal",
+        "role": "inventory_slot_04",
         "inventory_index": 4,
         "inventory_spacing_m": 0.05
       }
     },
     {
-      "id": "dynamic_8",
+      "id": "dynamic_7",
       "label": "C 33 cm inventory beam 1",
       "family": "C",
+      "group": "inventory",
       "solid": {
         "type": "box",
         "origin": "center",
@@ -692,83 +427,45 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [
-          1.1,
-          -0.015,
-          -0.08
-        ],
-        "end_xyz": [
-          1.1,
-          0.315,
-          -0.08
-        ]
+        "start_xyz": [-0.015, -1.1, -0.08],
+        "end_xyz": [0.315, -1.1, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          1.1,
-          0.15,
-          -0.08
-        ],
-        "quat_xyzw": [
-          0,
-          0,
-          0.707106781187,
-          0.707106781187
-        ]
+        "xyz": [0.15, -1.1, -0.08],
+        "quat_xyzw": [0, 0, 0, 1]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            1.1,
-            -0.015,
-            -0.08
-          ]
+          "world_xyz": [-0.015, -1.1, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            1.1,
-            0.315,
-            -0.08
-          ]
+          "world_xyz": [0.315, -1.1, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [
-            1.1,
-            0.15,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.15, -1.1, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            1.1,
-            0.15,
-            -0.06
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.15, -1.1, -0.06],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
+        "status": "inventory",
         "alignment": "horizontal",
+        "role": "inventory_slot_05",
         "inventory_index": 5,
         "inventory_spacing_m": 0.05
       }
     },
     {
-      "id": "dynamic_9",
+      "id": "dynamic_8",
       "label": "C 33 cm inventory beam 2",
       "family": "C",
+      "group": "inventory",
       "solid": {
         "type": "box",
         "origin": "center",
@@ -781,75 +478,36 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [
-          1.15,
-          -0.015,
-          -0.08
-        ],
-        "end_xyz": [
-          1.15,
-          0.315,
-          -0.08
-        ]
+        "start_xyz": [-0.015, -1.15, -0.08],
+        "end_xyz": [0.315, -1.15, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          1.15,
-          0.15,
-          -0.08
-        ],
-        "quat_xyzw": [
-          0,
-          0,
-          0.707106781187,
-          0.707106781187
-        ]
+        "xyz": [0.15, -1.15, -0.08],
+        "quat_xyzw": [0, 0, 0, 1]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            1.15,
-            -0.015,
-            -0.08
-          ]
+          "world_xyz": [-0.015, -1.15, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            1.15,
-            0.315,
-            -0.08
-          ]
+          "world_xyz": [0.315, -1.15, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [
-            1.15,
-            0.15,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.15, -1.15, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            1.15,
-            0.15,
-            -0.06
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.15, -1.15, -0.06],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
+        "status": "inventory",
         "alignment": "horizontal",
+        "role": "inventory_slot_06",
         "inventory_index": 6,
         "inventory_spacing_m": 0.05
       }
@@ -860,23 +518,19 @@
       {
         "id": "built_gate_frame",
         "type": "subassembly",
-        "members": [
-          "dynamic_1",
-          "dynamic_2",
-          "dynamic_3"
-        ],
+        "members": ["dynamic_0", "dynamic_1", "dynamic_2"],
         "status": "built"
       },
       {
         "id": "inventory_stack",
         "type": "inventory",
         "members": [
+          "dynamic_3",
           "dynamic_4",
           "dynamic_5",
           "dynamic_6",
           "dynamic_7",
-          "dynamic_8",
-          "dynamic_9"
+          "dynamic_8"
         ],
         "status": "inventory"
       }
@@ -885,25 +539,25 @@
       {
         "id": "rel_001",
         "relation_type": "bearing_contact",
-        "a": "dynamic_1.face_top",
-        "b": "dynamic_3.face_bottom",
+        "a": "dynamic_0.face_top",
+        "b": "dynamic_2.face_bottom",
         "role": "left_span_support",
         "status": "built"
       },
       {
         "id": "rel_002",
         "relation_type": "bearing_contact",
-        "a": "dynamic_2.face_top",
-        "b": "dynamic_3.face_bottom",
+        "a": "dynamic_1.face_top",
+        "b": "dynamic_2.face_bottom",
         "role": "right_span_support",
         "status": "built"
       },
       {
         "id": "rel_003",
         "relation_type": "ordered_inventory_layout",
-        "a": "dynamic_4",
-        "b": "dynamic_9",
-        "role": "5_cm_centerline_spacing_toward_positive_x",
+        "a": "dynamic_3",
+        "b": "dynamic_8",
+        "role": "5_cm_centerline_spacing_toward_negative_y",
         "status": "inventory"
       }
     ]
@@ -913,7 +567,7 @@
       "id": "op_001",
       "op": "initialize_from_user_requested_physical_layout",
       "status": "applied",
-      "notes": "Two A beams are 11 cm vertical supports. One C beam is the 33 cm horizontal span. Inventory contains one A beam, three B beams, and two C beams laid out from x=0.90 m toward positive X at 5 cm centerline spacing."
+      "notes": "Two A beams are 11 cm vertical supports. One C beam is the 33 cm horizontal span. Inventory contains one A beam, three B beams, and two C beams laid out from y=-0.90 m toward negative Y at 5 cm centerline spacing."
     }
   ],
   "projections": {

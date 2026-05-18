@@ -60,7 +60,7 @@
   },
   "bodies": [
     {
-      "id": "dynamic_1",
+      "id": "dynamic_0",
       "label": "A 11 cm vertical left support",
       "family": "A",
       "group": "built_frame",
@@ -76,71 +76,30 @@
       "axis": {
         "start_label": "bottom",
         "end_label": "top",
-        "start_xyz": [
-          0,
-          -0.7,
-          -0.1
-        ],
-        "end_xyz": [
-          0,
-          -0.7,
-          0.01
-        ]
+        "start_xyz": [0, -0.7, -0.1],
+        "end_xyz": [0, -0.7, 0.01]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          0,
-          -0.7,
-          -0.045
-        ],
-        "quat_xyzw": [
-          0.5,
-          0.5,
-          -0.5,
-          0.5
-        ]
+        "xyz": [0, -0.7, -0.045],
+        "quat_xyzw": [0.5, 0.5, -0.5, 0.5]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            0,
-            -0.7,
-            -0.1
-          ]
+          "world_xyz": [0, -0.7, -0.1]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            0,
-            -0.7,
-            0.01
-          ]
+          "world_xyz": [0, -0.7, 0.01]
         },
         "face_bottom": {
-          "center_xyz": [
-            0,
-            -0.7,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0, -0.7, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            0,
-            -0.7,
-            0.01
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0, -0.7, 0.01],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
@@ -150,7 +109,7 @@
       }
     },
     {
-      "id": "dynamic_2",
+      "id": "dynamic_1",
       "label": "A 11 cm vertical right support",
       "family": "A",
       "group": "built_frame",
@@ -166,71 +125,30 @@
       "axis": {
         "start_label": "bottom",
         "end_label": "top",
-        "start_xyz": [
-          0.3,
-          -0.7,
-          -0.1
-        ],
-        "end_xyz": [
-          0.3,
-          -0.7,
-          0.01
-        ]
+        "start_xyz": [0.3, -0.7, -0.1],
+        "end_xyz": [0.3, -0.7, 0.01]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          0.3,
-          -0.7,
-          -0.045
-        ],
-        "quat_xyzw": [
-          0.5,
-          0.5,
-          -0.5,
-          0.5
-        ]
+        "xyz": [0.3, -0.7, -0.045],
+        "quat_xyzw": [0.5, 0.5, -0.5, 0.5]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            0.3,
-            -0.7,
-            -0.1
-          ]
+          "world_xyz": [0.3, -0.7, -0.1]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            0.3,
-            -0.7,
-            0.01
-          ]
+          "world_xyz": [0.3, -0.7, 0.01]
         },
         "face_bottom": {
-          "center_xyz": [
-            0.3,
-            -0.7,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.3, -0.7, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            0.3,
-            -0.7,
-            0.01
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.3, -0.7, 0.01],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
@@ -240,7 +158,7 @@
       }
     },
     {
-      "id": "dynamic_3",
+      "id": "dynamic_2",
       "label": "C 33 cm horizontal span across supports",
       "family": "C",
       "group": "built_frame",
@@ -256,71 +174,30 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [
-          -0.015,
-          -0.7,
-          0.03
-        ],
-        "end_xyz": [
-          0.315,
-          -0.7,
-          0.03
-        ]
+        "start_xyz": [-0.015, -0.7, 0.03],
+        "end_xyz": [0.315, -0.7, 0.03]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          0.15,
-          -0.7,
-          0.03
-        ],
-        "quat_xyzw": [
-          0,
-          0,
-          0,
-          1
-        ]
+        "xyz": [0.15, -0.7, 0.03],
+        "quat_xyzw": [0, 0, 0, 1]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            -0.015,
-            -0.7,
-            0.03
-          ]
+          "world_xyz": [-0.015, -0.7, 0.03]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            0.315,
-            -0.7,
-            0.03
-          ]
+          "world_xyz": [0.315, -0.7, 0.03]
         },
         "face_bottom": {
-          "center_xyz": [
-            0.15,
-            -0.7,
-            0.01
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.15, -0.7, 0.01],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            0.15,
-            -0.7,
-            0.05
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.15, -0.7, 0.05],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
@@ -330,7 +207,7 @@
       }
     },
     {
-      "id": "dynamic_4",
+      "id": "dynamic_3",
       "label": "A 11 cm inventory beam",
       "family": "A",
       "group": "inventory",
@@ -346,71 +223,30 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [
-          0.095,
-          -0.9,
-          -0.08
-        ],
-        "end_xyz": [
-          0.205,
-          -0.9,
-          -0.08
-        ]
+        "start_xyz": [0.095, -0.9, -0.08],
+        "end_xyz": [0.205, -0.9, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          0.15,
-          -0.9,
-          -0.08
-        ],
-        "quat_xyzw": [
-          0,
-          0,
-          0,
-          1
-        ]
+        "xyz": [0.15, -0.9, -0.08],
+        "quat_xyzw": [0, 0, 0, 1]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            0.095,
-            -0.9,
-            -0.08
-          ]
+          "world_xyz": [0.095, -0.9, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            0.205,
-            -0.9,
-            -0.08
-          ]
+          "world_xyz": [0.205, -0.9, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [
-            0.15,
-            -0.9,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.15, -0.9, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            0.15,
-            -0.9,
-            -0.06
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.15, -0.9, -0.06],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
@@ -422,7 +258,7 @@
       }
     },
     {
-      "id": "dynamic_5",
+      "id": "dynamic_4",
       "label": "B 22 cm inventory beam 1",
       "family": "B",
       "group": "inventory",
@@ -438,71 +274,30 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [
-          0.04,
-          -0.95,
-          -0.08
-        ],
-        "end_xyz": [
-          0.26,
-          -0.95,
-          -0.08
-        ]
+        "start_xyz": [0.04, -0.95, -0.08],
+        "end_xyz": [0.26, -0.95, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          0.15,
-          -0.95,
-          -0.08
-        ],
-        "quat_xyzw": [
-          0,
-          0,
-          0,
-          1
-        ]
+        "xyz": [0.15, -0.95, -0.08],
+        "quat_xyzw": [0, 0, 0, 1]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            0.04,
-            -0.95,
-            -0.08
-          ]
+          "world_xyz": [0.04, -0.95, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            0.26,
-            -0.95,
-            -0.08
-          ]
+          "world_xyz": [0.26, -0.95, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [
-            0.15,
-            -0.95,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.15, -0.95, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            0.15,
-            -0.95,
-            -0.06
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.15, -0.95, -0.06],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
@@ -514,7 +309,7 @@
       }
     },
     {
-      "id": "dynamic_6",
+      "id": "dynamic_5",
       "label": "B 22 cm inventory beam 2",
       "family": "B",
       "group": "inventory",
@@ -530,71 +325,30 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [
-          0.04,
-          -1,
-          -0.08
-        ],
-        "end_xyz": [
-          0.26,
-          -1,
-          -0.08
-        ]
+        "start_xyz": [0.04, -1, -0.08],
+        "end_xyz": [0.26, -1, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          0.15,
-          -1,
-          -0.08
-        ],
-        "quat_xyzw": [
-          0,
-          0,
-          0,
-          1
-        ]
+        "xyz": [0.15, -1, -0.08],
+        "quat_xyzw": [0, 0, 0, 1]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            0.04,
-            -1,
-            -0.08
-          ]
+          "world_xyz": [0.04, -1, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            0.26,
-            -1,
-            -0.08
-          ]
+          "world_xyz": [0.26, -1, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [
-            0.15,
-            -1,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.15, -1, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            0.15,
-            -1,
-            -0.06
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.15, -1, -0.06],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
@@ -606,7 +360,7 @@
       }
     },
     {
-      "id": "dynamic_7",
+      "id": "dynamic_6",
       "label": "B 22 cm inventory beam 3",
       "family": "B",
       "group": "inventory",
@@ -622,71 +376,30 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [
-          0.04,
-          -1.05,
-          -0.08
-        ],
-        "end_xyz": [
-          0.26,
-          -1.05,
-          -0.08
-        ]
+        "start_xyz": [0.04, -1.05, -0.08],
+        "end_xyz": [0.26, -1.05, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          0.15,
-          -1.05,
-          -0.08
-        ],
-        "quat_xyzw": [
-          0,
-          0,
-          0,
-          1
-        ]
+        "xyz": [0.15, -1.05, -0.08],
+        "quat_xyzw": [0, 0, 0, 1]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            0.04,
-            -1.05,
-            -0.08
-          ]
+          "world_xyz": [0.04, -1.05, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            0.26,
-            -1.05,
-            -0.08
-          ]
+          "world_xyz": [0.26, -1.05, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [
-            0.15,
-            -1.05,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.15, -1.05, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            0.15,
-            -1.05,
-            -0.06
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.15, -1.05, -0.06],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
@@ -698,7 +411,7 @@
       }
     },
     {
-      "id": "dynamic_8",
+      "id": "dynamic_7",
       "label": "C 33 cm inventory beam 1",
       "family": "C",
       "group": "inventory",
@@ -714,71 +427,30 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [
-          -0.015,
-          -1.1,
-          -0.08
-        ],
-        "end_xyz": [
-          0.315,
-          -1.1,
-          -0.08
-        ]
+        "start_xyz": [-0.015, -1.1, -0.08],
+        "end_xyz": [0.315, -1.1, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          0.15,
-          -1.1,
-          -0.08
-        ],
-        "quat_xyzw": [
-          0,
-          0,
-          0,
-          1
-        ]
+        "xyz": [0.15, -1.1, -0.08],
+        "quat_xyzw": [0, 0, 0, 1]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            -0.015,
-            -1.1,
-            -0.08
-          ]
+          "world_xyz": [-0.015, -1.1, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            0.315,
-            -1.1,
-            -0.08
-          ]
+          "world_xyz": [0.315, -1.1, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [
-            0.15,
-            -1.1,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.15, -1.1, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            0.15,
-            -1.1,
-            -0.06
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.15, -1.1, -0.06],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
@@ -790,7 +462,7 @@
       }
     },
     {
-      "id": "dynamic_9",
+      "id": "dynamic_8",
       "label": "C 33 cm inventory beam 2",
       "family": "C",
       "group": "inventory",
@@ -806,71 +478,30 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [
-          -0.015,
-          -1.15,
-          -0.08
-        ],
-        "end_xyz": [
-          0.315,
-          -1.15,
-          -0.08
-        ]
+        "start_xyz": [-0.015, -1.15, -0.08],
+        "end_xyz": [0.315, -1.15, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [
-          0.15,
-          -1.15,
-          -0.08
-        ],
-        "quat_xyzw": [
-          0,
-          0,
-          0,
-          1
-        ]
+        "xyz": [0.15, -1.15, -0.08],
+        "quat_xyzw": [0, 0, 0, 1]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [
-            -0.015,
-            -1.15,
-            -0.08
-          ]
+          "world_xyz": [-0.015, -1.15, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [
-            0.315,
-            -1.15,
-            -0.08
-          ]
+          "world_xyz": [0.315, -1.15, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [
-            0.15,
-            -1.15,
-            -0.1
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            -1
-          ]
+          "center_xyz": [0.15, -1.15, -0.1],
+          "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [
-            0.15,
-            -1.15,
-            -0.06
-          ],
-          "normal_xyz": [
-            0,
-            0,
-            1
-          ]
+          "center_xyz": [0.15, -1.15, -0.06],
+          "normal_xyz": [0, 0, 1]
         }
       },
       "state": {
@@ -887,23 +518,19 @@
       {
         "id": "built_gate_frame",
         "type": "subassembly",
-        "members": [
-          "dynamic_1",
-          "dynamic_2",
-          "dynamic_3"
-        ],
+        "members": ["dynamic_0", "dynamic_1", "dynamic_2"],
         "status": "built"
       },
       {
         "id": "inventory_stack",
         "type": "inventory",
         "members": [
+          "dynamic_3",
           "dynamic_4",
           "dynamic_5",
           "dynamic_6",
           "dynamic_7",
-          "dynamic_8",
-          "dynamic_9"
+          "dynamic_8"
         ],
         "status": "inventory"
       }
@@ -912,24 +539,24 @@
       {
         "id": "rel_001",
         "relation_type": "bearing_contact",
-        "a": "dynamic_1.face_top",
-        "b": "dynamic_3.face_bottom",
+        "a": "dynamic_0.face_top",
+        "b": "dynamic_2.face_bottom",
         "role": "left_span_support",
         "status": "built"
       },
       {
         "id": "rel_002",
         "relation_type": "bearing_contact",
-        "a": "dynamic_2.face_top",
-        "b": "dynamic_3.face_bottom",
+        "a": "dynamic_1.face_top",
+        "b": "dynamic_2.face_bottom",
         "role": "right_span_support",
         "status": "built"
       },
       {
         "id": "rel_003",
         "relation_type": "ordered_inventory_layout",
-        "a": "dynamic_4",
-        "b": "dynamic_9",
+        "a": "dynamic_3",
+        "b": "dynamic_8",
         "role": "5_cm_centerline_spacing_toward_negative_y",
         "status": "inventory"
       }
