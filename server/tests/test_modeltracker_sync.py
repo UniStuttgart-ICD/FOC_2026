@@ -28,10 +28,10 @@ def test_updates_hologram_pose_from_modeltracker_event(tmp_path) -> None:
     data = json.loads(model_path.read_text(encoding="utf-8"))
     first_body, changed_body = data["bodies"]
     assert first_body["pose"]["xyz"] == [0.0, -0.7, -0.045]
-    assert changed_body["pose"]["xyz"] == [-0.3, 0.2, 0.4]
-    assert changed_body["pose"]["quat_xyzw"] == [0.0, 0.0, 1.0, 0.0]
-    assert changed_body["axis"]["start_xyz"] == [-0.25, 0.2, 0.4]
-    assert changed_body["axis"]["end_xyz"] == [-0.35, 0.2, 0.4]
+    assert changed_body["pose"]["xyz"] == [0.3, -0.2, 0.4]
+    assert changed_body["pose"]["quat_xyzw"] == [0.0, 0.0, 0.0, 1.0]
+    assert changed_body["axis"]["start_xyz"] == [0.25, -0.2, 0.4]
+    assert changed_body["axis"]["end_xyz"] == [0.35, -0.2, 0.4]
 
 
 def test_idle_modeltracker_event_does_not_write(tmp_path) -> None:
@@ -126,7 +126,7 @@ def test_session_uses_previous_snapshot_to_select_one_changed_index(tmp_path) ->
     assert second["object_name"] == "dynamic_1"
     assert second["event_index"] == 1
     data = json.loads(model_path.read_text(encoding="utf-8"))
-    assert data["bodies"][1]["pose"]["xyz"] == [-0.3, 0.25, 0.4]
+    assert data["bodies"][1]["pose"]["xyz"] == [0.3, -0.25, 0.4]
 
 
 def _model() -> dict:

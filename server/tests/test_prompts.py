@@ -144,6 +144,15 @@ def test_prompt_maps_element_number_language_to_dynamic_scene_objects() -> None:
     assert "exact returned object_name" in prompt
 
 
+def test_prompt_mentions_grasshopper_when_named_scene_object_is_missing() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "named element" in prompt
+    assert "not returned by moveit_list_scene_objects" in prompt
+    assert "grasshopper" in prompt
+    assert "send the geometry to the planner" in prompt
+
+
 def test_prompt_describes_manipulation_planning_gate() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
