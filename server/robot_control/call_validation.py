@@ -9,7 +9,7 @@ from robot_control.manipulation_plans import executable_plan_name_from_output
 
 VIZOR_ROBOT_NAME = "UR10"
 WORKSPACE_ABS_LIMIT_M = 1.5
-DEFAULT_TIMEOUT_MAX_S = 60.0
+DEFAULT_TIMEOUT_MAX_S = 120.0
 PLANNING_STRATEGIES = {"auto", "cartesian", "sampled_approach"}
 HOLD_LIFT_DISTANCE_MIN_M = 0.0
 HOLD_LIFT_DISTANCE_MAX_M = 0.20
@@ -242,7 +242,7 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "through Verified Real Robot Execution by planning concrete motion stages, executing "
         "each returned plan_name, running verified gripper actions, attaching or releasing "
         "the object as directed, and verifying required proof. Use only after explicit user "
-        "intent is bound to that exact task_solution_id. Use timeout_s around 60 for real-robot "
+        "intent is bound to that exact task_solution_id. Use timeout_s around 120 for real-robot "
         "execution unless the user asks for a shorter supervised timeout."
     ),
     "moveit_go_home": (

@@ -622,7 +622,7 @@ def test_accepts_unified_task_execution_arguments() -> None:
         {
             "robot_name": "UR10",
             "task_solution_id": "pick_task_dynamic_5_001",
-            "timeout_s": 30.0,
+            "timeout_s": 120.0,
         },
     )
 
@@ -663,7 +663,7 @@ def test_accepts_task_plan_execution_arguments() -> None:
     assert "task_solution_id" in description
     assert "supported" in description
     assert "execution_contract" in description
-    assert "around 60" in description
+    assert "around 120" in description
     assert "pick-only" not in description.lower()
     assert "pick only" not in description.lower()
 

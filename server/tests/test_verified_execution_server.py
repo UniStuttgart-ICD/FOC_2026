@@ -178,7 +178,7 @@ def test_default_app_reads_rtde_completion_wait_settings_from_env(
     assert executor_kwargs["completion_stable_samples"] == 4
 
 
-def test_default_app_uses_sixty_second_rtde_completion_wait_by_default(
+def test_default_app_uses_one_hundred_twenty_second_rtde_completion_wait_by_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     executor_kwargs: dict[str, object] = {}
@@ -197,11 +197,63 @@ def test_default_app_uses_sixty_second_rtde_completion_wait_by_default(
 
     create_default_app()
 
-    assert executor_kwargs["completion_timeout_s"] == 60.0
+    assert executor_kwargs["completion_timeout_s"] == 120.0
 
 
-def test_execute_plan_request_defaults_to_sixty_second_timeout() -> None:
-    assert ExecutePlanRequest(plan_name="plan-1").timeout_s == 60.0
+def test_default_app_uses_2x_rtde_motion_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor_kwargs: dict[str, object] = {}
+
+    class CapturingExecutor:
+        def __init__(self, **kwargs: object) -> None:
+            executor_kwargs.update(kwargs)
+
+    class DummyPlanCache(FakePlanCache):
+        def __init__(self, **_: object) -> None:
+            super().__init__()
+
+    monkeypatch.setattr(server_module, "URRTDETrajectoryExecutor", CapturingExecutor)
+    monkeypatch.setattr(server_module, "RosPlanCache", DummyPlanCache)
+    monkeypatch.delenv("UR_JOINT_SPEED", raising=False)
+    monkeypatch.delenv("UR_JOINT_ACCEL", raising=False)
+    monkeypatch.delenv("UR_TRAJECTORY_TIME_SCALE", raising=False)
+
+    create_default_app()
+
+    assert executor_kwargs["joint_speed"] == 2.10
+    assert executor_kwargs["joint_accel"] == 2.8
+    assert executor_kwargs["trajectory_time_scale"] == 0.5
+
+
+def test_default_app_reads_rtde_motion_speed_settings_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor_kwargs: dict[str, object] = {}
+
+    class CapturingExecutor:
+        def __init__(self, **kwargs: object) -> None:
+            executor_kwargs.update(kwargs)
+
+    class DummyPlanCache(FakePlanCache):
+        def __init__(self, **_: object) -> None:
+            super().__init__()
+
+    monkeypatch.setattr(server_module, "URRTDETrajectoryExecutor", CapturingExecutor)
+    monkeypatch.setattr(server_module, "RosPlanCache", DummyPlanCache)
+    monkeypatch.setenv("UR_JOINT_SPEED", "1.23")
+    monkeypatch.setenv("UR_JOINT_ACCEL", "2.34")
+    monkeypatch.setenv("UR_TRAJECTORY_TIME_SCALE", "0.75")
+
+    create_default_app()
+
+    assert executor_kwargs["joint_speed"] == 1.23
+    assert executor_kwargs["joint_accel"] == 2.34
+    assert executor_kwargs["trajectory_time_scale"] == 0.75
+
+
+def test_execute_plan_request_defaults_to_one_hundred_twenty_second_timeout() -> None:
+    assert ExecutePlanRequest(plan_name="plan-1").timeout_s == 120.0
 
 
 def test_health_reports_ros_cache_state() -> None:
@@ -1266,6 +1318,25 @@ def test_ur_rtde_executor_sends_home_as_urscript_by_default() -> None:
     assert receive.disconnected is True
 
 
+def test_ur_rtde_executor_sends_default_movej_at_2x_speed() -> None:
+    sender = FakeScriptSender()
+    target = [0.2, -0.8, 1.2, 0.2, 0.0, 0.0]
+    receive = FakeRTDEReceive("192.0.2.10", [target] * 2)
+    executor = URRTDETrajectoryExecutor(
+        robot_ip="192.0.2.10",
+        script_sender=sender,
+        rtde_receive_factory=lambda host: receive,
+    )
+
+    executor.execute("UR10", [{"positions": target}])
+
+    assert len(sender.programs) == 1
+    program = sender.programs[0]
+    assert "movej(" in program
+    assert "a=2.8" in program
+    assert "v=2.1" in program
+
+
 def test_ur_rtde_executor_sends_timed_trajectory_as_one_urscript_program() -> None:
     sender = FakeScriptSender()
     receive = FakeRTDEReceive(
@@ -1292,6 +1363,8 @@ def test_ur_rtde_executor_sends_timed_trajectory_as_one_urscript_program() -> No
     program = sender.programs[0]
     assert program.count("servoj(") == 2
     assert "[0.2, -0.8, 1.2, 0.2, 0, 0]" in program
+    assert "0.1, 0.12, 350" in program
+    assert "0.2, 0.12, 350" not in program
     assert "0.12, 350" in program
     assert "stopj(2.0)" in program
     assert result["target_joint_positions"] == [0.2, -0.8, 1.2, 0.2, 0.0, 0.0]

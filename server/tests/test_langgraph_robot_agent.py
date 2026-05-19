@@ -2349,7 +2349,7 @@ async def test_explicit_execute_request_queues_latest_pending_plan_with_worker()
     assert job.arguments == {
         "robot_name": "UR10",
         "plan_name": "plan-1",
-        "timeout_s": 60.0,
+        "timeout_s": 120.0,
     }
     assert job.after_success_tool == "moveit_plan_pick"
     assert job.after_success_arguments == {

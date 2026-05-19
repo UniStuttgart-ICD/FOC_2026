@@ -1798,7 +1798,7 @@ class MoveItMcpTools:
         self._task_solutions[solution.task_solution_id] = solution
         return self._task_solution_planned_result(solution)
 
-    def execute_task_solution(self, robot: str, task_solution_id: str, timeout_s: float = 60.0) -> dict[str, Any]:
+    def execute_task_solution(self, robot: str, task_solution_id: str, timeout_s: float = 120.0) -> dict[str, Any]:
         solution = self._task_solutions.get(task_solution_id)
         if solution is None:
             result = ToolResult.fail_result(

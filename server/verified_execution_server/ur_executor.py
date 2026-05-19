@@ -53,9 +53,10 @@ class URRTDETrajectoryExecutor:
         robot_port: int = 30004,
         script_port: int = 30002,
         socket_timeout_s: float = 3.0,
-        joint_speed: float = 1.05,
-        joint_accel: float = 1.4,
+        joint_speed: float = 2.10,
+        joint_accel: float = 2.8,
         joint_blend: float = 0.02,
+        trajectory_time_scale: float = 0.5,
         servo_lookahead_time: float = 0.1,
         servo_gain: float = 300.0,
         skip_gripper: bool = False,
@@ -66,7 +67,7 @@ class URRTDETrajectoryExecutor:
         gripper_factory: Callable[..., Any] | None = None,
         rtde_receive_factory: Callable[..., Any] | None = None,
         script_sender: URScriptProgramSender | None = None,
-        completion_timeout_s: float = 60.0,
+        completion_timeout_s: float = 120.0,
         completion_poll_interval_s: float = 0.1,
         joint_tolerance_rad: float = 0.03,
         completion_stable_samples: int = 2,
@@ -78,6 +79,7 @@ class URRTDETrajectoryExecutor:
         self.joint_speed = joint_speed
         self.joint_accel = joint_accel
         self.joint_blend = joint_blend
+        self.trajectory_time_scale = trajectory_time_scale
         self.servo_lookahead_time = servo_lookahead_time
         self.servo_gain = servo_gain
         self.skip_gripper = skip_gripper
@@ -333,7 +335,7 @@ class URRTDETrajectoryExecutor:
         previous_time = 0.0
         for frame in trajectory:
             time_from_start_s = max(float(frame.get("time_from_start_s", previous_time)), previous_time)
-            control_time_s = max(time_from_start_s - previous_time, 0.008)
+            control_time_s = max((time_from_start_s - previous_time) * self.trajectory_time_scale, 0.008)
             previous_time = time_from_start_s
             lines.append(
                 "  servoj("

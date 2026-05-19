@@ -7,7 +7,7 @@ import urllib.request
 from typing import Any, Protocol
 
 VerifiedExecutionOutput = dict[str, Any] | str
-VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S = 60.0
+VERIFIED_EXECUTION_DEFAULT_TIMEOUT_S = 120.0
 
 
 class VerifiedExecutionClient(Protocol):
