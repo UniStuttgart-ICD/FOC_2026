@@ -9,6 +9,11 @@ from loguru import logger
 
 from agent_control.langgraph_robot_agent import LangGraphRobotAgent
 from agent_control.robot_job_submission import RobotJobSubmitter
+from agent_control.status_replies import (
+    action_complete_reply,
+    execution_complete_reply,
+    plan_ready_reply,
+)
 from embodiment.animations import EmbodimentAnimationController
 from process_trace import NoopProcessTracer, ProcessTracer
 from robot_control.context import RobotContextStore
@@ -117,7 +122,7 @@ class LangChainAgentProcessor:
                 sequence = max(sequence, event.sequence)
                 if event.event_type is RobotJobEventType.COMPLETED:
                     self._record_completed_job_in_context(event)
-                    yield _completed_job_notification(event.tool_name)
+                    yield _completed_job_notification(event)
                 elif event.event_type is RobotJobEventType.FAILED:
                     yield await self._failed_job_notification(event)
             await asyncio.sleep(0.05)
@@ -282,12 +287,13 @@ def _verified_execution_client(base_url: str | None) -> VerifiedExecutionClient 
     return HttpVerifiedExecutionClient(base_url)
 
 
-def _completed_job_notification(tool_name: str) -> str:
-    if tool_name in PLAN_JOB_TOOLS:
-        return "Plan ready."
-    if tool_name == "moveit_execute_plan":
-        return "Execution complete."
-    return "Action complete."
+def _completed_job_notification(event: RobotJobEvent) -> str:
+    seed = event.payload.get("result") or event.job_id or event.tool_name
+    if event.tool_name in PLAN_JOB_TOOLS:
+        return plan_ready_reply(seed)
+    if event.tool_name == "moveit_execute_plan":
+        return execution_complete_reply(seed)
+    return action_complete_reply(seed)
 
 
 def _accepts_tracer_keyword(callable_obj: Any) -> bool:
