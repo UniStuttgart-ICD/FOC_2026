@@ -171,6 +171,7 @@ def test_example_config_starts_vizor_first_and_uses_default_pipecat_command() ->
         "8897",
     ]
     assert voice_modulation.ready_checks[0].url == "http://127.0.0.1:8897"
+    assert voice_modulation.ready_checks[0].label == "Agent Persona Lab"
     assert voice_modulation.links[0].label == "Open Agent Persona"
     assert voice_modulation.links[0].url == "http://127.0.0.1:8897"
 

@@ -73,7 +73,7 @@ command = ["uv", "run", "uvicorn", "voice_modulation.app:app", "--host", "127.0.
 include_in_global_actions = false
 startup_timeout_s = 60
 ready_checks = [
-  { type = "http", url = "http://127.0.0.1:8897", label = "Voice mod lab" },
+  { type = "http", url = "http://127.0.0.1:8897", label = "Agent Persona Lab" },
 ]
 links = [
   { label = "Open Agent Persona", url = "http://127.0.0.1:8897" },

@@ -16,7 +16,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from loguru import logger
 
-from agent_control.prompts import SYSTEM_PROMPT
+from agent_control.prompts import get_system_prompt
 from agent_control.robot_job_submission import (
     QUEUEABLE_ROBOT_ACTION_TOOLS,
     RobotJobSubmitter,
@@ -668,7 +668,7 @@ class LangGraphRobotAgent:
 
     def _instructions(self) -> str:
         parts = [
-            SYSTEM_PROMPT,
+            get_system_prompt(),
             self._task_execution_mode_instruction(),
             self._robot_context.render_instruction_block(),
         ]

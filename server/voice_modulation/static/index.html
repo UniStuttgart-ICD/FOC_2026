@@ -906,10 +906,10 @@
           <h1>Persona prompt parts</h1>
         </div>
         <section class="persona-panel">
-          <p class="persona-note">Editable prompt parts are source files. Saved prompt changes require bot restart.</p>
+          <p class="persona-note">Editable prompt parts are source files. Restart Pipecat after loading or saving a persona.</p>
           <div id="personaTemplateButtons" class="template-row"></div>
           <div id="personaParts"></div>
-          <div id="personaSaveStatus" class="status">Saved prompt changes require bot restart.</div>
+          <div id="personaSaveStatus" class="status">Saved prompt changes require Pipecat restart.</div>
         </section>
       </section>
 
@@ -1074,6 +1074,7 @@
       personaParts: [],
       personaTemplates: [],
       activePersonaTemplateId: "",
+      personaRestartRequired: false,
       embodiment: null
     };
     const SPEECH_DELIVERY_PART_ID = "speech_delivery_style";
@@ -1521,6 +1522,13 @@
           setRunAgentStatus("Pipecat is not running yet. Open the dashboard and start the system first.", "hot");
           return;
         }
+        if (state.personaRestartRequired) {
+          setRunAgentStatus(
+            "Persona changes are saved, but Pipecat is already running. Restart Pipecat from the dashboard before opening the client.",
+            "hot"
+          );
+          return;
+        }
         frame.setAttribute("src", status.pipecat_client_url);
         window.open(status.pipecat_client_url, "_blank", "noopener,noreferrer");
         setRunAgentStatus("Pipecat is running. Opening client.", "ok");
@@ -1596,7 +1604,7 @@
           ${part.editable ? `<button data-save-part="${escapeHtml(part.id)}">Save part</button>` : ""}
         </section>
       `).join("");
-      setPersonaStatus("Persona prompt parts loaded. Saved changes require bot restart.", "ok");
+      setPersonaStatus("Persona prompt parts loaded. Saved changes require Pipecat restart.", "ok");
     }
 
     function renderSpeechDeliveryPart() {
@@ -1979,9 +1987,10 @@
         const part = data.part || {};
         const index = state.personaParts.findIndex((item) => item.id === partId);
         if (index >= 0) state.personaParts[index] = part;
+        state.personaRestartRequired = Boolean(data.restart_required);
         renderSpeechDeliveryPart();
         renderPersonaParts();
-        setPersonaStatus(`Saved ${part.title || partId}. Restart required. Git has source changes.`, "ok");
+        setPersonaStatus(`Saved ${part.title || partId}. Restart Pipecat before runtime use. Git has source changes.`, "ok");
       } catch (error) {
         setPersonaStatus(error.message, "hot");
       }
@@ -2003,9 +2012,10 @@
         const index = state.personaParts.findIndex((item) => item.id === SPEECH_DELIVERY_PART_ID);
         if (index >= 0) state.personaParts[index] = part;
         else state.personaParts.push(part);
+        state.personaRestartRequired = Boolean(data.restart_required);
         renderSpeechDeliveryPart();
         renderPersonaParts();
-        setSpeechDeliveryStatus("Saved speech delivery. Lab previews use it immediately; bot restart required.", "ok");
+        setSpeechDeliveryStatus("Saved speech delivery. Lab previews use it immediately; restart Pipecat before runtime use.", "ok");
       } catch (error) {
         setSpeechDeliveryStatus(error.message, "hot");
       }
@@ -2021,9 +2031,10 @@
         state.activePersonaTemplateId = data.template_id || templateId;
         syncTemplateButtons();
         state.personaParts = Array.isArray(data.parts) ? data.parts : state.personaParts;
+        state.personaRestartRequired = Boolean(data.restart_required);
         renderSpeechDeliveryPart();
         renderPersonaParts();
-        setPersonaStatus("Template loaded. Restart required. Git has source changes.", "ok");
+        setPersonaStatus("Template loaded. Restart Pipecat before opening the client. Git has source changes.", "ok");
       } catch (error) {
         setPersonaStatus(error.message, "hot");
       }
