@@ -208,9 +208,10 @@ class LangChainAgentProcessor:
                 "thread_id": self._thread_id,
                 "job_submitter": self._robot_job_submitter,
                 "verified_execution_client": self._verified_execution_client,
-                "embodiment_controller": self._embodiment_controller,
                 "tracer": self._tracer,
             }
+            if _accepts_keyword(LangGraphRobotAgent, "embodiment_controller"):
+                kwargs["embodiment_controller"] = self._embodiment_controller
             if self._user_sensing_bridge is not None:
                 kwargs.update(
                     {
@@ -265,13 +266,13 @@ class LangChainAgentProcessor:
 
 
 def _robot_mcp_bridge(mcp_server_url: str, *, tracer: ProcessTracerLike) -> Any:
-    if _accepts_tracer_keyword(RobotMCPBridge):
+    if _accepts_keyword(RobotMCPBridge, "tracer"):
         return RobotMCPBridge(mcp_server_url, tracer=tracer)
     return RobotMCPBridge(mcp_server_url)
 
 
 def _user_sensing_mcp_bridge(mcp_server_url: str, *, tracer: ProcessTracerLike) -> Any:
-    if _accepts_tracer_keyword(UserSensingMCPBridge):
+    if _accepts_keyword(UserSensingMCPBridge, "tracer"):
         return UserSensingMCPBridge(mcp_server_url, tracer=tracer)
     return UserSensingMCPBridge(mcp_server_url)
 
@@ -290,13 +291,13 @@ def _completed_job_notification(tool_name: str) -> str:
     return "Action complete."
 
 
-def _accepts_tracer_keyword(callable_obj: Any) -> bool:
+def _accepts_keyword(callable_obj: Any, name: str) -> bool:
     try:
         signature = inspect.signature(callable_obj)
     except (TypeError, ValueError):
         return False
     return any(
-        parameter.name == "tracer" or parameter.kind == inspect.Parameter.VAR_KEYWORD
+        parameter.name == name or parameter.kind == inspect.Parameter.VAR_KEYWORD
         for parameter in signature.parameters.values()
     )
 

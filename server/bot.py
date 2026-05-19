@@ -110,13 +110,22 @@ async def run_bot(transport: BaseTransport, profile_name: str | None = None):
         if embodiment is not None:
             await embodiment.start()
         if isinstance(agent_processor, AgentTurnProcessor):
-            await agent_processor.connect()
+            try:
+                await agent_processor.connect()
+            except Exception as exc:
+                logger.warning(
+                    "Agent backend was not ready during client setup: {}",
+                    exc,
+                )
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
         logger.info("Client disconnected")
         if isinstance(agent_processor, AgentTurnProcessor):
-            await agent_processor.disconnect()
+            try:
+                await agent_processor.disconnect()
+            except Exception:
+                logger.exception("Agent backend disconnect failed")
         if embodiment is not None:
             await embodiment.stop()
         await task.cancel()
@@ -137,6 +146,11 @@ async def run_bot(transport: BaseTransport, profile_name: str | None = None):
     finally:
         if robot_job_monitor is not None:
             await robot_job_monitor.stop()
+        if isinstance(agent_processor, AgentTurnProcessor):
+            try:
+                await agent_processor.disconnect()
+            except Exception:
+                logger.exception("Agent backend disconnect failed during shutdown")
         if embodiment is not None:
             await embodiment.stop()
 

@@ -64,7 +64,7 @@ cwd = "."
 command = ["python", "-c", "print('wake')"]
 
 [services.voice_modulation]
-label = "Voice Modulation Lab"
+label = "Agent Persona Lab"
 cwd = "."
 command = ["python", "-c", "print('voice')"]
 """,
@@ -158,6 +158,7 @@ def test_example_config_starts_vizor_first_and_uses_default_pipecat_command() ->
     assert wake_tuning.ready_checks[0].url == "http://127.0.0.1:9010"
     assert wake_tuning.links[0].url == "http://127.0.0.1:9010"
     voice_modulation = config.services["voice_modulation"]
+    assert voice_modulation.label == "Agent Persona Lab"
     assert voice_modulation.include_in_global_actions is False
     assert voice_modulation.command == [
         "uv",
@@ -170,6 +171,7 @@ def test_example_config_starts_vizor_first_and_uses_default_pipecat_command() ->
         "8897",
     ]
     assert voice_modulation.ready_checks[0].url == "http://127.0.0.1:8897"
+    assert voice_modulation.links[0].label == "Open Agent Persona"
     assert voice_modulation.links[0].url == "http://127.0.0.1:8897"
 
 

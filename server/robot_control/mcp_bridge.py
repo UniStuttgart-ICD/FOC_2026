@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from contextlib import AsyncExitStack
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from copy import deepcopy
 from datetime import timedelta
 from math import isfinite
@@ -178,54 +179,59 @@ class StreamableHttpMCPServer:
         self._url = url
         self._timeout_s = float(client_session_timeout_seconds)
         self._timeout = timedelta(seconds=self._timeout_s)
-        self._exit_stack: AsyncExitStack | None = None
+        self._connected = False
+        # Test hook for exercising timeout plumbing without opening a network session.
         self._session: ClientSession | None = None
 
     async def connect(self) -> None:
-        if self._session is not None:
-            return
-        stack = AsyncExitStack()
-        try:
-            read_stream, write_stream, _ = await stack.enter_async_context(
-                streamable_http_client(self._url)
-            )
-            session = await stack.enter_async_context(
-                ClientSession(
-                    read_stream,
-                    write_stream,
-                    read_timeout_seconds=self._timeout,
-                )
-            )
-            await session.initialize()
-        except Exception:
-            await stack.aclose()
-            raise
-        self._exit_stack = stack
-        self._session = session
+        self._connected = True
 
     async def cleanup(self) -> None:
-        if self._exit_stack is not None:
-            await self._exit_stack.aclose()
-        self._exit_stack = None
+        self._connected = False
         self._session = None
 
     async def list_tools(self) -> list[Tool]:
-        if self._session is None:
-            raise RobotMCPError("Robot MCP server is not connected")
-        return list((await self._session.list_tools()).tools)
+        if self._session is not None:
+            return list((await self._session.list_tools()).tools)
+        async with self._client_session() as session:
+            return list((await session.list_tools()).tools)
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any] | None) -> CallToolResult:
-        if self._session is None:
-            raise RobotMCPError("Robot MCP server is not connected")
+        if self._session is not None:
+            read_timeout_s = _mcp_client_read_timeout_s(
+                arguments,
+                default_timeout_s=self._timeout_s,
+            )
+            return await self._session.call_tool(
+                tool_name,
+                arguments,
+                read_timeout_seconds=timedelta(seconds=read_timeout_s),
+            )
         read_timeout_s = _mcp_client_read_timeout_s(
             arguments,
             default_timeout_s=self._timeout_s,
         )
-        return await self._session.call_tool(
-            tool_name,
-            arguments,
-            read_timeout_seconds=timedelta(seconds=read_timeout_s),
-        )
+        async with self._client_session() as session:
+            return await session.call_tool(
+                tool_name,
+                arguments,
+                read_timeout_seconds=timedelta(seconds=read_timeout_s),
+            )
+
+    @asynccontextmanager
+    async def _client_session(self) -> AsyncIterator[ClientSession]:
+        async with streamable_http_client(self._url) as (
+            read_stream,
+            write_stream,
+            _,
+        ):
+            async with ClientSession(
+                read_stream,
+                write_stream,
+                read_timeout_seconds=self._timeout,
+            ) as session:
+                await session.initialize()
+                yield session
 
 
 class RobotMCPBridge:

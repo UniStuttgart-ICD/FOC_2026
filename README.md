@@ -74,7 +74,7 @@ Useful local ports:
 | 8898 | Robot job blackboard |
 | 9090 | rosbridge from `vizor-demo` |
 | 9010 | Wake tuning lab |
-| 8897 | Voice modulation lab |
+| 8897 | Agent Persona Lab |
 | 10000-10003 | Vizor bridge ports from `vizor-demo` |
 
 MCP port matrix:
@@ -164,7 +164,7 @@ http://127.0.0.1:8787/?token=...
 
 Open that URL if the browser does not open automatically.
 
-The launcher starts only the dashboard. In the dashboard, **Start system** starts the main services in this order: Vizor + RViz Compose stack, ModelTracker hologram sync, verified execution server, then Pipecat voice agent. Wake tuning and voice modulation are optional and are not included in Start system.
+The launcher starts only the dashboard. In the dashboard, **Start system** starts the main services in this order: Vizor + RViz Compose stack, ModelTracker hologram sync, verified execution server, then Pipecat voice agent. Wake tuning and Agent Persona Lab are optional and are not included in Start system.
 
 In the dashboard:
 
@@ -287,7 +287,7 @@ Open `http://127.0.0.1:9010`.
 
 Saved wake tuning values are a local override under `server/state/wake_tuning_settings.json`; saving from the lab does not edit `server/runtime_profiles.toml`.
 
-Voice modulation lab:
+Agent Persona Lab:
 
 ```powershell
 cd server

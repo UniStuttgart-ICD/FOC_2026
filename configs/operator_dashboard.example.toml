@@ -67,7 +67,7 @@ links = [
 ]
 
 [services.voice_modulation]
-label = "Voice Modulation Lab"
+label = "Agent Persona Lab"
 cwd = "server"
 command = ["uv", "run", "uvicorn", "voice_modulation.app:app", "--host", "127.0.0.1", "--port", "8897"]
 include_in_global_actions = false
@@ -76,5 +76,5 @@ ready_checks = [
   { type = "http", url = "http://127.0.0.1:8897", label = "Voice mod lab" },
 ]
 links = [
-  { label = "Open Voice Mod", url = "http://127.0.0.1:8897" },
+  { label = "Open Agent Persona", url = "http://127.0.0.1:8897" },
 ]

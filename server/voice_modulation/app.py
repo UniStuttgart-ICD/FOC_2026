@@ -87,7 +87,7 @@ def create_app(
     cartesia_voice_fetcher: CartesiaVoiceFetcher | None = None,
     embodiment_controller_factory: EmbodimentControllerFactory | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Voice Modulation Lab")
+    app = FastAPI(title="Agent Persona Lab")
     root = server_dir or Path(__file__).resolve().parents[1]
     load_dotenv(root / ".env", override=True)
     synthesize = preview_synthesizer or synthesize_tts_reference

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from contextlib import AsyncExitStack
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Any
 
@@ -29,45 +30,49 @@ class UserSensingMCPBridge:
         self._mcp_server_url = mcp_server_url
         self._tracer = tracer or NoopProcessTracer()
         self._timeout = timedelta(seconds=client_session_timeout_seconds)
-        self._exit_stack: AsyncExitStack | None = None
+        self._connected = False
+        # Test hook for exercising call behavior without opening a network session.
         self._session: ClientSession | None = None
 
     async def connect(self) -> None:
         if self._session is not None:
+            self._connected = True
             return
-        stack = AsyncExitStack()
-        try:
-            read_stream, write_stream, _ = await stack.enter_async_context(
-                streamable_http_client(self._mcp_server_url)
-            )
-            session = await stack.enter_async_context(
-                ClientSession(
-                    read_stream,
-                    write_stream,
-                    read_timeout_seconds=self._timeout,
-                )
-            )
-            await session.initialize()
-        except Exception:
-            await stack.aclose()
-            raise
-        self._exit_stack = stack
-        self._session = session
+        async with self._client_session():
+            self._connected = True
 
     async def disconnect(self) -> None:
-        if self._exit_stack is not None:
-            await self._exit_stack.aclose()
-        self._exit_stack = None
+        self._connected = False
         self._session = None
 
     async def read_context(self, *, max_age_s: float) -> str:
-        if self._session is None:
-            raise UserSensingMCPError("Vizor MCP server is not connected")
-        result = await self._session.call_tool(
-            "vizor_get_sensor_context",
-            {"max_age_s": max_age_s},
-        )
+        if self._session is not None:
+            result = await self._session.call_tool(
+                "vizor_get_sensor_context",
+                {"max_age_s": max_age_s},
+            )
+            return _serialize_tool_result(result)
+        async with self._client_session() as session:
+            result = await session.call_tool(
+                "vizor_get_sensor_context",
+                {"max_age_s": max_age_s},
+            )
         return _serialize_tool_result(result)
+
+    @asynccontextmanager
+    async def _client_session(self) -> AsyncIterator[ClientSession]:
+        async with streamable_http_client(self._mcp_server_url) as (
+            read_stream,
+            write_stream,
+            _,
+        ):
+            async with ClientSession(
+                read_stream,
+                write_stream,
+                read_timeout_seconds=self._timeout,
+            ) as session:
+                await session.initialize()
+                yield session
 
 
 def _serialize_tool_result(result: CallToolResult) -> str:

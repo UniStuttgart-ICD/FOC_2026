@@ -62,7 +62,7 @@ def test_known_auxiliary_service_ids_are_never_global_actions(tmp_path: Path) ->
                 include_in_global_actions=True,
             ),
             "voice_modulation": ServiceConfig(
-                label="Voice Modulation Lab",
+                label="Agent Persona Lab",
                 cwd=str(tmp_path),
                 command=[sys.executable, "-c", "print('voice')"],
                 include_in_global_actions=True,
