@@ -59,6 +59,34 @@ def _queue_pick_task_motion_execution(transport: FakeRosbridgeTransport, task_so
         transport.queue_joint_state_after_publish(JOINT_TOPIC, FINAL_POSITIONS)
 
 
+def _queue_staged_hold_preview(transport: FakeRosbridgeTransport) -> None:
+    for plan_name in [
+        "manipulation_hold_beam_001_c01_connect_to_pre_grasp",
+        "manipulation_hold_beam_001_c01_approach_to_pre_grasp",
+        "manipulation_hold_beam_001_c01_post_grasp_lift",
+    ]:
+        transport.queue_status_after_publish("/UR10/request/status", "success! ")
+        transport.queue_planned_path_after_publish(
+            "/UR10/request/planned_path",
+            name=plan_name,
+            points=3,
+            final_positions=FINAL_POSITIONS,
+        )
+
+
+def _acm_allows(acm: dict, first: str, second: str) -> bool:
+    names = acm.get("entry_names", [])
+    if first not in names or second not in names:
+        return False
+    first_index = names.index(first)
+    second_index = names.index(second)
+    values = acm.get("entry_values", [])
+    if first_index >= len(values):
+        return False
+    enabled = values[first_index].get("enabled", [])
+    return second_index < len(enabled) and bool(enabled[second_index])
+
+
 def test_execute_rejects_unplanned_plan_without_publishing():
     transport = FakeRosbridgeTransport()
     tools = MoveItMcpTools.with_fake_transport(transport)
@@ -367,6 +395,51 @@ def test_execute_pick_task_solution_runs_stored_stages_in_order() -> None:
     ]
     assert [topic for topic, _ in transport.published].count("/UR10/request/free") == 1
     assert [topic for topic, _ in transport.published].count("/UR10/request/cartesian") == 2
+
+
+def test_execute_manipulation_task_reapplies_pick_contact_allowance_for_approach() -> None:
+    transport = FakeRosbridgeTransport(physical_mode=False)
+    transport.set_planning_scene(
+        "UR10",
+        {
+            "scene": {
+                "world": {"collision_objects": [BEAM_OBJECT]},
+                "robot_state": {"attached_collision_objects": []},
+                "object_colors": [],
+            }
+        },
+        planning_frame="base_link",
+    )
+    _queue_staged_hold_preview(transport)
+    transport.queue_action_result("/UR10/command_robotiq_action", {"position": 0.0, "requested_position": 0.0})
+    transport.queue_joint_state_after_action("/UR10/gripper_joint_states", [0.8])
+    tools = MoveItMcpTools.with_fake_transport(transport)
+    planned = tools.plan_manipulation_task(
+        "UR10",
+        requirements={"goal": "hold", "object_name": "beam_001"},
+        backend="staged_moveit",
+        timeout_s=0.1,
+    )
+    assert planned["ok"] is True
+    initial_enabled_acms = [
+        payload["allowed_collision_matrix"]
+        for payload in transport.applied_planning_scenes
+        if _acm_allows(payload.get("allowed_collision_matrix", {}), "beam_001", "tool0")
+    ]
+
+    for _ in range(3):
+        transport.queue_joint_state_after_publish(JOINT_TOPIC, FINAL_POSITIONS)
+    result = tools.execute_task_solution("UR10", planned["raw"]["task_solution_id"], timeout_s=0.1)
+
+    assert result["ok"] is False
+    assert result["feedback"]["status"] == "approach_to_pre_grasp failed"
+    enabled_acms = [
+        payload["allowed_collision_matrix"]
+        for payload in transport.applied_planning_scenes
+        if _acm_allows(payload.get("allowed_collision_matrix", {}), "beam_001", "tool0")
+    ]
+    assert len(initial_enabled_acms) == 2
+    assert len(enabled_acms) == 3
 
 
 def test_attach_object_accepts_verified_external_gripper_close_without_action_goal() -> None:

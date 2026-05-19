@@ -7,6 +7,9 @@ from pydantic import ValidationError
 
 from operator_dashboard.config import load_dashboard_config
 from operator_dashboard.models import CheckType, ServiceState
+from robot_control.shared_geometry.modeltracker_sync_server import (
+    DEFAULT_PORT as MODELTRACKER_SYNC_PORT,
+)
 
 
 def test_loads_dashboard_config_with_services(tmp_path: Path) -> None:
@@ -90,6 +93,7 @@ def test_example_config_starts_vizor_first_and_uses_default_pipecat_command() ->
 
     assert list(config.services) == [
         "vizor",
+        "modeltracker_sync",
         "verified_execution",
         "pipecat",
         "wake_tuning",
@@ -110,6 +114,17 @@ def test_example_config_starts_vizor_first_and_uses_default_pipecat_command() ->
         8001,
         8765,
     ]
+    modeltracker_sync = config.services["modeltracker_sync"]
+    assert modeltracker_sync.cwd == str(repo_root / "server")
+    assert modeltracker_sync.command == [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "robot_control.shared_geometry.modeltracker_sync_server",
+    ]
+    assert MODELTRACKER_SYNC_PORT == 8788
+    assert modeltracker_sync.ready_checks[0].url == f"http://127.0.0.1:{MODELTRACKER_SYNC_PORT}/health"
     execution = config.services["verified_execution"]
     assert execution.cwd == str(repo_root / "server")
     assert execution.command == [
@@ -132,6 +147,7 @@ def test_example_config_starts_vizor_first_and_uses_default_pipecat_command() ->
         "http://127.0.0.1:8898",
     ]
     assert all(check.type is CheckType.HTTP for check in pipecat.ready_checks)
+    assert [check.required for check in pipecat.ready_checks] == [True, False]
     assert [link.url for link in pipecat.links] == [
         "http://localhost:7860/client/",
         "http://127.0.0.1:8898",

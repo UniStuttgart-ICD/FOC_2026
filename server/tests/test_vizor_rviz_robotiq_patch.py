@@ -5,6 +5,8 @@ import sys
 import types
 from pathlib import Path
 
+from verified_execution_server.ur_executor import URRTDETrajectoryExecutor
+
 
 def _load_patch_module():
     script = Path(__file__).resolve().parents[2] / "docker" / "vizor-rviz" / "patch-vizor-robot.py"
@@ -383,10 +385,13 @@ def test_vizor_desktop_routes_moveit_planning_logs_to_mounted_log_dir():
 
     contents = start_script.read_text()
 
+    assert "MOVEIT_PLANNING_RUN_ID" in contents
+    assert "MOVEIT_PLANNING_RUN_DIR" in contents
+    assert "/root/catkin_ws/logs/moveit_planning/runs/${MOVEIT_PLANNING_RUN_ID}" in contents
     assert "MOVEIT_PLANNING_LOG_PATH" in contents
-    assert "/root/catkin_ws/logs/moveit_planning/moveit_planning.jsonl" in contents
+    assert "${MOVEIT_PLANNING_RUN_DIR}/moveit_planning.jsonl" in contents
     assert "ROS_LOG_DIR" in contents
-    assert "/root/catkin_ws/logs/moveit_planning/ros" in contents
+    assert "${MOVEIT_PLANNING_RUN_DIR}/ros" in contents
     assert "mkdir -p" in contents
 
 
@@ -562,8 +567,13 @@ class Robot:
 
     patched = robot_py.read_text(encoding="utf-8")
     assert '"request_type": "free"' in patched
-    assert '"planner_pipeline": "pilz_industrial_motion_planner"' in patched
-    assert '"planner_id": "PTP"' in patched
+    assert 'self.move_group.set_planning_pipeline_id("ompl")' in patched
+    assert 'self.move_group.set_planner_id("RRTConnect")' in patched
+    assert '"planner_pipeline": "ompl"' in patched
+    assert '"planner_id": "RRTConnect"' in patched
+    assert '"planner_pipeline": "pilz_industrial_motion_planner"' not in patched
+    assert '"planner_id": "PTP"' not in patched
+    assert 'self.move_group.set_planner_id("PTP")' not in patched
     assert '"target_pose": self._moveit_pose_to_dict(target_pose)' in patched
     assert '"planning_time": self._moveit_plan_tuple_value(result, 2)' in patched
     assert '"moveit_error_code": self._moveit_error_code_to_int(self._moveit_plan_tuple_value(result, 3))' in patched
@@ -586,6 +596,9 @@ def test_patch_vizor_robot_py_logs_cartesian_planning_details(monkeypatch, tmp_p
     worldXY.pose = pose
 
 class Robot:
+    def init_moveit(self):
+        self.move_group.set_planning_pipeline_id("pilz_industrial_motion_planner")
+
     def add_ground_plane(self):
         name = "ground_plane"
         ground_pose = create_world_pose(z = -0.105)
@@ -593,6 +606,9 @@ class Robot:
 
     def init_topics(self):
         rospy.Subscriber(f"{self.name}/request/cartesian", PlanningCartesian, self.planCartesianMotion, callback_args=self.name)
+
+    def jog(self, msg, *args):
+        self.move_group.set_planner_id("LIN")
 
     def planCartesianMotion(self, msg, *args):
         name = args[0]
@@ -622,7 +638,7 @@ class Robot:
             print(e)
 
     def plan_transition(self, joint_trajectory_point, name = "transition"):
-        pass
+        self.move_group.set_planner_id("PTP")
 ''',
         encoding="utf-8",
     )
@@ -632,14 +648,24 @@ class Robot:
 
     patched = robot_py.read_text(encoding="utf-8")
     assert '"request_type": "cartesian"' in patched
-    assert '"planner_id": "LIN"' in patched
-    assert '"cartesian_branch": "lin_two_pose"' in patched
-    assert '"cartesian_branch": "compute_cartesian_path"' in patched
-    assert '"eef_step": eef_step' in patched
-    assert '"jump_threshold": None' in patched
-    assert '"avoid_collisions": True' in patched
-    assert '"fraction": fraction' in patched
+    assert 'self.move_group.set_planning_pipeline_id("ompl")' in patched
+    assert 'self.move_group.set_planner_id("RRTConnect")' in patched
+    assert '"planner_pipeline": "ompl"' in patched
+    assert '"planner_id": "RRTConnect"' in patched
+    assert '"cartesian_branch": "ompl_segment"' in patched
+    assert '"cartesian_branch": "ompl_combined"' in patched
+    assert '"cartesian_segment_index": segment_index' in patched
+    assert 'for segment_index, target_pose in enumerate(target_poses):' in patched
+    assert "self._combine_sampled_segments(segments)" in patched
     assert '"target_poses": self._moveit_pose_list_to_dicts(target_poses)' in patched
+    assert 'self.move_group.set_planning_pipeline_id("pilz_industrial_motion_planner")' not in patched
+    assert 'self.move_group.set_planner_id("PTP")' not in patched
+    assert 'self.move_group.set_planner_id("LIN")' not in patched
+    cartesian_method = patched[patched.index("    def planCartesianMotion") : patched.index("    def plan_transition")]
+    assert 'self.move_group.set_planner_id("LIN")' not in cartesian_method
+    assert '"planner_id": "LIN"' not in cartesian_method
+    assert '"cartesian_branch": "lin_two_pose"' not in cartesian_method
+    assert "compute_cartesian_path" not in cartesian_method
     assert module.patch_vizor_robot_py() is False
 
 
@@ -746,6 +772,8 @@ class Robot:
     assert '"planning_time": self._moveit_plan_tuple_value(result, 2)' in patched
     assert '"moveit_error_code": self._moveit_error_code_to_int(self._moveit_plan_tuple_value(result, 3))' in patched
     assert '"sampled_segment_index": segment_index' in patched
+    sampled_method = patched[patched.index("def planSampledApproachMotion") : patched.index("def planCartesianMotion")]
+    assert 'set_planning_pipeline_id("pilz_industrial_motion_planner")' not in sampled_method
     assert patched.index("def planSampledApproachMotion") < patched.index("def planCartesianMotion")
     assert module.patch_vizor_robot_py() is False
 
@@ -887,6 +915,17 @@ def test_patch_robotiq_2f85_integration_replaces_fixed_mesh_and_wires_action_ser
     assert "left_inner_finger_pad" in srdf
     assert '<disable_collisions link1="left_inner_knuckle" link2="left_inner_finger" reason="Never"/>' in srdf
     assert '<disable_collisions link1="right_inner_knuckle" link2="right_inner_finger" reason="Never"/>' in srdf
+    expected_home = {
+        "shoulder_pan_joint": URRTDETrajectoryExecutor.HOME_JOINTS[0],
+        "shoulder_lift_joint": URRTDETrajectoryExecutor.HOME_JOINTS[1],
+        "elbow_joint": URRTDETrajectoryExecutor.HOME_JOINTS[2],
+        "wrist_1_joint": URRTDETrajectoryExecutor.HOME_JOINTS[3],
+        "wrist_2_joint": URRTDETrajectoryExecutor.HOME_JOINTS[4],
+        "wrist_3_joint": URRTDETrajectoryExecutor.HOME_JOINTS[5],
+    }
+    for joint_name, value in expected_home.items():
+        assert f'<joint name="{joint_name}" value="{value}"/>' in srdf
+    assert '<joint name="elbow_joint" value="1.5707"/>' not in srdf
 
     load_robot = (root / "vizor_package" / "launch" / "load_robot.launch").read_text()
     assert "use_robotiq_2f85" in load_robot

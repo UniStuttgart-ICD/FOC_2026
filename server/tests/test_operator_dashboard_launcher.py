@@ -21,6 +21,7 @@ def test_launcher_configures_graceful_shutdown_timeout(monkeypatch) -> None:
     )
 
     monkeypatch.setattr(launcher, "load_dashboard_config", lambda path: config)
+    monkeypatch.setattr(launcher, "_dashboard_port_in_use", lambda host, port: False)
     monkeypatch.setattr(
         launcher.DashboardSecurity,
         "generate",

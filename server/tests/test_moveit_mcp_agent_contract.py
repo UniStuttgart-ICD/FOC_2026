@@ -87,6 +87,8 @@ async def test_agent_contract_task_solution_tool_descriptions_explain_plan_execu
     assert "staged moveit" in manipulation_description
     assert "backend=\"staged_moveit\"" in manipulation_description
     assert "no mtc fallback" in manipulation_description
+    assert "motion-only" in manipulation_description
+    assert "does not release" in manipulation_description
     assert "agentpath" in manipulation_description
     assert "does not execute" in manipulation_description
     assert "execute_task_solution" in execute_description
@@ -254,6 +256,8 @@ async def test_agent_contract_schemas_expose_agent_facing_inputs_not_legacy_ros_
     assert set(manipulation_schema["required"]) == {"requirements", "backend"}
     assert manipulation_schema["properties"]["backend"]["const"] == "staged_moveit"
     assert "goal" in manipulation_schema["properties"]["requirements"]["description"]
+    assert "move" in manipulation_schema["properties"]["requirements"]["description"]
+    assert "motion" in manipulation_schema["properties"]["requirements"]["description"]
     assert "object_name" in manipulation_schema["properties"]["requirements"]["description"]
     assert "preferences" in manipulation_schema["properties"]
 

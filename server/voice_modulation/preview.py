@@ -285,7 +285,7 @@ class _GeminiLivePreviewService:
             client_factory=genai.Client,
         ):
             yield TTSAudioRawFrame(
-                audio=chunk.audio,
+                audio=chunk,
                 sample_rate=PREVIEW_SAMPLE_RATE,
                 num_channels=1,
             )

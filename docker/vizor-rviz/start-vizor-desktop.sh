@@ -5,10 +5,12 @@ export DISPLAY="${DISPLAY:-:1}"
 export NOVNC_PORT="${NOVNC_PORT:-6080}"
 export VNC_PORT="${VNC_PORT:-5901}"
 export VIZOR_ENABLE_MTC_PROOF="${VIZOR_ENABLE_MTC_PROOF:-0}"
-export MOVEIT_PLANNING_LOG_PATH="${MOVEIT_PLANNING_LOG_PATH:-/root/catkin_ws/logs/moveit_planning/moveit_planning.jsonl}"
-export ROS_LOG_DIR="${ROS_LOG_DIR:-/root/catkin_ws/logs/moveit_planning/ros}"
+export MOVEIT_PLANNING_RUN_ID="${MOVEIT_PLANNING_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+export MOVEIT_PLANNING_RUN_DIR="${MOVEIT_PLANNING_RUN_DIR:-/root/catkin_ws/logs/moveit_planning/runs/${MOVEIT_PLANNING_RUN_ID}}"
+export MOVEIT_PLANNING_LOG_PATH="${MOVEIT_PLANNING_LOG_PATH:-${MOVEIT_PLANNING_RUN_DIR}/moveit_planning.jsonl}"
+export ROS_LOG_DIR="${ROS_LOG_DIR:-${MOVEIT_PLANNING_RUN_DIR}/ros}"
 
-mkdir -p "$(dirname "$MOVEIT_PLANNING_LOG_PATH")" "$ROS_LOG_DIR"
+mkdir -p "$MOVEIT_PLANNING_RUN_DIR" "$(dirname "$MOVEIT_PLANNING_LOG_PATH")" "$ROS_LOG_DIR"
 
 Xvfb "$DISPLAY" -screen 0 1600x1000x24 -ac +extension GLX +render -noreset &
 XVFB_PID=$!

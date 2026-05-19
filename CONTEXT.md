@@ -409,6 +409,7 @@ A compact local artifact recording tool order, typed tool outputs, policy decisi
 - `geometry_update_dynamic_role` accepts a **Dynamic Role Payload**, not a free-text role string.
 - **Hologram ModelTracker Sync** updates the **Hologram Geometry Model** immediately for each single-element ModelTracker change event.
 - **Hologram ModelTracker Sync** uses ModelTracker transforms as the orientation authority and transformed mesh evidence as the observed center/check.
+- **Hologram ModelTracker Sync** runs through a thin Grasshopper HTTP client and the external `robot_control.shared_geometry.modeltracker_sync_server` service on `127.0.0.1:8788`.
 - **Hologram ModelTracker Sync** mutates only pose-derived target fields; operation history is optional and minimal if used. It must not write **Dynamic Role Payload** fields.
 - **Dynamic Role Update Tool** is local to LangGraph/Agent Control, not an MCP tool.
 - `geometry_update_dynamic_role` rewrites only **Dynamic Role Payload** plus operation history.

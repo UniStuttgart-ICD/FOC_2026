@@ -325,6 +325,43 @@ async def test_ready_patterns_report_ok_from_recent_logs(tmp_path: Path) -> None
 
 
 @pytest.mark.asyncio
+async def test_optional_ready_check_does_not_gate_service_readiness(
+    tmp_path: Path,
+) -> None:
+    manager = ServiceManager(
+        {
+            "web": ServiceConfig(
+                label="Web",
+                cwd=str(tmp_path),
+                command=_long_running_command(tmp_path),
+                ready_checks=[
+                    ReadyCheckConfig(type=CheckType.PROCESS, label="Process"),
+                    ReadyCheckConfig(
+                        type=CheckType.TCP,
+                        host="127.0.0.1",
+                        port=9,
+                        label="Optional monitor",
+                        required=False,
+                        timeout_s=0.01,
+                    ),
+                ],
+                startup_timeout_s=0.3,
+            )
+        }
+    )
+    checker = HealthChecker(manager)
+
+    await manager.start("web")
+    try:
+        statuses = await checker.wait_until_ready("web", timeout_s=0.3)
+        assert manager.status("web").state is ServiceState.READY
+        assert [status.ok for status in statuses] == [True, False]
+        assert [status.required for status in statuses] == [True, False]
+    finally:
+        await manager.stop("web")
+
+
+@pytest.mark.asyncio
 async def test_exited_process_is_not_ready_when_tcp_check_matches_other_process(
     tmp_path: Path,
 ) -> None:

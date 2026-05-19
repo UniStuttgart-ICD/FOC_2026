@@ -25,6 +25,11 @@ NEW_WORLD_POSE = """    pose.position.z = z
 """
 OLD_WORLD_FRAME = '    header.frame_id = "base" # GoFa\n'
 NEW_WORLD_FRAME = '    header.frame_id = "base_link"\n'
+OLD_PILZ_PIPELINE = 'self.move_group.set_planning_pipeline_id("pilz_industrial_motion_planner")'
+NEW_OMPL_PIPELINE = 'self.move_group.set_planning_pipeline_id("ompl")'
+OLD_PILZ_PTP_PLANNER = 'self.move_group.set_planner_id("PTP")'
+OLD_PILZ_LIN_PLANNER = 'self.move_group.set_planner_id("LIN")'
+NEW_RRTCONNECT_PLANNER = 'self.move_group.set_planner_id("RRTConnect")'
 OLD_GROUND_PLANE_POSES = (
     "        ground_pose = create_world_pose(z = -0.01)\n",
     "        ground_pose = create_world_pose(z = -0.07)\n",
@@ -141,7 +146,8 @@ PLANNING_LOG_METHODS = '''    def _moveit_plan_tuple_value(self, result, index):
 FREE_METHOD_LOGGED = '''    def planFreeMotion(self, msg, *args):
         # rospy.wait_for_service('plan_free_motion')
         name = args[0]
-        self.move_group.set_planner_id("PTP")
+        self.move_group.set_planning_pipeline_id("ompl")
+        self.move_group.set_planner_id("RRTConnect")
         print (f"planning free {msg.name}")
         if DEBUG:
             print (f"   from {self._get_current_pose()}")
@@ -157,8 +163,8 @@ FREE_METHOD_LOGGED = '''    def planFreeMotion(self, msg, *args):
                 "request_type": "free",
                 "request_topic": f"{self.name}/request/free",
                 "plan_name": msg.name,
-                "planner_pipeline": "pilz_industrial_motion_planner",
-                "planner_id": "PTP",
+                "planner_pipeline": "ompl",
+                "planner_id": "RRTConnect",
                 "current_pose": start_pose,
                 "target_pose": self._moveit_pose_to_dict(target_pose),
                 "target_poses": [self._moveit_pose_to_dict(target_pose)],
@@ -171,7 +177,7 @@ FREE_METHOD_LOGGED = '''    def planFreeMotion(self, msg, *args):
             if result[0]:
                 output = result[1]
                 if DEBUG: print (f"   >> planning time {result[2]}")
-                print (f"   >> ptp movement with {len(output.joint_trajectory.points)}")
+                print (f"   >> rrtconnect movement with {len(output.joint_trajectory.points)}")
                 convertedTraj = output if not self.need_offset else self.joint_offset_func(output) #moveit_msgs/RobotTrajectory
 
                 if msg.name == "hololens_path_free" or self.store_plan:
@@ -193,8 +199,8 @@ FREE_METHOD_LOGGED = '''    def planFreeMotion(self, msg, *args):
                 "request_type": "free",
                 "request_topic": f"{self.name}/request/free",
                 "plan_name": getattr(msg, "name", None),
-                "planner_pipeline": "pilz_industrial_motion_planner",
-                "planner_id": "PTP",
+                "planner_pipeline": "ompl",
+                "planner_id": "RRTConnect",
                 "success": False,
                 "exception": str(e),
                 "traceback": traceback.format_exc(),
@@ -363,75 +369,75 @@ SAMPLED_METHODS = '''    def _combine_sampled_segments(self, segments):
             print(e)
         finally:
             self.move_group.set_start_state_to_current_state()
-            self.move_group.set_planning_pipeline_id("pilz_industrial_motion_planner")
 
 '''
 CARTESIAN_METHOD_LOGGED = '''    def planCartesianMotion(self, msg, *args):
         name = args[0]
-        self.move_group.set_planner_id("LIN")
+        self.move_group.set_planning_pipeline_id("ompl")
+        self.move_group.set_planner_id("RRTConnect")
         print (f"planning cartesian {msg.name}")
         if DEBUG:
             print (f"   from {self._get_current_pose()}")
             print (f"   through {msg.poses}")
         rospy.sleep(DELAY)
         try:
-            eef_step = 0.05 # cartesian path interpolated at the resolution of 5cm
             target_poses = msg.poses
             start_pose = self._safe_current_pose_log()
             known_scene_objects = self._moveit_known_scene_objects()
-            if len(target_poses) == 2: # use linear planner on a single pose
-                result = self.move_group.plan(joints = target_poses[1])
-                output = result[1]
+            if not target_poses:
                 self._write_moveit_planning_log({
                     "request_type": "cartesian",
                     "request_topic": f"{self.name}/request/cartesian",
                     "plan_name": msg.name,
-                    "planner_pipeline": "pilz_industrial_motion_planner",
-                    "planner_id": "LIN",
-                    "cartesian_branch": "lin_two_pose",
+                    "planner_pipeline": "ompl",
+                    "planner_id": "RRTConnect",
+                    "cartesian_branch": "ompl_empty",
                     "current_pose": start_pose,
+                    "target_poses": [],
+                    "known_scene_objects": known_scene_objects,
+                    "success": False,
+                    "status": "planning failed",
+                    "trajectory_points": 0,
+                })
+                self.planning_status_publisher.publish(String("planning failed"))
+                return
+            segments = []
+            self.move_group.set_start_state_to_current_state()
+            for segment_index, target_pose in enumerate(target_poses):
+                result = self.move_group.plan(joints = target_pose)
+                output = self._moveit_plan_tuple_value(result, 1)
+                self._write_moveit_planning_log({
+                    "request_type": "cartesian",
+                    "request_topic": f"{self.name}/request/cartesian",
+                    "plan_name": msg.name,
+                    "planner_pipeline": "ompl",
+                    "planner_id": "RRTConnect",
+                    "cartesian_branch": "ompl_segment",
+                    "cartesian_segment_index": segment_index,
+                    "current_pose": start_pose,
+                    "target_pose": self._moveit_pose_to_dict(target_pose),
                     "target_poses": self._moveit_pose_list_to_dicts(target_poses),
                     "known_scene_objects": known_scene_objects,
-                    "eef_step": eef_step,
-                    "jump_threshold": None,
-                    "avoid_collisions": True,
-                    "fraction": None,
                     "success": bool(self._moveit_plan_tuple_value(result, 0)),
                     "planning_time": self._moveit_plan_tuple_value(result, 2),
                     "moveit_error_code": self._moveit_error_code_to_int(self._moveit_plan_tuple_value(result, 3)),
                     "trajectory_points": self._moveit_trajectory_point_count(output),
                 })
-                print(f"    >> lin movement with {len(output.joint_trajectory.points)} poses")
-            else:
-                result = self.move_group.compute_cartesian_path(
-                    target_poses,
-                    eef_step,
-                    avoid_collisions=True,
-                ) #default avoid collision
-                output = result[0]
-                fraction = float(result[1])
-                print (f"   >> fraction {result[1]}")
-                self._write_moveit_planning_log({
-                    "request_type": "cartesian",
-                    "request_topic": f"{self.name}/request/cartesian",
-                    "plan_name": msg.name,
-                    "planner_pipeline": "cartesian_interpolator",
-                    "planner_id": "compute_cartesian_path",
-                    "cartesian_branch": "compute_cartesian_path",
-                    "current_pose": start_pose,
-                    "target_poses": self._moveit_pose_list_to_dicts(target_poses),
-                    "known_scene_objects": known_scene_objects,
-                    "eef_step": eef_step,
-                    "jump_threshold": None,
-                    "avoid_collisions": True,
-                    "fraction": fraction,
-                    "success": fraction >= 1.0 and self._moveit_trajectory_point_count(output) > 0,
-                    "planning_time": None,
-                    "moveit_error_code": None,
-                    "trajectory_points": self._moveit_trajectory_point_count(output),
-                })
+                if not result[0]:
+                    print(f"planning failed {result[3]}")
+                    code = int(str(result[3]).split(':')[-1])
+                    self.planning_status_publisher.publish(String(f"{self.planningResponseForHumans(code)}"))
+                    return
+                output = result[1]
+                segments.append(output)
+                if output.joint_trajectory.points:
+                    next_state = self.robot.get_current_state()
+                    next_state.joint_state.name = output.joint_trajectory.joint_names
+                    next_state.joint_state.position = output.joint_trajectory.points[-1].positions
+                    self.move_group.set_start_state(next_state)
+            output = self._combine_sampled_segments(segments)
             if output:
-                # print (f"   >> fraction {output}")
+                if DEBUG: print (f"   >> cartesian rrtconnect movement with {len(output.joint_trajectory.points)}")
                 convertedTraj = output if not self.need_offset else self.joint_offset_func(output) #moveit_msgs/RobotTrajectory
                 if msg.name == "hololens_path_lin" or self.store_plan:
                     with open(f'{self.root}/{name}/{msg.name}.yaml', 'w') as fp:
@@ -442,31 +448,53 @@ CARTESIAN_METHOD_LOGGED = '''    def planCartesianMotion(self, msg, *args):
                 if msg.name in self.trajectory_data.keys():
                     print (f"warn: overwriting previous trajectory {msg.name}")
                 self.trajectory_data[msg.name] = output
-
+                self._write_moveit_planning_log({
+                    "request_type": "cartesian",
+                    "request_topic": f"{self.name}/request/cartesian",
+                    "plan_name": msg.name,
+                    "planner_pipeline": "ompl",
+                    "planner_id": "RRTConnect",
+                    "cartesian_branch": "ompl_combined",
+                    "cartesian_segment_index": "combined",
+                    "current_pose": start_pose,
+                    "target_poses": self._moveit_pose_list_to_dicts(target_poses),
+                    "known_scene_objects": known_scene_objects,
+                    "success": True,
+                    "trajectory_points": self._moveit_trajectory_point_count(output),
+                })
+                self.planning_status_publisher.publish(String("success"))
             else:
-                print(f"planning failed {result[1]}")
-
-            if len(target_poses) == 2:
-                code = int(str(result[3]).split(':')[-1])
-                self.planning_status_publisher.publish(String(f"{self.planningResponseForHumans(code)}"))
-            else:
-                code = float(result[1])
-                if code >= 1:
-                    self.planning_status_publisher.publish(String(f"success"))
-                else:
-                    self.planning_status_publisher.publish(String(f"incomplete path"))
+                self._write_moveit_planning_log({
+                    "request_type": "cartesian",
+                    "request_topic": f"{self.name}/request/cartesian",
+                    "plan_name": msg.name,
+                    "planner_pipeline": "ompl",
+                    "planner_id": "RRTConnect",
+                    "cartesian_branch": "ompl_combined",
+                    "cartesian_segment_index": "combined",
+                    "current_pose": start_pose,
+                    "target_poses": self._moveit_pose_list_to_dicts(target_poses),
+                    "known_scene_objects": known_scene_objects,
+                    "success": False,
+                    "status": "planning failed",
+                    "trajectory_points": 0,
+                })
+                self.planning_status_publisher.publish(String("planning failed"))
 
         except Exception as e:
             self._write_moveit_planning_log({
                 "request_type": "cartesian",
                 "request_topic": f"{self.name}/request/cartesian",
                 "plan_name": getattr(msg, "name", None),
-                "planner_id": "LIN",
+                "planner_pipeline": "ompl",
+                "planner_id": "RRTConnect",
                 "success": False,
                 "exception": str(e),
                 "traceback": traceback.format_exc(),
             })
             print(e)
+        finally:
+            self.move_group.set_start_state_to_current_state()
 
 '''
 ROBOTIQ_COLLISION_BLOCK = """    <disable_collisions link1="robotiq_arg2f_base_link" link2="wrist_1_link" reason="Never"/>
@@ -497,6 +525,22 @@ UR10_KINEMATICS_SETTINGS = {
     "goal_position_tolerance": "0.01",
     "goal_orientation_tolerance": "0.05",
 }
+UR10_MOVEIT_HOME_JOINT_VALUES = {
+    "shoulder_pan_joint": -0.05903655687441045,
+    "shoulder_lift_joint": -1.5698241536486712,
+    "elbow_joint": 1.529440704976217,
+    "wrist_1_joint": -0.0015873473933716298,
+    "wrist_2_joint": 1.4997673034667969,
+    "wrist_3_joint": 0.0008195281261578202,
+}
+UR10_MOVEIT_HOME_JOINT_ORDER = (
+    "elbow_joint",
+    "shoulder_lift_joint",
+    "shoulder_pan_joint",
+    "wrist_1_joint",
+    "wrist_2_joint",
+    "wrist_3_joint",
+)
 
 
 def _write_if_changed(path: Path, text: str) -> bool:
@@ -506,6 +550,39 @@ def _write_if_changed(path: Path, text: str) -> bool:
     return True
 
 
+def _ur10_home_group_state() -> str:
+    lines = ['    <group_state name="home" group="arm">']
+    for joint_name in UR10_MOVEIT_HOME_JOINT_ORDER:
+        lines.append(
+            f'        <joint name="{joint_name}" value="{UR10_MOVEIT_HOME_JOINT_VALUES[joint_name]}"/>'
+        )
+    lines.append("    </group_state>")
+    return "\n".join(lines)
+
+
+def _with_ur10_home_group_state(srdf_text: str) -> tuple[str, bool]:
+    home_state = _ur10_home_group_state()
+    start_marker = '    <group_state name="home" group="arm">'
+    end_marker = "    </group_state>"
+    start = srdf_text.find(start_marker)
+    if start != -1:
+        end = srdf_text.find(end_marker, start + len(start_marker))
+        if end == -1:
+            raise SystemExit("Expected closing home group_state not found in UR10 SRDF")
+        end += len(end_marker)
+        current = srdf_text[start:end]
+        if current == home_state:
+            return srdf_text, False
+        return f"{srdf_text[:start]}{home_state}{srdf_text[end:]}", True
+
+    virtual_joint_marker = (
+        '    <virtual_joint name="virtual_joint" type="fixed" parent_frame="world" child_link="base_link"/>'
+    )
+    if virtual_joint_marker not in srdf_text:
+        raise SystemExit("Expected virtual joint marker not found in UR10 SRDF")
+    return srdf_text.replace(virtual_joint_marker, f"{home_state}\n{virtual_joint_marker}", 1), True
+
+
 def _replace_method_block(text: str, start_marker: str, end_marker: str, replacement: str, idempotence_marker: str) -> tuple[str, bool]:
     start = text.find(start_marker)
     if start == -1:
@@ -513,7 +590,9 @@ def _replace_method_block(text: str, start_marker: str, end_marker: str, replace
     end = text.find(end_marker, start + len(start_marker))
     if end == -1:
         return text, False
-    if idempotence_marker in text[start:end]:
+    del idempotence_marker
+    current = text[start:end]
+    if current.replace("\r\n", "\n").strip() == replacement.replace("\r\n", "\n").strip():
         return text, False
     return f"{text[:start]}{replacement}{text[end:]}", True
 
@@ -546,6 +625,15 @@ def patch_vizor_robot_py() -> bool:
     text = ROBOT_PY.read_text()
     changed = False
 
+    for old, new in (
+        (OLD_PILZ_PIPELINE, NEW_OMPL_PIPELINE),
+        (OLD_PILZ_PTP_PLANNER, NEW_RRTCONNECT_PLANNER),
+        (OLD_PILZ_LIN_PLANNER, NEW_RRTCONNECT_PLANNER),
+    ):
+        if old in text:
+            text = text.replace(old, new)
+            changed = True
+
     text, helper_changed = _insert_planning_log_helpers(text)
     changed = changed or helper_changed
 
@@ -556,7 +644,7 @@ def patch_vizor_robot_py() -> bool:
         text = text.replace(OLD_JUMP_LINE, "", 1)
         text = text.replace(OLD_CALL, NEW_CALL, 1)
         changed = True
-    elif "avoid_collisions=True" not in text:
+    elif "compute_cartesian_path(" in text and "avoid_collisions=True" not in text:
         raise SystemExit(f"Expected old compute_cartesian_path call not found in {ROBOT_PY}")
 
     if OLD_WORLD_FRAME in text:
@@ -598,9 +686,14 @@ def patch_vizor_robot_py() -> bool:
         changed = True
 
     if "def planSampledApproachMotion" not in text:
-        if CARTESIAN_METHOD not in text:
+        cartesian_start = text.find(CARTESIAN_METHOD)
+        if cartesian_start == -1:
             raise SystemExit(f"Expected planCartesianMotion method not found in {ROBOT_PY}")
-        text = text.replace(CARTESIAN_METHOD, f"{SAMPLED_METHODS}{CARTESIAN_METHOD}", 1)
+        combine_start = text.find(COMBINE_SAMPLED_METHOD)
+        if combine_start != -1 and combine_start < cartesian_start:
+            text = f"{text[:combine_start]}{SAMPLED_METHODS}{text[cartesian_start:]}"
+        else:
+            text = text.replace(CARTESIAN_METHOD, f"{SAMPLED_METHODS}{CARTESIAN_METHOD}", 1)
         changed = True
     else:
         text, sampled_changed = _replace_method_block(
@@ -696,6 +789,8 @@ def patch_robotiq_2f85_integration(src_root: Path = CATKIN_SRC) -> bool:
         and line not in ROBOTIQ_COLLISION_LINES
     ]
     srdf_text = "\n".join(srdf_lines) + "\n"
+    srdf_text, home_changed = _with_ur10_home_group_state(srdf_text)
+    changed = changed or home_changed
     marker = '    <virtual_joint name="virtual_joint" type="fixed" parent_frame="world" child_link="base_link"/>'
     if marker not in srdf_text:
         raise SystemExit(f"Expected virtual joint marker not found in {srdf}")

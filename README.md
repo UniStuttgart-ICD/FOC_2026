@@ -5,7 +5,7 @@ Voice-controlled UR10 robot agent built on Pipecat, LangGraph/LangChain, MCP, an
 ## Highlights
 
 - One launcher starts the operator dashboard and creates the Python environment when needed.
-- The dashboard starts and monitors RViz/noVNC, Vizor MCP, MoveIt MCP, verified execution, and the Pipecat browser client.
+- The dashboard starts and monitors RViz/noVNC, Vizor MCP, MoveIt MCP, ModelTracker hologram sync, verified execution, and the Pipecat browser client.
 - The default profile uses the `mave` wake word, OpenAI Realtime Whisper STT, Gemini Live TTS, and a Gemini API LangChain agent.
 - Robot actions are planned and executed through MoveIt workflows, with process trace and voice metrics written under `server/logs/`.
 - Deterministic tests run locally without live model keys, browser audio, or the robot simulation stack.
@@ -68,6 +68,7 @@ Useful local ports:
 | 8787 | Operator dashboard |
 | 7860 | Pipecat browser client |
 | 8765 | MoveIt MCP |
+| 8788 | ModelTracker hologram sync |
 | 8001 | Vizor MCP |
 | 8770 | Verified execution server |
 | 8898 | Robot job blackboard |
@@ -163,12 +164,12 @@ http://127.0.0.1:8787/?token=...
 
 Open that URL if the browser does not open automatically.
 
-The launcher starts only the dashboard. In the dashboard, **Start system** starts the main services in this order: Vizor + RViz Compose stack, verified execution server, then Pipecat voice agent. Wake tuning and voice modulation are optional and are not included in Start system.
+The launcher starts only the dashboard. In the dashboard, **Start system** starts the main services in this order: Vizor + RViz Compose stack, ModelTracker hologram sync, verified execution server, then Pipecat voice agent. Wake tuning and voice modulation are optional and are not included in Start system.
 
 In the dashboard:
 
 1. Click **Start system**.
-2. Wait until Vizor + RViz, verified execution, and Pipecat report ready.
+2. Wait until Vizor + RViz, ModelTracker sync, verified execution, and Pipecat report ready.
 3. Open RViz to confirm the UR10 is visible.
 4. Open Pipecat at `http://localhost:7860/client/`.
 5. Allow microphone access.
@@ -188,7 +189,7 @@ http://127.0.0.1:6080/vnc_auto.html?host=127.0.0.1&port=6080&path=websockify&aut
 
 Use these only when debugging outside the dashboard.
 
-Do not start the dashboard-managed stack and the manual services at the same time. The Compose stack owns ports `6080`, `5901`, `9090`, `10000-10003`, `11311`, `8001`, and `8765`; host services own `8770`, `7860`, and `8898`.
+Do not start the dashboard-managed stack and the manual services at the same time. The Compose stack owns ports `6080`, `5901`, `9090`, `10000-10003`, `11311`, `8001`, and `8765`; host services own `8770`, `7860`, `8788`, and `8898`.
 
 Create or refresh the Python environment:
 
@@ -226,6 +227,15 @@ uv run python -m moveit_mcp --rosbridge-host localhost --rosbridge-port 9090 --t
 ```
 
 Do not run the direct MCP command while the Compose `moveit-mcp` service is already bound to port `8765`.
+
+Run ModelTracker hologram sync directly:
+
+```powershell
+cd server
+uv run python -m robot_control.shared_geometry.modeltracker_sync_server
+```
+
+Do not bind ModelTracker hologram sync to port `8765`; the Vizor/RViz Compose stack uses that port for MoveIt MCP.
 
 Run Vizor MCP directly:
 

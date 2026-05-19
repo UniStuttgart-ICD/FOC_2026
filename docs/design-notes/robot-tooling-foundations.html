@@ -810,7 +810,7 @@
       <div class="brand"><span class="brand-mark"><span></span></span>Robot Tooling Foundations</div>
       <nav class="nav" aria-label="Page sections">
         <a href="#current">Current Tools</a>
-        <a href="#pick">Pick Status</a>
+        <a href="#pick">Manipulation Contract</a>
         <a href="#react">ReAct Loop</a>
         <a href="#gap">Gap</a>
         <a href="#state">State vs Failure</a>
@@ -826,10 +826,10 @@
           <p class="eyebrow">Pipecat agent control</p>
           <h1>Give the agent fewer guesses and better robot verbs.</h1>
           <p class="lede">
-            The current MoveIt tools cover end-effector motion, planning-scene observation,
-            pick and place planning, gripper actions, and gated plan execution. The remaining
-            gaps are complete pick/place execution semantics, body-level intent such as
-            turning around the base, and richer failure diagnosis.
+            The current model-visible MoveIt tools cover robot state, planning-scene observation,
+            object context, staged manipulation planning, gated task execution, and failure
+            diagnosis. Low-level planners, gripper calls, attach/release, and verification remain
+            backing contract tools below the agent-facing surface.
           </p>
         </div>
 
@@ -855,10 +855,10 @@
 
       <section id="current">
         <div class="section-head">
-          <h2>Current Tool Set</h2>
+          <h2>Current Model-Visible Tool Set</h2>
           <p class="section-note">
-            The current vocabulary is semantic and narrow, which matches the architecture.
-            It keeps the agent away from raw ROS topics and routes motion through MoveIt.
+            The current vocabulary is semantic and narrow. The model sees task affordances,
+            not the legacy/free/cartesian planners or contract internals that implement them.
           </p>
         </div>
 
@@ -885,72 +885,71 @@
           </article>
           <article class="tool-card">
             <span class="tag">plan</span>
-            <h3><code>moveit_plan_free_motion</code></h3>
-            <p>Plans one non-linear point-to-point motion to a target TCP pose.</p>
+            <h3><code>moveit_plan_manipulation_task</code></h3>
+            <p>Single staged planner for <code>requirements.goal</code>: <code>hold</code>, <code>move</code>, <code>release</code>, <code>move_and_release</code>, <code>pick_place</code>, and <code>place</code> where present.</p>
           </article>
           <article class="tool-card">
-            <span class="tag">plan</span>
-            <h3><code>moveit_plan_cartesian_motion</code></h3>
-            <p>Plans an ordered TCP waypoint path for lines, gestures, and shape tracing.</p>
+            <span class="tag">execute</span>
+            <h3><code>moveit_execute_task</code></h3>
+            <p>Executes only after explicit approval for the exact <code>task_solution_id</code> returned by the staged planner.</p>
           </article>
           <article class="tool-card">
-            <span class="tag">plan</span>
-            <h3><code>moveit_plan_pick</code></h3>
-            <p>Plans an object-grounded pick path. In auto mode it may first return a free-motion staging plan and retry guidance.</p>
+            <span class="tag">diagnose</span>
+            <h3><code>moveit_explain_motion_failure</code></h3>
+            <p>Turns failed planning, execution, or verification evidence into concise recovery guidance.</p>
           </article>
           <article class="tool-card">
-            <span class="tag">plan</span>
-            <h3><code>moveit_plan_place</code></h3>
-            <p>Plans object-level placement for an attached object and derives the release TCP pose from object context.</p>
+            <span class="tag">geometry</span>
+            <h3><code>geometry_update_dynamic_role</code></h3>
+            <p>Available only when Geometry World Context is enabled. Updates dynamic object roles used for grounding.</p>
           </article>
           <article class="tool-card">
             <span class="tag">contract</span>
             <h3>Plan and execute are separate</h3>
-            <p>Planning tools return plan names. Only <code>moveit_execute_plan</code> executes a recent confirmed plan.</p>
+            <p>Planning returns a <code>task_solution_id</code>. Execution requires explicit approval for that exact solution.</p>
           </article>
           <article class="tool-card">
-            <span class="tag">execute</span>
-            <h3><code>moveit_execute_plan</code></h3>
-            <p>Executes only a valid plan returned by a previous successful planning tool.</p>
+            <span class="tag">backing</span>
+            <h3>Hidden planning tools</h3>
+            <p>Legacy/free/cartesian planners and <code>moveit_execute_plan</code> back the contract; they are not model-visible tools.</p>
           </article>
           <article class="tool-card">
-            <span class="tag">gripper</span>
-            <h3><code>moveit_open_gripper</code> / <code>moveit_close_gripper</code></h3>
-            <p>Controls the Robotiq gripper and verifies gripper joint feedback.</p>
+            <span class="tag">backing</span>
+            <h3>Hidden manipulation tools</h3>
+            <p><code>moveit_open_gripper</code>, <code>moveit_close_gripper</code>, attach/release, verify, remove, and task-solution executors are contract internals.</p>
           </article>
           <article class="tool-card">
-            <span class="tag">scene</span>
-            <h3><code>moveit_attach_object</code></h3>
-            <p>Attaches a planning-scene object after the gripper is known closed. Task Policy blocks blind attach.</p>
+            <span class="tag">spec</span>
+            <h3>Tool descriptions matter</h3>
+            <p>Each exposed tool should document use cases, parameters, constraints, negative cases, and concrete examples.</p>
           </article>
         </div>
       </section>
 
       <section id="pick">
         <div class="section-head">
-          <h2>Pick Needs A Staged Start</h2>
+          <h2>Staged Manipulation Contract</h2>
           <p class="section-note">
-            The pick planner should not begin with a likely-to-fail long Cartesian approach
-            from home. It should first get near the object with free motion, then use
-            Cartesian motion only for the local grasp interaction.
+            <code>moveit_plan_manipulation_task</code> is the single model-visible planner
+            for object manipulation. The agent selects the outcome with
+            <code>requirements.goal</code>; the robot layer owns staging, low-level plans,
+            gripper actions, attach/release, and verification.
           </p>
         </div>
 
         <div class="priority-layout">
           <article class="priority-panel">
-            <p class="eyebrow">Updated direction</p>
-            <h3>Approach from a beam-aware staging pose.</h3>
+            <p class="eyebrow">Current contract</p>
+            <h3>Plan a task solution, then execute that exact solution.</h3>
             <p>
-              Object context should decide the first useful pose. Horizontal beams stage
-              above the object so the gripper can descend locally. Vertical beams stage to
-              the side so the gripper can approach the long face without sweeping in from
-              home. This makes the first motion a normal MoveIt free-motion plan, not a
-              brittle Cartesian path across the workspace.
+              Planning tools do not move the robot. A successful manipulation plan returns
+              a <code>task_solution_id</code> and staged steps. <code>moveit_execute_task</code>
+              may run only after explicit approval for that exact solution ID.
             </p>
             <div class="priority-list">
-              <div><b>Rule</b><span>Long travel to the object uses free motion from the start.</span></div>
-              <div><b>Rule</b><span>Only the local approach, grasp, and lift segment is Cartesian.</span></div>
-              <div><b>Rule</b><span>The tool returns structured guidance instead of hiding a required preposition step.</span></div>
+              <div><b>Rule</b><span>Use <code>requirements.goal</code> to choose <code>hold</code>, <code>move</code>, <code>release</code>, <code>move_and_release</code>, <code>pick_place</code>, or <code>place</code>.</span></div>
+              <div><b>Rule</b><span>For bare hold/support/hold-in-place, pass <code>requirements.lift_distance_m=0.0</code>.</span></div>
+              <div><b>Rule</b><span>Pick up, lift, or carry wording uses the default or an explicit positive <code>lift_distance_m</code>.</span></div>
             </div>
           </article>
 
@@ -967,67 +966,65 @@
             </article>
             <article class="pickup-card">
               <span class="tag">implemented</span>
-              <h3><code>moveit_plan_pick</code></h3>
-              <p>Plans object-grounded pick intent. The updated auto behavior should derive and return a required staging plan before local Cartesian grasp planning.</p>
+              <h3><code>moveit_plan_manipulation_task</code></h3>
+              <p>Plans staged manipulation without execution. Parameters describe the goal, object, target pose when needed, lift distance, and constraints.</p>
             </article>
             <article class="pickup-card">
               <span class="tag">implemented</span>
-              <h3><code>moveit_plan_place</code></h3>
-              <p>Plans placement for an attached object from object-level target intent and returns a pending executable plan.</p>
+              <h3><code>moveit_execute_task</code></h3>
+              <p>Executes one approved <code>task_solution_id</code>. It should reject stale, mismatched, or unapproved task solutions.</p>
             </article>
           </div>
         </div>
 
         <div class="compare" style="margin-top: 18px;">
           <article class="compare-panel good">
-            <h3>Stage 1: near-term fix</h3>
+            <h3>Motion-only and held-object goals</h3>
             <p>
-              <code>moveit_plan_pick(auto)</code> should stage first. Instead of trying a
-              long Cartesian pick from home and learning the obvious failure, it derives
-              a beam-aware staging pose from object context, plans that pose with free
-              motion, and returns the staging plan as the next executable action.
+              <code>hold</code>, <code>move</code>, and <code>release</code> are distinct.
+              A bare hold grasps or attaches without implying a lift. A move relocates the
+              TCP or held object and must not release, detach, place, or open the gripper.
             </p>
             <div class="fact-list">
-              <div class="fact">Compute a staging TCP pose from the object, not from a generic home-to-grasp line.</div>
-              <div class="fact">For horizontal beams, stage above the beam with the gripper pointing down.</div>
-              <div class="fact">For vertical beams, stage beside a long side face instead of using the top face.</div>
-              <div class="fact">Use free-motion planning to that staging pose, so MoveIt can solve the whole-arm travel.</div>
-              <div class="fact">Return the preposition plan name as executable, with retry guidance for the local Cartesian pick.</div>
-              <div class="fact">Ask the agent to execute the staging plan, re-read pose/object context, then retry <code>moveit_plan_pick</code> for the local approach.</div>
+              <div class="fact"><code>hold</code>: use for “grasp,” “attach,” “support,” or “hold it there.”</div>
+              <div class="fact"><code>hold</code> with <code>lift_distance_m=0.0</code>: do not lift for bare hold/support/hold-in-place wording.</div>
+              <div class="fact"><code>hold</code> with positive lift: use for “pick up,” “lift,” or “carry.”</div>
+              <div class="fact"><code>move</code>: motion-only TCP or held-object relocation.</div>
+              <div class="fact"><code>release</code>: let go or drop the current held object in place.</div>
             </div>
           </article>
 
           <article class="compare-panel better">
-            <h3>Stage 2: proper workflow fix</h3>
+            <h3>Placement and delivery goals</h3>
             <p>
-              The proper fix is a workflow executor below the agent. It still keeps planning
-              and execution gated, but the robot layer owns the pick sequence after explicit
-              execute intent, instead of asking the model to manually chain gripper, attach,
-              verification, and lift steps.
+              <code>move_and_release</code> is only for explicit release, place, or delivery
+              intent. <code>pick_place</code> plans a free object to a target pose.
+              <code>place</code> applies where the current surface exposes attached-object
+              placement as its own goal.
             </p>
             <div class="fact-list">
-              <div class="fact">Execute the verified sequence as preposition -> local approach -> close gripper -> attach -> verify -> lift.</div>
-              <div class="fact">Preposition with free motion to the beam-appropriate staging pose.</div>
-              <div class="fact">Run the local Cartesian approach only once the arm is staged near the object.</div>
-              <div class="fact">Close the gripper, apply the attached collision object, then verify through <code>/UR10/get_planning_scene</code>.</div>
-              <div class="fact">Treat attach as complete only when the object is attached to the gripper link in the service-read scene.</div>
-              <div class="fact">Return verified completion or a structured blocker with the failed step and next recovery tool.</div>
+              <div class="fact"><code>move_and_release</code>: use only when the user asks to release, place, deliver, or drop after moving.</div>
+              <div class="fact"><code>pick_place</code>: use for a free object and a target pose in one staged task.</div>
+              <div class="fact"><code>place</code>: use where present for placing an already held object at a target.</div>
+              <div class="fact">Negative case: do not turn a “move it there” request into release unless the user asked to let go.</div>
+              <div class="fact">Examples should show required object names, target poses, lift distance, and exact approval language.</div>
             </div>
           </article>
         </div>
 
         <aside class="callout" style="margin-top: 18px;">
-          <h3>Beam orientation decides the staging side</h3>
+          <h3>Hidden tools implement the contract</h3>
           <p>
-            Horizontal beams stage above the object. Vertical beams stage to the side.
-            The planner should choose that pose before asking for Cartesian approach
-            waypoints, because local Cartesian interaction is useful only after the robot
-            is already near the object.
+            Backing tools include legacy/free/cartesian planners plus
+            <code>moveit_open_gripper</code>, <code>moveit_close_gripper</code>,
+            <code>moveit_attach_object</code>, <code>moveit_release_object</code>,
+            <code>moveit_verify_attached_object</code>, <code>moveit_verify_released_object</code>,
+            <code>moveit_remove_scene_object</code>, <code>moveit_execute_plan</code>,
+            <code>moveit_execute_task_plan</code>, and <code>moveit_execute_task_solution</code>.
           </p>
           <p>
-            Current live checks show the horizontal top-stage preposition succeeds.
-            Vertical side staging is now correctly selected, but still needs tuning:
-            the present side pose can fail with no IK solution.
+            Describe these as backing or contract tools. Do not present them as tools the
+            model should call directly.
           </p>
         </aside>
       </section>
@@ -1056,12 +1053,12 @@
           <article class="react-step">
             <strong>Plan</strong>
             <h3>Ask MoveIt for feasibility</h3>
-            <p><code>moveit_plan_pick</code>, <code>moveit_plan_place</code>, Cartesian planning, and free-motion planning return executable plans, staging guidance, or structured blockers.</p>
+            <p><code>moveit_plan_manipulation_task</code> returns staged task solutions, constraints, and structured blockers without moving the robot.</p>
           </article>
           <article class="react-step">
             <strong>Act</strong>
             <h3>Execute verified workflows</h3>
-            <p>Execution goes through <code>moveit_execute_plan</code> with a recent pending plan and explicit execute intent.</p>
+            <p>Execution goes through <code>moveit_execute_task</code> with explicit approval for the exact <code>task_solution_id</code>.</p>
           </article>
           <article class="react-step">
             <strong>Verify</strong>
@@ -1159,15 +1156,15 @@
             This page must be read together with
             <a href="moveit-real-robot-execution-check.html">MoveIt to Real Robot Execution Check</a>.
             The current runtime is simulation-only, but the tool contract still plans first
-            and executes only through one gated executor.
+            and executes only through the gated task executor.
           </p>
         </div>
 
         <div class="gap-grid">
           <article class="gap-card">
             <span class="tag">planner</span>
-            <h3><code>moveit_plan_pick</code></h3>
-            <p>Creates a pick plan or returns a required staging plan. Robot Context remembers successful returned plan names as pending executable plans.</p>
+            <h3><code>moveit_plan_manipulation_task</code></h3>
+            <p>Creates a staged task solution for the selected <code>requirements.goal</code>. It returns a <code>task_solution_id</code> and does not execute.</p>
           </article>
           <article class="gap-card">
             <span class="tag">confirmation</span>
@@ -1176,8 +1173,8 @@
           </article>
           <article class="gap-card">
             <span class="tag">executor</span>
-            <h3><code>moveit_execute_plan</code></h3>
-            <p>The executor consumes the exact pending plan name, checks readiness, moves, and reports verified completion or failure.</p>
+            <h3><code>moveit_execute_task</code></h3>
+            <p>The executor consumes the exact approved <code>task_solution_id</code>, checks readiness, moves, and reports verified completion or failure.</p>
           </article>
         </div>
 
@@ -1185,9 +1182,9 @@
           <h3><code>moveit_plan_and_execute_*</code> must not be a tool</h3>
           <p>
             The robot tool contract keeps planning and execution as separate verbs.
-            Do not expose combined plan-and-execute tools for pick, place, free motion,
-            or Cartesian motion. A planner returns a plan name; <code>moveit_execute_plan</code>
-            consumes that exact recent plan only after explicit execute intent.
+            Do not expose combined plan-and-execute tools for manipulation tasks. A planner
+            returns a <code>task_solution_id</code>; <code>moveit_execute_task</code> consumes
+            that exact solution only after explicit execute intent.
           </p>
         </aside>
       </section>
@@ -1284,15 +1281,15 @@
             <div class="stack-row">
               <span class="num">F1</span>
               <div>
-                <h3><code>moveit_plan_pick</code></h3>
-                <p>Foundation. Accepts a returned object name, derives beam-aware staging, and returns either a staging plan or local pick workflow metadata without moving the robot.</p>
+                <h3><code>moveit_plan_manipulation_task</code></h3>
+                <p>Foundation. Single model-visible staged planner for <code>hold</code>, <code>move</code>, <code>release</code>, <code>move_and_release</code>, <code>pick_place</code>, and <code>place</code> where present.</p>
               </div>
             </div>
             <div class="stack-row">
               <span class="num">F2</span>
               <div>
                 <h3><code>moveit_list_scene_objects</code></h3>
-                <p>Foundation. Lists planning-scene objects so the agent can ground object-relative and pick tasks.</p>
+                <p>Foundation. Lists planning-scene objects so the agent can ground object-relative and manipulation tasks.</p>
               </div>
             </div>
             <div class="stack-row">
@@ -1305,29 +1302,29 @@
             <div class="stack-row">
               <span class="num">F4</span>
               <div>
-                <h3><code>moveit_plan_place</code></h3>
-                <p>Foundation. Plans object-level placement for attached objects and returns a pending executable plan.</p>
+                <h3><code>moveit_execute_task</code></h3>
+                <p>Foundation. Executes only the exact approved <code>task_solution_id</code> from a successful staged manipulation plan.</p>
               </div>
             </div>
             <div class="stack-row">
               <span class="num">F5</span>
               <div>
-                <h3><code>moveit_execute_plan</code></h3>
-                <p>Foundation. Executes only a recent pending plan name after explicit confirmation.</p>
+                <h3><code>moveit_explain_motion_failure</code></h3>
+                <p>Foundation. Turns failed planner, executor, or verification evidence into retry guidance.</p>
               </div>
             </div>
             <div class="stack-row">
               <span class="num">F6</span>
               <div>
-                <h3><code>moveit_verify_attached_object</code></h3>
-                <p>Foundation. Verifies one planning-scene object is attached and moved with the gripper after pick/place execution.</p>
+                <h3><code>geometry_update_dynamic_role</code></h3>
+                <p>Conditional foundation. Model-visible only when Geometry World Context is enabled.</p>
               </div>
             </div>
             <div class="stack-row">
               <span class="num">F7</span>
               <div>
-                <h3><code>moveit_explain_motion_failure</code></h3>
-                <p>Foundation. Turns failed planner, executor, or verification evidence into retry guidance.</p>
+                <h3>Backing contract tools</h3>
+                <p>Foundation. Hidden planners, gripper tools, attach/release, verification, remove, and task-solution executors implement staged manipulation below the model surface.</p>
               </div>
             </div>
           </div>

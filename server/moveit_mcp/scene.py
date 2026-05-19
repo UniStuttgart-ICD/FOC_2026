@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-PLANNING_SCENE_COMPONENTS = 4 | 8 | 16 | 512
+PLANNING_SCENE_COMPONENTS = 4 | 8 | 16 | 128 | 512
 
 _IDENTITY_POSE = {
     "position": {"x": 0.0, "y": 0.0, "z": 0.0},

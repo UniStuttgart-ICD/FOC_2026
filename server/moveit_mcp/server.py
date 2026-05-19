@@ -154,9 +154,12 @@ ManipulationTaskRequirements = Annotated[
     dict[str, Any],
     Field(
         description=(
-            "Hard staged manipulation requirements. Must include goal and object_name. "
-            "Supported goals are hold, place, release, move_and_release, and pick_place. "
-            "Target pose or position is required for place, move_and_release, and pick_place."
+            "Hard staged manipulation requirements. Must include goal. Supported goals are "
+            "hold, place, release, move, move_and_release, and pick_place. object_name is "
+            "required except release may use the current held object and move may move only "
+            "the TCP. For move, include motion as relative_tcp with direction+distance_m or "
+            "delta_m; it is motion-only and does not release. Target pose or position is "
+            "required for place, move_and_release, and pick_place."
         )
     ),
 ]
@@ -371,7 +374,9 @@ def build_mcp(*, tools: MoveItMcpTools, host: str = "127.0.0.1", port: int = 800
     ) -> dict[str, Any]:
         """Plan a staged MoveIt manipulation task solution with raw.execution_contract; does not execute.
 
-        Requires backend="staged_moveit"; no MTC fallback exists. For hold tasks,
+        Requires backend="staged_moveit"; no MTC fallback exists. For motion-only
+        move tasks, plans Cartesian TCP motion and does not release, detach, place,
+        or open the gripper. For hold tasks,
         searches grasp candidates, proves required motion stages with non-empty
         trajectory preview evidence, and returns an approval payload plus AgentPath
         preview only when every required stage is planned.

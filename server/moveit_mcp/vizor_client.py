@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 import math
 import time
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 from queue import Empty, Queue
 from threading import RLock
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Iterator, Protocol
 
 from moveit_mcp.scene import (
     PLANNING_SCENE_COMPONENTS,
@@ -912,6 +913,62 @@ class VizorClient:
         self._locks.setdefault(robot, RLock())
         return self._locks[robot]
 
+    @contextmanager
+    def scoped_allowed_collision_pairs(
+        self,
+        *,
+        robot: str,
+        pairs: list[tuple[str, str]],
+        timeout_s: float = 2.0,
+    ) -> Iterator[dict[str, Any]]:
+        with self._lock_for(robot):
+            pair_list = _normalized_collision_pairs(pairs)
+            if not pair_list:
+                yield {"ok": True, "pairs": [], "scene_update_published": False}
+                return
+
+            payload = self.transport.read_planning_scene(robot, timeout_s)
+            if not isinstance(payload, dict):
+                yield {
+                    "ok": False,
+                    "pairs": [list(pair) for pair in pair_list],
+                    "scene_update_published": False,
+                    "status": "planning scene unavailable",
+                }
+                return
+
+            scene_value = payload.get("scene")
+            scene: dict[str, Any] = scene_value if isinstance(scene_value, dict) else payload
+            original_acm = _normalized_allowed_collision_matrix(scene.get("allowed_collision_matrix"))
+            scoped_acm = _allowed_collision_matrix_with_pairs(original_acm, pair_list)
+            applied = self.transport.apply_planning_scene(
+                robot,
+                _allowed_collision_matrix_diff(scoped_acm),
+                timeout_s,
+            )
+            verified_payload = self.transport.read_planning_scene(robot, timeout_s)
+            verified_scene_value = verified_payload.get("scene") if isinstance(verified_payload, dict) else None
+            verified_scene = verified_scene_value if isinstance(verified_scene_value, dict) else verified_payload
+            verified_acm = (
+                _normalized_allowed_collision_matrix(verified_scene.get("allowed_collision_matrix"))
+                if isinstance(verified_scene, dict)
+                else _empty_allowed_collision_matrix()
+            )
+            verified = applied and _allowed_collision_matrix_allows_pairs(verified_acm, pair_list)
+            try:
+                yield {
+                    "ok": verified,
+                    "pairs": [list(pair) for pair in pair_list],
+                    "scene_update_published": applied,
+                    "status": "scoped allowed collisions applied" if verified else "scoped allowed collisions unverified",
+                }
+            finally:
+                self.transport.apply_planning_scene(
+                    robot,
+                    _allowed_collision_matrix_diff(original_acm),
+                    timeout_s,
+                )
+
     def get_current_pose(self, *, robot: str, timeout_s: float = 2.0) -> CurrentPoseFeedback:
         with self._lock_for(robot):
             source = f"/{robot}/get_current_pose"
@@ -1012,6 +1069,25 @@ class VizorClient:
                 source=source,
                 message=f"Object context observed for {object_name}",
             )
+
+    def world_collision_object_names(self, *, robot: str, exclude_object_name: str | None = None, timeout_s: float = 2.0) -> list[str]:
+        with self._lock_for(robot):
+            payload = self.transport.read_planning_scene(robot, timeout_s)
+            if not isinstance(payload, dict):
+                return []
+            scene_value = payload.get("scene")
+            scene: dict[str, Any] = scene_value if isinstance(scene_value, dict) else payload
+            world_value = scene.get("world")
+            world: dict[str, Any] = world_value if isinstance(world_value, dict) else {}
+            names = []
+            for collision_object in world.get("collision_objects") or []:
+                if not isinstance(collision_object, dict):
+                    continue
+                object_id = collision_object.get("id")
+                if not isinstance(object_id, str) or not object_id or object_id == exclude_object_name:
+                    continue
+                names.append(object_id)
+            return names
 
     def plan_mtc_pick_task(
         self,
@@ -1929,7 +2005,109 @@ def _apply_planning_scene_diff(current_payload: dict[str, Any], diff_payload: di
             attached_objects.append(deepcopy(attached))
     robot_state["attached_collision_objects"] = attached_objects
 
+    diff_acm = diff.get("allowed_collision_matrix")
+    if isinstance(diff_acm, dict):
+        scene["allowed_collision_matrix"] = _normalized_allowed_collision_matrix(diff_acm)
+
     return updated
+
+
+def _empty_allowed_collision_matrix() -> dict[str, Any]:
+    return {"entry_names": [], "entry_values": []}
+
+
+def _normalized_collision_pairs(pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    normalized: list[tuple[str, str]] = []
+    for first, second in pairs:
+        first_name = str(first).strip()
+        second_name = str(second).strip()
+        if not first_name or not second_name:
+            continue
+        normalized.append((first_name, second_name))
+    return normalized
+
+
+def _normalized_allowed_collision_matrix(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return _empty_allowed_collision_matrix()
+
+    raw_names = value.get("entry_names")
+    names = [str(name) for name in raw_names if isinstance(name, str) and name] if isinstance(raw_names, list) else []
+    raw_rows = value.get("entry_values")
+    rows: list[list[bool]] = []
+    for row_index in range(len(names)):
+        row_value = raw_rows[row_index] if isinstance(raw_rows, list) and row_index < len(raw_rows) else {}
+        raw_enabled = row_value.get("enabled") if isinstance(row_value, dict) else []
+        enabled = [
+            bool(raw_enabled[column_index]) if isinstance(raw_enabled, list) and column_index < len(raw_enabled) else False
+            for column_index in range(len(names))
+        ]
+        rows.append(enabled)
+
+    matrix: dict[str, Any] = {
+        "entry_names": names,
+        "entry_values": [{"enabled": row} for row in rows],
+    }
+    default_names = value.get("default_entry_names")
+    default_values = value.get("default_entry_values")
+    if isinstance(default_names, list):
+        matrix["default_entry_names"] = [str(name) for name in default_names if isinstance(name, str) and name]
+    if isinstance(default_values, list):
+        matrix["default_entry_values"] = [bool(item) for item in default_values]
+    return matrix
+
+
+def _allowed_collision_matrix_with_pairs(acm: dict[str, Any], pairs: list[tuple[str, str]]) -> dict[str, Any]:
+    matrix = _normalized_allowed_collision_matrix(acm)
+    names = list(matrix["entry_names"])
+    rows = [list(row["enabled"]) for row in matrix["entry_values"]]
+
+    def ensure_name(name: str) -> int:
+        if name in names:
+            return names.index(name)
+        names.append(name)
+        for row in rows:
+            row.append(False)
+        rows.append([False] * len(names))
+        return len(names) - 1
+
+    for first, second in pairs:
+        first_index = ensure_name(first)
+        second_index = ensure_name(second)
+        rows[first_index][second_index] = True
+        rows[second_index][first_index] = True
+
+    updated: dict[str, Any] = {
+        "entry_names": names,
+        "entry_values": [{"enabled": row} for row in rows],
+    }
+    if "default_entry_names" in matrix:
+        updated["default_entry_names"] = list(matrix["default_entry_names"])
+    if "default_entry_values" in matrix:
+        updated["default_entry_values"] = list(matrix["default_entry_values"])
+    return updated
+
+
+def _allowed_collision_matrix_allows_pairs(acm: dict[str, Any], pairs: list[tuple[str, str]]) -> bool:
+    matrix = _normalized_allowed_collision_matrix(acm)
+    names = matrix["entry_names"]
+    rows = matrix["entry_values"]
+    for first, second in pairs:
+        if first not in names or second not in names:
+            return False
+        first_index = names.index(first)
+        second_index = names.index(second)
+        if not rows[first_index]["enabled"][second_index] or not rows[second_index]["enabled"][first_index]:
+            return False
+    return True
+
+
+def _allowed_collision_matrix_diff(acm: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": "",
+        "allowed_collision_matrix": deepcopy(_normalized_allowed_collision_matrix(acm)),
+        "is_diff": True,
+    }
 
 
 def _collision_object_frame(collision_object: dict[str, Any] | None) -> str | None:

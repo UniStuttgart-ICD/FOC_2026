@@ -81,6 +81,11 @@ def test_user_sensing_context_updates_from_vizor_sensor_context_output() -> None
         "manual_target.stale": True,
     }
     assert "attention=beam_001" in store.summary_text()
+    assert store.fresh_user_position(max_age_s=2.0) == {
+        "x": 0.34,
+        "y": -0.72,
+        "z": 1.25,
+    }
 
 
 def test_user_sensing_context_marks_stale_fields() -> None:
@@ -107,6 +112,7 @@ def test_user_sensing_context_marks_stale_fields() -> None:
 
     assert "gaze target: beam_001 (stale, age 5.2s)" in text
     assert "user position: unavailable" in text
+    assert store.fresh_user_position(max_age_s=2.0) is None
 
 
 def test_user_sensing_context_renders_raw_gaze_object_candidate() -> None:

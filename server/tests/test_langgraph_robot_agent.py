@@ -432,6 +432,24 @@ class FakeUserSensingBridge:
         )
 
 
+class MissingUserPositionBridge(FakeUserSensingBridge):
+    async def read_context(self, *, max_age_s: float) -> str:
+        self.calls.append(max_age_s)
+        return json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "user": {
+                        "available": False,
+                        "position": None,
+                        "age_s": None,
+                        "stale": True,
+                    },
+                }
+            }
+        )
+
+
 class FakeGeometryWorldContext:
     def render_instruction_block(self) -> str:
         return "\n".join(
@@ -930,6 +948,53 @@ def hold_execution_contract() -> dict[str, Any]:
             {"kind": "scene", "intent": "attach", "name": "attach_object"},
             {"kind": "motion", "intent": "hold_retreat", "name": "hold", "waypoint_index": 2},
             {"kind": "verify", "intent": "attachment_proof", "name": "verify_attachment"},
+        ],
+    }
+
+
+def bare_hold_execution_contract() -> dict[str, Any]:
+    return {
+        "goal": "hold",
+        "steps": [
+            {
+                "step": 1,
+                "handler": "motion",
+                "name": "connect_to_pre_grasp",
+                "plan_handle": "hold_preview_connect",
+                "waypoint_index": 0,
+                "source_stage": "connect_to_pre_grasp",
+                "required_proof": "verified_motion_plan",
+            },
+            {
+                "step": 2,
+                "handler": "motion",
+                "name": "approach_to_pre_grasp",
+                "plan_handle": "hold_preview_approach",
+                "waypoint_index": 1,
+                "source_stage": "approach_to_pre_grasp",
+                "required_proof": "verified_motion_plan",
+            },
+            {
+                "step": 3,
+                "handler": "close_gripper",
+                "name": "close_gripper",
+                "source_stage": "close_gripper",
+                "required_proof": "verified_gripper_closed",
+            },
+            {
+                "step": 4,
+                "handler": "attach_object",
+                "name": "attach_object",
+                "source_stage": "attach_object",
+                "required_proof": "planning_scene_attached",
+            },
+            {
+                "step": 5,
+                "handler": "verify_attached_object",
+                "name": "verify_attached_object",
+                "source_stage": "verify_attached_object",
+                "required_proof": "attachment_check",
+            },
         ],
     }
 
@@ -1475,6 +1540,68 @@ async def test_graph_routes_model_visible_manipulation_planner_to_native_backend
     output = json.loads(latest_state_tool_content(fixture))
     assert output["structured_content"]["ok"] is True
     assert output["structured_content"]["task_solution_id"] == "manipulation_hold_dynamic_5_001"
+
+
+@pytest.mark.asyncio
+async def test_graph_resolves_human_relative_move_before_calling_manipulation_planner() -> None:
+    args = {
+        "robot_name": "UR10",
+        "requirements": {
+            "goal": "move",
+            "motion": {
+                "type": "human_relative",
+                "relation": "toward_user",
+                "distance_m": 0.20,
+            },
+        },
+        "timeout_s": 9.0,
+    }
+    fixture = make_graph(
+        [ai_tool_call("moveit_plan_manipulation_task", args), ai_text("Task planned.")],
+        bridge=TaskPlannerSurfaceBridge(),
+        user_sensing_bridge=FakeUserSensingBridge(),
+    )
+
+    text = await fixture.graph.run_turn(turn("come closer to me"))
+
+    assert text == "Plan ready."
+    manipulation_calls = [
+        call_args for name, call_args in fixture.bridge.calls if name == "moveit_plan_manipulation_task"
+    ]
+    assert len(manipulation_calls) == 1
+    motion = manipulation_calls[0]["requirements"]["motion"]
+    assert motion["type"] == "relative_tcp"
+    assert motion["resolved_from"]["type"] == "human_relative"
+    assert motion["resolved_from"]["relation"] == "toward_user"
+    assert motion["delta_m"]["x"] == pytest.approx(0.0505, abs=0.0001)
+    assert motion["delta_m"]["y"] == pytest.approx(-0.1935, abs=0.0001)
+    assert motion["delta_m"]["z"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_graph_rejects_human_relative_move_without_fresh_user_position() -> None:
+    args = {
+        "robot_name": "UR10",
+        "requirements": {
+            "goal": "move",
+            "motion": {
+                "type": "human_relative",
+                "relation": "away_from_user",
+                "distance_m": 0.20,
+            },
+        },
+        "timeout_s": 9.0,
+    }
+    fixture = make_graph(
+        [ai_tool_call("moveit_plan_manipulation_task", args), ai_text("Should not replan.")],
+        bridge=TaskPlannerSurfaceBridge(),
+        user_sensing_bridge=MissingUserPositionBridge(),
+    )
+
+    text = await fixture.graph.run_turn(turn("go away from me"))
+
+    assert "fresh vizor user position" in text.lower()
+    assert all(name != "moveit_plan_manipulation_task" for name, _ in fixture.bridge.calls)
 
 
 @pytest.mark.asyncio
@@ -2841,7 +2968,8 @@ async def test_graph_execute_task_stage_failure_reports_failure_without_model_re
 
     assert "Execution of hold_task_dynamic_5_001 failed at approach during planning." in text
     assert "Plan did not satisfy execution requirements" in text
-    assert "No new plan was executed." in text
+    assert "No task steps completed." in text
+    assert "No new plan was executed." not in text
     assert "Please approve the next action" in text
     assert "unexpected model replan" not in text
     assert len(fixture.model.requests) == 1
@@ -3495,7 +3623,8 @@ async def test_graph_returns_bounded_failure_for_dynamic_1_first_stage_timeout()
 
     assert "Execution of pick_task_dynamic_1_001 failed at approach during planning." in text
     assert "read timed out" in text
-    assert "No new plan was executed." in text
+    assert "No task steps completed." in text
+    assert "No new plan was executed." not in text
     assert "Please approve the next action" in text
     assert "unexpected model replan" not in text
     assert len(fixture.model.requests) == 1
@@ -5006,7 +5135,8 @@ async def test_graph_feeds_place_retreat_failure_back_for_explanation() -> None:
     assert (
         text
         == "Execution of place_task_dynamic_5_002 failed at retreat during planning. "
-        "MoveIt/tool failure: incomplete path. No new plan was executed. "
+        "MoveIt/tool failure: incomplete path. Completed before failure: place, "
+        "open_gripper, release_object. "
         "Please approve the next action before I retry or replan."
     )
     assert len(fixture.model.requests) == 1
@@ -5067,6 +5197,128 @@ async def test_graph_executes_hold_contract_and_keeps_held_object_context() -> N
     assert output["structured_content"]["ok"] is True
     assert output["structured_content"]["verification"] == {"result": "pass"}
     assert "held object: dynamic_5" in context.render_instruction_block()
+
+
+@pytest.mark.asyncio
+async def test_graph_executes_zero_lift_hold_without_post_grasp_lift() -> None:
+    task_solution_id = "hold_task_dynamic_5_zero_lift"
+    raw = compound_task_raw(
+        task_solution_id=task_solution_id,
+        task_kind="hold",
+        execution_contract=bare_hold_execution_contract(),
+    )
+    execute_args = {
+        "robot_name": "UR10",
+        "task_solution_id": task_solution_id,
+        "timeout_s": 9.0,
+    }
+    bridge = StageSynchronizedTaskBridge()
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_execute_task", execute_args),
+            ai_text("unexpected model fallback"),
+        ],
+        bridge=bridge,
+        robot_context=approved_contract_task_context(
+            task_solution_id=task_solution_id,
+            task_kind="hold",
+            object_name="dynamic_5",
+            raw=raw,
+        ),
+    )
+
+    text = await fixture.graph.run_turn(turn("yes, hold it"))
+
+    assert text == "Execution completed in AR/RViz; physical status unavailable."
+    names = bridge_tool_names(bridge)
+    assert_subsequence(
+        names,
+        [
+            "moveit_plan_free_motion",
+            "moveit_execute_plan",
+            "moveit_plan_cartesian_motion",
+            "moveit_execute_plan",
+            "moveit_close_gripper",
+            "moveit_attach_object",
+            "moveit_verify_attached_object",
+        ],
+    )
+    assert names.count("moveit_plan_cartesian_motion") == 1
+    assert not any("_post_grasp_lift_" in str(arguments.get("plan_name", "")) for _name, arguments in bridge.calls)
+    output = json.loads(latest_state_tool_content(fixture))
+    completed = output["structured_content"]["simulation"]["completed_steps"]
+    assert [step["name"] for step in completed] == [
+        "connect_to_pre_grasp",
+        "approach_to_pre_grasp",
+        "close_gripper",
+        "attach_object",
+        "verify_attached_object",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_graph_executes_move_contract_from_raw_target_pose() -> None:
+    task_solution_id = "move_task_tcp_001"
+    target_pose = {
+        "position": {"x": 0.50, "y": 0.10, "z": 0.52},
+        "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+    }
+    raw = {
+        "task_solution_id": task_solution_id,
+        "task_kind": "move",
+        "object_name": "tcp",
+        "scene_snapshot_id": "scene_20260515_001",
+        "target_pose": target_pose,
+        "execution_contract": {
+            "steps": [
+                {
+                    "step": 1,
+                    "handler": "motion",
+                    "name": "move_tcp",
+                    "plan_handle": "move_preview_tcp",
+                    "source_stage": "move_tcp",
+                    "required_proof": "verified_motion_plan",
+                },
+            ],
+        },
+    }
+    execute_args = {
+        "robot_name": "UR10",
+        "task_solution_id": task_solution_id,
+        "timeout_s": 9.0,
+    }
+    verified_client = FakeVerifiedExecutionClient()
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_execute_task_plan", execute_args),
+            ai_text("unexpected model fallback"),
+        ],
+        bridge=CompoundTaskPlanBridge(),
+        robot_context=approved_contract_task_context(
+            task_solution_id=task_solution_id,
+            task_kind="move",
+            object_name="tcp",
+            raw=raw,
+        ),
+        verified_execution_client=verified_client,
+    )
+
+    text = await fixture.graph.run_turn(turn("yes, lift up by 10cm"))
+
+    assert text == "Execution complete."
+    assert len(verified_client.calls) == 1
+    assert verified_client.calls[0][0] == "UR10"
+    assert verified_client.calls[0][1].startswith("move_task_tcp_001_move_tcp_")
+    assert verified_client.calls[0][1].endswith("_try1")
+    assert verified_client.calls[0][2] == 9.0
+    planning_calls = [
+        arguments
+        for name, arguments in fixture.bridge.calls
+        if name == "moveit_plan_cartesian_motion"
+    ]
+    assert planning_calls[0]["waypoints"] == [target_pose]
+    output = json.loads(latest_state_tool_content(fixture))
+    assert output["structured_content"]["ok"] is True
 
 
 @pytest.mark.asyncio
@@ -5189,8 +5441,11 @@ async def test_graph_rejects_unknown_contract_handler_without_verified_calls() -
         verified_execution_client=verified_client,
     )
 
-    await fixture.graph.run_turn(turn("yes, execute the pick task"))
+    text = await fixture.graph.run_turn(turn("yes, execute the pick task"))
 
+    assert text == "I need a supported task contract."
+    assert len(fixture.model.requests) == 2
+    assert "moveit_execute_task_plan" not in text
     assert verified_client.calls == []
     assert verified_client.gripper_calls == []
     output = json.loads(latest_state_tool_content(fixture))

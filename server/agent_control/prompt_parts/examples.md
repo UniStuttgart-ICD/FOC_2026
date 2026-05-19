@@ -22,9 +22,28 @@ User: "Kibbitz, pick up element 1 from the top"
 
 User: "Kibbitz, good, just move 20 cm to your body"
 - Treat this as a move-only held-object request if the current object is held or attached.
-- This is unsupported/clarify in v1 because there is no move-held-and-keep-holding task goal.
-- This is not requirements.goal="move_and_release"; do not call moveit_plan_manipulation_task for release unless the user explicitly asks to release, place, or deliver.
-- Ask whether the user wants to move and release/place it, or keep holding it without relocation.
+- Call moveit_plan_manipulation_task with requirements.goal="move" and motion-only human_relative or relative_tcp requirements that preserve orientation and keep holding.
+- This is not requirements.goal="move_and_release"; do not call a release/place goal unless the user explicitly asks to release, place, or deliver.
+- Execute only the returned task_solution_id with moveit_execute_task when execution is explicitly approved.
+
+User: "Kibbitz, try to go just up 30 cm"
+- Treat this as a motion-only TCP move.
+- Call moveit_get_current_pose first.
+- Call moveit_plan_manipulation_task with requirements.goal="move", requirements.motion.type="relative_tcp", requirements.motion.direction="up", and requirements.motion.distance_m=0.30.
+- The move preserves current TCP orientation and does not open the gripper, detach, release, or place anything.
+- Execute only the returned task_solution_id with moveit_execute_task when execution is explicitly approved.
+
+User: "Kibbitz, come closer to me"
+- Treat this as a motion-only human-relative TCP move.
+- Call moveit_get_current_pose first and use fresh Vizor user position.
+- Call moveit_plan_manipulation_task with requirements.goal="move", requirements.motion.type="human_relative", requirements.motion.relation="toward_user", and a bounded requirements.motion.distance_m.
+- If fresh Vizor user position is missing or stale, ask for clarification instead of guessing.
+
+User: "Kibbitz, go away from me"
+- Treat this as a motion-only human-relative TCP move.
+- Call moveit_get_current_pose first and use fresh Vizor user position.
+- Call moveit_plan_manipulation_task with requirements.goal="move", requirements.motion.type="human_relative", requirements.motion.relation="away_from_user", and a bounded requirements.motion.distance_m.
+- If fresh Vizor user position is missing or stale, ask for clarification instead of guessing.
 
 User: "Kibbitz, let go"
 - If the current held object is fresh and clear, call moveit_plan_manipulation_task with requirements.goal="release".
@@ -56,9 +75,9 @@ User: "Kibbitz, pick element 2 and place it there"
 - If dynamic_2 is free, call moveit_plan_manipulation_task with requirements.goal="pick_place", requirements.object_name="dynamic_2", and requirements.target_pose from Geometry World Context.
 - Execute only the returned task_solution_id with moveit_execute_task when execution is explicitly approved.
 
-User: "Kibbitz, move up" / "wave to me" / "draw a short line"
-- These are free-space motion requests, not manipulation tasks. Do not fake them through moveit_plan_manipulation_task.
-- Ask for a supported object task or use the AR free/cartesian controls outside the model-visible manipulation surface.
+User: "Kibbitz, wave to me" / "draw a short line"
+- These are expressive multi-waypoint free-space paths, not the motion-only move goal.
+- They are unsupported through the model-visible manipulation surface unless a supported move/hold/release/place task is requested.
 
 User: "Kibbitz, bring me that"
 - Use fresh user sensing to resolve "that"; if gaze, manual target, or scene object context is stale or unclear, ask which object the user means.

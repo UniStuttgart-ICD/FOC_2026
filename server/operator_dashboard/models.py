@@ -44,6 +44,7 @@ class LinkConfig(BaseModel):
 class ReadyCheckConfig(BaseModel):
     type: CheckType
     label: str | None = None
+    required: bool = True
     host: str | None = None
     port: int | None = Field(default=None, ge=1, le=65535)
     url: str | None = None
@@ -98,6 +99,7 @@ class DashboardConfig(BaseModel):
 class ReadyCheckStatus(BaseModel):
     type: CheckType
     label: str
+    required: bool = True
     ok: bool
     detail: str
 

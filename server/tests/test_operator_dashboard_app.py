@@ -298,6 +298,14 @@ def test_dashboard_script_renders_auxiliary_processes_separately() -> None:
     assert "nodes.auxiliaryServiceGrid.replaceChildren" in source
 
 
+def test_dashboard_script_renders_optional_health_checks_as_warnings() -> None:
+    script = Path(__file__).resolve().parents[1] / "operator_dashboard/static/app.js"
+    source = script.read_text(encoding="utf-8")
+
+    assert "healthCheckClassName" in source
+    assert 'check.required === false ? "warn"' in source
+
+
 def test_index_has_no_embedded_voice_tuning_controls(tmp_path: Path) -> None:
     app = create_app(
         load_dashboard_config(_config(tmp_path)), DashboardSecurity(token="secret")

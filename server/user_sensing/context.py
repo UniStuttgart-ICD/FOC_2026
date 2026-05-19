@@ -85,6 +85,34 @@ class UserSensingContextStore:
             manual_stale=attributes.get("manual_target.stale"),
         )
 
+    def fresh_user_position(self, *, max_age_s: float) -> dict[str, float] | None:
+        if self._snapshot.observed_at_s is None:
+            return None
+        if self._time_fn() - self._snapshot.observed_at_s > max_age_s:
+            return None
+        context = self._snapshot.context
+        if not isinstance(context, dict):
+            return None
+        user = context.get("user")
+        if not isinstance(user, dict) or user.get("available") is not True:
+            return None
+        if user.get("stale") is True:
+            return None
+        frame = user.get("frame")
+        if isinstance(frame, str) and frame and frame != "base_link":
+            return None
+        position = user.get("position")
+        if not isinstance(position, dict):
+            return None
+        try:
+            return {
+                "x": float(position["x"]),
+                "y": float(position["y"]),
+                "z": float(position["z"]),
+            }
+        except (KeyError, TypeError, ValueError):
+            return None
+
     def _status_age_text(self) -> str:
         if self._snapshot.observed_at_s is None:
             return "unknown"

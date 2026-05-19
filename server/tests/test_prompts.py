@@ -240,8 +240,11 @@ def test_prompt_does_not_route_move_only_held_object_to_move_and_release() -> No
     assert '"move it toward your body"' in prompt
     assert '"keep holding it"' in prompt
     assert "must not call requirements.goal=\"move_and_release\"" in prompt
+    assert 'requirements.goal="move"' in prompt
+    assert "does not release" in prompt
 
-    assert "unsupported/clarify" in move_only_example
+    assert 'requirements.goal="move"' in move_only_example
+    assert "motion-only" in move_only_example
     assert "not requirements.goal=\"move_and_release\"" in move_only_example
 
 
@@ -300,6 +303,7 @@ def test_prompt_bounds_verified_manipulation_task_execution_contract() -> None:
     assert "supported verified staged manipulation goals in v1" in prompt
     assert "hold" in prompt
     assert "release" in prompt
+    assert "move" in prompt
     assert "move_and_release" in prompt
     assert "pick_place" in prompt
     assert "approach_hold_adjust_release" not in prompt
@@ -525,15 +529,37 @@ def test_prompt_allows_visible_improvised_gestures_without_undefined_bounds() ->
     assert "cables" not in prompt
 
 
-def test_prompt_does_not_fake_free_space_motion_as_manipulation() -> None:
+def test_prompt_routes_simple_cartesian_move_through_manipulation_task() -> None:
     prompt = SYSTEM_PROMPT.lower()
-    free_space_example = _example_region("kibbitz, move up")
+    move_example = _example_region("kibbitz, try to go just up 30 cm")
 
-    assert "user: \"kibbitz, move up\"" in prompt
-    assert "wave to me" in free_space_example
+    assert "user: \"kibbitz, try to go just up 30 cm\"" in prompt
+    assert 'requirements.goal="move"' in move_example
+    assert "relative_tcp" in move_example
+    assert 'direction="up"' in move_example
+    assert "distance_m=0.30" in move_example
+    assert "does not open the gripper" in move_example
+
+
+def test_prompt_routes_human_relative_move_through_manipulation_task() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+    closer_example = _example_region("kibbitz, come closer to me")
+
+    assert "user: \"kibbitz, come closer to me\"" in prompt
+    assert 'requirements.goal="move"' in closer_example
+    assert "human_relative" in closer_example
+    assert 'relation="toward_user"' in closer_example
+    assert "fresh vizor user position" in closer_example
+
+
+def test_prompt_keeps_expressive_free_space_paths_out_of_manipulation_move() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+    free_space_example = _example_region("kibbitz, wave to me")
+
+    assert "user: \"kibbitz, wave to me\"" in prompt
     assert "draw a short line" in free_space_example
-    assert "free-space motion requests" in free_space_example
-    assert "do not fake them through moveit_plan_manipulation_task" in free_space_example
+    assert "expressive multi-waypoint" in free_space_example
+    assert "unsupported" in free_space_example
 
 
 def _example_region(user_text: str) -> str:

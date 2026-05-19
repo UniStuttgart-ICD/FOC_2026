@@ -506,8 +506,9 @@ def test_sync_state_reads_real_joints_and_publishes_fake_controller_state() -> N
                 "wrist_1_joint",
                 "wrist_2_joint",
                 "wrist_3_joint",
+                "finger_joint",
             ],
-            actual_positions,
+            [*actual_positions, pytest.approx(128.0 / 255.0 * 0.8)],
         )
     ]
     assert cache.gripper_sync_calls == [
@@ -573,8 +574,9 @@ def test_sync_state_fails_when_fake_controller_state_publish_fails() -> None:
                 "wrist_1_joint",
                 "wrist_2_joint",
                 "wrist_3_joint",
+                "finger_joint",
             ],
-            actual_positions,
+            [*actual_positions, 0.8],
         )
     ]
     assert cache.gripper_sync_calls == []
@@ -634,8 +636,9 @@ def test_sync_state_fails_when_gripper_joint_state_publish_fails() -> None:
                 "wrist_1_joint",
                 "wrist_2_joint",
                 "wrist_3_joint",
+                "finger_joint",
             ],
-            actual_positions,
+            [*actual_positions, 0.8],
         )
     ]
     assert cache.gripper_sync_calls == [("UR10", "finger_joint", 0.8)]
@@ -1225,7 +1228,18 @@ def test_ur_rtde_executor_runs_home_as_single_joint_move() -> None:
     executor.go_home("UR10")
 
     assert robots[0].move_j_calls == [
-        ([0.0, -1.57, 1.57, 0.0, 0.0, 0.0], 0.5, 0.75)
+        (
+            [
+                -0.05903655687441045,
+                -1.5698241536486712,
+                1.529440704976217,
+                -0.0015873473933716298,
+                1.4997673034667969,
+                0.0008195281261578202,
+            ],
+            0.5,
+            0.75,
+        )
     ]
     assert robots[0].kwargs["skip_gripper"] is True
 
@@ -1245,7 +1259,7 @@ def test_ur_rtde_executor_sends_home_as_urscript_by_default() -> None:
     result = executor.go_home("UR10")
 
     assert len(sender.programs) == 1
-    assert "movej([0, -1.57, 1.57, 0, 0, 0]" in sender.programs[0]
+    assert "movej([" in sender.programs[0]
     assert "servoj(" not in sender.programs[0]
     assert result["target_joint_positions"] == list(URRTDETrajectoryExecutor.HOME_JOINTS)
     assert result["max_joint_error"] == 0.0

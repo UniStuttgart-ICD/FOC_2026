@@ -203,13 +203,16 @@ def test_task_tool_descriptions_route_staged_manipulation_tasks() -> None:
     assert "requirements" in manipulation_task
     assert "preferences" in manipulation_task
     assert "hold" in manipulation_task
+    assert "move" in manipulation_task
     assert "place" in manipulation_task
     assert "move_and_release" in manipulation_task
     assert "pick_place" in manipulation_task
+    assert "motion-only tcp" in manipulation_task
+    assert "human-relative" in manipulation_task
+    assert "does not release" in manipulation_task
     assert "object target pose, not tcp pose" in manipulation_task
     assert "move-only held-object requests" in manipulation_task
     assert "must not use move_and_release" in manipulation_task
-    assert "ask for clarification" in manipulation_task
     assert "geometry world context" in manipulation_task
     assert "vizor user position" in manipulation_task
     assert "execution_contract" in manipulation_task
@@ -272,6 +275,73 @@ def test_accepts_untargeted_final_manipulation_task_goals(goal: str) -> None:
     )
 
 
+def test_accepts_motion_only_manipulation_move_without_object_name() -> None:
+    validate_robot_tool_call(
+        "moveit_plan_manipulation_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {
+                "goal": "move",
+                "motion": {
+                    "type": "relative_tcp",
+                    "direction": "up",
+                    "distance_m": 0.30,
+                },
+            },
+        },
+    )
+
+
+def test_accepts_human_relative_manipulation_move_without_object_name() -> None:
+    validate_robot_tool_call(
+        "moveit_plan_manipulation_task",
+        {
+            "robot_name": "UR10",
+            "requirements": {
+                "goal": "move",
+                "motion": {
+                    "type": "human_relative",
+                    "relation": "toward_user",
+                    "distance_m": 0.20,
+                },
+            },
+        },
+    )
+
+
+def test_rejects_motion_only_manipulation_move_without_motion() -> None:
+    with pytest.raises(RobotCallValidationError) as exc:
+        validate_robot_tool_call(
+            "moveit_plan_manipulation_task",
+            {
+                "robot_name": "UR10",
+                "requirements": {"goal": "move"},
+            },
+        )
+
+    assert "requirements.motion" in str(exc.value)
+
+
+def test_rejects_motion_only_manipulation_move_with_invalid_direction() -> None:
+    with pytest.raises(RobotCallValidationError) as exc:
+        validate_robot_tool_call(
+            "moveit_plan_manipulation_task",
+            {
+                "robot_name": "UR10",
+                "requirements": {
+                    "goal": "move",
+                    "motion": {
+                        "type": "relative_tcp",
+                        "direction": "diagonal",
+                        "distance_m": 0.30,
+                    },
+                },
+            },
+        )
+
+    assert "requirements.motion.direction" in str(exc.value)
+
+
 def test_accepts_release_manipulation_without_object_name_for_current_held_object() -> None:
     validate_robot_tool_call(
         "moveit_plan_manipulation_task",
@@ -310,7 +380,7 @@ def test_rejects_removed_model_visible_manipulation_task_goals(goal: str) -> Non
 
     structured = structured_robot_call_error(exc.value)
     assert structured["ok"] is False
-    assert "hold, place, release, move_and_release, or pick_place" in structured["correction"]
+    assert "hold, place, release, move, move_and_release, or pick_place" in structured["correction"]
     assert "approach_hold_adjust_release" not in structured["correction"]
 
 

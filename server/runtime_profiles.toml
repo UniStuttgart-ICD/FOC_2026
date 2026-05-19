@@ -26,7 +26,7 @@ model = "gemini-3.1-flash-live-preview"
 voice = "Enceladus"
 
 [profiles.hybrid_gemini_live_tts.voice_modulation]
-enabled = true
+enabled = false
 preset_name = "ai_core"
 gain_db = 0.0
 wet_mix = 1.0

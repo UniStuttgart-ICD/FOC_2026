@@ -3,6 +3,7 @@ import sys
 import time
 from copy import deepcopy
 
+from moveit_mcp.scene import PLANNING_SCENE_COMPONENTS
 from moveit_mcp.vizor_client import (
     FakeRosbridgeTransport,
     Pose,
@@ -73,6 +74,10 @@ PLANNING_SCENE = {
         "object_colors": [{"id": "beam_001", "color": {"r": 1.0, "g": 0.0, "b": 0.0, "a": 1.0}}],
     }
 }
+
+
+def test_planning_scene_components_include_allowed_collision_matrix():
+    assert PLANNING_SCENE_COMPONENTS & 128
 
 
 class FakeRoslibpyModule:
@@ -732,6 +737,59 @@ def test_attach_object_fails_when_apply_response_does_not_change_service_scene()
     assert context.object_context["state"] == "free"
 
 
+def test_scoped_allowed_collision_pairs_preserves_and_restores_acm():
+    scene = deepcopy(PLANNING_SCENE)
+    original_acm = {
+        "entry_names": ["beam_001", "ground_plane"],
+        "entry_values": [
+            {"enabled": [False, True]},
+            {"enabled": [True, False]},
+        ],
+        "default_entry_names": ["legacy_default"],
+        "default_entry_values": [False],
+    }
+    scene["scene"]["allowed_collision_matrix"] = deepcopy(original_acm)
+    transport = FakeRosbridgeTransport()
+    transport.set_planning_scene("UR10", scene, planning_frame="base_link")
+    client = VizorClient(transport=transport)
+
+    with client.scoped_allowed_collision_pairs(
+        robot="UR10",
+        pairs=[("beam_001", "tool0"), ("beam_001", "wrist_3_link")],
+        timeout_s=0.1,
+    ) as scoped:
+        assert scoped["ok"] is True
+        current = transport.read_planning_scene("UR10", 0.1)["scene"]["allowed_collision_matrix"]
+        assert _acm_allows(current, "beam_001", "tool0") is True
+        assert _acm_allows(current, "beam_001", "wrist_3_link") is True
+        assert _acm_allows(current, "beam_001", "ground_plane") is True
+        assert current["default_entry_names"] == ["legacy_default"]
+        assert current["default_entry_values"] == [False]
+
+    restored = transport.read_planning_scene("UR10", 0.1)["scene"]["allowed_collision_matrix"]
+    assert restored == original_acm
+    assert len(transport.applied_planning_scenes) == 2
+
+
+def test_scoped_allowed_collision_pairs_handles_missing_acm():
+    scene = deepcopy(PLANNING_SCENE)
+    scene["scene"].pop("allowed_collision_matrix", None)
+    transport = FakeRosbridgeTransport()
+    transport.set_planning_scene("UR10", scene, planning_frame="base_link")
+    client = VizorClient(transport=transport)
+
+    with client.scoped_allowed_collision_pairs(
+        robot="UR10",
+        pairs=[("beam_001", "tool0")],
+        timeout_s=0.1,
+    ):
+        current = transport.read_planning_scene("UR10", 0.1)["scene"]["allowed_collision_matrix"]
+        assert _acm_allows(current, "beam_001", "tool0") is True
+
+    restored = transport.read_planning_scene("UR10", 0.1)["scene"]["allowed_collision_matrix"]
+    assert restored == {"entry_names": [], "entry_values": []}
+
+
 def test_detach_object_translates_mesh_center_to_target_pose():
     mesh_object = {
         "id": "mesh_post",
@@ -780,6 +838,13 @@ def test_detach_object_translates_mesh_center_to_target_pose():
     assert detached.ok is True
     assert context.object_context["state"] == "free"
     assert context.object_context["bounds"]["center"] == {"x": 0.42, "y": -0.55, "z": 0.16}
+
+
+def _acm_allows(acm: dict, first: str, second: str) -> bool:
+    names = acm["entry_names"]
+    first_index = names.index(first)
+    second_index = names.index(second)
+    return bool(acm["entry_values"][first_index]["enabled"][second_index])
 
 
 def test_remove_scene_object_removes_free_world_object_with_readback():

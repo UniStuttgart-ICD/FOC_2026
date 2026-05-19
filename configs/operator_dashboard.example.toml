@@ -19,6 +19,15 @@ links = [
   { label = "Open RViz", url = "http://127.0.0.1:6080/vnc_auto.html?host=127.0.0.1&port=6080&path=websockify&autoconnect=true&resize=remote" },
 ]
 
+[services.modeltracker_sync]
+label = "ModelTracker Hologram Sync"
+cwd = "server"
+command = ["uv", "run", "python", "-m", "robot_control.shared_geometry.modeltracker_sync_server"]
+startup_timeout_s = 30
+ready_checks = [
+  { type = "http", url = "http://127.0.0.1:8788/health", label = "ModelTracker sync" },
+]
+
 [services.verified_execution]
 label = "Verified Execution Server"
 cwd = "server"
@@ -37,7 +46,7 @@ env = { MCP_VIZOR_URL = "http://127.0.0.1:8001/mcp", VERIFIED_EXECUTION_URL = "h
 startup_timeout_s = 60
 ready_checks = [
   { type = "http", url = "http://localhost:7860/client/", label = "Pipecat client" },
-  { type = "http", url = "http://127.0.0.1:8898", label = "Blackboard monitor" },
+  { type = "http", url = "http://127.0.0.1:8898", label = "Blackboard monitor", required = false },
 ]
 links = [
   { label = "Open Pipecat", url = "http://localhost:7860/client/" },

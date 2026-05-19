@@ -442,6 +442,10 @@ h3 {
   border-left-color: var(--failed);
 }
 
+.health-item.warn {
+  border-left-color: var(--degraded);
+}
+
 .health-label {
   font-size: 0.78rem;
   font-weight: 900;

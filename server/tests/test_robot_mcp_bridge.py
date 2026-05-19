@@ -324,7 +324,33 @@ MANIPULATION_TASK_PLANNING_PARAMETERS = {
                 },
                 "goal": {
                     "type": "string",
-                    "enum": ["hold", "place", "release", "move_and_release", "pick_place"],
+                    "enum": ["hold", "place", "release", "move", "move_and_release", "pick_place"],
+                },
+                "motion": {
+                    "type": "object",
+                    "description": (
+                        "Motion-only move requirements. Use goal='move' with relative_tcp for TCP deltas "
+                        "or human_relative for toward/away-from-user moves; this keeps holding any attached "
+                        "object and never releases it."
+                    ),
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "enum": ["relative_tcp", "human_relative"],
+                        },
+                        "direction": {
+                            "type": "string",
+                            "enum": ["up", "down", "left", "right", "forward", "back"],
+                        },
+                        "distance_m": {"type": "number", "exclusiveMinimum": 0.0},
+                        "delta_m": COORDINATE_SCHEMA,
+                        "relation": {
+                            "type": "string",
+                            "enum": ["toward_user", "away_from_user"],
+                        },
+                    },
+                    "required": ["type"],
+                    "additionalProperties": False,
                 },
                 "lift_distance_m": {
                     "type": "number",
@@ -722,8 +748,21 @@ async def test_manipulation_task_schema_overrides_goal_enum_from_upstream_schema
     assert requirement_properties["target_position"] == COORDINATE_SCHEMA
     assert requirement_properties["grasp_face"]["type"] == "string"
     assert "hard" in requirement_properties["grasp_face"]["description"].lower()
-    assert goal["enum"] == ["hold", "place", "release", "move_and_release", "pick_place"]
+    assert goal["enum"] == ["hold", "place", "release", "move", "move_and_release", "pick_place"]
     assert "slide" not in goal["enum"]
+    motion = requirement_properties["motion"]
+    assert motion["type"] == "object"
+    assert "motion-only" in motion["description"].lower()
+    assert motion["properties"]["type"]["enum"] == ["relative_tcp", "human_relative"]
+    assert motion["properties"]["direction"]["enum"] == [
+        "up",
+        "down",
+        "left",
+        "right",
+        "forward",
+        "back",
+    ]
+    assert motion["properties"]["relation"]["enum"] == ["toward_user", "away_from_user"]
     assert requirement_properties["lift_distance_m"] == {
         "type": "number",
         "minimum": 0.0,

@@ -37,7 +37,14 @@ class URScriptSocketClient:
 
 
 class URRTDETrajectoryExecutor:
-    HOME_JOINTS = [0.0, -1.57, 1.57, 0.0, 0.0, 0.0]
+    HOME_JOINTS = [
+        -0.05903655687441045,
+        -1.5698241536486712,
+        1.529440704976217,
+        -0.0015873473933716298,
+        1.4997673034667969,
+        0.0008195281261578202,
+    ]
 
     def __init__(
         self,

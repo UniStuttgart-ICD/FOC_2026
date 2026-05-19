@@ -98,6 +98,7 @@ SUPPORTED_TASK_SOLUTION_KINDS = {
     "pick",
     "place",
     "hold",
+    "move",
     "move_and_release",
     "pick_place",
 }
@@ -808,6 +809,16 @@ class LangGraphRobotAgent:
         user_text: str | None = None,
         allow_execution: bool = True,
     ) -> str:
+        if name == MODEL_VISIBLE_TASK_PLANNER_TOOL_NAME:
+            resolved_arguments = _resolve_human_relative_move_arguments(
+                arguments,
+                robot_context=self._robot_context,
+                user_sensing_context=self._user_sensing_context,
+                user_sensing_max_age_s=self._user_sensing_max_age_s,
+            )
+            if isinstance(resolved_arguments, str):
+                return resolved_arguments
+            arguments = resolved_arguments
         decision = await self._validate_robot_task_step(
             name,
             arguments,
@@ -1219,6 +1230,8 @@ class LangGraphRobotAgent:
                                 verified_plan_names=physical_plan_names,
                             )
                     completed_steps.append({"name": step_name, "handler": step_handler})
+                    if recent.task_kind == "move":
+                        task_verified = True
                     stage_succeeded = True
                     break
                 if not stage_succeeded:
@@ -1875,6 +1888,8 @@ class LangGraphRobotAgent:
                         continue
                     verified_plan_names.append(executable_name)
                     completed_steps.append({"name": step_name, "handler": step_handler})
+                    if recent.task_kind == "move":
+                        task_verified = True
                     stage_succeeded = True
                     break
                 if not stage_succeeded:
@@ -2736,6 +2751,105 @@ def _tool_for_model_binding(tool: dict[str, Any]) -> dict[str, Any]:
     return {"type": "function", "function": function}
 
 
+def _resolve_human_relative_move_arguments(
+    arguments: dict[str, Any],
+    *,
+    robot_context: RobotContextStore,
+    user_sensing_context: UserSensingContextStore,
+    user_sensing_max_age_s: float,
+) -> dict[str, Any] | str:
+    requirements = arguments.get("requirements")
+    if not isinstance(requirements, dict) or requirements.get("goal") != "move":
+        return arguments
+    motion = requirements.get("motion")
+    if not isinstance(motion, dict) or motion.get("type") != "human_relative":
+        return arguments
+
+    relation = motion.get("relation")
+    distance_m = motion.get("distance_m")
+    if (
+        relation not in {"toward_user", "away_from_user"}
+        or isinstance(distance_m, bool)
+        or not isinstance(distance_m, (int, float))
+        or not math.isfinite(float(distance_m))
+        or float(distance_m) <= 0.0
+    ):
+        return arguments
+    distance_value = float(distance_m)
+
+    user_position = user_sensing_context.fresh_user_position(
+        max_age_s=user_sensing_max_age_s
+    )
+    if user_position is None:
+        return _human_relative_move_error(
+            "Human-relative move needs a fresh Vizor user position.",
+            "Fresh Vizor user position is missing; ask the user to refresh user sensing or use a concrete relative direction such as up, left, or forward.",
+        )
+
+    tcp_pose = robot_context.latest_tcp_pose()
+    tcp_position = tcp_pose.get("position") if isinstance(tcp_pose, dict) else None
+    if not isinstance(tcp_position, dict):
+        return _human_relative_move_error(
+            "Human-relative move needs a fresh current TCP pose.",
+            "Call moveit_get_current_pose, then retry the human-relative move.",
+        )
+    tcp_xyz = _finite_pose_fields(tcp_position, ("x", "y", "z"))
+    if tcp_xyz is None:
+        return _human_relative_move_error(
+            "Human-relative move needs a finite current TCP pose.",
+            "Call moveit_get_current_pose, then retry the human-relative move.",
+        )
+
+    toward_x = user_position["x"] - tcp_xyz[0]
+    toward_y = user_position["y"] - tcp_xyz[1]
+    norm = math.hypot(toward_x, toward_y)
+    if norm <= 1e-9:
+        return _human_relative_move_error(
+            "Human-relative move direction is undefined because the TCP is already at the user XY position.",
+            "Use a concrete relative direction such as up, left, or forward.",
+        )
+
+    scale = distance_value / norm
+    sign = 1.0 if relation == "toward_user" else -1.0
+    delta_m = {
+        "x": round(sign * toward_x * scale, 6),
+        "y": round(sign * toward_y * scale, 6),
+        "z": 0.0,
+    }
+    resolved_motion = {
+        "type": "relative_tcp",
+        "delta_m": delta_m,
+        "resolved_from": {
+            "type": "human_relative",
+            "relation": relation,
+            "distance_m": distance_value,
+            "user_position": user_position,
+        },
+    }
+    resolved_requirements = dict(requirements)
+    resolved_requirements["motion"] = resolved_motion
+    resolved_arguments = dict(arguments)
+    resolved_arguments["requirements"] = resolved_requirements
+    return resolved_arguments
+
+
+def _finite_positive_number(value: Any) -> bool:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return False
+    return math.isfinite(float(value)) and float(value) > 0.0
+
+
+def _human_relative_move_error(error: str, correction: str) -> str:
+    return json.dumps(
+        structured_robot_call_error(
+            RobotCallValidationError(error, correction=correction),
+            retryable=False,
+            suggested_next_tool=None,
+        ),
+        ensure_ascii=False,
+    )
+
+
 def _should_execute_latest_pending_plan(text: str, robot_context: RobotContextStore) -> bool:
     if not _explicit_execute_requested(text):
         return False
@@ -2830,6 +2944,8 @@ def _task_plan_execution_result_text(output: str) -> str:
     result = _structured_result_payload(output)
     if result is not None and _task_plan_failure_needs_model_feedback(result):
         return _task_plan_failure_result_text(result)
+    if result is not None and _task_execution_error_needs_model_feedback(result):
+        return ""
     return _execution_result_text(output, "moveit_execute_task_plan")
 
 
@@ -2837,6 +2953,8 @@ def _task_execution_result_text(output: str) -> str:
     result = _structured_result_payload(output)
     if result is not None and _task_plan_failure_needs_model_feedback(result):
         return _task_plan_failure_result_text(result)
+    if result is not None and _task_execution_error_needs_model_feedback(result):
+        return ""
     if result is not None:
         simulation = result.get("simulation")
         real_robot = result.get("real_robot")
@@ -2858,7 +2976,52 @@ def _task_plan_failure_result_text(result: dict[str, Any]) -> str:
     evidence = _task_plan_failure_evidence_text(result)
     if evidence:
         text = f"{text} MoveIt/tool failure: {evidence.rstrip('.')}."
-    return f"{text} No new plan was executed. Please approve the next action before I retry or replan."
+    completed_text = _task_plan_completed_steps_text(result)
+    if completed_text:
+        text = f"{text} Completed before failure: {completed_text}."
+    else:
+        text = f"{text} No task steps completed."
+    return f"{text} Please approve the next action before I retry or replan."
+
+
+def _task_execution_error_needs_model_feedback(result: dict[str, Any]) -> bool:
+    if result.get("ok") is not False:
+        return False
+    if "failed_tool_result" in result:
+        return False
+    suggested_next_tool = result.get("suggested_next_tool")
+    if isinstance(suggested_next_tool, str) and suggested_next_tool.strip():
+        return True
+    if result.get("retryable") is True:
+        return True
+    return _contains_internal_task_execution_guidance(result)
+
+
+def _contains_internal_task_execution_guidance(result: dict[str, Any]) -> bool:
+    internal_names = ("moveit_execute_task_plan", "moveit_execute_task_solution")
+    for key in ("error", "correction", "suggested_next_tool"):
+        value = result.get(key)
+        if isinstance(value, str) and any(name in value for name in internal_names):
+            return True
+    return False
+
+
+def _task_plan_completed_steps_text(result: dict[str, Any]) -> str:
+    completed_steps = result.get("completed_steps")
+    if not isinstance(completed_steps, list):
+        recovery = result.get("recovery")
+        if isinstance(recovery, dict):
+            completed_steps = recovery.get("completed_steps")
+    if not isinstance(completed_steps, list):
+        return ""
+    names = []
+    for step in completed_steps:
+        if not isinstance(step, dict):
+            continue
+        name = _string_value(step.get("name")) or _string_value(step.get("handler"))
+        if name:
+            names.append(name)
+    return ", ".join(names)
 
 
 def _task_plan_failure_evidence_text(result: dict[str, Any]) -> str:
@@ -3509,9 +3672,18 @@ def _task_plan_step_waypoint(step: dict[str, Any], raw: dict[str, Any]) -> dict[
     if isinstance(target_pose, dict):
         return dict(target_pose)
     waypoints = raw.get("waypoints")
-    if not isinstance(waypoints, list):
-        return None
-    return _task_plan_waypoint(step, waypoints)
+    if isinstance(waypoints, list):
+        waypoint = _task_plan_waypoint(step, waypoints)
+        if waypoint is not None:
+            return waypoint
+    step_label = _task_plan_step_label(
+        str(step.get("name") or step.get("source_stage") or step.get("tool") or "")
+    )
+    if step_label == "move_tcp":
+        raw_target_pose = raw.get("target_pose")
+        if isinstance(raw_target_pose, dict):
+            return dict(raw_target_pose)
+    return None
 
 
 def _task_plan_step_arguments(step: dict[str, Any]) -> dict[str, Any]:

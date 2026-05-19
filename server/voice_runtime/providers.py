@@ -96,6 +96,5 @@ def create_tts_service(
             model=config.model or DEFAULT_GEMINI_LIVE_MODEL,
             voice=config.voice or DEFAULT_GEMINI_LIVE_VOICE,
             instructions=config.instructions,
-            voice_stream_tracer=voice_stream_tracer,
         )
     raise ValueError(f"Unsupported TTS provider: {config.provider}")

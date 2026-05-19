@@ -579,10 +579,12 @@ async def _sync_robot_state(
     metadata["gripper_considered_open"] = (
         actual_gripper_position <= GRIPPER_OPEN_THRESHOLD_POSITION
     )
+    moveit_joint_names = [*joint_names, DEFAULT_GRIPPER_JOINT_NAME]
+    moveit_joint_positions = [*actual_positions, actual_gripper_joint_position]
     sync_published = plan_cache.sync_joint_state(
         request.robot_name,
-        joint_names=joint_names,
-        joint_positions=actual_positions,
+        joint_names=moveit_joint_names,
+        joint_positions=moveit_joint_positions,
     )
     metadata["state_sync_published"] = sync_published
     if not sync_published:

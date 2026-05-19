@@ -72,6 +72,14 @@ def test_geometry_world_context_renders_physical_role_and_hologram_target_pose(t
     assert "desired object poses, not TCP poses" in text
 
 
+def test_default_geometry_world_context_renders_shared_models() -> None:
+    text = GeometryWorldContextStore().render_instruction_block()
+
+    assert "BLOCKED" not in text
+    assert '"object_name": "dynamic_2"' in text
+    assert '"target_pose"' in text
+
+
 def test_geometry_world_context_reloads_hologram_file_each_render(tmp_path) -> None:
     physical_path = tmp_path / "physical_model.json"
     hologram_path = tmp_path / "hologram_model.json"
@@ -109,7 +117,39 @@ def test_geometry_world_context_reloads_hologram_file_each_render(tmp_path) -> N
     assert '"position": {"x": 0.2, "y": 0.3, "z": 0.4}' in store.render_instruction_block()
 
 
-def test_geometry_world_context_blocks_missing_hologram_body(tmp_path) -> None:
+def test_geometry_world_context_renders_common_objects_when_hologram_body_is_missing(tmp_path) -> None:
+    physical_path = tmp_path / "physical_model.json"
+    hologram_path = tmp_path / "hologram_model.json"
+    physical_path.write_text(
+        json.dumps(
+            _model(
+                "physical_frame",
+                [
+                    _body("dynamic_0", role={"type": "unassigned"}),
+                    _body("dynamic_1", role={"type": "unassigned"}),
+                ],
+            )
+        ),
+        encoding="utf-8",
+    )
+    hologram_path.write_text(
+        json.dumps(_model("hologram_frame", [_body("dynamic_0")])),
+        encoding="utf-8",
+    )
+    store = GeometryWorldContextStore(
+        physical_model_path=physical_path,
+        hologram_model_path=hologram_path,
+    )
+
+    text = store.render_instruction_block()
+
+    assert "BLOCKED" not in text
+    assert '"object_name": "dynamic_0"' in text
+    assert '"object_name": "dynamic_1"' not in text
+    assert '"target_pose"' in text
+
+
+def test_geometry_world_context_renders_common_objects_when_physical_body_is_missing(tmp_path) -> None:
     physical_path = tmp_path / "physical_model.json"
     hologram_path = tmp_path / "hologram_model.json"
     physical_path.write_text(
@@ -121,7 +161,10 @@ def test_geometry_world_context_blocks_missing_hologram_body(tmp_path) -> None:
         ),
         encoding="utf-8",
     )
-    hologram_path.write_text(json.dumps(_model("hologram_frame", [])), encoding="utf-8")
+    hologram_path.write_text(
+        json.dumps(_model("hologram_frame", [_body("dynamic_0"), _body("dynamic_1")])),
+        encoding="utf-8",
+    )
     store = GeometryWorldContextStore(
         physical_model_path=physical_path,
         hologram_model_path=hologram_path,
@@ -129,10 +172,10 @@ def test_geometry_world_context_blocks_missing_hologram_body(tmp_path) -> None:
 
     text = store.render_instruction_block()
 
-    assert "BLOCKED" in text
-    assert "dynamic_0 is missing from hologram model" in text
-    assert "must not infer a fallback target" in text
-    assert '"target_pose"' not in text
+    assert "BLOCKED" not in text
+    assert '"object_name": "dynamic_0"' in text
+    assert '"object_name": "dynamic_1"' not in text
+    assert '"target_pose"' in text
 
 
 def test_geometry_world_context_blocks_invalid_hologram_pose(tmp_path) -> None:

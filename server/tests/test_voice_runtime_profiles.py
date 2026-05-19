@@ -133,7 +133,7 @@ def test_hybrid_gemini_live_tts_profile_is_available():
     assert profile.robot_execution.simulation_only is False
     assert profile.robot_execution.verified_execution_url == "http://127.0.0.1:8770"
     assert profile.voice_modulation is not None
-    assert profile.voice_modulation["enabled"] is True
+    assert profile.voice_modulation["enabled"] is False
     assert profile.voice_modulation["preset_name"] == "ai_core"
     assert profile.required_env_names() == ("OPENAI_API_KEY", "GOOGLE_API_KEY")
 

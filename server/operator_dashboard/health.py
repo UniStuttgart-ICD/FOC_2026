@@ -48,7 +48,7 @@ class HealthChecker:
             await self._raise_if_process_exited_before_ready(service_id, service)
 
             statuses = await self.check_service(service_id)
-            if all(status.ok for status in statuses):
+            if all(status.ok for status in statuses if status.required):
                 await self._raise_if_process_exited_before_ready(
                     service_id, service, timeout_s=_READY_EXIT_SETTLE_S
                 )
@@ -135,6 +135,7 @@ class HealthChecker:
         return ReadyCheckStatus(
             type=check.type,
             label=self._label(check),
+            required=check.required,
             ok=ok,
             detail=detail,
         )
@@ -150,6 +151,7 @@ class HealthChecker:
         return ReadyCheckStatus(
             type=check.type,
             label=self._label(check),
+            required=check.required,
             ok=ok,
             detail=detail,
         )
@@ -164,6 +166,7 @@ class HealthChecker:
             return ReadyCheckStatus(
                 type=check.type,
                 label=self._label(check),
+                required=check.required,
                 ok=False,
                 detail=f"tcp {target} unavailable: {exc}",
             )
@@ -171,6 +174,7 @@ class HealthChecker:
         return ReadyCheckStatus(
             type=check.type,
             label=self._label(check),
+            required=check.required,
             ok=True,
             detail=f"tcp {target} reachable",
         )
@@ -188,6 +192,7 @@ class HealthChecker:
             return ReadyCheckStatus(
                 type=check.type,
                 label=self._label(check),
+                required=check.required,
                 ok=False,
                 detail=f"http {url} unavailable: {exc}",
             )
@@ -195,6 +200,7 @@ class HealthChecker:
         return ReadyCheckStatus(
             type=check.type,
             label=self._label(check),
+            required=check.required,
             ok=200 <= response_status < 400,
             detail=self._http_detail(url, response_status, response_body),
         )

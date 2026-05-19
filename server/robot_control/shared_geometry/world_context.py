@@ -78,22 +78,15 @@ def _paired_elements(
     hologram_bodies = _body_map(hologram_model, "hologram")
     if not physical_bodies:
         raise GeometryWorldContextError("physical model has no bodies")
-
-    missing_hologram = sorted(set(physical_bodies) - set(hologram_bodies))
-    if missing_hologram:
-        missing = ", ".join(missing_hologram)
-        raise GeometryWorldContextError(f"{missing} is missing from hologram model")
-
-    missing_physical = sorted(set(hologram_bodies) - set(physical_bodies))
-    if missing_physical:
-        missing = ", ".join(missing_physical)
-        raise GeometryWorldContextError(f"{missing} is missing from physical model")
+    paired_object_names = sorted(set(physical_bodies) & set(hologram_bodies))
+    if not paired_object_names:
+        raise GeometryWorldContextError("no paired dynamic objects in physical and hologram models")
 
     physical_model_name = _model_name(physical_model)
     hologram_model_name = _model_name(hologram_model)
     elements: list[dict[str, Any]] = []
     physical_object_names = set(physical_bodies)
-    for object_name in sorted(physical_bodies):
+    for object_name in paired_object_names:
         physical_body = physical_bodies[object_name]
         hologram_body = hologram_bodies[object_name]
         elements.append(

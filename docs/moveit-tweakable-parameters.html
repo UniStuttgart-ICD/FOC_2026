@@ -242,11 +242,11 @@
         </div>
         <div>
           <h3>MoveIt can tune, but agent cannot</h3>
-          <p>Planner pipeline, planner ID, OMPL planner params, execution monitor tolerances, kinematics tolerances, joint limits, and Cartesian interpolation internals.</p>
+          <p>Planner pipeline, planner ID, OMPL planner params, execution monitor tolerances, kinematics tolerances, joint limits, and legacy Cartesian interpolation internals.</p>
         </div>
         <div>
           <h3>Hard-coded today</h3>
-          <p>Free motion uses Pilz <code>PTP</code>. Two-pose Cartesian uses Pilz <code>LIN</code>. Sampled approach uses OMPL <code>RRTConnect</code>. Multi-waypoint Cartesian uses <code>eef_step = 0.05</code> and <code>avoid_collisions = true</code>.</p>
+          <p>Active <code>free</code>, <code>cartesian</code>, and <code>sampled</code> routes use OMPL <code>RRTConnect</code>. <code>cartesian</code> is a legacy route name and does not guarantee straight TCP motion.</p>
         </div>
       </div>
       <div class="callout">
@@ -299,7 +299,7 @@
               <span class="tag">arm[PDST]</span>
               <span class="tag">arm[AnytimePathShortening]</span>
             </td>
-            <td>Used only by the current <code>sampled_approach</code> path, hard-coded to <code>RRTConnect</code>. OMPL is available, but the agent cannot choose arbitrary OMPL planners today.</td>
+            <td>Used by the active <code>free</code>, <code>cartesian</code>, and <code>sampled</code> routes, hard-coded to <code>RRTConnect</code>. OMPL is available, but the agent cannot choose arbitrary OMPL planners today.</td>
           </tr>
           <tr>
             <td><code>chomp</code></td>
@@ -309,7 +309,7 @@
           <tr>
             <td><code>pilz_industrial_motion_planner</code></td>
             <td><span class="tag">PTP</span> <span class="tag">LIN</span> <span class="tag">CIRC</span></td>
-            <td>Used by the patched Vizor paths. Free motion is treated as <code>PTP</code>. Two-pose Cartesian is treated as <code>LIN</code>. <code>CIRC</code> is available but not exposed through current tools.</td>
+            <td>Installed and configured, but not used by active MCP <code>free</code>, <code>cartesian</code>, or <code>sampled</code> planning routes. <code>CIRC</code> is available but not exposed through current tools.</td>
           </tr>
         </tbody>
       </table>
@@ -349,8 +349,8 @@
           <tr>
             <td><code>waypoints</code></td>
             <td>One or more target poses</td>
-            <td>The ordered TCP path for Cartesian motion.</td>
-            <td>Too-close waypoints can collide. Missing orientation can allow unexpected tool orientation.</td>
+            <td>The ordered target poses for the legacy-named <code>cartesian</code> route.</td>
+            <td>Too-close waypoints can collide. Missing orientation can allow unexpected tool orientation. The route name does not promise linear TCP interpolation.</td>
           </tr>
           <tr>
             <td><code>plan_name</code></td>
@@ -386,7 +386,7 @@
             <td><code>planning_strategy</code></td>
             <td><code>auto</code>, <code>cartesian</code>, or <code>sampled_approach</code></td>
             <td>Which pick planning route to try.</td>
-            <td><code>sampled_approach</code> uses OMPL/RRTConnect. It can solve some cases the Cartesian route misses, but it is not the default exposed free-motion planner selector.</td>
+            <td>Chooses route assembly for pick planning. Active routes use OMPL/RRTConnect; <code>cartesian</code> remains a legacy route name.</td>
           </tr>
           <tr>
             <td><code>target_position</code></td>
@@ -437,27 +437,21 @@
         <tbody>
           <tr>
             <td><code>/UR10/request/free</code></td>
-            <td>Pilz-style <code>PTP</code></td>
-            <td><code>planner_id = PTP</code></td>
-            <td>Planner pipeline, planner ID, planning time, attempts, and velocity scaling would need code exposure.</td>
+            <td>OMPL <code>RRTConnect</code></td>
+            <td><code>planning_pipeline = ompl</code>, <code>planner_id = RRTConnect</code></td>
+            <td>Planning time, attempts, and velocity scaling would need code exposure.</td>
           </tr>
           <tr>
-            <td><code>/UR10/request/cartesian</code> with two poses</td>
-            <td>Pilz-style <code>LIN</code></td>
-            <td><code>planner_id = LIN</code>, <code>avoid_collisions = true</code></td>
-            <td>Useful for simple straight moves. It still depends on IK, collision geometry, and path limits.</td>
-          </tr>
-          <tr>
-            <td><code>/UR10/request/cartesian</code> with more than two poses</td>
-            <td>MoveIt Cartesian interpolator</td>
-            <td><code>eef_step = 0.05</code>, <code>avoid_collisions = true</code>, <code>jump_threshold = None</code>, success requires <code>fraction &gt;= 1.0</code></td>
-            <td><code>eef_step</code> is the main hidden tuning point. Smaller values check the path more densely.</td>
+            <td><code>/UR10/request/cartesian</code></td>
+            <td>OMPL <code>RRTConnect</code></td>
+            <td><code>planning_pipeline = ompl</code>, <code>planner_id = RRTConnect</code></td>
+            <td>Legacy route name only. It accepts Cartesian-style pose input but does not guarantee straight TCP motion.</td>
           </tr>
           <tr>
             <td><code>/UR10/request/sampled</code></td>
             <td>OMPL <code>RRTConnect</code></td>
             <td><code>planning_pipeline = ompl</code>, <code>planner_id = RRTConnect</code></td>
-            <td>This is the current sampled alternative to straight Cartesian approach motion.</td>
+            <td>Explicit sampled route name; same active planner family as the other routes.</td>
           </tr>
         </tbody>
       </table>
@@ -468,7 +462,7 @@
       <p>Yes, but not as raw ROS topics. The better interface is a small set of route profiles. The agent should say what kind of retry it wants, and Robot Control should map that to the right Vizor route.</p>
       <div class="callout">
         <strong>Main finding</strong>
-        <p>The agent already reaches the Vizor <code>free</code> and <code>cartesian</code> routes through MCP. The useful route that is mostly hidden from the main manipulation path is <code>sampled</code>, which uses OMPL <code>RRTConnect</code>.</p>
+        <p>The agent reaches the Vizor <code>free</code>, <code>cartesian</code>, and <code>sampled</code> routes through MCP. Active planning for all three uses OMPL <code>RRTConnect</code>; route names are compatibility labels.</p>
       </div>
       <table>
         <thead>
@@ -481,28 +475,22 @@
         </thead>
         <tbody>
           <tr>
-            <td><code>free_pilz_ptp</code></td>
-            <td><code>moveit_plan_free_motion</code> publishes <code>/UR10/request/free</code>. Vizor sets <code>planner_id = PTP</code>.</td>
+            <td><code>free_ompl_rrtconnect</code></td>
+            <td><code>moveit_plan_free_motion</code> publishes <code>/UR10/request/free</code>. Vizor sets <code>planning_pipeline = ompl</code> and <code>planner_id = RRTConnect</code>.</td>
             <td>Yes. Staged manipulation uses it for <code>connect_to_pre_grasp</code> and <code>connect_to_place</code>.</td>
-            <td>Already exposed. It is good for a clean point-to-point move, but it was also the route that failed in the second trace on <code>connect_to_pre_grasp</code>.</td>
+            <td>Already exposed. Tune planning budget and attempts if this route needs more search time.</td>
           </tr>
           <tr>
-            <td><code>cartesian_pilz_lin</code></td>
-            <td><code>moveit_plan_cartesian_motion</code> publishes <code>/UR10/request/cartesian</code>. If there are exactly two poses, Vizor sets <code>planner_id = LIN</code>.</td>
-            <td>Yes. Staged manipulation uses it for final approach, lift, place approach, and retreat when those are two-pose segments.</td>
-            <td>Already exposed. Keep it for near-object straight-line moves because it is simple and predictable.</td>
-          </tr>
-          <tr>
-            <td><code>cartesian_interpolator</code></td>
-            <td>The same <code>/UR10/request/cartesian</code> route switches to <code>compute_cartesian_path</code> when there are more than two poses. It uses <code>eef_step = 0.05</code> and <code>avoid_collisions = true</code>.</td>
-            <td>Sometimes. It depends on the number of waypoints. The common staged pick segments use two poses, so they use Pilz <code>LIN</code>, not this branch.</td>
-            <td>Expose only through a named Cartesian profile. Do not let the agent freely change collision checking.</td>
+            <td><code>cartesian_ompl_rrtconnect</code></td>
+            <td><code>moveit_plan_cartesian_motion</code> publishes <code>/UR10/request/cartesian</code>. Vizor sets <code>planning_pipeline = ompl</code> and <code>planner_id = RRTConnect</code>.</td>
+            <td>Yes. Staged manipulation uses it for final approach, lift, place approach, and retreat route slots.</td>
+            <td>Already exposed. Keep the name for compatibility, but do not document it as straight-line motion.</td>
           </tr>
           <tr>
             <td><code>sampled_ompl_rrtconnect</code></td>
             <td><code>plan_sampled_motion</code> publishes <code>/UR10/request/sampled</code>. Vizor sets <code>planning_pipeline = ompl</code> and <code>planner_id = RRTConnect</code>.</td>
-            <td>Only in a narrow path: <code>moveit_plan_pick(planning_strategy="sampled_approach")</code>. The main <code>moveit_plan_manipulation_task</code> path does not use it for failed stages.</td>
-            <td>Yes. This is the main route worth exposing as a robust fallback for connect/preposition stages.</td>
+            <td>Used where callers request the sampled route, including <code>moveit_plan_pick(planning_strategy="sampled_approach")</code>.</td>
+            <td>Already exposed. Keep it as the explicit sampled route label for diagnostics and route comparison.</td>
           </tr>
         </tbody>
       </table>
@@ -519,22 +507,22 @@
         <tbody>
           <tr>
             <td><code>planner_profile = "default"</code></td>
-            <td>Use the current staged route: free stages through Pilz <code>PTP</code>, near-object stages through Pilz <code>LIN</code>.</td>
+            <td>Use the current staged route with active OMPL <code>RRTConnect</code> behind the <code>free</code>, <code>cartesian</code>, and <code>sampled</code> route names.</td>
             <td>Keeps current behavior for normal motions.</td>
           </tr>
           <tr>
             <td><code>planner_profile = "robust_connect"</code></td>
-            <td>Use OMPL <code>RRTConnect</code> for connect/preposition stages, then keep final approach/lift/retreat as straight Cartesian motion.</td>
-            <td>This targets the likely weak spot without changing the whole task. It helps when the robot needs a non-straight or sampled path to reach the approach pose.</td>
+            <td>Use longer OMPL <code>RRTConnect</code> search for connect/preposition stages while keeping the same staged task structure.</td>
+            <td>This targets the likely weak spot without changing the whole task.</td>
           </tr>
           <tr>
             <td><code>planner_profile = "cartesian_only"</code></td>
-            <td>Use Cartesian/Pilz <code>LIN</code> for simple straight segments only.</td>
-            <td>Useful when the user clearly wants a straight tool motion and the start pose is already good.</td>
+            <td>Use only the legacy-named <code>cartesian</code> route for the segment.</td>
+            <td>Useful for route comparison. It still does not guarantee straight TCP motion.</td>
           </tr>
           <tr>
             <td><code>planner_profile = "diagnostic_retry"</code></td>
-            <td>Retry with extra planner evidence: route name, planner ID, MoveIt error code, Cartesian fraction, trajectory point count, and known scene objects.</td>
+            <td>Retry with extra planner evidence: route name, planner ID, MoveIt error code, trajectory point count, and known scene objects.</td>
             <td>This lets the next retry be based on evidence instead of guessing.</td>
           </tr>
         </tbody>
@@ -940,27 +928,27 @@
           <tr>
             <td><code>planning_pipeline</code></td>
             <td>Available in MoveIt. Hard-coded by the Vizor routes.</td>
-            <td>Lets a caller choose OMPL, Pilz, or CHOMP per request.</td>
+            <td>Would let a caller choose an alternate installed pipeline. Active routes currently use OMPL.</td>
           </tr>
           <tr>
             <td><code>planner_id</code></td>
             <td>Available in MoveIt. Hard-coded by the Vizor routes.</td>
-            <td>Lets a caller choose <code>RRTConnect</code>, <code>PTP</code>, <code>LIN</code>, and others per request.</td>
+            <td>Would let a caller choose alternate planner IDs. Active routes currently use <code>RRTConnect</code>.</td>
           </tr>
           <tr>
             <td><code>eef_step</code></td>
-            <td>Hard-coded to <code>0.05</code> in the multi-waypoint Cartesian path.</td>
-            <td>Controls how densely MoveIt samples a straight Cartesian path.</td>
+            <td>Legacy Cartesian interpolation setting; not part of active OMPL/RRTConnect route behavior.</td>
+            <td>Controls waypoint density only if a future explicit Cartesian-interpolation route reintroduces it.</td>
           </tr>
           <tr>
             <td><code>jump_threshold</code></td>
             <td>Not passed in the current patched Noetic path; diagnostics log <code>None</code>.</td>
-            <td>Controls rejection of sudden joint jumps along a Cartesian path.</td>
+            <td>Legacy Cartesian interpolation setting; not part of active OMPL/RRTConnect route behavior.</td>
           </tr>
           <tr>
             <td><code>avoid_collisions</code></td>
-            <td>Hard-coded to <code>true</code> for Cartesian interpolation.</td>
-            <td>Turns collision-aware Cartesian interpolation on or off. Turning it off should not be a normal agent option.</td>
+            <td>Legacy Cartesian interpolation setting; not part of active OMPL/RRTConnect route behavior.</td>
+            <td>Turning collision checks off should not be a normal agent option.</td>
           </tr>
           <tr>
             <td>Velocity and acceleration scaling per request</td>
@@ -990,8 +978,8 @@
         <tbody>
           <tr>
             <td><code>planning_pipeline</code> and <code>planner_id</code></td>
-            <td><code>planner_profile</code>: <code>pilz_ptp</code>, <code>pilz_lin</code>, <code>ompl_rrtconnect</code>, <code>cartesian</code></td>
-            <td>A simple pose can fail in one planner and succeed in another. For example, a strict straight-line Cartesian move may fail near an object, while OMPL can route around it.</td>
+            <td><code>planner_profile</code>: <code>ompl_rrtconnect_default</code>, <code>ompl_rrtconnect_long</code>, or a clearly named legacy route if reintroduced</td>
+            <td>A simple pose can fail with one planning budget and succeed with another. Keep raw planner names behind a short allow-list.</td>
             <td>Raw planner names give the agent too many choices. Use a short allow-list.</td>
           </tr>
           <tr>
@@ -1016,18 +1004,18 @@
             <td><code>kinematics_solver_timeout</code></td>
             <td><code>ik_budget</code>: <code>current</code>, <code>more</code></td>
             <td>The Docker patch now sets <code>0.05</code> seconds. The previous observed value was <code>0.005</code> seconds, a tiny search window. More IK time can help near joint limits or awkward orientations.</td>
-            <td>More IK time can slow each waypoint check, especially Cartesian paths with many samples.</td>
+            <td>More IK time can slow each waypoint check, especially legacy Cartesian interpolation with many samples.</td>
           </tr>
           <tr>
             <td><code>eef_step</code></td>
-            <td><code>cartesian_resolution</code>: <code>coarse</code>, <code>normal</code>, <code>fine</code></td>
-            <td>Controls how densely a straight Cartesian path is checked. Fine checking catches real collision or IK problems. Coarse checking can be faster for simple open-space motion.</td>
+            <td><code>legacy_cartesian_resolution</code>: <code>coarse</code>, <code>normal</code>, <code>fine</code></td>
+            <td>Relevant only if a future explicit Cartesian-interpolation route is reintroduced. Fine checking catches real collision or IK problems; coarse checking can be faster for simple open-space motion.</td>
             <td>Too coarse can hide a collision between samples. Do not use coarse near objects.</td>
           </tr>
           <tr>
             <td><code>jump_threshold</code></td>
             <td><code>joint_jump_check</code>: <code>off</code>, <code>normal</code></td>
-            <td>A straight TCP path can make the joints flip. A jump check can reject that. Turning it off can help diagnose whether jump checking is the reason for failure.</td>
+            <td>A legacy interpolated TCP path can make the joints flip. A jump check can reject that. Turning it off can help diagnose whether jump checking is the reason for failure.</td>
             <td>Disabling jump checks can allow ugly or unsafe joint motion. It should be a diagnostic or tightly controlled option.</td>
           </tr>
           <tr>
@@ -1063,7 +1051,7 @@
           <tr>
             <td>Failure-detail logging</td>
             <td><code>diagnostic_level</code>: <code>normal</code>, <code>planner_debug</code></td>
-            <td>The agent needs to know whether a failure was IK, collision, timeout, start-state mismatch, or incomplete Cartesian fraction. Better evidence makes the next knob choice targeted.</td>
+            <td>The agent needs to know whether a failure was IK, collision, timeout, start-state mismatch, or planner-specific partial-path evidence. Better evidence makes the next knob choice targeted.</td>
             <td>More logging can be noisy. It should be enabled around failed plans, not all the time.</td>
           </tr>
         </tbody>
@@ -1087,12 +1075,12 @@
           <tr>
             <td><code>ompl_robust_connect</code></td>
             <td>Use OMPL <code>RRTConnect</code>, longer planning time, and several attempts.</td>
-            <td>Use when Pilz <code>PTP</code> or a direct Cartesian route fails for a simple reachable target.</td>
+            <td>Use when the default OMPL route budget fails for a simple reachable target.</td>
           </tr>
           <tr>
-            <td><code>cartesian_precise_near_object</code></td>
-            <td>Use fine <code>eef_step</code>, keep collision checking on, keep strict Cartesian fraction checking.</td>
-            <td>Use for final approach or retreat near an object, where skipping a collision would be bad.</td>
+            <td><code>near_object_planner_debug</code></td>
+            <td>Keep collision checking on and collect detailed planner evidence around the near-object segment.</td>
+            <td>Use for final approach or retreat near an object, where missing a collision would be bad.</td>
           </tr>
           <tr>
             <td><code>relaxed_pose_goal</code></td>
@@ -1106,7 +1094,7 @@
           </tr>
           <tr>
             <td><code>planner_debug_once</code></td>
-            <td>Log Cartesian fraction, MoveIt error code, collision contacts if available, IK failure hints, planner pipeline, planner ID, and trajectory point count.</td>
+            <td>Log route name, MoveIt error code, collision contacts if available, IK failure hints, planner pipeline, planner ID, and trajectory point count.</td>
             <td>Use after one failed simple motion before changing many knobs blindly.</td>
           </tr>
         </tbody>
@@ -1138,7 +1126,7 @@
           <tr>
             <td><span class="tag good">3</span></td>
             <td>Expose planner profile for <code>planning_pipeline</code>, <code>planner_id</code>, planning time, and attempts</td>
-            <td>This gives controlled access to OMPL/RRTConnect without rewriting the whole system.</td>
+            <td>This gives controlled adjustment of OMPL/RRTConnect behavior without exposing raw ROS topics.</td>
           </tr>
           <tr>
             <td><span class="tag warn">4</span></td>

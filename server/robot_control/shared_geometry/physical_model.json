@@ -2,13 +2,13 @@
   "schema": "pipecat.shared_geometry.common_model.v0.1",
   "version": "0.1.0",
   "name": "three_dynamic_a_c_gate_with_inventory",
-  "description": "Physical scene with two 11 cm A beams vertical at the sides, one 33 cm C beam spanning horizontally across them, and six inventory beams laid out toward positive X. All beams have a 4 cm by 4 cm rectangular section.",
+  "description": "MoveIt planning collision proxy scene for nominal A/B/C beams. Body lengths are scaled to 90% and section thickness is scaled to 81% of the hologram geometry while poses, axes, and feature coordinates remain nominal.",
   "units": "meters",
   "owner_module": "robot_control.shared_geometry",
   "coordinate_system": {
     "frame": "rhino_world",
     "up_axis": "z",
-    "notes": "The axis start/end points define the beam centerline. The C span bottom face bears on the top faces of the two A verticals. Inventory beams lie horizontally on z=-0.10 with 5 cm centerline spacing along positive X, starting at x=0.90 m."
+    "notes": "The axis start/end points define the beam centerline. The C span bottom face bears on the top faces of the two A verticals. Inventory beams lie horizontally on z=-0.10 with 5 cm centerline spacing along negative Y, starting at y=-0.90 m."
   },
   "source": {
     "visual_template": "pipecat-agent/docs/research/shared-geometry-model-explainer.html",
@@ -16,24 +16,24 @@
   },
   "catalog": {
     "A": {
-      "length": 0.11,
+      "length": 0.099,
       "section": {
-        "y": 0.04,
-        "z": 0.04
+        "y": 0.0324,
+        "z": 0.0324
       }
     },
     "B": {
-      "length": 0.22,
+      "length": 0.198,
       "section": {
-        "y": 0.04,
-        "z": 0.04
+        "y": 0.0324,
+        "z": 0.0324
       }
     },
     "C": {
-      "length": 0.33,
+      "length": 0.297,
       "section": {
-        "y": 0.04,
-        "z": 0.04
+        "y": 0.0324,
+        "z": 0.0324
       }
     }
   },
@@ -42,8 +42,8 @@
       "type": "box",
       "origin": "center",
       "section": {
-        "y": 0.04,
-        "z": 0.04
+        "y": 0.0324,
+        "z": 0.0324
       }
     },
     "feature_set": [
@@ -63,64 +63,65 @@
       "id": "dynamic_0",
       "label": "A 11 cm vertical left support",
       "family": "A",
+      "group": "built_frame",
       "solid": {
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.11,
-          "y": 0.04,
-          "z": 0.04
+          "x": 0.099,
+          "y": 0.0324,
+          "z": 0.0324
         }
       },
       "axis": {
         "start_label": "bottom",
         "end_label": "top",
         "start_xyz": [
-          0.7,
           0,
+          -0.7,
           -0.1
         ],
         "end_xyz": [
-          0.7,
           0,
+          -0.7,
           0.01
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          0.7,
           0,
+          -0.7,
           -0.045
         ],
         "quat_xyzw": [
-          0,
-          0.707106781187,
-          0,
-          0.707106781187
+          0.5,
+          0.5,
+          -0.5,
+          0.5
         ]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            0.7,
             0,
+            -0.7,
             -0.1
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            0.7,
             0,
+            -0.7,
             0.01
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            0.7,
             0,
+            -0.7,
             -0.1
           ],
           "normal_xyz": [
@@ -131,8 +132,8 @@
         },
         "face_top": {
           "center_xyz": [
-            0.7,
             0,
+            -0.7,
             0.01
           ],
           "normal_xyz": [
@@ -143,6 +144,7 @@
         }
       },
       "state": {
+        "status": "built",
         "alignment": "vertical",
         "role": {
           "type": "supporting_column",
@@ -156,64 +158,65 @@
       "id": "dynamic_1",
       "label": "A 11 cm vertical right support",
       "family": "A",
+      "group": "built_frame",
       "solid": {
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.11,
-          "y": 0.04,
-          "z": 0.04
+          "x": 0.099,
+          "y": 0.0324,
+          "z": 0.0324
         }
       },
       "axis": {
         "start_label": "bottom",
         "end_label": "top",
         "start_xyz": [
-          0.7,
           0.3,
+          -0.7,
           -0.1
         ],
         "end_xyz": [
-          0.7,
           0.3,
+          -0.7,
           0.01
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          0.7,
           0.3,
+          -0.7,
           -0.045
         ],
         "quat_xyzw": [
-          0,
-          0.707106781187,
-          0,
-          0.707106781187
+          0.5,
+          0.5,
+          -0.5,
+          0.5
         ]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            0.7,
             0.3,
+            -0.7,
             -0.1
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            0.7,
             0.3,
+            -0.7,
             0.01
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            0.7,
             0.3,
+            -0.7,
             -0.1
           ],
           "normal_xyz": [
@@ -224,8 +227,8 @@
         },
         "face_top": {
           "center_xyz": [
-            0.7,
             0.3,
+            -0.7,
             0.01
           ],
           "normal_xyz": [
@@ -236,6 +239,7 @@
         }
       },
       "state": {
+        "status": "built",
         "alignment": "vertical",
         "role": {
           "type": "supporting_column",
@@ -249,64 +253,65 @@
       "id": "dynamic_2",
       "label": "C 33 cm horizontal span across supports",
       "family": "C",
+      "group": "built_frame",
       "solid": {
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.33,
-          "y": 0.04,
-          "z": 0.04
+          "x": 0.297,
+          "y": 0.0324,
+          "z": 0.0324
         }
       },
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
         "start_xyz": [
-          0.7,
           -0.015,
+          -0.7,
           0.03
         ],
         "end_xyz": [
-          0.7,
           0.315,
+          -0.7,
           0.03
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          0.7,
           0.15,
+          -0.7,
           0.03
         ],
         "quat_xyzw": [
           0,
           0,
-          0.707106781187,
-          0.707106781187
+          0,
+          1
         ]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            0.7,
             -0.015,
+            -0.7,
             0.03
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            0.7,
             0.315,
+            -0.7,
             0.03
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            0.7,
             0.15,
+            -0.7,
             0.01
           ],
           "normal_xyz": [
@@ -317,8 +322,8 @@
         },
         "face_top": {
           "center_xyz": [
-            0.7,
             0.15,
+            -0.7,
             0.05
           ],
           "normal_xyz": [
@@ -329,6 +334,7 @@
         }
       },
       "state": {
+        "status": "built",
         "alignment": "horizontal",
         "role": {
           "type": "beam_supported_by",
@@ -343,64 +349,65 @@
       "id": "dynamic_3",
       "label": "A 11 cm inventory beam",
       "family": "A",
+      "group": "inventory",
       "solid": {
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.11,
-          "y": 0.04,
-          "z": 0.04
+          "x": 0.099,
+          "y": 0.0324,
+          "z": 0.0324
         }
       },
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
         "start_xyz": [
-          0.9,
           0.095,
+          -0.9,
           -0.08
         ],
         "end_xyz": [
-          0.9,
           0.205,
+          -0.9,
           -0.08
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          0.9,
           0.15,
+          -0.9,
           -0.08
         ],
         "quat_xyzw": [
           0,
           0,
-          0.707106781187,
-          0.707106781187
+          0,
+          1
         ]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            0.9,
             0.095,
+            -0.9,
             -0.08
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            0.9,
             0.205,
+            -0.9,
             -0.08
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            0.9,
             0.15,
+            -0.9,
             -0.1
           ],
           "normal_xyz": [
@@ -411,8 +418,8 @@
         },
         "face_top": {
           "center_xyz": [
-            0.9,
             0.15,
+            -0.9,
             -0.06
           ],
           "normal_xyz": [
@@ -423,6 +430,7 @@
         }
       },
       "state": {
+        "status": "inventory",
         "alignment": "horizontal",
         "role": {
           "type": "unassigned"
@@ -435,64 +443,65 @@
       "id": "dynamic_4",
       "label": "B 22 cm inventory beam 1",
       "family": "B",
+      "group": "inventory",
       "solid": {
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.22,
-          "y": 0.04,
-          "z": 0.04
+          "x": 0.198,
+          "y": 0.0324,
+          "z": 0.0324
         }
       },
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
         "start_xyz": [
-          0.95,
           0.04,
+          -0.95,
           -0.08
         ],
         "end_xyz": [
-          0.95,
           0.26,
+          -0.95,
           -0.08
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          0.95,
           0.15,
+          -0.95,
           -0.08
         ],
         "quat_xyzw": [
           0,
           0,
-          0.707106781187,
-          0.707106781187
+          0,
+          1
         ]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            0.95,
             0.04,
+            -0.95,
             -0.08
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            0.95,
             0.26,
+            -0.95,
             -0.08
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            0.95,
             0.15,
+            -0.95,
             -0.1
           ],
           "normal_xyz": [
@@ -503,8 +512,8 @@
         },
         "face_top": {
           "center_xyz": [
-            0.95,
             0.15,
+            -0.95,
             -0.06
           ],
           "normal_xyz": [
@@ -515,6 +524,7 @@
         }
       },
       "state": {
+        "status": "inventory",
         "alignment": "horizontal",
         "role": {
           "type": "unassigned"
@@ -527,64 +537,65 @@
       "id": "dynamic_5",
       "label": "B 22 cm inventory beam 2",
       "family": "B",
+      "group": "inventory",
       "solid": {
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.22,
-          "y": 0.04,
-          "z": 0.04
+          "x": 0.198,
+          "y": 0.0324,
+          "z": 0.0324
         }
       },
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
         "start_xyz": [
-          1,
           0.04,
+          -1,
           -0.08
         ],
         "end_xyz": [
-          1,
           0.26,
+          -1,
           -0.08
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          1,
           0.15,
+          -1,
           -0.08
         ],
         "quat_xyzw": [
           0,
           0,
-          0.707106781187,
-          0.707106781187
+          0,
+          1
         ]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            1,
             0.04,
+            -1,
             -0.08
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            1,
             0.26,
+            -1,
             -0.08
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            1,
             0.15,
+            -1,
             -0.1
           ],
           "normal_xyz": [
@@ -595,8 +606,8 @@
         },
         "face_top": {
           "center_xyz": [
-            1,
             0.15,
+            -1,
             -0.06
           ],
           "normal_xyz": [
@@ -607,6 +618,7 @@
         }
       },
       "state": {
+        "status": "inventory",
         "alignment": "horizontal",
         "role": {
           "type": "unassigned"
@@ -619,64 +631,65 @@
       "id": "dynamic_6",
       "label": "B 22 cm inventory beam 3",
       "family": "B",
+      "group": "inventory",
       "solid": {
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.22,
-          "y": 0.04,
-          "z": 0.04
+          "x": 0.198,
+          "y": 0.0324,
+          "z": 0.0324
         }
       },
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
         "start_xyz": [
-          1.05,
           0.04,
+          -1.05,
           -0.08
         ],
         "end_xyz": [
-          1.05,
           0.26,
+          -1.05,
           -0.08
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          1.05,
           0.15,
+          -1.05,
           -0.08
         ],
         "quat_xyzw": [
           0,
           0,
-          0.707106781187,
-          0.707106781187
+          0,
+          1
         ]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            1.05,
             0.04,
+            -1.05,
             -0.08
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            1.05,
             0.26,
+            -1.05,
             -0.08
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            1.05,
             0.15,
+            -1.05,
             -0.1
           ],
           "normal_xyz": [
@@ -687,8 +700,8 @@
         },
         "face_top": {
           "center_xyz": [
-            1.05,
             0.15,
+            -1.05,
             -0.06
           ],
           "normal_xyz": [
@@ -699,6 +712,7 @@
         }
       },
       "state": {
+        "status": "inventory",
         "alignment": "horizontal",
         "role": {
           "type": "unassigned"
@@ -711,64 +725,65 @@
       "id": "dynamic_7",
       "label": "C 33 cm inventory beam 1",
       "family": "C",
+      "group": "inventory",
       "solid": {
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.33,
-          "y": 0.04,
-          "z": 0.04
+          "x": 0.297,
+          "y": 0.0324,
+          "z": 0.0324
         }
       },
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
         "start_xyz": [
-          1.1,
           -0.015,
+          -1.1,
           -0.08
         ],
         "end_xyz": [
-          1.1,
           0.315,
+          -1.1,
           -0.08
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          1.1,
           0.15,
+          -1.1,
           -0.08
         ],
         "quat_xyzw": [
           0,
           0,
-          0.707106781187,
-          0.707106781187
+          0,
+          1
         ]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            1.1,
             -0.015,
+            -1.1,
             -0.08
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            1.1,
             0.315,
+            -1.1,
             -0.08
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            1.1,
             0.15,
+            -1.1,
             -0.1
           ],
           "normal_xyz": [
@@ -779,8 +794,8 @@
         },
         "face_top": {
           "center_xyz": [
-            1.1,
             0.15,
+            -1.1,
             -0.06
           ],
           "normal_xyz": [
@@ -791,6 +806,7 @@
         }
       },
       "state": {
+        "status": "inventory",
         "alignment": "horizontal",
         "role": {
           "type": "unassigned"
@@ -803,64 +819,65 @@
       "id": "dynamic_8",
       "label": "C 33 cm inventory beam 2",
       "family": "C",
+      "group": "inventory",
       "solid": {
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.33,
-          "y": 0.04,
-          "z": 0.04
+          "x": 0.297,
+          "y": 0.0324,
+          "z": 0.0324
         }
       },
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
         "start_xyz": [
-          1.15,
           -0.015,
+          -1.15,
           -0.08
         ],
         "end_xyz": [
-          1.15,
           0.315,
+          -1.15,
           -0.08
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          1.15,
           0.15,
+          -1.15,
           -0.08
         ],
         "quat_xyzw": [
           0,
           0,
-          0.707106781187,
-          0.707106781187
+          0,
+          1
         ]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            1.15,
             -0.015,
+            -1.15,
             -0.08
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            1.15,
             0.315,
+            -1.15,
             -0.08
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            1.15,
             0.15,
+            -1.15,
             -0.1
           ],
           "normal_xyz": [
@@ -871,8 +888,8 @@
         },
         "face_top": {
           "center_xyz": [
-            1.15,
             0.15,
+            -1.15,
             -0.06
           ],
           "normal_xyz": [
@@ -883,6 +900,7 @@
         }
       },
       "state": {
+        "status": "inventory",
         "alignment": "horizontal",
         "role": {
           "type": "unassigned"
@@ -940,7 +958,7 @@
         "relation_type": "ordered_inventory_layout",
         "a": "dynamic_3",
         "b": "dynamic_8",
-        "role": "5_cm_centerline_spacing_toward_positive_x",
+        "role": "5_cm_centerline_spacing_toward_negative_y",
         "status": "inventory"
       }
     ]
@@ -950,7 +968,19 @@
       "id": "op_001",
       "op": "initialize_from_user_requested_physical_layout",
       "status": "applied",
-      "notes": "Two A beams are 11 cm vertical supports. One C beam is the 33 cm horizontal span. Inventory contains one A beam, three B beams, and two C beams laid out from x=0.90 m toward positive X at 5 cm centerline spacing."
+      "notes": "Two A beams are 11 cm vertical supports. One C beam is the 33 cm horizontal span. Inventory contains one A beam, three B beams, and two C beams laid out from y=-0.90 m toward negative Y at 5 cm centerline spacing."
+    },
+    {
+      "id": "op_002",
+      "op": "shrink_moveit_collision_proxies",
+      "status": "applied",
+      "notes": "Scaled catalog/default/body dimensions to 90% for planning proxies. Poses, axes, and feature coordinates remain unchanged."
+    },
+    {
+      "id": "op_003",
+      "op": "shrink_moveit_collision_proxy_thickness",
+      "status": "applied",
+      "notes": "Scaled catalog/default/body y and z thickness dimensions by another 10% to 0.0324 m. Lengths, poses, axes, and feature coordinates remain unchanged."
     }
   ],
   "projections": {

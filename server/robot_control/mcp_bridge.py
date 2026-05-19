@@ -483,6 +483,32 @@ def _manipulation_task_planning_schema(input_schema: dict[str, Any]) -> dict[str
         "object_name": {"type": "string"},
         "target_pose": deepcopy(_TARGET_POSE_SCHEMA),
         "target_position": deepcopy(_COORDINATE_SCHEMA),
+        "motion": {
+            "type": "object",
+            "description": (
+                "Motion-only move requirements. Use goal='move' with relative_tcp for TCP deltas "
+                "or human_relative for toward/away-from-user moves; this keeps holding any attached "
+                "object and never releases it."
+            ),
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": ["relative_tcp", "human_relative"],
+                },
+                "direction": {
+                    "type": "string",
+                    "enum": ["up", "down", "left", "right", "forward", "back"],
+                },
+                "distance_m": {"type": "number", "exclusiveMinimum": 0.0},
+                "delta_m": deepcopy(_COORDINATE_SCHEMA),
+                "relation": {
+                    "type": "string",
+                    "enum": ["toward_user", "away_from_user"],
+                },
+            },
+            "required": ["type"],
+            "additionalProperties": False,
+        },
         "grasp_face": {
             "type": "string",
             "description": (

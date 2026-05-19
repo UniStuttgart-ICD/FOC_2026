@@ -416,7 +416,7 @@
 
     nodes.healthList.replaceChildren(
       ...checks.map((check) =>
-        element("li", { className: `health-item ${check.ok ? "ok" : "fail"}` }, [
+        element("li", { className: `health-item ${healthCheckClassName(check)}` }, [
           element("span", {
             className: "health-label",
             text: check.label || check.type || "check",
@@ -432,6 +432,13 @@
       return null;
     }
     return state.status.services.verified_execution || null;
+  }
+
+  function healthCheckClassName(check) {
+    if (check.ok) {
+      return "ok";
+    }
+    return check.required === false ? "warn" : "fail";
   }
 
   function renderRobotControls() {

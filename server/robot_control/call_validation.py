@@ -17,6 +17,7 @@ MANIPULATION_TASK_GOAL_VALUES = (
     "hold",
     "place",
     "release",
+    "move",
     "move_and_release",
     "pick_place",
 )
@@ -26,6 +27,9 @@ MANIPULATION_TASK_GOALS_REQUIRING_TARGET = {
     "move_and_release",
     "pick_place",
 }
+MANIPULATION_MOVE_TYPES = {"relative_tcp", "human_relative"}
+MANIPULATION_MOVE_DIRECTIONS = {"up", "down", "left", "right", "forward", "back"}
+MANIPULATION_MOVE_RELATIONS = {"toward_user", "away_from_user"}
 COMPOUND_TASK_GOAL_VALUES = (
     "hold",
     "release",
@@ -198,18 +202,23 @@ _AGENT_TOOL_DESCRIPTIONS = {
     ),
     "moveit_plan_manipulation_task": (
         "Plan a staged MoveIt manipulation task from requirements. Use requirements.goal "
-        "hold, place, release, move_and_release, or pick_place with requirements.object_name "
-        "unless release can use the current held object. Use requirements.target_pose or "
-        "requirements.target_position for place, move_and_release, and pick_place; this is an "
-        "object target pose, not TCP pose. Use Geometry World Context for place/there targets "
-        "and a standoff pose derived from fresh Vizor user position for bring-to-me targets. "
+        "hold, place, release, move, move_and_release, or pick_place. Use requirements.object_name "
+        "except release may use the current held object and move may move the TCP without an object. "
+        "Use requirements.goal=move for motion-only TCP moves such as 'go up 30 cm', 'come closer', "
+        "or moving a held object while keeping hold; it plans Cartesian motion, preserves orientation, "
+        "and does not release, detach, place, or open the gripper. For move, pass requirements.motion: "
+        "relative_tcp with direction plus distance_m or delta_m, or human_relative with relation "
+        "toward_user/away_from_user and distance_m. Human-relative moves require fresh Vizor user "
+        "position and fresh current TCP pose. Use requirements.target_pose or requirements.target_position "
+        "for place, move_and_release, and pick_place; this is an object target pose, not TCP pose. "
+        "Use Geometry World Context for place/there targets and a standoff pose derived from fresh "
+        "Vizor user position for bring-to-me targets. "
         "requirements.lift_distance_m is post-grasp lift distance: use "
         "requirements.lift_distance_m=0.0 for bare hold, support, or hold-in-place requests; "
         "use the default 0.10 m or an explicit positive value only when the user asks to "
         "pick up, lift, raise, grab and lift, carry, or move after grasping. "
         "Move-only held-object requests such as 'just move it', 'move it closer', or "
-        "'keep holding it' must not use move_and_release; ask for clarification because "
-        "v1 has no move-held-and-keep-holding task goal. Use move_and_release only for "
+        "'keep holding it' must not use move_and_release; use move instead. Use move_and_release only for "
         "explicit release, place, or delivery intent. "
         "Optional preferences are non-executable planner hints. It returns task_solution_id, "
         "execution_contract, preview evidence, scene snapshot evidence, and approval payload. "
@@ -741,17 +750,24 @@ def validate_robot_tool_call(
             raise RobotCallValidationError(
                 "Unsupported manipulation requirements.goal",
                 correction=(
-                    "Use requirements.goal hold, place, release, move_and_release, or pick_place."
+                    "Use requirements.goal hold, place, release, move, move_and_release, or pick_place."
                 ),
             )
         object_name = requirements.get("object_name")
-        if goal != "release" and (not isinstance(object_name, str) or not object_name.strip()):
+        if goal not in {"release", "move"} and (not isinstance(object_name, str) or not object_name.strip()):
             raise RobotCallValidationError(
                 "Expected requirements.object_name",
                 correction="Call moveit_list_scene_objects, then retry with one returned object_name in requirements.object_name.",
                 code="object_not_found",
                 suggested_next_tool="moveit_list_scene_objects",
             )
+        if object_name is not None and (not isinstance(object_name, str) or not object_name.strip()):
+            raise RobotCallValidationError(
+                "Expected requirements.object_name",
+                correction="Omit requirements.object_name or retry with a non-empty object_name.",
+            )
+        if goal == "move":
+            _validate_manipulation_move_motion(requirements.get("motion"))
         required_grasp_face = requirements.get("grasp_face")
         if required_grasp_face is not None and (
             not isinstance(required_grasp_face, str) or not required_grasp_face.strip()
@@ -1176,6 +1192,71 @@ def _validate_manipulation_lift_distance(value: Any) -> None:
                 "Retry with requirements.lift_distance_m between "
                 f"{HOLD_LIFT_DISTANCE_MIN_M:.2f} m and {HOLD_LIFT_DISTANCE_MAX_M:.2f} m."
             ),
+        )
+
+
+def _validate_manipulation_move_motion(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise RobotCallValidationError(
+            "Expected requirements.motion",
+            correction="Retry move with requirements.motion describing a relative_tcp or human_relative move.",
+        )
+    motion_type = value.get("type")
+    if motion_type not in MANIPULATION_MOVE_TYPES:
+        raise RobotCallValidationError(
+            "Expected requirements.motion.type",
+            correction='Use requirements.motion.type "relative_tcp" or "human_relative".',
+        )
+    if motion_type == "relative_tcp":
+        delta_m = value.get("delta_m")
+        direction = value.get("direction")
+        distance_m = value.get("distance_m")
+        if delta_m is not None:
+            _validate_motion_delta(delta_m)
+            return
+        if direction not in MANIPULATION_MOVE_DIRECTIONS:
+            raise RobotCallValidationError(
+                "Expected requirements.motion.direction",
+                correction="Use direction up, down, left, right, forward, or back.",
+            )
+        _validate_motion_distance(distance_m)
+        return
+    relation = value.get("relation")
+    if relation not in MANIPULATION_MOVE_RELATIONS:
+        raise RobotCallValidationError(
+            "Expected requirements.motion.relation",
+            correction='Use relation "toward_user" or "away_from_user".',
+        )
+    _validate_motion_distance(value.get("distance_m"))
+
+
+def _validate_motion_delta(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise RobotCallValidationError(
+            "Expected requirements.motion.delta_m",
+            correction="Use finite x, y, and z delta_m values.",
+        )
+    nonzero = False
+    for axis in ("x", "y", "z"):
+        coordinate = _finite_float(value.get(axis))
+        if coordinate is None or abs(coordinate) > WORKSPACE_ABS_LIMIT_M:
+            raise RobotCallValidationError(
+                "requirements.motion.delta_m is outside supported range",
+                correction=f"Use finite x/y/z delta values within +/-{WORKSPACE_ABS_LIMIT_M} m.",
+            )
+        nonzero = nonzero or abs(coordinate) > 1e-9
+    if not nonzero:
+        raise RobotCallValidationError(
+            "requirements.motion.delta_m must move the TCP",
+            correction="Use a non-zero x, y, or z delta.",
+        )
+
+
+def _validate_motion_distance(value: Any) -> None:
+    if not _finite_number(value) or float(value) <= 0.0 or float(value) > WORKSPACE_ABS_LIMIT_M:
+        raise RobotCallValidationError(
+            "requirements.motion.distance_m is outside supported range",
+            correction=f"Use a positive finite distance_m no greater than {WORKSPACE_ABS_LIMIT_M} m.",
         )
 
 

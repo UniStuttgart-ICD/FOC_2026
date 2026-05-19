@@ -130,7 +130,7 @@ Do not expose or use combined `moveit_plan_and_execute_*` tools. Planning and ex
 
 Do not execute a plan that was not verified in the same MCP process. Physical execution is blocked unless `/vizor_robot_control/physical` is confirmed false through rosapi.
 
-ROS 1 Noetic note: in the current Vizor image, `MoveGroupCommander.compute_cartesian_path` exposes `(waypoints, eef_step, avoid_collisions=True, path_constraints=None)`. Multi-waypoint Cartesian planning must pass `avoid_collisions=True`; do not pass the old `jump_threshold` argument in this environment.
+Planning route note: active `free`, `cartesian`, and `sampled` planning routes use OMPL/RRTConnect. `moveit_plan_cartesian_motion` and `/UR10/request/cartesian` keep legacy names only; they do not guarantee straight TCP motion. Pilz LIN and `compute_cartesian_path` notes are historical diagnostics unless a future explicit route reintroduces them.
 
 ## Pick task backends
 

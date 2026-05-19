@@ -18,6 +18,7 @@ from moveit_mcp.models import (
 from moveit_mcp.pick import PickPlanInputError, build_oriented_pick_workflow, build_pick_candidates
 from moveit_mcp.place import PlacePlanInputError, build_place_workflow
 from moveit_mcp.vizor_client import (
+    DEFAULT_TOUCH_LINKS,
     AttachSceneFeedback,
     CurrentPoseFeedback,
     DetachSceneFeedback,
@@ -34,9 +35,20 @@ PICK_PLANNING_STRATEGIES = {"auto", "cartesian", "sampled_approach"}
 PICK_TASK_BACKENDS = {"emulated", "mtc"}
 COMPOUND_TASK_GOALS = {"hold", "release", "move_and_release", "pick_place"}
 COMPOUND_TASK_TARGET_GOALS = {"move_and_release", "pick_place"}
-MANIPULATION_TASK_GOALS = {"hold", "place", "release", "move_and_release", "pick_place"}
+MANIPULATION_TASK_GOALS = {"hold", "place", "release", "move", "move_and_release", "pick_place"}
 MANIPULATION_TASK_TARGET_GOALS = {"place", "move_and_release", "pick_place"}
 MANIPULATION_TASK_BACKENDS = {"staged_moveit"}
+ACTIVE_MOVEIT_PLANNER_DIAGNOSTICS = {"planner_pipeline": "ompl", "planner_id": "RRTConnect"}
+ACTIVE_MOVEIT_PLANNER_DIAGNOSTIC_ROUTES = {"free_motion", "cartesian", "sampled_approach"}
+BARE_HOLD_LIFT_DISTANCE_EPSILON_M = 1e-6
+MANIPULATION_MOVE_DIRECTIONS = {
+    "up": {"x": 0.0, "y": 0.0, "z": 1.0},
+    "down": {"x": 0.0, "y": 0.0, "z": -1.0},
+    "left": {"x": 0.0, "y": 1.0, "z": 0.0},
+    "right": {"x": 0.0, "y": -1.0, "z": 0.0},
+    "forward": {"x": 1.0, "y": 0.0, "z": 0.0},
+    "back": {"x": -1.0, "y": 0.0, "z": 0.0},
+}
 COMPOUND_STAGE_INTENTS = {
     "observe_current_state",
     "approach_object",
@@ -93,7 +105,11 @@ RELEASE_OBJECT_CORRECTION = (
 )
 COMPOUND_MTC_CORRECTION = 'Retry with backend="mtc" after the Vizor MTC compound task backend is available.'
 MANIPULATION_BACKEND_CORRECTION = 'Retry with backend="staged_moveit"; no MTC fallback is available for this tool.'
-MANIPULATION_REQUIREMENTS_CORRECTION = 'Retry with requirements {"goal": "hold", "object_name": "<planning-scene object>"} and backend="staged_moveit".'
+MANIPULATION_REQUIREMENTS_CORRECTION = (
+    'Retry with requirements {"goal": "hold", "object_name": "<planning-scene object>"} '
+    'or {"goal": "move", "motion": {"type": "relative_tcp", "direction": "up", "distance_m": 0.30}} '
+    'and backend="staged_moveit".'
+)
 COMPOUND_REQUIREMENTS_CORRECTION = (
     "Retry with requirements containing goal and object_name. For move_and_release, "
     "and pick_place include target_pose or target_position inside requirements."
@@ -901,6 +917,22 @@ class MoveItMcpTools:
                 detail=str(goal),
                 missing="supported goal",
             )
+        normalized_preferences = dict(preferences) if isinstance(preferences, dict) else {}
+        if preferences is not None and not isinstance(preferences, dict):
+            return self._invalid_manipulation_requirements_result(
+                robot=robot,
+                requirements=requirements,
+                preferences=preferences,
+                detail=str(preferences),
+                missing="preferences object",
+            )
+        if goal == "move":
+            return self._plan_staged_move_manipulation_task(
+                robot=robot,
+                requirements=requirements,
+                preferences=normalized_preferences,
+                timeout_s=timeout_s,
+            )
         if goal == "release" and (not isinstance(object_name, str) or not object_name.strip()):
             object_name = self.gripper.attached_object(robot)
         if not isinstance(object_name, str) or not object_name.strip():
@@ -910,16 +942,6 @@ class MoveItMcpTools:
                 preferences=preferences,
                 detail=str(object_name),
                 missing="object_name",
-            )
-
-        normalized_preferences = dict(preferences) if isinstance(preferences, dict) else {}
-        if preferences is not None and not isinstance(preferences, dict):
-            return self._invalid_manipulation_requirements_result(
-                robot=robot,
-                requirements=requirements,
-                preferences=preferences,
-                detail=str(preferences),
-                missing="preferences object",
             )
 
         if goal == "release":
@@ -1000,6 +1022,12 @@ class MoveItMcpTools:
                 if best_failure is None or len(attempt.get("motion_stages", [])) > len(best_failure.get("motion_stages", [])):
                     best_failure = attempt
                 continue
+            lift_distance_m = workflow["parameters"]["lift_distance_m"]
+            expected_movement = (
+                f"hold {object_name}: approach grasp, attach, and verify attachment"
+                if _is_bare_hold_lift_distance(lift_distance_m)
+                else f"hold {object_name}: approach grasp, attach, and lift object"
+            )
             solution = self._build_task_solution(
                 robot=robot,
                 object_name=object_name,
@@ -1008,8 +1036,11 @@ class MoveItMcpTools:
                 planning_frame=workflow.get("planning_frame"),
                 object_context=object_feedback.object_context,
                 observed_at=observed_at,
-                stages=_staged_hold_task_stages(attempt["motion_stages"]),
-                expected_movement=f"hold {object_name}: approach grasp, attach, and lift object",
+                stages=_staged_hold_task_stages(
+                    attempt["motion_stages"],
+                    lift_distance_m=lift_distance_m,
+                ),
+                expected_movement=expected_movement,
                 raw={
                     "requirements": dict(requirements),
                     "preferences": normalized_preferences,
@@ -1032,6 +1063,7 @@ class MoveItMcpTools:
                 object_name=object_name,
                 scene_snapshot_id=solution.scene_snapshot_id,
                 motion_stages=attempt["motion_stages"],
+                lift_distance_m=lift_distance_m,
             )
             solution.raw["scene_snapshot"] = {
                 "id": solution.scene_snapshot_id,
@@ -1050,6 +1082,127 @@ class MoveItMcpTools:
             failed_stage=failed_stage,
             candidate_attempts=candidate_attempts,
         )
+
+    def _plan_staged_move_manipulation_task(
+        self,
+        *,
+        robot: str,
+        requirements: dict[str, Any],
+        preferences: dict[str, Any],
+        timeout_s: float,
+    ) -> dict[str, Any]:
+        observed_at = datetime.now(timezone.utc)
+        current_feedback = self.client.get_current_pose(robot=robot, timeout_s=timeout_s)
+        if not current_feedback.ok or current_feedback.pose is None:
+            result = ToolResult.fail_result(
+                robot=robot,
+                tool="moveit_plan_manipulation_task",
+                phase="pre_plan",
+                status=current_feedback.status,
+                message="Refusing to plan a move task without current TCP pose",
+                correction=CURRENT_POSE_CORRECTION,
+                checks=[VerificationCheck("current_pose_observed", False, current_feedback.status)],
+                evidence=[Evidence("ros_service", current_feedback.message, path=current_feedback.source)],
+                raw={"requirements": requirements, "preferences": preferences},
+            ).to_dict()
+            result["retryable"] = True
+            return result
+
+        try:
+            delta_m = _manipulation_move_delta(requirements.get("motion"))
+        except ValueError as exc:
+            return self._invalid_manipulation_requirements_result(
+                robot=robot,
+                requirements=requirements,
+                preferences=preferences,
+                detail=str(exc),
+                missing="motion",
+            )
+
+        target_pose = _offset_pose(current_feedback.pose, delta_m)
+        attached_object = self.gripper.attached_object(robot)
+        requested_object = requirements.get("object_name")
+        object_name = (
+            requested_object.strip()
+            if isinstance(requested_object, str) and requested_object.strip()
+            else attached_object or "tcp"
+        )
+        stage, planned = self._plan_staged_motion_stage(
+            robot=robot,
+            object_name=object_name,
+            task_kind="move",
+            attempt_index=1,
+            segment_name="move_tcp",
+            planner="cartesian",
+            waypoints=[target_pose],
+            timeout_s=timeout_s,
+        )
+        attempt = {
+            "attempt_index": 1,
+            "status": "selected" if planned else "failed",
+            "selected": planned,
+            "motion_stages": [stage],
+            "delta_m": delta_m,
+            "target_pose": target_pose,
+        }
+        if not planned:
+            attempt["failed_stage"] = "move_tcp"
+            attempt["failure_code"] = "required_motion_stage_unplanned"
+            return self._manipulation_task_failed_result(
+                robot=robot,
+                object_name=object_name,
+                requirements=dict(requirements),
+                preferences=preferences,
+                failed_stage="move_tcp",
+                candidate_attempts=[attempt],
+            )
+
+        holding_attached_object = attached_object is not None and object_name == attached_object
+        expected_movement = (
+            f"move held object {object_name} by TCP delta {delta_m} and keep holding it"
+            if holding_attached_object
+            else f"move TCP by delta {delta_m}"
+        )
+        solution = self._build_task_solution(
+            robot=robot,
+            object_name=object_name,
+            task_kind="move",
+            created_from_tool="moveit_plan_manipulation_task",
+            planning_frame=current_feedback.planning_frame,
+            object_context={},
+            observed_at=observed_at,
+            stages=_staged_move_task_stages([stage]),
+            expected_movement=expected_movement,
+            raw={
+                "requirements": dict(requirements),
+                "preferences": preferences,
+                "motion": requirements.get("motion"),
+                "delta_m": delta_m,
+                "current_pose": current_feedback.pose.to_msg(),
+                "target_pose": target_pose,
+                "attached_object": attached_object,
+                "keeps_holding": holding_attached_object,
+                "preview": _staged_agent_path_preview([stage]),
+            },
+            candidate_attempts=[attempt],
+            backend="staged_moveit",
+            solver="staged_moveit",
+            selected_cost=1.06,
+        )
+        solution.raw["execution_contract"] = _staged_move_execution_contract(
+            task_solution_id=solution.task_solution_id,
+            object_name=object_name,
+            scene_snapshot_id=solution.scene_snapshot_id,
+            motion_stages=[stage],
+            target_pose=target_pose,
+        )
+        solution.raw["scene_snapshot"] = {
+            "id": solution.scene_snapshot_id,
+            "planning_frame": current_feedback.planning_frame,
+            "object_count": None,
+        }
+        self._task_solutions[solution.task_solution_id] = solution
+        return self._task_solution_planned_result(solution)
 
     def _plan_staged_release_manipulation_task(
         self,
@@ -1415,7 +1568,10 @@ class MoveItMcpTools:
                 object_context=object_feedback.object_context,
                 observed_at=observed_at,
                 stages=[
-                    *_staged_hold_task_stages(attempt["motion_stages"]),
+                    *_staged_hold_task_stages(
+                        attempt["motion_stages"],
+                        lift_distance_m=pick_workflow["parameters"]["lift_distance_m"],
+                    ),
                     *_staged_place_task_stages(place_attempt["motion_stages"])[1:],
                 ],
                 expected_movement=f"pick and place {object_name}: hold, move to target, release, and retreat",
@@ -2901,6 +3057,24 @@ class MoveItMcpTools:
     ) -> dict[str, Any]:
         params = _safe_dict(workflow.get("parameters"))
         selected_face = _safe_dict(workflow.get("selected_grasp_face"))
+        stage_specs = [
+            {"name": "connect_to_pre_grasp", "planner": "free_motion", "waypoint_indexes": [0]},
+            {
+                "name": "approach_to_pre_grasp",
+                "planner": "cartesian",
+                "waypoint_indexes": [0, 1],
+                "contact_allowance": _gripper_touch_links_contact_allowance(object_name),
+            },
+        ]
+        if not _is_bare_hold_lift_distance(params.get("lift_distance_m")):
+            stage_specs.append(
+                {
+                    "name": "post_grasp_lift",
+                    "planner": "cartesian",
+                    "waypoint_indexes": [1, 2],
+                    "contact_allowance": _gripper_touch_links_contact_allowance(object_name),
+                }
+            )
         return self._try_staged_motion_candidate(
             robot=robot,
             object_name=object_name,
@@ -2908,11 +3082,7 @@ class MoveItMcpTools:
             attempt_index=attempt_index,
             workflow=workflow,
             timeout_s=timeout_s,
-            stage_specs=[
-                {"name": "connect_to_pre_grasp", "planner": "free_motion", "waypoint_indexes": [0]},
-                {"name": "approach_to_pre_grasp", "planner": "cartesian", "waypoint_indexes": [0, 1]},
-                {"name": "post_grasp_lift", "planner": "cartesian", "waypoint_indexes": [1, 2]},
-            ],
+            stage_specs=stage_specs,
             attempt_metadata={
                 "grasp_face": params.get("grasp_face") or selected_face.get("name"),
                 "approach_distance_m": params.get("approach_distance_m"),
@@ -2932,6 +3102,14 @@ class MoveItMcpTools:
         timeout_s: float,
     ) -> dict[str, Any]:
         params = _safe_dict(workflow.get("parameters"))
+        approach_contact_allowance = self._held_object_world_contact_allowance(
+            robot=robot,
+            object_name=object_name,
+            timeout_s=timeout_s,
+        )
+        approach_stage: dict[str, Any] = {"name": "approach_place", "planner": "cartesian", "waypoint_indexes": [0, 1]}
+        if approach_contact_allowance is not None:
+            approach_stage["contact_allowance"] = approach_contact_allowance
         return self._try_staged_motion_candidate(
             robot=robot,
             object_name=object_name,
@@ -2941,7 +3119,7 @@ class MoveItMcpTools:
             timeout_s=timeout_s,
             stage_specs=[
                 {"name": "connect_to_place", "planner": "free_motion", "waypoint_indexes": [0]},
-                {"name": "approach_place", "planner": "cartesian", "waypoint_indexes": [0, 1]},
+                approach_stage,
                 {"name": "retreat", "planner": "cartesian", "waypoint_indexes": [1, 2]},
             ],
             attempt_metadata={
@@ -2995,6 +3173,7 @@ class MoveItMcpTools:
                     segment_name=segment_name,
                     planner=planner,
                     waypoints=waypoints,
+                    contact_allowance=segment.get("contact_allowance") if isinstance(segment.get("contact_allowance"), dict) else None,
                     timeout_s=timeout_s,
                 )
             except (IndexError, TypeError, ValueError):
@@ -3024,29 +3203,48 @@ class MoveItMcpTools:
         segment_name: str,
         planner: str,
         waypoints: list[Any],
+        contact_allowance: dict[str, Any] | None = None,
         timeout_s: float,
     ) -> tuple[dict[str, Any], bool]:
         if not waypoints:
             raise ValueError("staged motion requires at least one waypoint")
         plan_name = _staged_manipulation_plan_name(task_kind, object_name, attempt_index, segment_name)
-        if planner == "free_motion":
-            feedback = self.client.plan_free_motion(
-                robot=robot,
-                name=plan_name,
-                pose=Pose.from_input(waypoints[-1]),
-                timeout_s=timeout_s,
-            )
-        elif planner == "cartesian":
-            feedback = self.client.plan_cartesian_motion(
-                robot=robot,
-                name=plan_name,
-                poses=[Pose.from_input(waypoint) for waypoint in waypoints],
-                timeout_s=timeout_s,
-            )
-        else:
+
+        def plan_stage() -> PlanFeedback:
+            if planner == "free_motion":
+                return self.client.plan_free_motion(
+                    robot=robot,
+                    name=plan_name,
+                    pose=Pose.from_input(waypoints[-1]),
+                    timeout_s=timeout_s,
+                )
+            if planner == "cartesian":
+                return self.client.plan_cartesian_motion(
+                    robot=robot,
+                    name=plan_name,
+                    poses=[Pose.from_input(waypoint) for waypoint in waypoints],
+                    timeout_s=timeout_s,
+                )
             raise ValueError(f"unsupported staged planner: {planner}")
 
+        contact_scope: dict[str, Any] | None = None
+        if contact_allowance is not None:
+            with self.client.scoped_allowed_collision_pairs(
+                robot=robot,
+                pairs=_contact_allowance_pairs(contact_allowance),
+                timeout_s=timeout_s,
+            ) as scoped:
+                contact_scope = dict(scoped)
+                feedback = (
+                    plan_stage()
+                    if scoped.get("ok") is True
+                    else PlanFeedback(robot, plan_name, "contact allowance unverified", 0, False, None, None)
+                )
+        else:
+            feedback = plan_stage()
+
         planned = feedback.status in SUCCESS_STATUSES and feedback.trajectory_points > 0 and feedback.can_execute
+        planner_diagnostics = _active_moveit_planner_diagnostics(planner)
         stage = {
             "name": segment_name,
             "plan_name": plan_name,
@@ -3063,6 +3261,11 @@ class MoveItMcpTools:
                 "topic": f"/{robot}/request/planned_path",
             },
         }
+        stage.update(planner_diagnostics)
+        stage["preview_evidence"].update(planner_diagnostics)
+        if contact_allowance is not None:
+            stage["contact_allowance"] = contact_allowance
+            stage["contact_allowance_scope"] = contact_scope
         if planned:
             self._planned[(robot, plan_name)] = {
                 "plan_name": plan_name,
@@ -3070,10 +3273,32 @@ class MoveItMcpTools:
                 "status": feedback.status,
                 "planner": planner,
                 "final_joint_positions": feedback.final_joint_positions,
+                **planner_diagnostics,
             }
         else:
             self._planned.pop((robot, plan_name), None)
         return stage, planned
+
+    def _held_object_world_contact_allowance(
+        self,
+        *,
+        robot: str,
+        object_name: str,
+        timeout_s: float,
+    ) -> dict[str, Any] | None:
+        world_object_names = self.client.world_collision_object_names(
+            robot=robot,
+            exclude_object_name=object_name,
+            timeout_s=timeout_s,
+        )
+        pairs = [[object_name, world_object_name] for world_object_name in world_object_names]
+        if not pairs:
+            return None
+        return {
+            "category": "held_object_to_world",
+            "object_name": object_name,
+            "pairs": pairs,
+        }
 
     @staticmethod
     def _invalid_manipulation_requirements_result(
@@ -3397,7 +3622,22 @@ class MoveItMcpTools:
                     [{"kind": "execution_contract", "handler": "motion"}],
                     {"step": step, "error": "missing executable plan_name"},
                 )
-            result = self.execute_plan(robot, plan_name, timeout_s=timeout_s)
+            contact_allowance = step.get("contact_allowance") if isinstance(step.get("contact_allowance"), dict) else None
+            if contact_allowance is not None:
+                with self.client.scoped_allowed_collision_pairs(
+                    robot=robot,
+                    pairs=_contact_allowance_pairs(contact_allowance),
+                    timeout_s=timeout_s,
+                ) as scoped:
+                    if scoped.get("ok") is not True:
+                        return (
+                            False,
+                            [{"kind": "tool_result", "tool": "moveit_execute_plan"}],
+                            {"step": step, "error": "contact allowance unverified", "contact_allowance_scope": scoped},
+                        )
+                    result = self.execute_plan(robot, plan_name, timeout_s=timeout_s)
+            else:
+                result = self.execute_plan(robot, plan_name, timeout_s=timeout_s)
             return bool(result.get("ok")), [{"kind": "tool_result", "tool": "moveit_execute_plan"}], result
         if handler == "close_gripper":
             result = self.close_gripper(robot, timeout_s=timeout_s)
@@ -4229,9 +4469,86 @@ def _staged_manipulation_plan_name(task_kind: str, object_name: str, attempt_ind
     return f"manipulation_{task_kind}_{_slug(object_name)}_c{attempt_index:02d}_{_slug(stage_name)}"
 
 
-def _staged_hold_task_stages(motion_stages: list[dict[str, Any]]) -> list[TaskStage]:
+def _manipulation_move_delta(motion: Any) -> dict[str, float]:
+    if not isinstance(motion, dict):
+        raise ValueError("requirements.motion is required for goal=move")
+    motion_type = motion.get("type")
+    if motion_type != "relative_tcp":
+        raise ValueError("goal=move backend requires relative_tcp motion")
+
+    delta_m = motion.get("delta_m")
+    if isinstance(delta_m, dict):
+        return _finite_delta(delta_m)
+
+    direction = motion.get("direction")
+    if not isinstance(direction, str):
+        raise ValueError("relative_tcp motion requires direction or delta_m")
+    direction_vector = MANIPULATION_MOVE_DIRECTIONS.get(direction)
+    if direction_vector is None:
+        raise ValueError(f"unsupported relative_tcp direction: {direction}")
+    distance_m = motion.get("distance_m")
+    if (
+        not isinstance(distance_m, (int, float))
+        or isinstance(distance_m, bool)
+        or not math.isfinite(float(distance_m))
+        or float(distance_m) <= 0.0
+    ):
+        raise ValueError("relative_tcp motion requires positive finite distance_m")
+    distance = float(distance_m)
+    return {
+        axis: round(float(direction_vector[axis]) * distance, 6)
+        for axis in ("x", "y", "z")
+    }
+
+
+def _finite_delta(delta_m: dict[str, Any]) -> dict[str, float]:
+    delta: dict[str, float] = {}
+    nonzero = False
+    for axis in ("x", "y", "z"):
+        value = delta_m.get(axis)
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            raise ValueError("delta_m requires finite x, y, and z values")
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError("delta_m requires finite x, y, and z values")
+        delta[axis] = round(number, 6)
+        nonzero = nonzero or abs(number) > 1e-9
+    if not nonzero:
+        raise ValueError("delta_m must move the TCP")
+    return delta
+
+
+def _offset_pose(pose: Pose, delta_m: dict[str, float]) -> dict[str, dict[str, float]]:
+    return {
+        "position": {
+            axis: round(float(pose.position[axis]) + float(delta_m[axis]), 6)
+            for axis in ("x", "y", "z")
+        },
+        "orientation": dict(pose.orientation),
+    }
+
+
+def _staged_move_task_stages(motion_stages: list[dict[str, Any]]) -> list[TaskStage]:
     motion_by_name = {str(stage.get("name")): stage for stage in motion_stages}
     return [
+        TaskStage("observe_current_state", "observation", "solved", [{"kind": "scene_snapshot"}]),
+        TaskStage(
+            "move_tcp",
+            "motion_plan",
+            "solved",
+            [motion_by_name["move_tcp"]["preview_evidence"]],
+            {"plan_name": motion_by_name["move_tcp"]["plan_name"]},
+        ),
+    ]
+
+
+def _staged_hold_task_stages(
+    motion_stages: list[dict[str, Any]],
+    *,
+    lift_distance_m: float,
+) -> list[TaskStage]:
+    motion_by_name = {str(stage.get("name")): stage for stage in motion_stages}
+    stages = [
         TaskStage("observe_current_state", "observation", "solved", [{"kind": "scene_snapshot"}]),
         TaskStage(
             "connect_to_pre_grasp",
@@ -4249,15 +4566,26 @@ def _staged_hold_task_stages(motion_stages: list[dict[str, Any]]) -> list[TaskSt
         ),
         TaskStage("close_gripper", "gripper", "solved", [{"kind": "gripper_command"}]),
         TaskStage("attach_object", "scene_update", "solved", [{"kind": "planning_scene_update"}]),
-        TaskStage(
-            "post_grasp_lift",
-            "motion_plan",
-            "solved",
-            [motion_by_name["post_grasp_lift"]["preview_evidence"]],
-            {"plan_name": motion_by_name["post_grasp_lift"]["plan_name"]},
-        ),
-        TaskStage("verify_attached_object", "verification", "solved", [{"kind": "attachment_check"}]),
     ]
+    if not _is_bare_hold_lift_distance(lift_distance_m):
+        stages.append(
+            TaskStage(
+                "post_grasp_lift",
+                "motion_plan",
+                "solved",
+                [motion_by_name["post_grasp_lift"]["preview_evidence"]],
+                {"plan_name": motion_by_name["post_grasp_lift"]["plan_name"]},
+            )
+        )
+    stages.append(
+        TaskStage(
+            "verify_attached_object",
+            "verification",
+            "solved",
+            [{"kind": "attachment_check"}],
+        )
+    )
+    return stages
 
 
 def _staged_place_task_stages(motion_stages: list[dict[str, Any]]) -> list[TaskStage]:
@@ -4292,19 +4620,28 @@ def _staged_place_task_stages(motion_stages: list[dict[str, Any]]) -> list[TaskS
 
 
 def _staged_agent_path_preview(motion_stages: list[dict[str, Any]]) -> dict[str, Any]:
+    def preview_stage(stage: dict[str, Any]) -> dict[str, Any]:
+        item = {
+            "name": stage.get("name"),
+            "plan_name": stage.get("plan_name"),
+            "planner": stage.get("planner"),
+            "trajectory_points": stage.get("trajectory_points"),
+            "evidence": stage.get("preview_evidence"),
+        }
+        if isinstance(stage.get("contact_allowance"), dict):
+            item["contact_allowance"] = stage["contact_allowance"]
+        planner_pipeline = stage.get("planner_pipeline")
+        if isinstance(planner_pipeline, str):
+            item["planner_pipeline"] = planner_pipeline
+        planner_id = stage.get("planner_id")
+        if isinstance(planner_id, str):
+            item["planner_id"] = planner_id
+        return item
+
     return {
         "kind": "AgentPath",
         "name": "AgentPath",
-        "motion_stages": [
-            {
-                "name": stage.get("name"),
-                "plan_name": stage.get("plan_name"),
-                "planner": stage.get("planner"),
-                "trajectory_points": stage.get("trajectory_points"),
-                "evidence": stage.get("preview_evidence"),
-            }
-            for stage in motion_stages
-        ],
+        "motion_stages": [preview_stage(stage) for stage in motion_stages],
     }
 
 
@@ -4318,18 +4655,67 @@ def _staged_candidate_public_summary(attempt: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _active_moveit_planner_diagnostics(planner: str) -> dict[str, str]:
+    if planner not in ACTIVE_MOVEIT_PLANNER_DIAGNOSTIC_ROUTES:
+        return {}
+    return dict(ACTIVE_MOVEIT_PLANNER_DIAGNOSTICS)
+
+
+def _is_bare_hold_lift_distance(value: Any) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return math.isfinite(float(value)) and float(value) <= BARE_HOLD_LIFT_DISTANCE_EPSILON_M
+
+
+def _gripper_touch_links_contact_allowance(object_name: str) -> dict[str, Any]:
+    return {
+        "category": "gripper_touch_links_to_target",
+        "object_name": object_name,
+        "pairs": [[link, object_name] for link in DEFAULT_TOUCH_LINKS],
+    }
+
+
+def _contact_allowance_pairs(contact_allowance: dict[str, Any]) -> list[tuple[str, str]]:
+    pairs: list[tuple[str, str]] = []
+    for pair in contact_allowance.get("pairs") or []:
+        if not isinstance(pair, list) or len(pair) != 2:
+            continue
+        first, second = pair
+        if not isinstance(first, str) or not isinstance(second, str):
+            continue
+        pairs.append((first, second))
+    return pairs
+
+
+def _attach_motion_step_contact_allowances(
+    contract: dict[str, Any],
+    motion_by_name: dict[str, dict[str, Any]],
+    enabled_source_stages: set[str],
+) -> None:
+    for step in contract.get("steps") or []:
+        if not isinstance(step, dict) or step.get("handler") != "motion":
+            continue
+        source_stage = str(step.get("source_stage") or "")
+        if source_stage not in enabled_source_stages:
+            continue
+        stage = motion_by_name.get(source_stage)
+        contact_allowance = stage.get("contact_allowance") if isinstance(stage, dict) else None
+        if isinstance(contact_allowance, dict):
+            step["contact_allowance"] = contact_allowance
+
+
 def _staged_hold_execution_contract(
     *,
     task_solution_id: str,
     object_name: str,
     scene_snapshot_id: str,
     motion_stages: list[dict[str, Any]],
+    lift_distance_m: float,
 ) -> dict[str, Any]:
     motion_by_name = {str(stage.get("name")): stage for stage in motion_stages}
     connect_plan_name = str(motion_by_name["connect_to_pre_grasp"]["plan_name"])
     approach_plan_name = str(motion_by_name["approach_to_pre_grasp"]["plan_name"])
-    lift_plan_name = str(motion_by_name["post_grasp_lift"]["plan_name"])
-    return {
+    contract: dict[str, Any] = {
         "target_kind": "task_solution",
         "task_solution_id": task_solution_id,
         "object_name": object_name,
@@ -4380,6 +4766,11 @@ def _staged_hold_execution_contract(
                 "required_proof": "planning_scene_attached",
                 "arguments": {"verified_gripper_closed": True},
             },
+        ],
+    }
+    if not _is_bare_hold_lift_distance(lift_distance_m):
+        lift_plan_name = str(motion_by_name["post_grasp_lift"]["plan_name"])
+        contract["steps"].append(
             {
                 "step": 5,
                 "handler": "motion",
@@ -4390,16 +4781,53 @@ def _staged_hold_execution_contract(
                 "object_name": object_name,
                 "scene_snapshot_id": scene_snapshot_id,
                 "required_proof": "verified_motion_plan",
-            },
+            }
+        )
+    contract["steps"].append(
+        {
+            "step": len(contract["steps"]) + 1,
+            "handler": "verify_attached_object",
+            "name": "verify_attached_object",
+            "tool": "moveit_verify_attached_object",
+            "source_stage": "verify_attached_object",
+            "object_name": object_name,
+            "scene_snapshot_id": scene_snapshot_id,
+            "required_proof": "attachment_check",
+        }
+    )
+    _attach_motion_step_contact_allowances(contract, motion_by_name, {"approach_to_pre_grasp"})
+    return contract
+
+
+def _staged_move_execution_contract(
+    *,
+    task_solution_id: str,
+    object_name: str,
+    scene_snapshot_id: str,
+    motion_stages: list[dict[str, Any]],
+    target_pose: dict[str, Any],
+) -> dict[str, Any]:
+    motion_by_name = {str(stage.get("name")): stage for stage in motion_stages}
+    move_plan_name = str(motion_by_name["move_tcp"]["plan_name"])
+    return {
+        "target_kind": "task_solution",
+        "task_solution_id": task_solution_id,
+        "object_name": object_name,
+        "scene_snapshot_id": scene_snapshot_id,
+        "requires_explicit_approval": True,
+        "can_execute": True,
+        "steps": [
             {
-                "step": 6,
-                "handler": "verify_attached_object",
-                "name": "verify_attached_object",
-                "tool": "moveit_verify_attached_object",
-                "source_stage": "verify_attached_object",
+                "step": 1,
+                "handler": "motion",
+                "name": "move_tcp",
+                "plan_handle": move_plan_name,
+                "waypoint_index": 0,
+                "target_pose": target_pose,
+                "source_stage": "move_tcp",
                 "object_name": object_name,
                 "scene_snapshot_id": scene_snapshot_id,
-                "required_proof": "attachment_check",
+                "required_proof": "verified_motion_plan",
             },
         ],
     }
@@ -4468,7 +4896,7 @@ def _staged_place_execution_contract(
     connect_plan_name = str(motion_by_name["connect_to_place"]["plan_name"])
     approach_plan_name = str(motion_by_name["approach_place"]["plan_name"])
     retreat_plan_name = str(motion_by_name["retreat"]["plan_name"])
-    return {
+    contract = {
         "target_kind": "task_solution",
         "task_solution_id": task_solution_id,
         "object_name": object_name,
@@ -4543,6 +4971,8 @@ def _staged_place_execution_contract(
             },
         ],
     }
+    _attach_motion_step_contact_allowances(contract, motion_by_name, {"approach_place"})
+    return contract
 
 
 def _staged_pick_place_execution_contract(
@@ -4554,7 +4984,7 @@ def _staged_pick_place_execution_contract(
     motion_stages: list[dict[str, Any]],
 ) -> dict[str, Any]:
     motion_by_name = {str(stage.get("name")): stage for stage in motion_stages}
-    return {
+    contract = {
         "target_kind": "task_solution",
         "task_solution_id": task_solution_id,
         "object_name": object_name,
@@ -4683,6 +5113,8 @@ def _staged_pick_place_execution_contract(
             },
         ],
     }
+    _attach_motion_step_contact_allowances(contract, motion_by_name, {"approach_to_pre_grasp", "approach_place"})
+    return contract
 
 
 def _pick_task_candidate_attempts(candidate_workflows: list[dict[str, Any]]) -> list[dict[str, Any]]:
