@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from dataclasses import asdict
@@ -14,6 +15,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 
 from agent_control.prompts import SPEAKING_AGENT_PERSONA, SPEECH_DELIVERY_STYLE
+from embodiment.animations import (
+    EmbodimentAnimationController,
+    create_embodiment_animation_controller,
+)
 from voice_modulation.dsp import VoiceModulationDspError
 from voice_modulation.gemini_voices import gemini_live_voice_options
 from voice_modulation.persona_editor import (
@@ -22,6 +27,7 @@ from voice_modulation.persona_editor import (
     load_persona_parts,
     load_persona_template,
     save_persona_part,
+    save_persona_template_part,
 )
 from voice_modulation.preview import (
     AudioBytes,
@@ -32,7 +38,12 @@ from voice_modulation.preview import (
     synthesize_tts_reference,
     tts_for_preview,
 )
-from voice_modulation.profile_editor import save_gemini_tts_voice, save_voice_modulation_default
+from voice_modulation.profile_editor import (
+    embodiment_from_mapping,
+    save_embodiment_default,
+    save_gemini_tts_voice,
+    save_voice_modulation_default,
+)
 from voice_modulation.settings import (
     BUILT_IN_PRESETS,
     VoiceModulationError,
@@ -44,6 +55,7 @@ from voice_modulation.settings import (
     settings_from_mapping,
 )
 from voice_runtime.profiles import (
+    EmbodimentProfile,
     ProfileError,
     TTSProfile,
     default_profiles_path,
@@ -57,6 +69,9 @@ except ModuleNotFoundError:  # pragma: no cover
 
 PreviewSynthesizer = Callable[[TTSProfile, str], AudioBytes]
 CartesiaVoiceFetcher = Callable[[], dict[str, object]]
+EmbodimentControllerFactory = Callable[
+    [EmbodimentProfile], EmbodimentAnimationController | None
+]
 
 CARTESIA_VOICE_LIBRARY_URL = "https://play.cartesia.ai/voices"
 CARTESIA_VOICES_API_URL = "https://api.cartesia.ai/voices"
@@ -67,11 +82,15 @@ def create_app(
     server_dir: Path | None = None,
     preview_synthesizer: PreviewSynthesizer | None = None,
     cartesia_voice_fetcher: CartesiaVoiceFetcher | None = None,
+    embodiment_controller_factory: EmbodimentControllerFactory | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Voice Modulation Lab")
     root = server_dir or Path(__file__).resolve().parents[1]
     load_dotenv(root / ".env", override=True)
     synthesize = preview_synthesizer or synthesize_tts_reference
+    create_embodiment_controller = (
+        embodiment_controller_factory or create_embodiment_animation_controller
+    )
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
@@ -119,7 +138,7 @@ def create_app(
 
     @app.post("/api/persona/parts/{part_id}")
     def post_persona_part(part_id: str, payload: dict[str, object]) -> dict[str, object]:
-        content = _string(payload.get("content"), "content")
+        content = _content_string(payload.get("content"), "content")
         try:
             part = save_persona_part(_prompt_parts_dir(root), part_id, content)
         except PersonaValidationError as exc:
@@ -129,6 +148,7 @@ def create_app(
             "part": asdict(part),
             "restart_required": True,
             "git_source_changed": True,
+            "template_source_changed": False,
         }
 
     @app.get("/api/persona/templates")
@@ -143,9 +163,31 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {
             "ok": True,
+            "template_id": template_id,
             "parts": [asdict(part) for part in parts],
             "restart_required": True,
             "git_source_changed": True,
+        }
+
+    @app.post("/api/persona/templates/{template_id}/parts/{part_id}")
+    def post_persona_template_part(
+        template_id: str,
+        part_id: str,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        content = _content_string(payload.get("content"), "content")
+        try:
+            part = save_persona_template_part(root, template_id, part_id, content)
+            save_persona_part(_prompt_parts_dir(root), part_id, content)
+        except PersonaValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "ok": True,
+            "template_id": template_id,
+            "part": asdict(part),
+            "restart_required": True,
+            "git_source_changed": True,
+            "template_source_changed": True,
         }
 
     @app.get("/api/settings/{profile_name}")
@@ -164,6 +206,74 @@ def create_app(
             "settings": settings.to_dict(),
             "settings_path": str(default_settings_path(root)),
         }
+
+    @app.get("/api/embodiment/{profile_name}")
+    def get_embodiment(profile_name: str) -> dict[str, object]:
+        try:
+            profile = load_runtime_profile(server_dir=root, profile_name=profile_name)
+        except ProfileError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {
+            "profile": profile_name,
+            "settings": _embodiment_payload(profile.embodiment),
+        }
+
+    @app.post("/api/profiles/{profile_name}/embodiment")
+    def post_embodiment(profile_name: str, payload: dict[str, object]) -> dict[str, object]:
+        try:
+            settings = embodiment_from_mapping(payload)
+            result = save_embodiment_default(_profiles_path(root), profile_name, settings)
+        except (ValueError, ProfileError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "ok": True,
+            "profile": result.profile_name,
+            "settings": _embodiment_payload(settings),
+            "restart_required": True,
+            "source_path": str(result.source_path),
+        }
+
+    @app.post("/api/profiles/{profile_name}/embodiment/test")
+    async def post_embodiment_test(
+        profile_name: str,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        try:
+            profile = load_runtime_profile(server_dir=root, profile_name=profile_name)
+        except ProfileError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        settings = profile.embodiment
+        raw_settings = payload.get("settings")
+        if raw_settings is not None:
+            try:
+                settings = embodiment_from_mapping(_dict(raw_settings, "settings"))
+            except (ValueError, VoicePreviewError) as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+        controller = create_embodiment_controller(settings)
+        if controller is None:
+            raise HTTPException(status_code=400, detail="Embodiment animations are disabled")
+        action = _optional_string(payload.get("action"), "action") or "start"
+        motion = _optional_string(payload.get("motion"), "motion") or "move"
+        side = _optional_string(payload.get("side"), "side")
+        result: dict[str, object] | None = None
+        try:
+            if action == "start":
+                result = await controller.start_animation(motion, side=side)
+            elif action == "stop":
+                result = await controller.stop_animation(motion, side=side)
+            else:
+                raise ValueError("action must be start or stop")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        finally:
+            if result is not None and result.get("ok"):
+                await asyncio.sleep(0.2)
+            await controller.stop()
+        if result is None:
+            raise HTTPException(status_code=400, detail="Embodiment animation test did not run")
+        if not result.get("ok"):
+            raise HTTPException(status_code=503, detail=str(result.get("error") or "Test failed"))
+        return {"ok": True, "result": result}
 
     @app.post("/api/settings/{profile_name}")
     def post_settings(profile_name: str, payload: dict[str, object]) -> dict[str, object]:
@@ -331,7 +441,12 @@ def _profile_summary(server_dir: Path, name: str) -> dict[str, object]:
         "missing_env": [
             env_name for env_name in profile.required_env_names() if not os.getenv(env_name)
         ],
+        "embodiment": _embodiment_payload(profile.embodiment),
     }
+
+
+def _embodiment_payload(settings: EmbodimentProfile) -> dict[str, object]:
+    return asdict(settings)
 
 
 def _cartesia_voice_response(fetcher: CartesiaVoiceFetcher | None = None) -> dict[str, object]:
@@ -436,6 +551,12 @@ def _string(value: object, name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise HTTPException(status_code=400, detail=f"{name} must be a non-empty string")
     return value.strip()
+
+
+def _content_string(value: object, name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise HTTPException(status_code=400, detail=f"{name} must be a non-empty string")
+    return value
 
 
 def _optional_string(value: object, name: str) -> str | None:

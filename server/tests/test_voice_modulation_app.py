@@ -135,7 +135,6 @@ def _write_prompt_parts(prompt_dir: Path) -> None:
     for filename in (
         "mave_embodiment.md",
         "reasoning_agent_persona.md",
-        "response_style.md",
         "speech_delivery_style.md",
         "speech_tag_examples.md",
         "behavior_examples.md",
@@ -147,18 +146,18 @@ def _write_prompt_parts(prompt_dir: Path) -> None:
 def _write_persona_template(
     server_dir: Path,
     template_id: str = "independent_agent",
-) -> None:
+) -> Path:
     template_dir = server_dir / "agent_control" / "persona_templates" / template_id
     template_dir.mkdir(parents=True)
     for filename in (
         "mave_embodiment.md",
         "reasoning_agent_persona.md",
-        "response_style.md",
         "speech_delivery_style.md",
         "speech_tag_examples.md",
         "behavior_examples.md",
     ):
         (template_dir / filename).write_text(f"# Template {filename}\n", encoding="utf-8")
+    return template_dir
 
 
 def test_wav_preview_helpers_round_trip_pcm16() -> None:
@@ -398,19 +397,82 @@ def test_persona_part_save_route_writes_allowlisted_part(tmp_path: Path) -> None
     )
 
 
+def test_persona_part_save_route_preserves_markdown_content_exactly(
+    tmp_path: Path,
+) -> None:
+    from voice_modulation.app import create_app
+
+    prompt_dir = tmp_path / "agent_control" / "prompt_parts"
+    _write_prompt_parts(prompt_dir)
+    client = TestClient(create_app(server_dir=tmp_path))
+    content = "\n# Behavior examples\n\n- Keep it brief.\n\n"
+
+    response = client.post(
+        "/api/persona/parts/behavior_examples",
+        json={"content": content},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["part"]["content"] == content
+    assert (prompt_dir / "behavior_examples.md").read_text(encoding="utf-8") == content
+
+
+def test_persona_template_part_save_route_updates_loaded_template_folder(
+    tmp_path: Path,
+) -> None:
+    from voice_modulation.app import create_app
+
+    prompt_dir = tmp_path / "agent_control" / "prompt_parts"
+    _write_prompt_parts(prompt_dir)
+    _write_persona_template(tmp_path, "Persona 1")
+    persona_2 = _write_persona_template(tmp_path, "Persona 2")
+    (persona_2 / "behavior_examples.md").write_text(
+        "# Behavior examples\n- Persona 2 text.\n",
+        encoding="utf-8",
+    )
+    client = TestClient(create_app(server_dir=tmp_path))
+    saved_content = "# Behavior examples\n- Persona 1 edited text.\n"
+
+    response = client.post(
+        "/api/persona/templates/Persona%201/parts/behavior_examples",
+        json={"content": saved_content},
+    )
+    assert response.status_code == 200
+    assert response.json()["template_source_changed"] is True
+    client.post("/api/persona/templates/Persona%202/load")
+    assert (prompt_dir / "behavior_examples.md").read_text(encoding="utf-8") == (
+        "# Behavior examples\n- Persona 2 text.\n"
+    )
+
+    response = client.post("/api/persona/templates/Persona%201/load")
+
+    assert response.status_code == 200
+    persona_1_part = (
+        tmp_path
+        / "agent_control"
+        / "persona_templates"
+        / "Persona 1"
+        / "behavior_examples.md"
+    )
+    assert persona_1_part.read_text(encoding="utf-8") == saved_content
+    assert (prompt_dir / "behavior_examples.md").read_text(encoding="utf-8") == saved_content
+
+
 def test_persona_templates_route_lists_templates(tmp_path: Path) -> None:
     from voice_modulation.app import create_app
 
-    _write_persona_template(tmp_path)
-    _write_persona_template(tmp_path, "robot_embodied_agent")
+    _write_persona_template(tmp_path, "Bobby Fused")
+    _write_persona_template(tmp_path, "kibbitz_separate")
     client = TestClient(create_app(server_dir=tmp_path))
 
     response = client.get("/api/persona/templates")
 
     assert response.status_code == 200
     templates = {template["id"]: template for template in response.json()["templates"]}
-    assert templates["independent_agent"]["available"] is True
-    assert templates["robot_embodied_agent"]["available"] is True
+    assert templates["Bobby Fused"]["available"] is True
+    assert templates["Bobby Fused"]["label"] == "Bobby Fused"
+    assert templates["kibbitz_separate"]["available"] is True
+    assert templates["kibbitz_separate"]["label"] == "Kibbitz Separate"
 
 
 def test_persona_template_load_route_writes_editable_parts(tmp_path: Path) -> None:
@@ -418,10 +480,10 @@ def test_persona_template_load_route_writes_editable_parts(tmp_path: Path) -> No
 
     prompt_dir = tmp_path / "agent_control" / "prompt_parts"
     _write_prompt_parts(prompt_dir)
-    _write_persona_template(tmp_path)
+    _write_persona_template(tmp_path, "Bobby Fused")
     client = TestClient(create_app(server_dir=tmp_path))
 
-    response = client.post("/api/persona/templates/independent_agent/load")
+    response = client.post("/api/persona/templates/Bobby%20Fused/load")
 
     assert response.status_code == 200
     body = response.json()
@@ -581,6 +643,102 @@ def test_voice_modulation_default_route_updates_runtime_profile_toml(tmp_path) -
     text = profiles_path.read_text(encoding="utf-8")
     assert "[profiles.local_current.voice_modulation]" in text
     assert 'preset_name = "profile_default"' in text
+
+
+def test_embodiment_routes_load_and_save_runtime_profile_toml(tmp_path) -> None:
+    from voice_modulation.app import create_app
+
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profiles(profiles_path)
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    initial = client.get("/api/embodiment/local_current")
+    saved = client.post(
+        "/api/profiles/local_current/embodiment",
+        json={
+            "enabled": True,
+            "rosbridge_host": "127.0.0.1",
+            "rosbridge_port": 9090,
+            "animation_topic": "/HOLO1_AnimSignal",
+            "animation_topic_type": "std_msgs/String",
+            "start_blink_on_connect": True,
+            "stop_blink_on_disconnect": True,
+            "wave_duration_s": 0.5,
+            "move_duration_s": 1.2,
+            "motions": {
+                "nod": {"start_signal": "start_nod", "stop_signal": "stop_nod"},
+            },
+            "touch_trigger": {
+                "enabled": True,
+                "topic": "/HOLO1_TouchSignal",
+                "topic_type": "std_msgs/String",
+                "link_name": "hand_link",
+                "motion": "move",
+                "cooldown_s": 2.0,
+            },
+        },
+    )
+    reloaded = client.get("/api/embodiment/local_current")
+
+    assert initial.status_code == 200
+    assert initial.json()["settings"]["enabled"] is False
+    assert saved.status_code == 200
+    assert saved.json()["restart_required"] is True
+    assert reloaded.json()["settings"]["enabled"] is True
+    assert reloaded.json()["settings"]["motions"]["nod"]["start_signal"] == "start_nod"
+    assert reloaded.json()["settings"]["touch_trigger"]["link_name"] == "hand_link"
+    text = profiles_path.read_text(encoding="utf-8")
+    assert "[profiles.local_current.embodiment]" in text
+    assert 'animation_topic = "/HOLO1_AnimSignal"' in text
+    assert 'start_signal = "start_nod"' in text
+
+
+def test_embodiment_test_route_uses_injected_controller(tmp_path) -> None:
+    from voice_modulation.app import create_app
+
+    _write_profiles(tmp_path / "runtime_profiles.toml")
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    profiles_path.write_text(
+        profiles_path.read_text(encoding="utf-8")
+        + """
+
+[profiles.local_current.embodiment]
+enabled = true
+""",
+        encoding="utf-8",
+    )
+    calls: list[tuple[str, str | None]] = []
+
+    class FakeController:
+        async def start_animation(
+            self, motion: str, *, side: str | None = None
+        ) -> dict[str, object]:
+            calls.append((f"start:{motion}", side))
+            return {"ok": True}
+
+        async def stop_animation(
+            self, motion: str, *, side: str | None = None
+        ) -> dict[str, object]:
+            calls.append((f"stop:{motion}", side))
+            return {"ok": True}
+
+        async def stop(self) -> None:
+            return None
+
+    client = TestClient(
+        create_app(
+            server_dir=tmp_path,
+            embodiment_controller_factory=lambda _settings: cast(Any, FakeController()),
+        )
+    )
+
+    response = client.post(
+        "/api/profiles/local_current/embodiment/test",
+        json={"motion": "wave", "action": "start", "side": "left"},
+    )
+
+    assert response.status_code == 200
+    assert calls == [("start:wave", "left")]
 
 
 def test_effect_preview_rejects_invalid_base64_audio(tmp_path) -> None:
@@ -937,6 +1095,7 @@ def test_index_page_serves_voice_mod_lab_workbench(tmp_path) -> None:
     assert "geminiVoiceSelect" in response.text
     assert 'data-tab="voiceTab"' not in response.text
     assert 'data-tab="modulationTab">Modulation' in response.text
+    assert 'data-tab="embodimentTab">Embodiment' in response.text
     assert "speechDeliveryEditor" in response.text
     assert "saveSpeechDeliveryBtn" in response.text
     assert response.text.index("speechDeliveryEditor") < response.text.index("Character bay")
@@ -944,12 +1103,14 @@ def test_index_page_serves_voice_mod_lab_workbench(tmp_path) -> None:
     assert "https://play.cartesia.ai/voices" in response.text
     assert "https://docs.cloud.google.com/text-to-speech/docs/gemini-tts" in response.text
     assert "personaParts" in response.text
-    assert "saveModulationBtn" not in response.text
-    assert "Save local override" not in response.text
-    assert "saveModulationDefaultBtn" in response.text
-    assert "Save profile default" in response.text
+    assert "saveModulationBtn" in response.text
     assert "sourceBtn" in response.text
     assert "renderBtn" in response.text
+    assert 'data-tab="runAgentTab">RUN AGENT' in response.text
+    assert "touchLinkName" in response.text
+    assert "motionControlGrid" in response.text
+    assert "addMotionBtn" in response.text
+    assert "http://localhost:7860/client" in response.text
     assert "protocol_droid" in response.text
     assert "masked_breather" in response.text
     assert "Character bay" in response.text
@@ -963,20 +1124,6 @@ def test_index_page_serves_voice_mod_lab_workbench(tmp_path) -> None:
         "Limiter",
     ]:
         assert expert_label not in response.text
-
-
-def test_index_page_keeps_voice_modulation_enabled_for_neutral_saves(tmp_path) -> None:
-    from voice_modulation.app import create_app
-
-    _write_profiles(tmp_path / "runtime_profiles.toml")
-    client = TestClient(create_app(server_dir=tmp_path))
-
-    response = client.get("/")
-
-    assert response.status_code == 200
-    assert "settings.enabled = true;" in response.text
-    assert "next.enabled = true;" in response.text
-    assert "hasAudibleEffect" not in response.text
 
 
 def test_tts_synthesizer_reports_missing_provider_env(monkeypatch) -> None:

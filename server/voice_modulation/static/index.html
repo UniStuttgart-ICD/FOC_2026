@@ -47,7 +47,6 @@
 
     .toolbar {
       display: grid;
-      grid-template-columns: minmax(170px, 260px) 1fr auto;
       gap: 12px;
       align-items: center;
       padding: 14px 18px;
@@ -77,16 +76,6 @@
       color: var(--paper-2);
     }
 
-    .toolbar select {
-      width: 100%;
-      min-height: 40px;
-      color: var(--paper);
-      background: var(--graphite-2);
-      border: 1px solid var(--graphite-3);
-      padding: 0 10px;
-      border-radius: 4px;
-    }
-
     .summary {
       overflow: hidden;
       white-space: nowrap;
@@ -101,8 +90,9 @@
 
     .tabs {
       display: flex;
+      align-items: flex-end;
       gap: 6px;
-      padding: 10px 18px 0;
+      padding: 6px 18px 0;
       background: rgba(244, 241, 232, 0.88);
       border-bottom: 1px solid rgba(36, 39, 38, 0.18);
       overflow-x: auto;
@@ -110,6 +100,8 @@
 
     .tab-btn {
       min-width: 112px;
+      min-height: 36px;
+      padding: 0 12px;
       color: var(--ink);
       background: var(--paper-2);
       border: 1px solid var(--line);
@@ -125,6 +117,14 @@
       background: var(--graphite);
     }
 
+    .tabs .tab-btn {
+      height: 32px;
+      min-height: 32px;
+      padding: 0 12px;
+      border-radius: 4px 4px 0 0;
+      box-shadow: none;
+    }
+
     main {
       width: min(1320px, 100%);
       padding: 18px;
@@ -138,17 +138,6 @@
 
     .tab-panel.active {
       display: block;
-    }
-
-    .modulation-grid {
-      display: grid;
-      grid-template-columns: minmax(260px, 1fr) minmax(280px, 380px);
-      gap: 18px;
-    }
-
-    .workbench,
-    .rack {
-      min-width: 0;
     }
 
     .panel-title {
@@ -167,6 +156,49 @@
       font-size: 16px;
       text-transform: uppercase;
       letter-spacing: 0;
+    }
+
+    .voice-flow {
+      display: grid;
+      gap: 18px;
+    }
+
+    .voice-layer {
+      min-width: 0;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.32);
+      border: 2px solid rgba(36, 39, 38, 0.28);
+      border-radius: 8px;
+    }
+
+    .source-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) minmax(260px, 340px);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .phrase-layout {
+      display: grid;
+      grid-template-columns: minmax(320px, 1fr) minmax(260px, 340px);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .modulation-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.1fr) minmax(260px, 340px);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .source-column,
+    .phrase-text-column,
+    .phrase-column,
+    .character-column,
+    .controls-column,
+    .render-column {
+      min-width: 0;
     }
 
     textarea {
@@ -196,7 +228,8 @@
     }
 
     .voice-fields,
-    .gemini-voice-fields {
+    .gemini-voice-fields,
+    .profile-picker {
       display: grid;
       grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.4fr) auto;
       gap: 10px;
@@ -207,8 +240,14 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .profile-picker {
+      grid-template-columns: minmax(220px, 1fr) auto;
+      margin-bottom: 10px;
+    }
+
     .voice-fields label,
-    .gemini-voice-fields label {
+    .gemini-voice-fields label,
+    .profile-picker label {
       display: grid;
       gap: 5px;
       min-width: 0;
@@ -223,7 +262,8 @@
 
     .voice-fields select,
     .voice-fields input[type="text"],
-    .gemini-voice-fields select {
+    .gemini-voice-fields select,
+    .profile-picker select {
       width: 100%;
       min-height: 40px;
       padding: 0 10px;
@@ -236,7 +276,8 @@
 
     .speech-panel,
     .persona-panel,
-    .persona-editor {
+    .persona-editor,
+    .embodiment-panel {
       margin-bottom: 16px;
       padding: 10px;
       background: rgba(255, 255, 255, 0.46);
@@ -264,6 +305,10 @@
       flex-wrap: wrap;
       gap: 8px;
       margin-bottom: 14px;
+    }
+
+    .template-button.active {
+      background: var(--coral);
     }
 
     #personaParts {
@@ -308,6 +353,97 @@
       background: rgba(221, 216, 203, 0.56);
     }
 
+    .embodiment-panel {
+      display: grid;
+      gap: 14px;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      align-items: end;
+    }
+
+    .field-grid label,
+    .toggle-row {
+      display: grid;
+      gap: 5px;
+      min-width: 0;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .toggle-row {
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      min-height: 40px;
+    }
+
+    .toggle-row input {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--coral);
+    }
+
+    .field-grid input,
+    .field-grid select {
+      width: 100%;
+      min-height: 40px;
+      padding: 0 10px;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      outline-color: var(--teal);
+    }
+
+    .test-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .motion-control-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .motion-control {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+      padding: 8px;
+      background: rgba(244, 241, 232, 0.68);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+
+    .motion-control strong {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+
+    .motion-register {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .agent-frame {
+      width: 100%;
+      min-height: calc(100vh - 180px);
+      border: 2px solid rgba(36, 39, 38, 0.28);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.42);
+    }
+
     .speech-panel {
       display: grid;
       gap: 8px;
@@ -321,12 +457,12 @@
       overflow-wrap: anywhere;
     }
 
-    .workbench .speech-panel {
-      margin-top: 16px;
+    .source-column .speech-panel {
+      margin-top: 14px;
     }
 
-    .workbench .speech-panel textarea {
-      min-height: 260px;
+    .source-column .speech-panel textarea {
+      min-height: 220px;
     }
 
     .voice-link {
@@ -350,8 +486,17 @@
       margin: 10px 0 14px;
     }
 
+    .phrase-row button {
+      min-width: 0;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      line-height: 1.15;
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
+
     .action-row {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: 1fr;
     }
 
     .button,
@@ -401,9 +546,12 @@
 
     .audio-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
       margin-top: 14px;
+    }
+
+    .source-layer .audio-grid {
+      grid-template-columns: minmax(0, 1fr);
     }
 
     .audio-card,
@@ -561,10 +709,17 @@
 
     @media (max-width: 860px) {
       .toolbar,
-      .modulation-grid,
+      .phrase-layout,
+      .source-layout,
+      .modulation-layout,
       .audio-grid,
       .voice-fields,
-      .gemini-voice-fields {
+      .gemini-voice-fields,
+      .profile-picker,
+      .field-grid,
+      .test-row,
+      .motion-control-grid,
+      .motion-register {
         grid-template-columns: 1fr;
       }
 
@@ -607,121 +762,229 @@
     <header class="toolbar">
       <div class="brand">
         <strong>Agent Persona Lab</strong>
-        <span>Tuning workbench</span>
-      </div>
-      <select id="profileSelect" aria-label="Runtime profile"></select>
-      <div>
-        <div id="providerSummary" class="summary">Provider: loading</div>
-        <div id="saveStatus" class="save-status">Idle</div>
+        <span id="activePersonaSummary">Persona: none loaded</span>
       </div>
     </header>
 
     <nav class="tabs" aria-label="Agent Persona Lab sections">
-      <button class="tab-btn active" data-tab="modulationTab">Modulation</button>
-      <button class="tab-btn" data-tab="personaTab">Persona</button>
+      <button class="tab-btn active" data-tab="personaTab">Persona</button>
+      <button class="tab-btn" data-tab="modulationTab">Modulation</button>
+      <button class="tab-btn" data-tab="embodimentTab">Embodiment</button>
+      <button class="tab-btn" data-tab="runAgentTab">RUN AGENT</button>
     </nav>
 
     <main>
-      <section id="modulationTab" class="tab-panel active">
-        <div class="modulation-grid">
-          <section class="workbench">
+      <section id="modulationTab" class="tab-panel">
+        <div class="voice-flow">
+          <section class="voice-layer phrase-layer">
             <div class="panel-title">
-              <h1>Preview phrase</h1>
+              <h1>0 Preview phrase</h1>
             </div>
-            <div id="voicePanel" class="voice-panel" hidden>
-              <div class="voice-fields">
-                <label for="voiceSelect">
-                  Voice
-                  <select id="voiceSelect"></select>
-                </label>
-                <label for="voiceIdInput">
-                  Voice ID
-                  <input id="voiceIdInput" type="text" spellcheck="false" placeholder="Cartesia voice ID">
-                </label>
-                <a id="voiceLibraryLink" class="button voice-link" href="https://play.cartesia.ai/voices" target="_blank" rel="noreferrer">Voice library</a>
+            <div class="phrase-layout">
+              <div class="phrase-text-column">
+                <textarea id="phrase" spellcheck="true">The element has been placed and everything looks good. Let me know what else you need.</textarea>
+              </div>
+              <div class="phrase-column">
+                <div class="phrase-row">
+                  <button class="ghost phrase-btn" data-text="The element has been placed and everything looks good. Let me know what else you need.">Status</button>
+                  <button class="ghost phrase-btn" data-text="Look out, I am moving toward you now. I will keep the motion slow until the path is clear.">Motion</button>
+                  <button class="ghost phrase-btn" data-text="I have the beam aligned with the target position. I am holding it steady while I check the placement, then I will wait for your confirmation before making the next move.">Longer phrase</button>
+                </div>
               </div>
             </div>
-            <textarea id="phrase" spellcheck="true">Mave status report. Motion systems nominal, path planner ready.</textarea>
-            <div class="phrase-row">
-              <button class="ghost phrase-btn" data-text="Mave status report. Motion systems nominal, path planner ready.">Status</button>
-              <button class="ghost phrase-btn" data-text="Mave, move up a bit, then pause for confirmation.">Motion</button>
-              <button class="ghost phrase-btn" data-text="Mave, run the longer diagnostics phrase so we can hear voice size, robot edge, radio filtering, glitch, and room space over a full sentence.">Longer phrase</button>
-            </div>
-            <div class="action-row">
-              <button id="sourceBtn" class="generate">Generate source</button>
-              <button id="renderBtn" class="render" disabled>Render modulation</button>
-            </div>
-
-            <div class="audio-grid">
-              <article class="audio-card">
-                <header>Clean</header>
-                <audio id="cleanAudio" controls></audio>
-              </article>
-              <article class="audio-card">
-                <header>Modulated</header>
-                <audio id="modAudio" controls></audio>
-              </article>
-            </div>
-            <div id="status" class="status">Load a profile, choose a preset, then generate a preview.</div>
-
-            <div class="panel-title">
-              <h2>Speech delivery</h2>
-            </div>
-            <section class="speech-panel" data-part-id="speech_delivery_style">
-              <p class="persona-note">This prompt guides Gemini Live delivery for previews. Saved changes apply to lab previews immediately; the running bot still needs restart.</p>
-              <textarea id="speechDeliveryEditor" spellcheck="false" wrap="soft"></textarea>
-              <button id="saveSpeechDeliveryBtn">Save speech delivery</button>
-              <div id="speechDeliveryStatus" class="status">Load prompt parts to edit speech delivery.</div>
-            </section>
           </section>
 
-          <aside class="rack">
+          <section class="voice-layer source-layer">
             <div class="panel-title">
-              <h2>Gemini Live voice</h2>
+              <h1>1 Gemini Live source</h1>
             </div>
-            <section class="profile-panel">
-              <p class="persona-note">Saving writes the runtime profile voice and requires restarting the bot. Listen to the Gemini voices before choosing one.</p>
-              <div class="gemini-voice-fields">
-                <label for="geminiVoiceSelect">
-                  Voice
-                  <select id="geminiVoiceSelect"></select>
-                </label>
-                <button id="saveGeminiVoiceBtn">Save voice</button>
-                <a id="geminiVoiceDocsLink" class="button voice-link" href="https://docs.cloud.google.com/text-to-speech/docs/gemini-tts" target="_blank" rel="noreferrer">Listen first</a>
+            <div class="source-layout">
+              <div class="source-column">
+                <section class="profile-panel">
+                  <div class="profile-picker">
+                    <label for="profileSelect">
+                      Runtime profile
+                      <select id="profileSelect" aria-label="Runtime profile"></select>
+                    </label>
+                    <div>
+                      <div id="providerSummary" class="summary">Provider: loading</div>
+                      <div id="saveStatus" class="save-status">Idle</div>
+                    </div>
+                  </div>
+                  <div class="gemini-voice-fields">
+                    <label for="geminiVoiceSelect">
+                      Gemini voice
+                      <select id="geminiVoiceSelect"></select>
+                    </label>
+                    <button id="saveGeminiVoiceBtn">Save voice</button>
+                    <a id="geminiVoiceDocsLink" class="button voice-link" href="https://docs.cloud.google.com/text-to-speech/docs/gemini-tts" target="_blank" rel="noreferrer">Listen first</a>
+                  </div>
+                  <div id="voiceSaveStatus" class="save-status">Restart required after save.</div>
+                  <div id="voiceStatus" class="status">Load a profile to edit the Gemini Live voice.</div>
+                </section>
+                <section class="speech-panel" data-part-id="speech_delivery_style">
+                  <p class="persona-note">Speech delivery prompt for Gemini Live previews.</p>
+                  <textarea id="speechDeliveryEditor" spellcheck="false" wrap="soft"></textarea>
+                  <button id="saveSpeechDeliveryBtn">Save speech delivery</button>
+                  <div id="speechDeliveryStatus" class="status">Load prompt parts to edit speech delivery.</div>
+                </section>
               </div>
-              <div id="voiceSaveStatus" class="save-status">Restart required after save.</div>
-              <div id="voiceStatus" class="status">Load a profile to edit the Gemini Live voice.</div>
-            </section>
+              <div class="phrase-column">
+                <div id="voicePanel" class="voice-panel" hidden>
+                  <div class="voice-fields">
+                    <label for="voiceSelect">
+                      Voice
+                      <select id="voiceSelect"></select>
+                    </label>
+                    <label for="voiceIdInput">
+                      Voice ID
+                      <input id="voiceIdInput" type="text" spellcheck="false" placeholder="Cartesia voice ID">
+                    </label>
+                    <a id="voiceLibraryLink" class="button voice-link" href="https://play.cartesia.ai/voices" target="_blank" rel="noreferrer">Voice library</a>
+                  </div>
+                </div>
+                <div class="action-row">
+                  <button id="sourceBtn" class="generate">Generate source</button>
+                </div>
+                <div class="audio-grid">
+                  <article class="audio-card">
+                    <header>Source preview</header>
+                    <audio id="cleanAudio" controls></audio>
+                  </article>
+                </div>
+                <div id="status" class="status">Load a profile, choose a voice, then generate a source preview.</div>
+              </div>
+            </div>
+          </section>
 
+          <section class="voice-layer modulation-layer">
             <div class="panel-title">
-              <h2>Character bay</h2>
+              <h1>2 Character modulation</h1>
             </div>
-            <div id="presetGrid" class="preset-grid"></div>
-
-            <div class="panel-title">
-              <h2>Controls</h2>
+            <div class="modulation-layout">
+              <div class="character-column">
+                <div class="panel-title">
+                  <h2>Character bay</h2>
+                </div>
+                <div id="presetGrid" class="preset-grid"></div>
+              </div>
+              <div class="controls-column">
+                <div class="panel-title">
+                  <h2>Controls</h2>
+                </div>
+                <div id="controls" class="controls"></div>
+                <div class="save-row">
+                  <button id="saveModulationBtn">Save local override</button>
+                  <button id="saveModulationDefaultBtn" class="ghost">Save profile default</button>
+                </div>
+              </div>
+              <div class="render-column">
+                <div class="action-row">
+                  <button id="renderBtn" class="render" disabled>Render modulation</button>
+                </div>
+                <div class="audio-grid">
+                  <article class="audio-card">
+                    <header>Modulated preview</header>
+                    <audio id="modAudio" controls></audio>
+                  </article>
+                </div>
+              </div>
             </div>
-            <div id="controls" class="controls"></div>
-            <div class="save-row">
-              <button id="saveModulationDefaultBtn">Save profile default</button>
-            </div>
-          </aside>
+          </section>
         </div>
       </section>
 
-      <section id="personaTab" class="tab-panel">
+      <section id="personaTab" class="tab-panel active">
         <div class="panel-title">
           <h1>Persona prompt parts</h1>
         </div>
         <section class="persona-panel">
           <p class="persona-note">Editable prompt parts are source files. Saved prompt changes require bot restart.</p>
-          <div class="template-row">
-            <button id="loadIndependentTemplateBtn">Load independent agent</button>
-            <button id="loadRobotTemplateBtn" disabled>Robot embodied agent</button>
-          </div>
+          <div id="personaTemplateButtons" class="template-row"></div>
           <div id="personaParts"></div>
           <div id="personaSaveStatus" class="status">Saved prompt changes require bot restart.</div>
         </section>
+      </section>
+
+      <section id="embodimentTab" class="tab-panel">
+        <div class="panel-title">
+          <h1>Embodiment animations</h1>
+        </div>
+        <section class="embodiment-panel">
+          <div class="field-grid">
+            <label for="embodimentHost">
+              ROSBridge host
+              <input id="embodimentHost" type="text" spellcheck="false">
+            </label>
+            <label class="toggle-row">
+              <input id="embodimentEnabled" type="checkbox">
+              Enabled
+            </label>
+          </div>
+          <div class="field-grid">
+            <label class="toggle-row">
+              <input id="embodimentBlinkStart" type="checkbox">
+              Blink on connect
+            </label>
+            <label class="toggle-row">
+              <input id="embodimentBlinkStop" type="checkbox">
+              Stop blink on disconnect
+            </label>
+          </div>
+          <div id="motionControlGrid" class="motion-control-grid"></div>
+          <div class="panel-title">
+            <h2>Register motion</h2>
+          </div>
+          <div class="motion-register">
+            <label for="motionNameInput">
+              Motion name
+              <input id="motionNameInput" type="text" spellcheck="false" placeholder="nod">
+            </label>
+            <button id="addMotionBtn" class="ghost">Add motion</button>
+          </div>
+          <div class="panel-title">
+            <h2>Touch trigger</h2>
+          </div>
+          <div class="field-grid">
+            <label class="toggle-row">
+              <input id="touchEnabled" type="checkbox">
+              Enabled
+            </label>
+            <label for="touchLinkName">
+              Link name
+              <input id="touchLinkName" type="text" spellcheck="false" placeholder="link name">
+            </label>
+            <label for="touchMotion">
+              Motion
+              <select id="touchMotion">
+                <option value="move">Move</option>
+                <option value="wave">Wave</option>
+                <option value="blink">Blink</option>
+              </select>
+            </label>
+            <label for="touchCooldown">
+              Cooldown seconds
+              <input id="touchCooldown" type="number" min="0" step="0.1">
+            </label>
+          </div>
+          <div class="save-row">
+            <button id="saveEmbodimentBtn">Save embodiment</button>
+          </div>
+          <div id="embodimentStatus" class="status">Load a profile to edit embodiment animations.</div>
+        </section>
+      </section>
+
+      <section id="runAgentTab" class="tab-panel">
+        <div class="panel-title">
+          <h1>RUN AGENT</h1>
+          <a class="button voice-link" href="http://localhost:7860/client" target="_blank" rel="noreferrer">Open Pipecat</a>
+        </div>
+        <iframe
+          id="runAgentFrame"
+          class="agent-frame"
+          title="Pipecat voice agent"
+          data-src="http://localhost:7860/client"
+        ></iframe>
       </section>
     </main>
   </div>
@@ -798,9 +1061,16 @@
       geminiVoices: [],
       selectedVoiceId: "",
       personaParts: [],
-      personaTemplates: []
+      personaTemplates: [],
+      activePersonaTemplateId: "",
+      embodiment: null
     };
     const SPEECH_DELIVERY_PART_ID = "speech_delivery_style";
+    const builtInMotions = {
+      blink: { start_signal: "start_blink", stop_signal: "stop_blink" },
+      wave: { start_signal: "start_waveR", stop_signal: "end_waveR" },
+      move: { start_signal: "start_move", stop_signal: "stop_move" }
+    };
     const $ = (id) => document.getElementById(id);
 
     function escapeHtml(value) {
@@ -831,6 +1101,11 @@
     function setSpeechDeliveryStatus(text, tone = "") {
       $("speechDeliveryStatus").textContent = text;
       $("speechDeliveryStatus").className = `status ${tone}`;
+    }
+
+    function setEmbodimentStatus(text, tone = "") {
+      $("embodimentStatus").textContent = text;
+      $("embodimentStatus").className = `status ${tone}`;
     }
 
     function audioUrl(audio) {
@@ -968,6 +1243,22 @@
       return "Clean";
     }
 
+    function hasAudibleEffect(settings) {
+      return Math.abs(settings.gain_db || 0) > 0.001
+        || Math.abs(settings.pitch_shift_semitones || 0) > 0.001
+        || Math.abs(settings.body_shift || 0) > 0.001
+        || (settings.low_cut_hz || 0) > 0
+        || (settings.high_cut_hz || 0) > 0
+        || (settings.drive || 0) > 0
+        || (settings.bit_depth || 16) < 16
+        || (settings.ring_mod_hz || 0) > 0
+        || ((settings.tremolo_hz || 0) > 0 && (settings.tremolo_depth || 0) > 0)
+        || (settings.chorus_mix || 0) > 0
+        || (settings.echo_mix || 0) > 0
+        || (settings.noise_mix || 0) > 0
+        || (settings.breath_mix || 0) > 0;
+    }
+
     function normalizeMacroSettings(settings) {
       return {
         ...settings,
@@ -1009,7 +1300,7 @@
         const amount = clamp(value, 0, 1);
         next.breath_mix = rounded(amount * 0.08, 3);
       }
-      next.enabled = true;
+      next.enabled = hasAudibleEffect(next);
       return next;
     }
 
@@ -1025,7 +1316,7 @@
 
     function readSettings() {
       const settings = { ...state.settings };
-      settings.enabled = true;
+      settings.enabled = hasAudibleEffect(settings);
       return settings;
     }
 
@@ -1035,6 +1326,130 @@
       document.querySelectorAll(".preset-tile").forEach((tile) => {
         tile.classList.toggle("active", tile.dataset.preset === settings.preset_name);
       });
+    }
+
+    function defaultEmbodimentSettings() {
+      return {
+        enabled: false,
+        rosbridge_host: "127.0.0.1",
+        rosbridge_port: 9090,
+        animation_topic: "/HOLO1_AnimSignal",
+        animation_topic_type: "std_msgs/String",
+        start_blink_on_connect: true,
+        stop_blink_on_disconnect: true,
+        wave_duration_s: 0.8,
+        move_duration_s: 1.0,
+        motions: {},
+        touch_trigger: {
+          enabled: false,
+          topic: "/HOLO1_TouchSignal",
+          topic_type: "std_msgs/String",
+          link_name: "configured_link_name",
+          motion: "move",
+          cooldown_s: 1.0
+        }
+      };
+    }
+
+    function writeEmbodiment(settings) {
+      const next = { ...defaultEmbodimentSettings(), ...(settings || {}) };
+      next.touch_trigger = {
+        ...defaultEmbodimentSettings().touch_trigger,
+        ...((settings && settings.touch_trigger) || {})
+      };
+      next.motions = { ...((settings && settings.motions) || {}) };
+      state.embodiment = next;
+      $("embodimentEnabled").checked = Boolean(next.enabled);
+      $("embodimentHost").value = next.rosbridge_host || "127.0.0.1";
+      $("embodimentBlinkStart").checked = Boolean(next.start_blink_on_connect);
+      $("embodimentBlinkStop").checked = Boolean(next.stop_blink_on_disconnect);
+      $("touchEnabled").checked = Boolean(next.touch_trigger.enabled);
+      $("touchLinkName").value = next.touch_trigger.link_name === "configured_link_name"
+        ? ""
+        : next.touch_trigger.link_name || "";
+      $("touchCooldown").value = next.touch_trigger.cooldown_s ?? 1.0;
+      renderMotionControls();
+      $("touchMotion").value = allMotions()[next.touch_trigger.motion] ? next.touch_trigger.motion : "move";
+      setEmbodimentButtonsEnabled(state.profiles.length > 0);
+    }
+
+    function readEmbodiment() {
+      return {
+        enabled: $("embodimentEnabled").checked,
+        rosbridge_host: $("embodimentHost").value.trim() || "127.0.0.1",
+        rosbridge_port: 9090,
+        animation_topic: "/HOLO1_AnimSignal",
+        animation_topic_type: "std_msgs/String",
+        start_blink_on_connect: $("embodimentBlinkStart").checked,
+        stop_blink_on_disconnect: $("embodimentBlinkStop").checked,
+        wave_duration_s: state.embodiment?.wave_duration_s ?? 0.8,
+        move_duration_s: state.embodiment?.move_duration_s ?? 1.0,
+        motions: { ...((state.embodiment && state.embodiment.motions) || {}) },
+        touch_trigger: {
+          enabled: $("touchEnabled").checked,
+          topic: "/HOLO1_TouchSignal",
+          topic_type: "std_msgs/String",
+          link_name: $("touchLinkName").value.trim() || null,
+          motion: $("touchMotion").value || "move",
+          cooldown_s: Number($("touchCooldown").value || 0)
+        }
+      };
+    }
+
+    function setEmbodimentButtonsEnabled(enabled) {
+      [
+        "saveEmbodimentBtn",
+        "addMotionBtn"
+      ].forEach((id) => { $(id).disabled = !enabled; });
+      document.querySelectorAll("[data-motion-action]").forEach((button) => {
+        button.disabled = !enabled;
+      });
+    }
+
+    function allMotions() {
+      return {
+        ...builtInMotions,
+        ...((state.embodiment && state.embodiment.motions) || {})
+      };
+    }
+
+    function renderMotionControls() {
+      const motions = allMotions();
+      $("motionControlGrid").innerHTML = Object.entries(motions).map(([name]) => `
+        <div class="motion-control">
+          <strong>${escapeHtml(name)}</strong>
+          <button class="ghost" data-motion-action="start" data-motion-name="${escapeHtml(name)}">Start</button>
+          <button class="ghost" data-motion-action="stop" data-motion-name="${escapeHtml(name)}">Stop</button>
+        </div>
+      `).join("");
+      const currentTouchMotion = $("touchMotion").value || "move";
+      $("touchMotion").innerHTML = Object.keys(motions).map((name) =>
+        `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`
+      ).join("");
+      $("touchMotion").value = motions[currentTouchMotion] ? currentTouchMotion : "move";
+    }
+
+    function normalizeMotionName(value) {
+      return value.trim().toLowerCase();
+    }
+
+    function addMotion() {
+      const name = normalizeMotionName($("motionNameInput").value);
+      if (!name || !/^[a-z0-9_-]+$/.test(name)) {
+        setEmbodimentStatus("Motion name can use letters, numbers, _ and -.", "hot");
+        return;
+      }
+      const current = readEmbodiment();
+      current.motions[name] = {
+        start_signal: `start_${name}`,
+        stop_signal: `stop_${name}`
+      };
+      writeEmbodiment(current);
+      $("motionNameInput").value = "";
+      setEmbodimentStatus(
+        `Motion registered as start_${name} / stop_${name}. Save embodiment before runtime use.`,
+        "ok"
+      );
     }
 
     function renderControls() {
@@ -1118,7 +1533,7 @@
     }
 
     function renderPersonaParts() {
-      const parts = state.personaParts.filter((part) => part.id !== SPEECH_DELIVERY_PART_ID);
+      const parts = state.personaParts.filter((part) => part && part.id && part.id !== SPEECH_DELIVERY_PART_ID);
       if (!parts.length) {
         $("personaParts").innerHTML = "";
         setPersonaStatus("No persona prompt parts loaded.", "hot");
@@ -1153,12 +1568,38 @@
     }
 
     function syncTemplateButtons() {
-      const independent = state.personaTemplates.find((template) => template.id === "independent_agent");
-      const robot = state.personaTemplates.find((template) => template.id === "robot_embodied_agent");
-      $("loadIndependentTemplateBtn").disabled = independent ? !independent.available : false;
-      $("loadIndependentTemplateBtn").textContent = independent ? `Load ${independent.label}` : "Load independent agent";
-      $("loadRobotTemplateBtn").disabled = robot ? !robot.available : true;
-      $("loadRobotTemplateBtn").textContent = robot ? robot.label : "Robot embodied agent";
+      if (!state.personaTemplates.length) {
+        $("personaTemplateButtons").innerHTML = "";
+        updateActivePersonaSummary();
+        setPersonaStatus("No persona templates found.", "hot");
+        return;
+      }
+      $("personaTemplateButtons").innerHTML = state.personaTemplates.map((template) => {
+        const missing = Array.isArray(template.missing_parts) ? template.missing_parts.length : 0;
+        const label = template.label || template.id;
+        const title = missing ? `Missing ${missing} prompt part${missing === 1 ? "" : "s"}` : `Load ${label}`;
+        const activeClass = template.id === state.activePersonaTemplateId ? " active" : "";
+        return `
+          <button
+            class="template-button${activeClass}"
+            data-load-template="${escapeHtml(template.id)}"
+            title="${escapeHtml(title)}"
+            ${template.available ? "" : "disabled"}
+          >Load ${escapeHtml(label)}</button>
+        `;
+      }).join("");
+      updateActivePersonaSummary();
+    }
+
+    function activePersonaLabel() {
+      const active = state.personaTemplates.find((template) => template.id === state.activePersonaTemplateId);
+      return active ? (active.label || active.id) : state.activePersonaTemplateId;
+    }
+
+    function updateActivePersonaSummary() {
+      $("activePersonaSummary").textContent = state.activePersonaTemplateId
+        ? `Persona: ${activePersonaLabel()}`
+        : "Persona: none loaded";
     }
 
     function syncVoiceControls() {
@@ -1222,13 +1663,16 @@
       $("profileSelect").disabled = !hasProfiles;
       $("sourceBtn").disabled = !hasProfiles;
       setRenderEnabled();
+      $("saveModulationBtn").disabled = !hasProfiles;
       $("saveModulationDefaultBtn").disabled = !hasProfiles;
+      setEmbodimentButtonsEnabled(hasProfiles);
       syncGeminiVoiceControls();
       if (!hasProfiles) {
         $("providerSummary").textContent = "Provider: unavailable";
         $("saveStatus").textContent = "No profiles";
         setStatus("No runtime profiles found.", "hot");
         setVoiceStatus("No runtime profiles found.", "hot");
+        setEmbodimentStatus("No runtime profiles found.", "hot");
         return;
       }
       await loadSettings();
@@ -1267,6 +1711,24 @@
       const data = await api(`/api/settings/${encodeURIComponent(profileName)}`);
       writeSettings(data.settings);
       $("saveStatus").textContent = data.saved ? "Saved override" : "Built-in clean";
+      await loadEmbodiment();
+    }
+
+    async function loadEmbodiment() {
+      const profileName = $("profileSelect").value;
+      if (!profileName) {
+        writeEmbodiment(defaultEmbodimentSettings());
+        setEmbodimentStatus("Select a runtime profile first.", "hot");
+        return;
+      }
+      const data = await api(`/api/embodiment/${encodeURIComponent(profileName)}`);
+      writeEmbodiment(data.settings);
+      setEmbodimentStatus(
+        data.settings && data.settings.enabled
+          ? "Embodiment animations are enabled for this profile."
+          : "Embodiment animations are disabled for this profile.",
+        data.settings && data.settings.enabled ? "ok" : ""
+      );
     }
 
     async function generateSource() {
@@ -1356,6 +1818,29 @@
       }
     }
 
+    async function saveModulation() {
+      const profileName = $("profileSelect").value;
+      if (!profileName) {
+        setStatus("Select a runtime profile first.", "hot");
+        return;
+      }
+      $("saveModulationBtn").disabled = true;
+      try {
+        const data = await api(`/api/settings/${encodeURIComponent(profileName)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(readSettings())
+        });
+        writeSettings(data.settings);
+        $("saveStatus").textContent = "Saved";
+        setStatus("Settings saved.", "ok");
+      } catch (error) {
+        setStatus(error.message, "hot");
+      } finally {
+        $("saveModulationBtn").disabled = state.profiles.length === 0;
+      }
+    }
+
     async function saveModulationDefault() {
       const profileName = $("profileSelect").value;
       if (!profileName) {
@@ -1379,12 +1864,67 @@
       }
     }
 
-    async function savePersonaPart(partId) {
-      const editor = document.querySelector(`[data-part-id="${CSS.escape(partId)}"] textarea`);
+    async function saveEmbodiment() {
+      const profileName = $("profileSelect").value;
+      if (!profileName) {
+        setEmbodimentStatus("Select a runtime profile first.", "hot");
+        return;
+      }
+      $("saveEmbodimentBtn").disabled = true;
+      setEmbodimentStatus("Saving embodiment settings...", "");
+      try {
+        const data = await api(`/api/profiles/${encodeURIComponent(profileName)}/embodiment`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(readEmbodiment())
+        });
+        writeEmbodiment(data.settings);
+        const profile = selectedProfile();
+        if (profile) profile.embodiment = data.settings;
+        setEmbodimentStatus("Embodiment settings saved. Restart required.", "ok");
+      } catch (error) {
+        setEmbodimentStatus(error.message, "hot");
+      } finally {
+        $("saveEmbodimentBtn").disabled = state.profiles.length === 0;
+      }
+    }
+
+    async function testEmbodiment(payload) {
+      const profileName = $("profileSelect").value;
+      if (!profileName) {
+        setEmbodimentStatus("Select a runtime profile first.", "hot");
+        return;
+      }
+      if (!$("embodimentEnabled").checked) {
+        setEmbodimentStatus("Enable embodiment before sending animation signals.", "hot");
+        return;
+      }
+      setEmbodimentStatus("Sending animation test...", "");
+      try {
+        const data = await api(`/api/profiles/${encodeURIComponent(profileName)}/embodiment/test`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...payload, settings: readEmbodiment() })
+        });
+        const result = data.result || {};
+        const signal = result.signal || (Array.isArray(result.signals) ? result.signals.join(", ") : "signal");
+        const topic = result.topic || "/HOLO1_AnimSignal";
+        const host = result.host ? `${result.host}:${result.port || 9090}` : "ROSBridge";
+        setEmbodimentStatus(`Sent ${signal} on ${topic} via ${host}.`, "ok");
+      } catch (error) {
+        setEmbodimentStatus(error.message, "hot");
+      }
+    }
+
+    async function savePersonaPart(partId, editor = null) {
+      editor = editor || document.querySelector(`[data-part-id="${CSS.escape(partId)}"] textarea`);
       if (!editor) return;
       setPersonaStatus("Saving persona part...", "");
       try {
-        const data = await api(`/api/persona/parts/${encodeURIComponent(partId)}`, {
+        const url = state.activePersonaTemplateId
+          ? `/api/persona/templates/${encodeURIComponent(state.activePersonaTemplateId)}/parts/${encodeURIComponent(partId)}`
+          : `/api/persona/parts/${encodeURIComponent(partId)}`;
+        const data = await api(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ content: editor.value })
@@ -1392,6 +1932,7 @@
         const part = data.part || {};
         const index = state.personaParts.findIndex((item) => item.id === partId);
         if (index >= 0) state.personaParts[index] = part;
+        renderSpeechDeliveryPart();
         renderPersonaParts();
         setPersonaStatus(`Saved ${part.title || partId}. Restart required. Git has source changes.`, "ok");
       } catch (error) {
@@ -1403,7 +1944,10 @@
       const editor = $("speechDeliveryEditor");
       setSpeechDeliveryStatus("Saving speech delivery prompt...", "");
       try {
-        const data = await api(`/api/persona/parts/${SPEECH_DELIVERY_PART_ID}`, {
+        const url = state.activePersonaTemplateId
+          ? `/api/persona/templates/${encodeURIComponent(state.activePersonaTemplateId)}/parts/${SPEECH_DELIVERY_PART_ID}`
+          : `/api/persona/parts/${SPEECH_DELIVERY_PART_ID}`;
+        const data = await api(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ content: editor.value })
@@ -1411,7 +1955,9 @@
         const part = data.part || {};
         const index = state.personaParts.findIndex((item) => item.id === SPEECH_DELIVERY_PART_ID);
         if (index >= 0) state.personaParts[index] = part;
+        else state.personaParts.push(part);
         renderSpeechDeliveryPart();
+        renderPersonaParts();
         setSpeechDeliveryStatus("Saved speech delivery. Lab previews use it immediately; bot restart required.", "ok");
       } catch (error) {
         setSpeechDeliveryStatus(error.message, "hot");
@@ -1425,6 +1971,8 @@
           method: "POST",
           headers: { "Content-Type": "application/json" }
         });
+        state.activePersonaTemplateId = data.template_id || templateId;
+        syncTemplateButtons();
         state.personaParts = Array.isArray(data.parts) ? data.parts : state.personaParts;
         renderSpeechDeliveryPart();
         renderPersonaParts();
@@ -1469,22 +2017,43 @@
     $("renderBtn").addEventListener("click", renderModulation);
     $("saveGeminiVoiceBtn").addEventListener("click", saveGeminiVoice);
     $("saveSpeechDeliveryBtn").addEventListener("click", saveSpeechDeliveryPart);
+    $("saveModulationBtn").addEventListener("click", saveModulation);
     $("saveModulationDefaultBtn").addEventListener("click", saveModulationDefault);
+    $("saveEmbodimentBtn").addEventListener("click", saveEmbodiment);
+    $("addMotionBtn").addEventListener("click", addMotion);
+    $("motionControlGrid").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-motion-action]");
+      if (!button || button.disabled) return;
+      testEmbodiment({
+        motion: button.dataset.motionName,
+        action: button.dataset.motionAction
+      });
+    });
     $("personaParts").addEventListener("click", (event) => {
       const button = event.target.closest("[data-save-part]");
-      if (button) savePersonaPart(button.dataset.savePart);
+      if (button) {
+        const editor = button.closest("[data-part-id]")?.querySelector("textarea");
+        savePersonaPart(button.dataset.savePart, editor);
+      }
     });
-    $("loadIndependentTemplateBtn").addEventListener("click", () => loadPersonaTemplate("independent_agent"));
-    $("loadRobotTemplateBtn").addEventListener("click", () => loadPersonaTemplate("robot_embodied_agent"));
+    $("personaTemplateButtons").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-load-template]");
+      if (button && !button.disabled) loadPersonaTemplate(button.dataset.loadTemplate);
+    });
 
     document.querySelectorAll(".tab-btn").forEach((button) => {
       button.addEventListener("click", () => {
         document.querySelectorAll(".tab-btn").forEach((item) => item.classList.toggle("active", item === button));
         document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === button.dataset.tab));
+        if (button.dataset.tab === "runAgentTab") {
+          const frame = $("runAgentFrame");
+          if (!frame.getAttribute("src")) frame.setAttribute("src", frame.dataset.src);
+        }
       });
     });
 
     renderControls();
+    setEmbodimentButtonsEnabled(false);
     Promise.allSettled([
       loadPresets(),
       loadCartesiaVoices(),
