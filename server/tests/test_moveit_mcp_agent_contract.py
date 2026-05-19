@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 
 from moveit_mcp.server import build_mcp, build_tools
@@ -476,9 +474,3 @@ async def test_agent_contract_attached_object_verifier_proves_object_moves_with_
     assert payload["ok"] is True
     assert payload["raw"]["attached_to"] == "tool0"
     assert payload["raw"]["moves_with_gripper"] is True
-
-
-def test_cursor_mcp_example_is_available_for_workshop_agents():
-    repo_root = Path(__file__).resolve().parents[2]
-
-    assert (repo_root / ".cursor" / "mcp-vizor-moveit.example.json").exists()

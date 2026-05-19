@@ -228,9 +228,7 @@ __marimo__/
 # Local agent scratch
 .pi/
 .superpowers/
-.cursor/*
-!.cursor/
-!.cursor/mcp-vizor-moveit.example.json
+.cursor/
 
 # Rhino lock files
 *.rhl
