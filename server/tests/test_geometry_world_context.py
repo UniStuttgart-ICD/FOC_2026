@@ -78,6 +78,8 @@ def test_default_geometry_world_context_renders_shared_models() -> None:
     assert "BLOCKED" not in text
     assert '"object_name": "dynamic_2"' in text
     assert '"target_pose"' in text
+    assert "horizontal span" not in text
+    assert "top_span" not in text
 
 
 def test_geometry_world_context_reloads_hologram_file_each_render(tmp_path) -> None:

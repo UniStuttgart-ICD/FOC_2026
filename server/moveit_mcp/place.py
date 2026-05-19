@@ -158,8 +158,8 @@ def _release_orientation(
     if orientation_mode == "vertical":
         return dict(_IDENTITY_ORIENTATION)
     return (
-        _current_orientation(current_pose)
-        or target_orientation
+        target_orientation
+        or _current_orientation(current_pose)
         or _object_orientation(object_context)
         or dict(_IDENTITY_ORIENTATION)
     )

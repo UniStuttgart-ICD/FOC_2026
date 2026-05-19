@@ -840,6 +840,55 @@ def test_detach_object_translates_mesh_center_to_target_pose():
     assert context.object_context["bounds"]["center"] == {"x": 0.42, "y": -0.55, "z": 0.16}
 
 
+def test_detach_object_applies_target_orientation_to_released_primitive():
+    beam_object = {
+        "id": "beam_001",
+        "header": {"frame_id": "tool0"},
+        "primitives": [{"type": 1, "dimensions": [0.33, 0.04, 0.04]}],
+        "primitive_poses": [
+            {
+                "position": {"x": 0.4, "y": 0.2, "z": 0.12},
+                "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+            }
+        ],
+        "meshes": [],
+        "mesh_poses": [],
+    }
+    scene = {
+        "scene": {
+            "world": {"collision_objects": []},
+            "robot_state": {
+                "attached_collision_objects": [
+                    {"link_name": "tool0", "object": beam_object, "touch_links": ["tool0"]}
+                ]
+            },
+            "object_colors": [],
+        }
+    }
+    transport = FakeRosbridgeTransport()
+    transport.set_planning_scene("UR10", scene, planning_frame="base_link")
+    client = VizorClient(transport=transport)
+    target_orientation = {"x": 0.0, "y": -0.70710678, "z": 0.0, "w": 0.70710678}
+
+    detached = client.detach_object(
+        robot="UR10",
+        object_name="beam_001",
+        object_pose=Pose.from_input(
+            {
+                "position": {"x": 0.55, "y": 0.2, "z": 0.12},
+                "orientation": target_orientation,
+            }
+        ),
+        timeout_s=0.1,
+    )
+    context = client.get_object_context(robot="UR10", object_name="beam_001", timeout_s=0.1)
+
+    assert detached.ok is True
+    assert context.object_context["state"] == "free"
+    assert context.object_context["pose"]["orientation"] == target_orientation
+    assert context.object_context["bounds"]["size"]["z"] == 0.33
+
+
 def _acm_allows(acm: dict, first: str, second: str) -> bool:
     names = acm["entry_names"]
     first_index = names.index(first)

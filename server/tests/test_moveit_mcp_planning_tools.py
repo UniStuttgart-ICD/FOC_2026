@@ -848,6 +848,37 @@ def test_plan_place_task_returns_execution_contract_for_verified_release():
     assert transport.action_goals == []
 
 
+def test_plan_place_task_uses_target_pose_orientation_for_place_waypoints():
+    transport = FakeRosbridgeTransport()
+    transport.set_planning_scene("UR10", ATTACHED_PLANNING_SCENE, planning_frame="base_link")
+    transport.set_current_pose("UR10", CURRENT_POSE, planning_frame="base_link")
+    tools = MoveItMcpTools.with_fake_transport(transport)
+    tools.gripper.attach("UR10", "beam_001")
+    target_orientation = {"x": 0.0, "y": -0.70710678, "z": 0.0, "w": 0.70710678}
+
+    result = tools.plan_manipulation_task(
+        "UR10",
+        requirements={
+            "goal": "place",
+            "object_name": "beam_001",
+            "target_pose": {
+                "position": {"x": 0.55, "y": 0.2, "z": 0.12},
+                "orientation": target_orientation,
+            },
+        },
+        backend="staged_moveit",
+        timeout_s=0.1,
+    )
+
+    assert result["ok"] is True
+    raw = result["raw"]
+    assert raw["target_object_pose"]["orientation"] == target_orientation
+    assert raw["release_after_execute"]["object_pose"]["orientation"] == target_orientation
+    assert {tuple(waypoint["orientation"].values()) for waypoint in raw["waypoints"]} == {
+        tuple(target_orientation.values())
+    }
+
+
 def test_plan_manipulation_task_place_scopes_contact_allowance_to_final_approach_without_support_name():
     transport = FakeRosbridgeTransport()
     transport.set_planning_scene("UR10", deepcopy(ATTACHED_PLANNING_SCENE), planning_frame="base_link")

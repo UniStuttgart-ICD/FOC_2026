@@ -41,6 +41,8 @@ MANIPULATION_TASK_BACKENDS = {"staged_moveit"}
 ACTIVE_MOVEIT_PLANNER_DIAGNOSTICS = {"planner_pipeline": "ompl", "planner_id": "RRTConnect"}
 ACTIVE_MOVEIT_PLANNER_DIAGNOSTIC_ROUTES = {"free_motion", "cartesian", "sampled_approach"}
 BARE_HOLD_LIFT_DISTANCE_EPSILON_M = 1e-6
+RELEASE_POSITION_TOLERANCE_M = 0.02
+RELEASE_ORIENTATION_DOT_TOLERANCE = 0.999
 MANIPULATION_MOVE_DIRECTIONS = {
     "up": {"x": 0.0, "y": 0.0, "z": 1.0},
     "down": {"x": 0.0, "y": 0.0, "z": -1.0},
@@ -130,6 +132,7 @@ class MoveItMcpTools:
         self._used_plan_names: set[tuple[str, str]] = set()
         self._task_solutions: dict[str, TaskSolution] = {}
         self._task_solution_sequence = 0
+        self._expected_released_object_poses: dict[tuple[str, str], dict[str, Any]] = {}
         self.gripper = SimulatedGripperState.empty()
 
     @classmethod
@@ -2197,6 +2200,9 @@ class MoveItMcpTools:
         )
         if feedback.ok:
             self.gripper.set_state(robot, "open")
+            self._expected_released_object_poses[(robot, object_name)] = released_pose.to_msg()
+        else:
+            self._expected_released_object_poses.pop((robot, object_name), None)
         checks = [
             VerificationCheck("verified_gripper_open", True, str(verified_gripper_open)),
             VerificationCheck("planning_scene_object_released", bool(feedback.ok), feedback.status),
@@ -2238,16 +2244,30 @@ class MoveItMcpTools:
             raw=raw,
         ).to_dict()
 
-    def verify_released_object(self, robot: str, object_name: str, timeout_s: float = 2.0) -> dict[str, Any]:
+    def verify_released_object(
+        self,
+        robot: str,
+        object_name: str,
+        *,
+        expected_object_pose: dict[str, Any] | None = None,
+        timeout_s: float = 2.0,
+    ) -> dict[str, Any]:
         feedback = self.client.get_object_context(robot=robot, object_name=object_name, timeout_s=timeout_s)
         object_context = feedback.object_context if feedback.ok else None
         scene_state = object_context.get("state") if isinstance(object_context, dict) else None
         held_object = self.gripper.attached_object(robot)
-        released = scene_state == "free" and held_object is None
+        expected_pose = expected_object_pose or self._expected_released_object_poses.get((robot, object_name))
+        pose_matches: bool | None = None
+        pose_details = "not required"
+        if expected_pose is not None:
+            pose_matches, pose_details = _released_object_pose_matches(object_context, expected_pose)
+        released = scene_state == "free" and held_object is None and pose_matches is not False
         checks = [
             VerificationCheck("planning_scene_object_free", scene_state == "free", str(scene_state)),
             VerificationCheck("mcp_gripper_holds_no_object", held_object is None, str(held_object)),
         ]
+        if expected_pose is not None:
+            checks.append(VerificationCheck("released_object_pose_matches", bool(pose_matches), pose_details))
         evidence = [
             Evidence("mcp_state", f"attached_object={held_object}"),
             Evidence("ros_service", feedback.message, path=feedback.source),
@@ -2261,6 +2281,9 @@ class MoveItMcpTools:
             "object": object_context,
             "available_objects": feedback.available_objects,
         }
+        if expected_pose is not None:
+            raw["expected_object_pose"] = expected_pose
+            raw["released_object_pose_matches"] = pose_matches
         if released:
             return ToolResult.pass_result(
                 robot=robot,
@@ -2277,9 +2300,17 @@ class MoveItMcpTools:
             robot=robot,
             tool="moveit_verify_released_object",
             phase="verified",
-            status="object release unverified",
-            message="The object is not proven released from the gripper.",
-            correction="Check gripper feedback and planning-scene attachment state, then retry release verification.",
+            status="object release target unverified" if pose_matches is False else "object release unverified",
+            message=(
+                "The object is free, but its released pose does not match the expected target pose."
+                if pose_matches is False
+                else "The object is not proven released from the gripper."
+            ),
+            correction=(
+                "Replan or retry placement against the target object pose before claiming placement success."
+                if pose_matches is False
+                else "Check gripper feedback and planning-scene attachment state, then retry release verification."
+            ),
             checks=checks,
             evidence=evidence,
             raw=raw,
@@ -2416,6 +2447,7 @@ class MoveItMcpTools:
             return self._attach_scene_failed_result(robot=robot, object_name=object_name, state=state, feedback=feedback)
 
         self.gripper.attach(robot, object_name)
+        self._expected_released_object_poses.pop((robot, object_name), None)
         state = self.gripper.get_state(robot)
         return ToolResult.pass_result(
             robot=robot,
@@ -3515,20 +3547,16 @@ class MoveItMcpTools:
                 object_pose=Pose.from_input(object_pose),
                 timeout_s=timeout_s,
             )
+            if feedback.ok:
+                self._expected_released_object_poses[(robot, object_name)] = object_pose
             return (
                 bool(feedback.ok),
                 [{"kind": "ros_service", "path": feedback.source}],
                 {"status": feedback.status, "scene_update_published": feedback.scene_update_published},
             )
         if stage.name == "verify_released_object":
-            feedback = self.client.get_object_context(robot=robot, object_name=object_name, timeout_s=timeout_s)
-            state = feedback.object_context.get("state") if feedback.ok and feedback.object_context else None
-            released = state == "free" and self.gripper.attached_object(robot) is None
-            return (
-                released,
-                [{"kind": "release_check", "object_name": object_name}],
-                {"planning_scene_state": state, "mcp_attached_object": self.gripper.attached_object(robot)},
-            )
+            result = self.verify_released_object(robot, object_name, timeout_s=timeout_s)
+            return bool(result.get("ok")), [{"kind": "tool_result", "tool": "moveit_verify_released_object"}], result
         return False, [{"kind": "mcp_state", "summary": f"unknown stage {stage.name}"}], {"stage": stage.name}
 
     def _execute_task_solution_contract(
@@ -3652,7 +3680,16 @@ class MoveItMcpTools:
             result = self.verify_attached_object(robot, object_name, timeout_s=timeout_s)
             return bool(result.get("ok")), [{"kind": "tool_result", "tool": "moveit_verify_attached_object"}], result
         if handler == "verify_released_object":
-            result = self.verify_released_object(robot, object_name, timeout_s=timeout_s)
+            expected_pose = None
+            release = solution.raw.get("release_after_execute")
+            if isinstance(release, dict) and isinstance(release.get("object_pose"), dict):
+                expected_pose = release["object_pose"]
+            result = self.verify_released_object(
+                robot,
+                object_name,
+                expected_object_pose=expected_pose,
+                timeout_s=timeout_s,
+            )
             return bool(result.get("ok")), [{"kind": "tool_result", "tool": "moveit_verify_released_object"}], result
         return False, [{"kind": "execution_contract", "handler": handler}], {"step": step, "error": "unsupported handler"}
 
@@ -5851,6 +5888,57 @@ def _positions_match(expected: Any, observed: Any, tolerance: float) -> bool:
     if any(value is None for value in expected) or any(value is None for value in observed):
         return False
     return all(abs(float(a) - float(b)) <= tolerance for a, b in zip(expected, observed))
+
+
+def _released_object_pose_matches(
+    object_context: dict[str, Any] | None,
+    expected_object_pose: dict[str, Any],
+) -> tuple[bool, str]:
+    if not isinstance(object_context, dict):
+        return False, "object context unavailable"
+    actual_pose_value = object_context.get("pose")
+    if not isinstance(actual_pose_value, dict):
+        return False, "actual object pose unavailable"
+    try:
+        actual = Pose.from_input(actual_pose_value)
+        expected = Pose.from_input(expected_object_pose)
+        _validate_finite_pose(actual)
+        _validate_finite_pose(expected)
+    except (KeyError, TypeError, ValueError) as exc:
+        return False, f"invalid pose comparison: {exc}"
+
+    position_error_m = math.sqrt(
+        sum(
+            (actual.position[axis] - expected.position[axis]) ** 2
+            for axis in ("x", "y", "z")
+        )
+    )
+    orientation_dot = _quaternion_abs_dot(actual.orientation, expected.orientation)
+    position_matches = position_error_m <= RELEASE_POSITION_TOLERANCE_M
+    orientation_matches = orientation_dot >= RELEASE_ORIENTATION_DOT_TOLERANCE
+    return (
+        position_matches and orientation_matches,
+        (
+            f"position_error_m={position_error_m:.6f}, "
+            f"orientation_dot={orientation_dot:.6f}"
+        ),
+    )
+
+
+def _quaternion_abs_dot(first: dict[str, float], second: dict[str, float]) -> float:
+    first_values = _normalised_quaternion(first)
+    second_values = _normalised_quaternion(second)
+    if first_values is None or second_values is None:
+        return 0.0
+    return abs(sum(a * b for a, b in zip(first_values, second_values)))
+
+
+def _normalised_quaternion(value: dict[str, float]) -> list[float] | None:
+    values = [float(value[axis]) for axis in ("x", "y", "z", "w")]
+    norm = math.sqrt(sum(item * item for item in values))
+    if norm <= 0.0:
+        return None
+    return [item / norm for item in values]
 
 
 def _validate_finite_pose(pose: Pose) -> None:

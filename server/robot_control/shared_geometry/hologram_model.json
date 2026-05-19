@@ -159,7 +159,7 @@
     },
     {
       "id": "dynamic_2",
-      "label": "C 33 cm horizontal span across supports",
+      "label": "C 33 cm beam",
       "family": "C",
       "group": "built_frame",
       "solid": {
@@ -174,36 +174,36 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [-0.7, 0.015, 0.03],
-        "end_xyz": [-0.7, -0.315, 0.03]
+        "start_xyz": [0.556512206793, 0.259714553952, -0.095000081658],
+        "end_xyz": [0.556512206793, 0.259714593292, 0.234999918342]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [-0.7, -0.15, 0.03],
-        "quat_xyzw": [0, 0, 0.707106781187, -0.707106781187]
+        "xyz": [0.556512206793, 0.259714573622, 0.069999918342],
+        "quat_xyzw": [-4.2147e-08, -0.707106781187, 4.2147e-08, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [-0.7, 0.015, 0.03]
+          "world_xyz": [0.556512206793, 0.259714553952, -0.095000081658]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [-0.7, -0.315, 0.03]
+          "world_xyz": [0.556512206793, 0.259714593292, 0.234999918342]
         },
         "face_bottom": {
-          "center_xyz": [-0.7, -0.15, 0.01],
-          "normal_xyz": [0, 0, -1]
+          "center_xyz": [0.576512206793, 0.259714573622, 0.069999918342],
+          "normal_xyz": [1, 0, 0]
         },
         "face_top": {
-          "center_xyz": [-0.7, -0.15, 0.05],
-          "normal_xyz": [0, 0, 1]
+          "center_xyz": [0.536512206793, 0.259714573622, 0.069999918342],
+          "normal_xyz": [-1, 0, 0]
         }
       },
       "state": {
         "status": "built",
         "alignment": "horizontal",
-        "role": "top_span"
+        "role": "target_beam"
       }
     },
     {
@@ -541,7 +541,7 @@
         "relation_type": "bearing_contact",
         "a": "dynamic_0.face_top",
         "b": "dynamic_2.face_bottom",
-        "role": "left_span_support",
+        "role": "left_reference_support",
         "status": "built"
       },
       {
@@ -549,7 +549,7 @@
         "relation_type": "bearing_contact",
         "a": "dynamic_1.face_top",
         "b": "dynamic_2.face_bottom",
-        "role": "right_span_support",
+        "role": "right_reference_support",
         "status": "built"
       },
       {
@@ -567,7 +567,7 @@
       "id": "op_001",
       "op": "initialize_from_user_requested_physical_layout",
       "status": "applied",
-      "notes": "Two A beams are 11 cm vertical supports. One C beam is the 33 cm horizontal span. Inventory contains one A beam, three B beams, and two C beams laid out from x=-0.90 m toward negative X at 5 cm centerline spacing."
+      "notes": "Two A beams are 11 cm vertical supports. One C beam is a movable target beam. Inventory contains one A beam, three B beams, and two C beams laid out from x=-0.90 m toward negative X at 5 cm centerline spacing."
     }
   ],
   "projections": {

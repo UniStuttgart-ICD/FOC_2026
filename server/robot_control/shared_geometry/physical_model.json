@@ -251,7 +251,7 @@
     },
     {
       "id": "dynamic_2",
-      "label": "C 33 cm horizontal span across supports",
+      "label": "C 33 cm beam",
       "family": "C",
       "group": "built_frame",
       "solid": {
@@ -942,7 +942,7 @@
         "relation_type": "bearing_contact",
         "a": "dynamic_0.face_top",
         "b": "dynamic_2.face_bottom",
-        "role": "left_span_support",
+        "role": "left_reference_support",
         "status": "built"
       },
       {
@@ -950,7 +950,7 @@
         "relation_type": "bearing_contact",
         "a": "dynamic_1.face_top",
         "b": "dynamic_2.face_bottom",
-        "role": "right_span_support",
+        "role": "right_reference_support",
         "status": "built"
       },
       {
@@ -968,7 +968,7 @@
       "id": "op_001",
       "op": "initialize_from_user_requested_physical_layout",
       "status": "applied",
-      "notes": "Two A beams are 11 cm vertical supports. One C beam is the 33 cm horizontal span. Inventory contains one A beam, three B beams, and two C beams laid out from y=-0.90 m toward negative Y at 5 cm centerline spacing."
+      "notes": "Two A beams are 11 cm vertical supports. One C beam is currently supported by the two A beams. Inventory contains one A beam, three B beams, and two C beams laid out from y=-0.90 m toward negative Y at 5 cm centerline spacing."
     }
   ],
   "projections": {

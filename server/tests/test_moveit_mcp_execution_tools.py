@@ -114,10 +114,10 @@ def test_execute_task_solution_rejects_unknown_id_without_publishing():
     assert not any(topic == "/UR10/command/execute" for topic, _ in transport.published)
 
 
-def test_execute_task_solution_default_timeout_is_sixty_seconds():
+def test_execute_task_solution_default_timeout_is_one_hundred_twenty_seconds():
     timeout_param = inspect.signature(MoveItMcpTools.execute_task_solution).parameters["timeout_s"]
 
-    assert timeout_param.default == 60.0
+    assert timeout_param.default == 120.0
 
 
 def test_execute_rejects_planned_plan_when_can_execute_was_false():
@@ -619,6 +619,34 @@ def test_release_and_verify_released_object_after_verified_open():
     assert verify["ok"] is True
     assert verify["tool"] == "moveit_verify_released_object"
     assert verify["raw"]["planning_scene_state"] == "free"
+
+
+def test_verify_released_object_fails_when_expected_orientation_mismatches():
+    transport = FakeRosbridgeTransport()
+    free_scene = {
+        "scene": {
+            "world": {"collision_objects": [BEAM_OBJECT]},
+            "robot_state": {"attached_collision_objects": []},
+            "object_colors": [],
+        }
+    }
+    transport.set_planning_scene("UR10", free_scene, planning_frame="base_link")
+    tools = MoveItMcpTools.with_fake_transport(transport)
+
+    verify = tools.verify_released_object(
+        "UR10",
+        "beam_001",
+        expected_object_pose={
+            "position": {"x": 0.4, "y": 0.2, "z": 0.12},
+            "orientation": {"x": 0.0, "y": -0.70710678, "z": 0.0, "w": 0.70710678},
+        },
+        timeout_s=0.1,
+    )
+
+    assert verify["ok"] is False
+    assert verify["feedback"]["status"] == "object release target unverified"
+    checks = {check["name"]: check for check in verify["verification"]["checks"]}
+    assert checks["released_object_pose_matches"]["passed"] is False
 
 
 def test_remove_scene_object_requires_free_world_object_and_verifies_readback():

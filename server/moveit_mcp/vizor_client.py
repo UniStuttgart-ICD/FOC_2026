@@ -1859,19 +1859,20 @@ def _released_collision_object(
     released["header"] = {"frame_id": planning_frame}
     released["operation"] = COLLISION_OBJECT_ADD
     delta = _release_translation(collision_object, object_pose)
+    target_orientation = dict(object_pose.orientation)
     if released.get("primitives"):
         released["primitive_poses"] = [
-            _translated_shape_pose(collision_object.get("primitive_poses"), index, delta)
+            _translated_shape_pose(collision_object.get("primitive_poses"), index, delta, target_orientation)
             for index, _ in enumerate(released.get("primitives", []))
         ]
     if released.get("meshes"):
         released["mesh_poses"] = [
-            _translated_shape_pose(collision_object.get("mesh_poses"), index, delta)
+            _translated_shape_pose(collision_object.get("mesh_poses"), index, delta, target_orientation)
             for index, _ in enumerate(released.get("meshes", []))
         ]
     if released.get("planes"):
         released["plane_poses"] = [
-            _translated_shape_pose(collision_object.get("plane_poses"), index, delta)
+            _translated_shape_pose(collision_object.get("plane_poses"), index, delta, target_orientation)
             for index, _ in enumerate(released.get("planes", []))
         ]
     return released
@@ -1905,14 +1906,19 @@ def _collision_object_center(collision_object: dict[str, Any]) -> dict[str, floa
     return {axis: float(center[axis]) for axis in ("x", "y", "z")}
 
 
-def _translated_shape_pose(poses: Any, index: int, delta: dict[str, float]) -> dict[str, Any]:
+def _translated_shape_pose(
+    poses: Any,
+    index: int,
+    delta: dict[str, float],
+    target_orientation: dict[str, float],
+) -> dict[str, Any]:
     pose = _shape_pose_at(poses, index)
     return {
         "position": {
             axis: float(pose["position"][axis]) + delta[axis]
             for axis in ("x", "y", "z")
         },
-        "orientation": dict(pose["orientation"]),
+        "orientation": dict(target_orientation),
     }
 
 
