@@ -3,7 +3,10 @@ from pathlib import Path
 from typing import Any, cast
 from unittest.mock import Mock
 
-from pipecat.processors.frame_processor import FrameProcessor
+import pytest
+from pipecat.frames.frames import TranscriptionFrame
+from pipecat.observers.base_observer import FramePushed
+from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.transports.base_transport import BaseTransport
 
 from config import (
@@ -437,6 +440,88 @@ def test_pipeline_uses_gemini_live_rtvi_processor_for_gemini_live_tts(
     task = cast(Any, built.task)
 
     assert isinstance(task.rtvi_processor, GeminiLiveConversationRTVIProcessor)
+
+
+@pytest.mark.asyncio
+async def test_wake_gemini_live_rtvi_ignores_raw_stt_transcripts(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    stt = FrameProcessor()
+    messages: list[dict[str, Any]] = []
+
+    _patch_pipeline_dependencies(monkeypatch)
+    monkeypatch.setattr("pipeline_builder.create_stt_service", lambda config: stt)
+    monkeypatch.setattr("pipeline_builder.OpenWakeWordDetector", lambda *args, **kwargs: Mock())
+
+    built = build_pipeline(
+        _config(
+            tmp_path,
+            metrics_enabled=False,
+            wake_enabled=True,
+            tts=TTSConfig(
+                provider="gemini_live",
+                model="gemini-3.1-flash-live-preview",
+                voice="Kore",
+            ),
+        ),
+        cast(BaseTransport, FakeTransport()),
+    )
+    task = cast(Any, built.task)
+    rtvi_processor = task.rtvi_processor
+
+    async def capture_message(model: Any, exclude_none: bool = True) -> None:
+        messages.append(model.model_dump(exclude_none=exclude_none))
+
+    monkeypatch.setattr(rtvi_processor, "push_transport_message", capture_message)
+    observer = rtvi_processor.create_rtvi_observer()
+    transcript_adapter = next(
+        processor
+        for processor in cast(FakePipeline, built.pipeline).processors
+        if isinstance(processor, MaveVoiceCommandTranscriptAdapter)
+    )
+
+    await observer.on_push_frame(
+        FramePushed(
+            source=stt,
+            destination=transcript_adapter,
+            frame=TranscriptionFrame(
+                text="Who are you?",
+                user_id="u",
+                timestamp="t",
+                finalized=True,
+            ),
+            direction=FrameDirection.DOWNSTREAM,
+            timestamp=0,
+        )
+    )
+    await observer.on_push_frame(
+        FramePushed(
+            source=transcript_adapter,
+            destination=built.user_aggregator,
+            frame=TranscriptionFrame(
+                text="Who are you?",
+                user_id="u",
+                timestamp="t",
+                finalized=True,
+            ),
+            direction=FrameDirection.DOWNSTREAM,
+            timestamp=0,
+        )
+    )
+
+    assert [message for message in messages if message["type"] == "user-transcription"] == [
+        {
+            "label": "rtvi-ai",
+            "type": "user-transcription",
+            "data": {
+                "text": "Who are you?",
+                "user_id": "u",
+                "timestamp": "t",
+                "final": True,
+            },
+        }
+    ]
 
 
 def test_pipeline_keeps_default_rtvi_processor_for_other_tts(monkeypatch, tmp_path: Path) -> None:

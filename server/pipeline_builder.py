@@ -192,11 +192,15 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
     if isinstance(process_tracer, ProcessTracer):
         observers.append(_create_process_trace_observer(process_tracer, session_context))
 
+    rtvi_processor = _create_rtvi_processor(
+        config,
+        ignored_sources=[stt] if voice_command_transcript is not None else None,
+    )
     task = PipelineTask(
         pipeline,
         params=PipelineParams(enable_metrics=True, enable_usage_metrics=True),
         observers=observers,
-        rtvi_processor=_create_rtvi_processor(config),
+        rtvi_processor=rtvi_processor,
     )
     return BuiltPipeline(
         pipeline=pipeline,
@@ -234,9 +238,13 @@ def _tts_with_default_speech_delivery(tts: TTSConfig) -> TTSConfig:
     return tts
 
 
-def _create_rtvi_processor(config: RuntimeConfig) -> GeminiLiveConversationRTVIProcessor | None:
+def _create_rtvi_processor(
+    config: RuntimeConfig,
+    *,
+    ignored_sources: list[FrameProcessor] | None = None,
+) -> GeminiLiveConversationRTVIProcessor | None:
     if config.tts.provider == "gemini_live":
-        return GeminiLiveConversationRTVIProcessor()
+        return GeminiLiveConversationRTVIProcessor(ignored_sources=ignored_sources)
     return None
 
 

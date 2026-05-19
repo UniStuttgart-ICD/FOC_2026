@@ -13,7 +13,7 @@ from robot_control.shared_geometry.world_context import (
     canonical_dynamic_name,
 )
 
-SNAPPY_NAME_RE = re.compile(r"^dynamic_snappy-V110B110_box(\d+)$")
+SNAPPY_NAME_RE = re.compile(r"^dynamic_snappy-V110B90_box(\d+)$")
 EPSILON = 1e-9
 DEFAULT_CORRECTION_RADIANS = 3.0 * math.pi / 2.0
 SNAPSHOT_TOLERANCE = 1e-5

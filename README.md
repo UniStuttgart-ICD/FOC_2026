@@ -156,7 +156,15 @@ Start Docker Desktop before running the launcher, keep it in Linux containers mo
 Start-MAVE-Workshop.cmd
 ```
 
-Keep the launcher window open. It prints a tokenized URL like:
+Or launch the same dashboard directly from a terminal:
+
+```powershell
+cd server
+uv sync
+uv run python ..\scripts\run_operator_dashboard.py
+```
+
+Keep the launcher window or terminal open. It prints a tokenized URL like:
 
 ```text
 http://127.0.0.1:8787/?token=...

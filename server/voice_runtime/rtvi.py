@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+from dataclasses import replace
 from typing import Any
 
 import pipecat.processors.frameworks.rtvi.models as RTVI
 from pipecat.frames.frames import LLMFullResponseEndFrame, LLMFullResponseStartFrame, LLMTextFrame
 from pipecat.observers.base_observer import FramePushed
-from pipecat.processors.frame_processor import FrameDirection
+from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.processors.frameworks.rtvi import RTVIObserver, RTVIObserverParams, RTVIProcessor
 
 
@@ -78,10 +80,25 @@ class GeminiLiveConversationRTVIObserver(RTVIObserver):
 
 
 class GeminiLiveConversationRTVIProcessor(RTVIProcessor):
+    def __init__(
+        self,
+        *,
+        ignored_sources: Iterable[FrameProcessor] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self._ignored_sources = tuple(ignored_sources or ())
+
     def create_rtvi_observer(
         self,
         *,
         params: RTVIObserverParams | None = None,
         **kwargs: Any,
     ) -> GeminiLiveConversationRTVIObserver:
+        if self._ignored_sources:
+            params = params or RTVIObserverParams()
+            params = replace(
+                params,
+                ignored_sources=[*params.ignored_sources, *self._ignored_sources],
+            )
         return GeminiLiveConversationRTVIObserver(self, params=params, **kwargs)

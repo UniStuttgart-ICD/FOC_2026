@@ -1163,11 +1163,17 @@ def test_index_page_serves_voice_mod_lab_workbench(tmp_path) -> None:
     assert "touchLinkName" in response.text
     assert "motionControlGrid" in response.text
     assert "addMotionBtn" in response.text
-    assert "http://localhost:7860/client" in response.text
     assert "openDashboardBtn" in response.text
     assert "openPipecatClientBtn" in response.text
     assert "runAgentStatus" in response.text
     assert "/api/run-agent/status" in response.text
+    assert "runAgentFrame" not in response.text
+    assert "agent-frame" not in response.text
+    assert "<iframe" not in response.text
+    assert "window.open" not in response.text
+    assert "justify-content: center" in response.text
+    assert "window.location.assign(status.dashboard_url)" in response.text
+    assert "window.location.assign(status.pipecat_client_url)" in response.text
     assert (
         "Pipecat is not running yet. Open the dashboard and start the system first."
         in response.text

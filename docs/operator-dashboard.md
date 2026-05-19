@@ -6,7 +6,15 @@ Start the MAVE operator dashboard from the repo root:
 .\Start-MAVE-Workshop.cmd
 ```
 
-The launcher prints the localhost URL with its `token` query parameter in the same `.cmd` window and opens it in the browser. Keep the window open while the dashboard is running.
+Or launch the same dashboard directly from a terminal:
+
+```powershell
+cd server
+uv sync
+uv run python ..\scripts\run_operator_dashboard.py
+```
+
+Both launch paths print the localhost URL with its `token` query parameter and open it in the browser. Keep the launcher window or terminal open while the dashboard is running.
 
 The dashboard can start and monitor the repo-local Vizor + RViz Compose stack, MoveIt MCP, Vizor MCP, the verified execution server, and the Pipecat voice agent.
 

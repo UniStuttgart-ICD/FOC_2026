@@ -436,18 +436,12 @@
       align-items: end;
     }
 
-    .agent-frame {
-      width: 100%;
-      min-height: calc(100vh - 180px);
-      border: 2px solid rgba(36, 39, 38, 0.28);
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.42);
-    }
-
     .agent-actions {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 180px));
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
       gap: 8px;
+      margin-bottom: 10px;
     }
 
     .speech-panel {
@@ -725,8 +719,7 @@
       .field-grid,
       .test-row,
       .motion-control-grid,
-      .motion-register,
-      .agent-actions {
+      .motion-register {
         grid-template-columns: 1fr;
       }
 
@@ -984,18 +977,12 @@
       <section id="runAgentTab" class="tab-panel">
         <div class="panel-title">
           <h1>RUN AGENT</h1>
-          <div class="agent-actions">
-            <button id="openDashboardBtn" type="button">Open Dashboard</button>
-            <button id="openPipecatClientBtn" type="button">Open Pipecat Client</button>
-          </div>
+        </div>
+        <div class="agent-actions">
+          <button id="openDashboardBtn" type="button">Open Dashboard</button>
+          <button id="openPipecatClientBtn" type="button">Open Pipecat Client</button>
         </div>
         <div id="runAgentStatus" class="status" role="status" aria-live="polite">Check Pipecat before opening the client.</div>
-        <iframe
-          id="runAgentFrame"
-          class="agent-frame"
-          title="Pipecat voice agent"
-          data-src="http://localhost:7860/client/"
-        ></iframe>
       </section>
     </main>
   </div>
@@ -1505,25 +1492,21 @@
     async function openDashboard() {
       try {
         const status = await getRunAgentStatus();
-        window.open(status.dashboard_url, "_blank", "noopener,noreferrer");
-        setRunAgentStatus("Dashboard opened. Start the system there if Pipecat is stopped.", "ok");
+        window.location.assign(status.dashboard_url);
       } catch (error) {
         setRunAgentStatus(error.message, "hot");
       }
     }
 
     async function openPipecatClient() {
-      const frame = $("runAgentFrame");
       try {
         const status = await getRunAgentStatus();
-        frame.dataset.src = status.pipecat_client_url;
         if (!status.pipecat_client_ready) {
           setRunAgentStatus("Pipecat is not running yet. Open the dashboard and start the system first.", "hot");
           return;
         }
-        frame.setAttribute("src", status.pipecat_client_url);
-        window.open(status.pipecat_client_url, "_blank", "noopener,noreferrer");
-        setRunAgentStatus("Pipecat is running. Opening client.", "ok");
+        setRunAgentStatus("Pipecat is running. Redirecting to client.", "ok");
+        window.location.assign(status.pipecat_client_url);
       } catch (error) {
         setRunAgentStatus(error.message, "hot");
       }

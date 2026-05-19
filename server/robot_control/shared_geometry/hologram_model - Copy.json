@@ -46,17 +46,7 @@
         "z": 0.04
       }
     },
-    "feature_set": [
-      "end_start",
-      "end_end",
-      "end_neg_x",
-      "end_pos_x",
-      "face_top",
-      "face_bottom",
-      "face_side_a",
-      "face_side_b",
-      "axis_x"
-    ]
+    "feature_set": ["end_start", "end_end", "end_neg_x", "end_pos_x", "face_top", "face_bottom", "face_side_a", "face_side_b", "axis_x"]
   },
   "bodies": [
     {
@@ -76,29 +66,29 @@
       "axis": {
         "start_label": "bottom",
         "end_label": "top",
-        "start_xyz": [-0.7, 0, -0.1],
-        "end_xyz": [-0.7, 0, 0.01]
+        "start_xyz": [0.35, 0.955, -0.08],
+        "end_xyz": [0.35, 0.845, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [-0.7, 0, -0.045],
-        "quat_xyzw": [-0.707106781187, 0, 0.707106781187, 0]
+        "xyz": [0.35, 0.9, -0.08],
+        "quat_xyzw": [0.0, 0.0, -0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [-0.7, 0, -0.1]
+          "world_xyz": [0.35, 0.955, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [-0.7, 0, 0.01]
+          "world_xyz": [0.35, 0.845, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [-0.7, 0, -0.1],
+          "center_xyz": [0.35, 0.9, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [-0.7, 0, 0.01],
+          "center_xyz": [0.35, 0.9, -0.06],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -125,29 +115,29 @@
       "axis": {
         "start_label": "bottom",
         "end_label": "top",
-        "start_xyz": [-0.7, -0.3, -0.1],
-        "end_xyz": [-0.7, -0.3, 0.01]
+        "start_xyz": [0.264, 0.955, -0.08],
+        "end_xyz": [0.264, 0.845, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [-0.7, -0.3, -0.045],
-        "quat_xyzw": [-0.707106781187, 0, 0.707106781187, 0]
+        "xyz": [0.264, 0.9, -0.08],
+        "quat_xyzw": [0.0, 0.0, -0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [-0.7, -0.3, -0.1]
+          "world_xyz": [0.264, 0.955, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [-0.7, -0.3, 0.01]
+          "world_xyz": [0.264, 0.845, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [-0.7, -0.3, -0.1],
+          "center_xyz": [0.264, 0.9, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [-0.7, -0.3, 0.01],
+          "center_xyz": [0.264, 0.9, -0.06],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -174,30 +164,30 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [-0.7, 0.015, 0.03],
-        "end_xyz": [-0.7, -0.315, 0.03]
+        "start_xyz": [0.178, 1.065, -0.08],
+        "end_xyz": [0.178, 0.735, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [-0.7, -0.15, 0.03],
-        "quat_xyzw": [0, 0, 0.707106781187, -0.707106781187]
+        "xyz": [0.178, 0.9, -0.08],
+        "quat_xyzw": [0.0, 0.0, -0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [-0.7, 0.015, 0.03]
+          "world_xyz": [0.178, 1.065, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [-0.7, -0.315, 0.03]
+          "world_xyz": [0.178, 0.735, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [-0.7, -0.15, 0.01],
-          "normal_xyz": [0, 0, -1]
+          "center_xyz": [0.178, 0.9, -0.1],
+          "normal_xyz": [-1.0, 0.0, 0.0]
         },
         "face_top": {
-          "center_xyz": [-0.7, -0.15, 0.05],
-          "normal_xyz": [0, 0, 1]
+          "center_xyz": [0.178, 0.9, -0.06],
+          "normal_xyz": [1.0, 0.0, 0.0]
         }
       },
       "state": {
@@ -223,29 +213,29 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [-0.9, -0.095, -0.08],
-        "end_xyz": [-0.9, -0.205, -0.08]
+        "start_xyz": [0.092, 0.955, -0.08],
+        "end_xyz": [0.092, 0.845, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [-0.9, -0.15, -0.08],
-        "quat_xyzw": [0, 0, 0.707106781187, -0.707106781187]
+        "xyz": [0.092, 0.9, -0.08],
+        "quat_xyzw": [0.0, 0.0, -0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [-0.9, -0.095, -0.08]
+          "world_xyz": [0.092, 0.955, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [-0.9, -0.205, -0.08]
+          "world_xyz": [0.092, 0.845, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [-0.9, -0.15, -0.1],
+          "center_xyz": [0.092, 0.9, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [-0.9, -0.15, -0.06],
+          "center_xyz": [0.092, 0.9, -0.06],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -274,29 +264,29 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [-0.95, -0.04, -0.08],
-        "end_xyz": [-0.95, -0.26, -0.08]
+        "start_xyz": [0.006, 1.01, -0.08],
+        "end_xyz": [0.006, 0.79, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [-0.95, -0.15, -0.08],
-        "quat_xyzw": [0, 0, 0.707106781187, -0.707106781187]
+        "xyz": [0.006, 0.9, -0.08],
+        "quat_xyzw": [0.0, 0.0, -0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [-0.95, -0.04, -0.08]
+          "world_xyz": [0.006, 1.01, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [-0.95, -0.26, -0.08]
+          "world_xyz": [0.006, 0.79, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [-0.95, -0.15, -0.1],
+          "center_xyz": [0.006, 0.9, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [-0.95, -0.15, -0.06],
+          "center_xyz": [0.006, 0.9, -0.06],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -325,29 +315,29 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [-1, -0.04, -0.08],
-        "end_xyz": [-1, -0.26, -0.08]
+        "start_xyz": [-0.08, 1.01, -0.08],
+        "end_xyz": [-0.08, 0.79, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [-1, -0.15, -0.08],
-        "quat_xyzw": [0, 0, 0.707106781187, -0.707106781187]
+        "xyz": [-0.08, 0.9, -0.08],
+        "quat_xyzw": [0.0, 0.0, -0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [-1, -0.04, -0.08]
+          "world_xyz": [-0.08, 1.01, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [-1, -0.26, -0.08]
+          "world_xyz": [-0.08, 0.79, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [-1, -0.15, -0.1],
+          "center_xyz": [-0.08, 0.9, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [-1, -0.15, -0.06],
+          "center_xyz": [-0.08, 0.9, -0.06],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -376,29 +366,29 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [-1.05, -0.04, -0.08],
-        "end_xyz": [-1.05, -0.26, -0.08]
+        "start_xyz": [-0.166, 1.01, -0.08],
+        "end_xyz": [-0.166, 0.79, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [-1.05, -0.15, -0.08],
-        "quat_xyzw": [0, 0, 0.707106781187, -0.707106781187]
+        "xyz": [-0.166, 0.9, -0.08],
+        "quat_xyzw": [0.0, 0.0, -0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [-1.05, -0.04, -0.08]
+          "world_xyz": [-0.166, 1.01, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [-1.05, -0.26, -0.08]
+          "world_xyz": [-0.166, 0.79, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [-1.05, -0.15, -0.1],
+          "center_xyz": [-0.166, 0.9, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [-1.05, -0.15, -0.06],
+          "center_xyz": [-0.166, 0.9, -0.06],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -427,29 +417,29 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [-1.1, 0.015, -0.08],
-        "end_xyz": [-1.1, -0.315, -0.08]
+        "start_xyz": [-0.252, 1.065, -0.08],
+        "end_xyz": [-0.252, 0.735, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [-1.1, -0.15, -0.08],
-        "quat_xyzw": [0, 0, 0.707106781187, -0.707106781187]
+        "xyz": [-0.252, 0.9, -0.08],
+        "quat_xyzw": [0.0, 0.0, -0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [-1.1, 0.015, -0.08]
+          "world_xyz": [-0.252, 1.065, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [-1.1, -0.315, -0.08]
+          "world_xyz": [-0.252, 0.735, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [-1.1, -0.15, -0.1],
+          "center_xyz": [-0.252, 0.9, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [-1.1, -0.15, -0.06],
+          "center_xyz": [-0.252, 0.9, -0.06],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -478,29 +468,29 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [-1.15, 0.015, -0.08],
-        "end_xyz": [-1.15, -0.315, -0.08]
+        "start_xyz": [-0.338, 1.065, -0.08],
+        "end_xyz": [-0.338, 0.735, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [-1.15, -0.15, -0.08],
-        "quat_xyzw": [0, 0, 0.707106781187, -0.707106781187]
+        "xyz": [-0.338, 0.9, -0.08],
+        "quat_xyzw": [0.0, 0.0, -0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [-1.15, 0.015, -0.08]
+          "world_xyz": [-0.338, 1.065, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [-1.15, -0.315, -0.08]
+          "world_xyz": [-0.338, 0.735, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [-1.15, -0.15, -0.1],
+          "center_xyz": [-0.338, 0.9, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [-1.15, -0.15, -0.06],
+          "center_xyz": [-0.338, 0.9, -0.06],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -524,14 +514,7 @@
       {
         "id": "inventory_stack",
         "type": "inventory",
-        "members": [
-          "dynamic_3",
-          "dynamic_4",
-          "dynamic_5",
-          "dynamic_6",
-          "dynamic_7",
-          "dynamic_8"
-        ],
+        "members": ["dynamic_3", "dynamic_4", "dynamic_5", "dynamic_6", "dynamic_7", "dynamic_8"],
         "status": "inventory"
       }
     ],
