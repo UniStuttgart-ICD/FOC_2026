@@ -399,18 +399,45 @@ def test_presets_route_exposes_focused_preset_set(tmp_path) -> None:
 def test_persona_route_loads_prompt_parts(tmp_path: Path) -> None:
     from voice_modulation.app import create_app
 
+    prompt_dir = tmp_path / "agent_control" / "prompt_parts"
+    _write_prompt_parts(prompt_dir)
+    (prompt_dir / "reasoning_agent_persona.md").write_text(
+        "# Reasoning agent persona\nTest persona text.\n",
+        encoding="utf-8",
+    )
+    (prompt_dir / "speech_delivery_style.md").write_text(
+        "# Speech delivery style\nSpeak the transcript exactly.\n",
+        encoding="utf-8",
+    )
     client = TestClient(create_app(server_dir=tmp_path))
 
     response = client.get("/api/persona")
 
     assert response.status_code == 200
     body = response.json()
-    assert "Kibbitz speaks like" in body["speaking_persona"]
+    assert "Test persona text" in body["speaking_persona"]
     assert "Speak the transcript exactly" in body["speech_delivery"]
     assert body["sources"] == {
         "speaking_persona": "reasoning_agent_persona.md",
         "speech_delivery": "speech_delivery_style.md",
     }
+
+
+def test_persona_route_reads_prompt_parts_fresh(tmp_path: Path) -> None:
+    from voice_modulation.app import create_app
+
+    prompt_dir = tmp_path / "agent_control" / "prompt_parts"
+    _write_prompt_parts(prompt_dir)
+    persona_path = prompt_dir / "reasoning_agent_persona.md"
+    persona_path.write_text("# Reasoning agent persona\nFirst persona.\n", encoding="utf-8")
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    first = client.get("/api/persona").json()
+    persona_path.write_text("# Reasoning agent persona\nSecond persona.\n", encoding="utf-8")
+    second = client.get("/api/persona").json()
+
+    assert "First persona" in first["speaking_persona"]
+    assert "Second persona" in second["speaking_persona"]
 
 
 def test_persona_parts_route_exposes_allowlisted_parts(tmp_path: Path) -> None:

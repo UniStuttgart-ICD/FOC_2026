@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 from dataclasses import asdict
 from pathlib import Path
 from typing import Callable
@@ -14,7 +15,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 
-from agent_control.prompts import SPEAKING_AGENT_PERSONA, SPEECH_DELIVERY_STYLE
 from embodiment.animations import (
     EmbodimentAnimationController,
     create_embodiment_animation_controller,
@@ -79,6 +79,7 @@ DEFAULT_CARTESIA_VERSION = "2026-03-01"
 PIPECAT_CLIENT_URL = "http://localhost:7860/client/"
 OPERATOR_DASHBOARD_URL = "http://127.0.0.1:8787"
 RUN_AGENT_STATUS_TIMEOUT_S = 1.0
+HTML_COMMENT_PATTERN = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
 def create_app(
@@ -87,7 +88,7 @@ def create_app(
     cartesia_voice_fetcher: CartesiaVoiceFetcher | None = None,
     embodiment_controller_factory: EmbodimentControllerFactory | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Voice Modulation Lab")
+    app = FastAPI(title="Agent Persona Lab")
     root = server_dir or Path(__file__).resolve().parents[1]
     load_dotenv(root / ".env", override=True)
     synthesize = preview_synthesizer or synthesize_tts_reference
@@ -134,8 +135,8 @@ def create_app(
     @app.get("/api/persona")
     def persona() -> dict[str, object]:
         return {
-            "speaking_persona": SPEAKING_AGENT_PERSONA,
-            "speech_delivery": SPEECH_DELIVERY_STYLE,
+            "speaking_persona": _prompt_part(root, "reasoning_agent_persona.md"),
+            "speech_delivery": _prompt_part(root, "speech_delivery_style.md"),
             "sources": {
                 "speaking_persona": "reasoning_agent_persona.md",
                 "speech_delivery": "speech_delivery_style.md",
@@ -420,14 +421,19 @@ def _prompt_parts_dir(root: Path) -> Path:
 def _speech_delivery_style(root: Path, tts_provider: str) -> str:
     if tts_provider != "gemini_live":
         return ""
-    path = _prompt_parts_dir(root) / "speech_delivery_style.md"
-    try:
-        content = path.read_text(encoding="utf-8").strip()
-    except OSError as exc:
-        raise VoicePreviewError(f"Speech delivery prompt is not readable: {path}") from exc
+    content = _prompt_part(root, "speech_delivery_style.md")
     if not content:
         raise VoicePreviewError("Speech delivery prompt must not be empty")
     return content
+
+
+def _prompt_part(root: Path, filename: str) -> str:
+    path = _prompt_parts_dir(root) / filename
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise VoicePreviewError(f"Prompt part is not readable: {path}") from exc
+    return HTML_COMMENT_PATTERN.sub("", content).strip()
 
 
 def _profile_names(server_dir: Path) -> list[str]:

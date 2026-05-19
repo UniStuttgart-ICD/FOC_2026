@@ -28,6 +28,18 @@ def _compose_prompt(parts: tuple[str, ...]) -> str:
     return "\n\n".join(_load_prompt_part(part) for part in parts) + "\n"
 
 
-SYSTEM_PROMPT = _compose_prompt(_PROMPT_PARTS)
-SPEAKING_AGENT_PERSONA = _load_prompt_part("reasoning_agent_persona.md")
-SPEECH_DELIVERY_STYLE = _compose_prompt(_SPEECH_DELIVERY_PARTS).strip()
+def get_system_prompt() -> str:
+    return _compose_prompt(_PROMPT_PARTS)
+
+
+def get_speaking_agent_persona() -> str:
+    return _load_prompt_part("reasoning_agent_persona.md")
+
+
+def get_speech_delivery_style() -> str:
+    return _compose_prompt(_SPEECH_DELIVERY_PARTS).strip()
+
+
+SYSTEM_PROMPT = get_system_prompt()
+SPEAKING_AGENT_PERSONA = get_speaking_agent_persona()
+SPEECH_DELIVERY_STYLE = get_speech_delivery_style()

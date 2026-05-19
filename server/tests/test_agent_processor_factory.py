@@ -22,6 +22,7 @@ class FakeLangChainAgentProcessor(FrameProcessor):
         mcp_vizor_url=None,
         user_sensing_max_age_s=2.0,
         verified_execution_url=None,
+        embodiment_controller=None,
     ):
         super().__init__()
         self.mcp_server_url = mcp_server_url
@@ -31,6 +32,7 @@ class FakeLangChainAgentProcessor(FrameProcessor):
         self.mcp_vizor_url = mcp_vizor_url
         self.user_sensing_max_age_s = user_sensing_max_age_s
         self.verified_execution_url = verified_execution_url
+        self.embodiment_controller = embodiment_controller
 
 
 class FakeAgentTurnProcessor(FrameProcessor):

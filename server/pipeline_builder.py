@@ -21,7 +21,7 @@ from pipecat.processors.frame_processor import FrameProcessor
 from pipecat.transports.base_transport import BaseTransport
 
 from agent_control.factory import create_agent_processor
-from agent_control.prompts import SPEECH_DELIVERY_STYLE
+from agent_control.prompts import get_speech_delivery_style
 from config import RuntimeConfig, TTSConfig
 from embodiment.animations import (
     EmbodimentAnimationController,
@@ -234,7 +234,7 @@ def _create_voice_modulation_processor(
 
 def _tts_with_default_speech_delivery(tts: TTSConfig) -> TTSConfig:
     if tts.provider == "gemini_live" and tts.instructions is None:
-        return replace(tts, instructions=SPEECH_DELIVERY_STYLE)
+        return replace(tts, instructions=get_speech_delivery_style())
     return tts
 
 

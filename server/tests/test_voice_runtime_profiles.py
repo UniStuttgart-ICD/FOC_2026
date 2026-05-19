@@ -107,7 +107,7 @@ def test_bundled_default_profile_uses_gemini_live_tts():
     assert profile.stt.model == "gpt-realtime-whisper"
     assert profile.tts.provider == "gemini_live"
     assert profile.tts.model == "gemini-3.1-flash-live-preview"
-    assert profile.tts.voice == "Enceladus"
+    assert profile.tts.voice == "Charon"
     assert profile.agent.provider == "gemini_api"
     assert profile.agent.model == "gemini-3.1-flash-lite-preview"
     assert profile.agent.reasoning_effort == "high"
@@ -128,7 +128,7 @@ def test_hybrid_gemini_live_tts_profile_is_available():
     assert profile.stt.provider == "openai_realtime"
     assert profile.tts.provider == "gemini_live"
     assert profile.tts.model == "gemini-3.1-flash-live-preview"
-    assert profile.tts.voice == "Enceladus"
+    assert profile.tts.voice == "Charon"
     assert profile.tts.instructions is None
     assert profile.agent.provider == "gemini_api"
     assert profile.agent.temperature == 0.7
@@ -1051,4 +1051,4 @@ def test_default_profile_path_and_name_load_current_app_profile():
     assert profile.wake.model_path.name == "mave.onnx"
     assert profile.stt.provider == "openai_realtime"
     assert profile.tts.provider == "gemini_live"
-    assert profile.tts.voice == "Enceladus"
+    assert profile.tts.voice == "Charon"

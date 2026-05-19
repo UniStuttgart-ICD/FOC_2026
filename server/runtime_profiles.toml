@@ -23,7 +23,7 @@ model = "gpt-realtime-whisper"
 [profiles.hybrid_gemini_live_tts.tts]
 provider = "gemini_live"
 model = "gemini-3.1-flash-live-preview"
-voice = "Enceladus"
+voice = "Charon"
 
 [profiles.hybrid_gemini_live_tts.voice_modulation]
 enabled = false
