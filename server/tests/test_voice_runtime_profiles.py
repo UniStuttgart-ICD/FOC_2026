@@ -117,6 +117,8 @@ def test_bundled_default_profile_uses_gemini_live_tts():
         simulation_only=False,
         verified_execution_url="http://127.0.0.1:8770",
     )
+    assert profile.embodiment.animation_topic == "/HOLO1_AnimSignal"
+    assert profile.embodiment.touch_trigger.motion == "move"
 
 
 def test_hybrid_gemini_live_tts_profile_is_available():
@@ -182,6 +184,69 @@ enabled = false
     assert profile.wake.min_wake_rms == 50.0
     assert profile.wake.min_wake_peak == 150
     assert profile.wake.rearm_delay_s == 6.0
+
+
+def test_embodiment_profile_parses_animation_and_touch_trigger(tmp_path: Path) -> None:
+    profiles_path = tmp_path / "runtime_profiles.toml"
+    _write_profile(
+        profiles_path,
+        """
+[profiles.embodied]
+category = "local_debug"
+[profiles.embodied.wake]
+provider = "none"
+[profiles.embodied.emergency_stop]
+enabled = false
+[profiles.embodied.stt]
+provider = "whisper"
+model = "base"
+[profiles.embodied.tts]
+provider = "kokoro"
+voice = "af_heart"
+[profiles.embodied.agent]
+provider = "openai_api"
+model = "gpt-5.4-mini"
+[profiles.embodied.mcp.robot]
+url = "http://127.0.0.1:8765/mcp"
+[profiles.embodied.metrics]
+enabled = false
+[profiles.embodied.embodiment]
+enabled = true
+rosbridge_host = "localhost"
+rosbridge_port = 9090
+animation_topic = "/HOLO1_AnimSignal"
+animation_topic_type = "std_msgs/String"
+start_blink_on_connect = true
+stop_blink_on_disconnect = true
+wave_duration_s = 0.5
+move_duration_s = 1.2
+[profiles.embodied.embodiment.motions.nod]
+start_signal = "start_nod"
+stop_signal = "stop_nod"
+[profiles.embodied.embodiment.touch_trigger]
+enabled = true
+topic = "/HOLO1_TouchSignal"
+topic_type = "std_msgs/String"
+link_name = "hand_link"
+motion = "move"
+cooldown_s = 2.0
+""",
+    )
+
+    profile = load_runtime_profile(
+        profiles_path=profiles_path,
+        server_dir=tmp_path,
+        profile_name="embodied",
+    )
+
+    assert profile.embodiment.enabled is True
+    assert profile.embodiment.rosbridge_host == "localhost"
+    assert profile.embodiment.animation_topic == "/HOLO1_AnimSignal"
+    assert profile.embodiment.move_duration_s == 1.2
+    assert profile.embodiment.motions["nod"].start_signal == "start_nod"
+    assert profile.embodiment.touch_trigger.enabled is True
+    assert profile.embodiment.touch_trigger.topic == "/HOLO1_TouchSignal"
+    assert profile.embodiment.touch_trigger.link_name == "hand_link"
 
 
 @pytest.mark.parametrize(

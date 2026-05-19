@@ -1,5 +1,7 @@
 """System prompt for the simulation-only voice robot agent."""
 
+from __future__ import annotations
+
 import re
 from pathlib import Path
 
@@ -11,7 +13,6 @@ _PROMPT_PARTS = (
     "examples.md",
     "behavior_examples.md",
     "speech_tag_examples.md",
-    "response_style.md",
 )
 _SPEECH_DELIVERY_PARTS = ("speech_delivery_style.md",)
 _HTML_COMMENT_PATTERN = re.compile(r"<!--.*?-->", re.DOTALL)

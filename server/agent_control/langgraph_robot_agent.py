@@ -21,6 +21,11 @@ from agent_control.robot_job_submission import (
     QUEUEABLE_ROBOT_ACTION_TOOLS,
     RobotJobSubmitter,
 )
+from embodiment.animations import (
+    EMBODIMENT_TOOL_NAMES,
+    EmbodimentAnimationController,
+    embodiment_tool_definitions,
+)
 from process_trace import NoopProcessTracer, ProcessTracer
 from robot_control.call_validation import (
     SUPPORTED_TASK_PLAN_REQUIRED_PROOFS,
@@ -99,6 +104,7 @@ SUPPORTED_TASK_SOLUTION_KINDS = {
     "place",
     "hold",
     "move",
+    "release",
     "move_and_release",
     "pick_place",
 }
@@ -212,6 +218,7 @@ class LangGraphRobotAgent:
         job_submitter: RobotJobSubmitter | None = None,
         robot_job_blackboard_summary: Callable[[], str | None] | None = None,
         verified_execution_client: VerifiedExecutionClient | None = None,
+        embodiment_controller: EmbodimentAnimationController | None = None,
         tracer: ProcessTracerLike | None = None,
     ) -> None:
         self._model = model
@@ -225,6 +232,7 @@ class LangGraphRobotAgent:
         self._job_submitter = job_submitter
         self._robot_job_blackboard_summary = robot_job_blackboard_summary
         self._verified_execution_client = verified_execution_client
+        self._embodiment_controller = embodiment_controller
         self._tracer = tracer or NoopProcessTracer()
         self._latest_state: dict[str, Any] | None = None
         self._graph = self._compile_graph()
@@ -521,7 +529,10 @@ class LangGraphRobotAgent:
 
             started = monotonic_s()
             logger.info("Robot tool start name={} call_id={}", name, call_id)
-            if name == GEOMETRY_UPDATE_DYNAMIC_ROLE_TOOL_NAME:
+            if name in EMBODIMENT_TOOL_NAMES and self._embodiment_controller is not None:
+                output = await self._embodiment_controller.handle_tool_call(name, dict(args))
+                observed_this_turn = False
+            elif name == GEOMETRY_UPDATE_DYNAMIC_ROLE_TOOL_NAME:
                 output = _execute_geometry_update_dynamic_role(dict(args))
             elif name in OBSERVE_TOOL_NAMES:
                 output, observed_this_turn = await self._execute_observation_tool(name, dict(args))
@@ -689,6 +700,8 @@ class LangGraphRobotAgent:
         if task_planner_tool is not None:
             visible.append(task_planner_tool)
         visible.append(_geometry_update_dynamic_role_tool())
+        if self._embodiment_controller is not None and self._embodiment_controller.enabled:
+            visible.extend(embodiment_tool_definitions())
         return visible
 
     def _task_execution_mode_instruction(self) -> str:

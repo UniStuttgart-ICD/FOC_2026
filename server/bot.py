@@ -99,6 +99,7 @@ async def run_bot(transport: BaseTransport, profile_name: str | None = None):
     built = build_pipeline(config, transport)
     task = built.task
     agent_processor = built.agent_processor
+    embodiment = built.embodiment
     robot_job_monitor = await start_robot_job_monitor_from_env(
         getattr(agent_processor, "robot_job_board", None)
     )
@@ -106,6 +107,8 @@ async def run_bot(transport: BaseTransport, profile_name: str | None = None):
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
         logger.info("Client connected")
+        if embodiment is not None:
+            await embodiment.start()
         if isinstance(agent_processor, AgentTurnProcessor):
             await agent_processor.connect()
 
@@ -114,6 +117,8 @@ async def run_bot(transport: BaseTransport, profile_name: str | None = None):
         logger.info("Client disconnected")
         if isinstance(agent_processor, AgentTurnProcessor):
             await agent_processor.disconnect()
+        if embodiment is not None:
+            await embodiment.stop()
         await task.cancel()
 
     @built.user_aggregator.event_handler("on_user_turn_stopped")
@@ -132,6 +137,8 @@ async def run_bot(transport: BaseTransport, profile_name: str | None = None):
     finally:
         if robot_job_monitor is not None:
             await robot_job_monitor.stop()
+        if embodiment is not None:
+            await embodiment.stop()
 
 
 async def bot(runner_args: RunnerArguments):

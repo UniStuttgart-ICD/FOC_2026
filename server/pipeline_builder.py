@@ -23,6 +23,10 @@ from pipecat.transports.base_transport import BaseTransport
 from agent_control.factory import create_agent_processor
 from agent_control.prompts import SPEECH_DELIVERY_STYLE
 from config import RuntimeConfig, TTSConfig
+from embodiment.animations import (
+    EmbodimentAnimationController,
+    create_embodiment_animation_controller,
+)
 from metrics import VoiceMetricsObserver, VoiceMetricsRecorder
 from process_trace import (
     JsonlTraceWriter,
@@ -60,6 +64,7 @@ class BuiltPipeline:
     assistant_aggregator: FrameProcessor
     metrics: VoiceMetricsRecorder | None
     process_tracer: ProcessTracer | NoopProcessTracer
+    embodiment: EmbodimentAnimationController | None = None
 
 
 def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipeline:
@@ -76,6 +81,7 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
         config.voice_modulation,
         voice_stream_tracer=voice_stream_tracer,
     )
+    embodiment = create_embodiment_animation_controller(config.embodiment)
     process_tracer = _build_process_tracer(config, session_id, session_started_at)
     session_context = process_tracer.start_session(
         config.profile_name,
@@ -141,6 +147,7 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
         mcp_vizor_url=mcp_vizor_url,
         user_sensing_max_age_s=user_sensing_max_age_s,
         verified_execution_url=_verified_execution_url(config),
+        embodiment_controller=embodiment,
         tracer=process_tracer,
         **agent_kwargs,
     )
@@ -199,6 +206,7 @@ def build_pipeline(config: RuntimeConfig, transport: BaseTransport) -> BuiltPipe
         assistant_aggregator=assistant_aggregator,
         metrics=metrics,
         process_tracer=process_tracer,
+        embodiment=embodiment,
     )
 
 

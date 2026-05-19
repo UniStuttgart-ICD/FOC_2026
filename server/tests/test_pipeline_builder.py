@@ -8,6 +8,7 @@ from pipecat.transports.base_transport import BaseTransport
 
 from config import (
     AgentConfig,
+    EmbodimentConfig,
     EmergencyStopConfig,
     MetricsConfig,
     ProcessTraceConfig,
@@ -118,6 +119,7 @@ def _config(
     voice_modulation: object | None = None,
     tts: TTSConfig | None = None,
     robot_execution: RobotExecutionConfig | None = None,
+    embodiment: EmbodimentConfig | None = None,
 ) -> RuntimeConfig:
     return RuntimeConfig(
         profile_name="no_wake_debug",
@@ -151,6 +153,7 @@ def _config(
             include_tool_payloads=False,
         ),
         robot_execution=robot_execution or RobotExecutionConfig(),
+        embodiment=embodiment or EmbodimentConfig(),
         voice_modulation=voice_modulation,
         server_dir=tmp_path,
     )
@@ -313,6 +316,26 @@ def test_pipeline_passes_verified_execution_env_to_agent_processor(monkeypatch, 
     )
 
     assert seen_agent_kwargs["verified_execution_url"] == "http://127.0.0.1:8770"
+
+
+def test_pipeline_passes_enabled_embodiment_controller_to_agent_processor(
+    monkeypatch,
+    tmp_path: Path,
+):
+    seen_agent_kwargs: dict[str, Any] = {}
+    _patch_pipeline_dependencies(monkeypatch, agent_processor_kwargs=seen_agent_kwargs)
+
+    built = build_pipeline(
+        _config(
+            tmp_path,
+            metrics_enabled=False,
+            embodiment=EmbodimentConfig(enabled=True),
+        ),
+        cast(BaseTransport, FakeTransport()),
+    )
+
+    assert built.embodiment is not None
+    assert seen_agent_kwargs["embodiment_controller"] is built.embodiment
 
 
 def test_pipeline_simulation_only_blocks_verified_execution_env(monkeypatch, tmp_path: Path):

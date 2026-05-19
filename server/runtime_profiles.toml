@@ -64,6 +64,25 @@ simulation_only = false
 # For real robot execution, set simulation_only=false and provide verified_execution_url.
 verified_execution_url = "http://127.0.0.1:8770"
 
+[profiles.hybrid_gemini_live_tts.embodiment]
+enabled = false
+rosbridge_host = "127.0.0.1"
+rosbridge_port = 9090
+animation_topic = "/HOLO1_AnimSignal"
+animation_topic_type = "std_msgs/String"
+start_blink_on_connect = true
+stop_blink_on_disconnect = true
+wave_duration_s = 0.8
+move_duration_s = 1.0
+
+[profiles.hybrid_gemini_live_tts.embodiment.touch_trigger]
+enabled = false
+topic = "/HOLO1_TouchSignal"
+topic_type = "std_msgs/String"
+link_name = "configured_link_name"
+motion = "move"
+cooldown_s = 1.0
+
 [profiles.hybrid_gemini_live_tts.metrics]
 enabled = true
 path = "logs/voice_metrics.jsonl"

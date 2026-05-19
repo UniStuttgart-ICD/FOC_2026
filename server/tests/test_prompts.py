@@ -470,15 +470,15 @@ def test_prompt_includes_reasoning_agent_persona_without_tts_delivery_rules() ->
 def test_prompt_allows_sparse_creative_speech_tags_in_final_responses() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
-    assert "creative speech tags" in prompt
-    assert "final assistant speech only" in prompt
+    assert "speech tag policy" in prompt
+    assert "final spoken replies" in prompt
     assert "[short pause]" in prompt
-    assert "[sigh]" in prompt
-    assert "[laughing]" in prompt
-    assert "[sarcasm]" in prompt
-    assert "[robotic]" in prompt
+    assert "[sighs]" in prompt
+    assert "[laughs]" in prompt
+    assert "[sarcastic]" in prompt
+    assert "[serious]" in prompt
     assert "do not put speech tags in tool arguments" in prompt
-    assert "avoid adjective emotion tags" in prompt
+    assert "use zero or one tag" in prompt
 
 
 def test_prompt_contains_speech_tag_few_shot_examples() -> None:
@@ -488,7 +488,7 @@ def test_prompt_contains_speech_tag_few_shot_examples() -> None:
     assert 'user: "kibbitz, are you ready?"' in prompt
     assert 'say `[short pause] hmmmmmm. i am ready.`' in prompt
     assert 'user: "kibbitz, that did not work?"' in prompt
-    assert 'say `[sigh] hmmmmmm. i could not confirm the robot motion.`' in prompt
+    assert 'say `[sighs] hmmmmmm. i could not confirm the robot motion.`' in prompt
 
 
 def test_speech_delivery_style_is_separate_from_reasoning_prompt() -> None:

@@ -106,6 +106,39 @@ class RobotExecutionProfile:
 
 
 @dataclass(frozen=True)
+class EmbodimentTouchTriggerProfile:
+    enabled: bool = False
+    topic: str | None = None
+    topic_type: str = "std_msgs/String"
+    link_name: str | None = None
+    motion: str = "move"
+    cooldown_s: float = 1.0
+
+
+@dataclass(frozen=True)
+class EmbodimentMotionProfile:
+    start_signal: str
+    stop_signal: str
+
+
+@dataclass(frozen=True)
+class EmbodimentProfile:
+    enabled: bool = False
+    rosbridge_host: str = "127.0.0.1"
+    rosbridge_port: int = 9090
+    animation_topic: str = "/HOLO1_AnimSignal"
+    animation_topic_type: str = "std_msgs/String"
+    start_blink_on_connect: bool = True
+    stop_blink_on_disconnect: bool = True
+    wave_duration_s: float = 0.8
+    move_duration_s: float = 1.0
+    touch_trigger: EmbodimentTouchTriggerProfile = field(
+        default_factory=EmbodimentTouchTriggerProfile
+    )
+    motions: dict[str, EmbodimentMotionProfile] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class RuntimeProfile:
     name: str
     category: Category
@@ -119,6 +152,7 @@ class RuntimeProfile:
     process_trace: ProcessTraceProfile
     robot_execution: RobotExecutionProfile
     server_dir: Path
+    embodiment: EmbodimentProfile = field(default_factory=EmbodimentProfile)
     voice_modulation: Any | None = None
 
     def required_env_names(self) -> tuple[str, ...]:
@@ -178,6 +212,7 @@ def load_runtime_profile(
     metrics = _parse_metrics(_table(raw_profile, "metrics"), server_root)
     process_trace = _parse_process_trace(_optional_table(raw_profile, "process_trace"), server_root)
     robot_execution = _parse_robot_execution(_optional_table(raw_profile, "robot_execution"))
+    embodiment = _parse_embodiment(_optional_table(raw_profile, "embodiment"))
     voice_modulation = _optional_table(raw_profile, "voice_modulation") or None
 
     profile = RuntimeProfile(
@@ -193,6 +228,7 @@ def load_runtime_profile(
         process_trace=process_trace,
         robot_execution=robot_execution,
         server_dir=server_root,
+        embodiment=embodiment,
         voice_modulation=voice_modulation,
     )
     _validate_runtime_profile(profile)
@@ -289,6 +325,49 @@ def _parse_robot_execution(table: dict[str, Any]) -> RobotExecutionProfile:
     )
 
 
+def _parse_embodiment(table: dict[str, Any]) -> EmbodimentProfile:
+    touch = _optional_table(table, "touch_trigger")
+    motions = _parse_embodiment_motions(_optional_table(table, "motions"))
+    touch_motion = _motion_name(_string(touch, "motion", "move"))
+    if touch_motion not in {"blink", "move", "wave"} and touch_motion not in motions:
+        raise ProfileError("touch_trigger.motion must be a built-in or registered motion")
+    return EmbodimentProfile(
+        enabled=_bool(table, "enabled", False),
+        rosbridge_host=_string(table, "rosbridge_host", "127.0.0.1"),
+        rosbridge_port=_port(table, "rosbridge_port", 9090),
+        animation_topic=_topic(table, "animation_topic", "/HOLO1_AnimSignal"),
+        animation_topic_type=_string(table, "animation_topic_type", "std_msgs/String"),
+        start_blink_on_connect=_bool(table, "start_blink_on_connect", True),
+        stop_blink_on_disconnect=_bool(table, "stop_blink_on_disconnect", True),
+        wave_duration_s=_non_negative_float(table, "wave_duration_s", 0.8),
+        move_duration_s=_non_negative_float(table, "move_duration_s", 1.0),
+        touch_trigger=EmbodimentTouchTriggerProfile(
+            enabled=_bool(touch, "enabled", False),
+            topic=_optional_topic(touch, "topic"),
+            topic_type=_string(touch, "topic_type", "std_msgs/String"),
+            link_name=_optional_string(touch, "link_name"),
+            motion=touch_motion,
+            cooldown_s=_non_negative_float(touch, "cooldown_s", 1.0),
+        ),
+        motions=motions,
+    )
+
+
+def _parse_embodiment_motions(table: dict[str, Any]) -> dict[str, EmbodimentMotionProfile]:
+    motions: dict[str, EmbodimentMotionProfile] = {}
+    for raw_name, raw_motion in table.items():
+        if not isinstance(raw_name, str) or not raw_name.strip():
+            raise ProfileError("embodiment motion names must be non-empty strings")
+        if not isinstance(raw_motion, dict):
+            raise ProfileError(f"embodiment.motions.{raw_name} must be a table")
+        name = _motion_name(raw_name)
+        motions[name] = EmbodimentMotionProfile(
+            start_signal=_string(raw_motion, "start_signal"),
+            stop_signal=_string(raw_motion, "stop_signal"),
+        )
+    return motions
+
+
 def _validate_runtime_profile(profile: RuntimeProfile) -> None:
     if profile.wake.provider == "openwakeword" and profile.wake.model_path is None:
         raise ProfileError("wake.model_path is required when wake.provider = 'openwakeword'")
@@ -307,6 +386,10 @@ def _validate_runtime_profile(profile: RuntimeProfile) -> None:
         and profile.agent.thinking_budget == 0
     ):
         raise ProfileError("gemini-2.5-pro cannot disable thinking")
+    if profile.embodiment.touch_trigger.enabled and not profile.embodiment.touch_trigger.topic:
+        raise ProfileError(
+            "embodiment.touch_trigger.topic is required when touch trigger is enabled"
+        )
 
 
 def _table(data: dict[str, Any], key: str) -> dict[str, Any]:
@@ -330,6 +413,22 @@ def _string(table: dict[str, Any], key: str, default: str | None = None) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ProfileError(f"{key} must be a non-empty string")
     return value.strip()
+
+
+def _topic(table: dict[str, Any], key: str, default: str) -> str:
+    value = _string(table, key, default)
+    if not value.startswith("/"):
+        raise ProfileError(f"{key} must start with /")
+    return value
+
+
+def _optional_topic(table: dict[str, Any], key: str) -> str | None:
+    value = _optional_string(table, key)
+    if value is None:
+        return None
+    if not value.startswith("/"):
+        raise ProfileError(f"{key} must start with /")
+    return value
 
 
 def _optional_string(table: dict[str, Any], key: str) -> str | None:
@@ -396,6 +495,20 @@ def _non_negative_int(table: dict[str, Any], key: str, default: int) -> int:
     if value < 0:
         raise ProfileError(f"{key} must be non-negative")
     return value
+
+
+def _port(table: dict[str, Any], key: str, default: int) -> int:
+    value = _non_negative_int(table, key, default)
+    if value < 1 or value > 65535:
+        raise ProfileError(f"{key} must be between 1 and 65535")
+    return value
+
+
+def _motion_name(value: str) -> str:
+    name = value.strip().casefold()
+    if not name.replace("_", "").replace("-", "").isalnum():
+        raise ProfileError("embodiment motion names may contain letters, numbers, _ and -")
+    return name
 
 
 def _optional_non_negative_int(table: dict[str, Any], key: str) -> int | None:

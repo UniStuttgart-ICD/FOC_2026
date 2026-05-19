@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from voice_modulation.settings import VoiceModulationError, apply_saved_voice_modulation
@@ -10,6 +10,7 @@ from voice_runtime.profiles import (
     AgentProfile,
     AgentProvider,
     Category,
+    EmbodimentProfile,
     EmergencyStopProfile,
     MetricsProfile,
     ProcessTraceProfile,
@@ -35,6 +36,7 @@ AgentConfig = AgentProfile
 MetricsConfig = MetricsProfile
 ProcessTraceConfig = ProcessTraceProfile
 RobotExecutionConfig = RobotExecutionProfile
+EmbodimentConfig = EmbodimentProfile
 VoiceModulationConfig = object
 
 
@@ -52,6 +54,7 @@ class RuntimeConfig:
     process_trace: ProcessTraceConfig
     robot_execution: RobotExecutionConfig
     server_dir: Path
+    embodiment: EmbodimentConfig = field(default_factory=EmbodimentConfig)
     voice_modulation: object | None = None
 
     @classmethod
@@ -68,6 +71,7 @@ class RuntimeConfig:
             metrics=profile.metrics,
             process_trace=profile.process_trace,
             robot_execution=profile.robot_execution,
+            embodiment=profile.embodiment,
             server_dir=profile.server_dir,
             voice_modulation=profile.voice_modulation,
         )
@@ -85,6 +89,7 @@ class RuntimeConfig:
             metrics=self.metrics,
             process_trace=self.process_trace,
             robot_execution=self.robot_execution,
+            embodiment=self.embodiment,
             server_dir=self.server_dir,
             voice_modulation=self.voice_modulation,
         ).required_env_names()
@@ -133,6 +138,7 @@ __all__ = [
     "ConfigError",
     "DEFAULT_PROFILE",
     "EmergencyStopConfig",
+    "EmbodimentConfig",
     "MetricsConfig",
     "ProcessTraceConfig",
     "RobotExecutionConfig",

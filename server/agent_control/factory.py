@@ -6,6 +6,7 @@ from pipecat.processors.frame_processor import FrameProcessor
 
 from agent_control.langchain_agent_processor import LangChainAgentProcessor
 from agent_control.model_factory import build_agent_chat_model
+from embodiment.animations import EmbodimentAnimationController
 from process_trace import NoopProcessTracer, ProcessTracer
 from voice_runtime.agent_providers import NATIVE_LANGCHAIN_AGENT_PROVIDERS
 from voice_runtime.agent_turn import AgentTurnProcessor, ResponseCoordinator
@@ -21,6 +22,7 @@ def create_agent_processor(
     mcp_vizor_url: str | None = None,
     user_sensing_max_age_s: float = 2.0,
     verified_execution_url: str | None = None,
+    embodiment_controller: EmbodimentAnimationController | None = None,
     tracer: ProcessTracerLike | None = None,
     on_turn_started: Callable[[], None] | None = None,
     on_turn_finished: Callable[[], None] | None = None,
@@ -34,6 +36,7 @@ def create_agent_processor(
             mcp_vizor_url=mcp_vizor_url,
             user_sensing_max_age_s=user_sensing_max_age_s,
             verified_execution_url=verified_execution_url,
+            embodiment_controller=embodiment_controller,
             tracer=tracer,
         )
     else:

@@ -39,6 +39,7 @@ def test_persona_parts_expose_only_allowlisted_files(tmp_path: Path) -> None:
     assert by_id["canonical_motion_examples"].editable is False
     assert by_id["canonical_motion_examples"].filename == "examples.md"
     assert "robot_contract" not in by_id
+    assert "response_style" not in by_id
 
 
 def test_save_persona_part_writes_only_editable_allowlisted_part(tmp_path: Path) -> None:
@@ -59,6 +60,41 @@ def test_save_persona_part_writes_only_editable_allowlisted_part(tmp_path: Path)
     )
 
 
+def test_save_persona_template_part_updates_loaded_template_folder(
+    tmp_path: Path,
+) -> None:
+    from voice_modulation.persona_editor import (
+        load_persona_template,
+        save_persona_template_part,
+    )
+
+    prompt_dir = _prompt_parts_dir(tmp_path)
+    persona_1 = _template_dir(tmp_path, "persona_1")
+    persona_2 = _template_dir(tmp_path, "persona_2")
+    (persona_2 / "behavior_examples.md").write_text(
+        "# Behavior examples\n- Persona 2 text.\n",
+        encoding="utf-8",
+    )
+    saved_content = "# Behavior examples\n- Persona 1 edited text.\n"
+
+    load_persona_template(tmp_path, "persona_1")
+    save_persona_template_part(
+        tmp_path,
+        "persona_1",
+        "behavior_examples",
+        saved_content,
+    )
+    load_persona_template(tmp_path, "persona_2")
+    assert (prompt_dir / "behavior_examples.md").read_text(encoding="utf-8") == (
+        "# Behavior examples\n- Persona 2 text.\n"
+    )
+
+    load_persona_template(tmp_path, "persona_1")
+
+    assert (persona_1 / "behavior_examples.md").read_text(encoding="utf-8") == saved_content
+    assert (prompt_dir / "behavior_examples.md").read_text(encoding="utf-8") == saved_content
+
+
 def test_save_persona_part_rejects_readonly_unknown_and_empty_content(
     tmp_path: Path,
 ) -> None:
@@ -74,38 +110,60 @@ def test_save_persona_part_rejects_readonly_unknown_and_empty_content(
         save_persona_part(prompt_dir, "behavior_examples", "  \n")
 
 
-def test_persona_templates_report_available_known_templates(tmp_path: Path) -> None:
+def test_persona_templates_report_available_folders(tmp_path: Path) -> None:
     from voice_modulation.persona_editor import list_persona_templates
 
-    _template_dir(tmp_path)
-    _template_dir(tmp_path, "robot_embodied_agent")
+    _template_dir(tmp_path, "Bobby Fused")
+    _template_dir(tmp_path, "kibbitz_separate")
 
     templates = list_persona_templates(tmp_path)
     by_id = {template["id"]: template for template in templates}
 
-    assert by_id["independent_agent"] == {
-        "id": "independent_agent",
-        "label": "Independent agent",
+    assert by_id["Bobby Fused"] == {
+        "id": "Bobby Fused",
+        "label": "Bobby Fused",
         "available": True,
+        "missing_parts": [],
     }
-    assert by_id["robot_embodied_agent"] == {
-        "id": "robot_embodied_agent",
-        "label": "Robot embodied agent",
+    assert by_id["kibbitz_separate"] == {
+        "id": "kibbitz_separate",
+        "label": "Kibbitz Separate",
         "available": True,
+        "missing_parts": [],
     }
 
 
-def test_load_persona_template_copies_editable_parts(tmp_path: Path) -> None:
+def test_legacy_response_style_file_is_not_required_or_reported_missing(
+    tmp_path: Path,
+) -> None:
+    from voice_modulation.persona_editor import list_persona_templates
+
+    template_dir = _template_dir(tmp_path, "legacy_persona")
+    (template_dir / "response_style.md").write_text(
+        "# Response style\n- Legacy extra file.\n",
+        encoding="utf-8",
+    )
+
+    templates = list_persona_templates(tmp_path)
+    by_id = {template["id"]: template for template in templates}
+
+    assert by_id["legacy_persona"]["available"] is True
+    assert by_id["legacy_persona"]["missing_parts"] == []
+
+
+def test_load_persona_template_copies_editable_parts_from_renamed_folder(
+    tmp_path: Path,
+) -> None:
     from voice_modulation.persona_editor import load_persona_template
 
     prompt_dir = _prompt_parts_dir(tmp_path)
-    template_dir = _template_dir(tmp_path)
+    template_dir = _template_dir(tmp_path, "Bobby Fused")
     (template_dir / "behavior_examples.md").write_text(
         "# Behavior examples\n- Template text.\n",
         encoding="utf-8",
     )
 
-    parts = load_persona_template(tmp_path, "independent_agent")
+    parts = load_persona_template(tmp_path, "Bobby Fused")
     by_id = {part.id: part for part in parts}
 
     assert by_id["behavior_examples"].content == "# Behavior examples\n- Template text.\n"
@@ -149,13 +207,19 @@ def test_load_persona_template_rejects_unavailable_template(tmp_path: Path) -> N
         load_persona_template(tmp_path, "robot_embodied_agent")
 
 
+def test_load_persona_template_rejects_path_traversal(tmp_path: Path) -> None:
+    from voice_modulation.persona_editor import PersonaValidationError, load_persona_template
+
+    with pytest.raises(PersonaValidationError, match="Unavailable persona template"):
+        load_persona_template(tmp_path, "../prompt_parts")
+
+
 def _prompt_parts_dir(root: Path) -> Path:
     prompt_dir = root / "agent_control" / "prompt_parts"
     prompt_dir.mkdir(parents=True)
     for filename in (
         "mave_embodiment.md",
         "reasoning_agent_persona.md",
-        "response_style.md",
         "speech_delivery_style.md",
         "speech_tag_examples.md",
         "behavior_examples.md",
@@ -171,7 +235,6 @@ def _template_dir(root: Path, template_id: str = "independent_agent") -> Path:
     for filename in (
         "mave_embodiment.md",
         "reasoning_agent_persona.md",
-        "response_style.md",
         "speech_delivery_style.md",
         "speech_tag_examples.md",
         "behavior_examples.md",

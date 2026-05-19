@@ -34,7 +34,6 @@ _EDITABLE_PARTS: tuple[_PartSpec, ...] = (
         "Reasoning agent persona",
         True,
     ),
-    _PartSpec("response_style", "response_style.md", "Response style", True),
     _PartSpec(
         "speech_delivery_style",
         "speech_delivery_style.md",
@@ -59,11 +58,6 @@ _READ_ONLY_PARTS: tuple[_PartSpec, ...] = (
 )
 _PARTS = _EDITABLE_PARTS + _READ_ONLY_PARTS
 _PARTS_BY_ID = {part.id: part for part in _PARTS}
-_TEMPLATES: tuple[tuple[str, str], ...] = (
-    ("independent_agent", "Independent agent"),
-    ("robot_embodied_agent", "Robot embodied agent"),
-)
-_TEMPLATE_IDS = {template_id for template_id, _label in _TEMPLATES}
 
 
 def load_persona_parts(prompt_parts_dir: str | Path) -> list[PersonaPart]:
@@ -87,25 +81,62 @@ def save_persona_part(
     return _part_from_content(spec, content)
 
 
+def save_persona_template_part(
+    server_dir: str | Path,
+    template_id: str,
+    part_id: str,
+    content: str,
+) -> PersonaPart:
+    spec = _part_spec(part_id)
+    if not spec.editable:
+        raise PersonaValidationError(f"Persona prompt part is read-only: {part_id}")
+    _validate_content(content)
+
+    root = Path(server_dir)
+    template_dir = _template_dir(root, template_id)
+    if template_dir is None or not template_dir.is_dir():
+        raise PersonaValidationError(f"Unavailable persona template: {template_id}")
+
+    path = template_dir / spec.filename
+    if not path.is_file():
+        raise PersonaValidationError(f"Persona template is missing prompt part: {spec.filename}")
+    path.write_text(content, encoding="utf-8")
+    return _part_from_content(spec, content)
+
+
 def list_persona_templates(server_dir: str | Path) -> list[dict[str, object]]:
     root = Path(server_dir)
-    return [
-        {
-            "id": template_id,
-            "label": label,
-            "available": _template_dir(root, template_id).is_dir(),
-        }
-        for template_id, label in _TEMPLATES
-    ]
+    templates_dir = _templates_dir(root)
+    if not templates_dir.is_dir():
+        return []
+
+    templates = []
+    for template_dir in sorted(
+        templates_dir.iterdir(),
+        key=lambda path: _template_label(path.name),
+    ):
+        if not template_dir.is_dir():
+            continue
+        missing_parts = [
+            spec.filename
+            for spec in _EDITABLE_PARTS
+            if not (template_dir / spec.filename).is_file()
+        ]
+        templates.append(
+            {
+                "id": template_dir.name,
+                "label": _template_label(template_dir.name),
+                "available": not missing_parts,
+                "missing_parts": missing_parts,
+            }
+        )
+    return templates
 
 
 def load_persona_template(server_dir: str | Path, template_id: str) -> list[PersonaPart]:
     root = Path(server_dir)
-    if template_id not in _TEMPLATE_IDS:
-        raise PersonaValidationError(f"Unavailable persona template: {template_id}")
-
     template_dir = _template_dir(root, template_id)
-    if not template_dir.is_dir():
+    if template_dir is None or not template_dir.is_dir():
         raise PersonaValidationError(f"Unavailable persona template: {template_id}")
 
     prompt_parts_dir = root / "agent_control" / "prompt_parts"
@@ -124,8 +155,31 @@ def load_persona_template(server_dir: str | Path, template_id: str) -> list[Pers
     return changed_parts
 
 
-def _template_dir(server_dir: Path, template_id: str) -> Path:
-    return server_dir / "agent_control" / "persona_templates" / template_id
+def _templates_dir(server_dir: Path) -> Path:
+    return server_dir / "agent_control" / "persona_templates"
+
+
+def _template_dir(server_dir: Path, template_id: str) -> Path | None:
+    if not template_id.strip():
+        return None
+    templates_dir = _templates_dir(server_dir).resolve()
+    candidate = (templates_dir / template_id).resolve()
+    try:
+        candidate.relative_to(templates_dir)
+    except ValueError:
+        return None
+    return candidate
+
+
+def _template_label(template_id: str) -> str:
+    label = template_id.replace("_", " ").replace("-", " ").strip()
+    return " ".join(_title_word(word) for word in label.split()) or template_id
+
+
+def _title_word(word: str) -> str:
+    if word.isupper():
+        return word
+    return word[:1].upper() + word[1:]
 
 
 def _load_part(prompt_parts_dir: Path, spec: _PartSpec) -> PersonaPart:

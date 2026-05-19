@@ -3043,6 +3043,118 @@ async def test_graph_execute_task_runs_staged_ar_rviz_when_verified_client_missi
 
 
 @pytest.mark.asyncio
+async def test_graph_execute_task_runs_release_only_contract() -> None:
+    class ReleaseOnlyTaskBridge(TaskPlannerSurfaceBridge):
+        async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+            self.calls.append((name, arguments))
+            if name == "moveit_verify_released_object":
+                return json.dumps(
+                    {
+                        "structured_content": {
+                            "ok": True,
+                            "object_name": arguments["object_name"],
+                            "verification": {"result": "pass"},
+                            "raw": {
+                                "object_name": arguments["object_name"],
+                                "planning_scene_state": "released",
+                                "mcp_attached_object": None,
+                                "mcp_gripper_holds_object": False,
+                                "attached": False,
+                                "released_object_pose": {
+                                    "position": {"x": 0.047, "y": -0.703, "z": 0.189},
+                                    "orientation": {
+                                        "x": 0.5,
+                                        "y": 0.5,
+                                        "z": 0.5,
+                                        "w": 0.5,
+                                    },
+                                },
+                            },
+                        }
+                    }
+                )
+            return json.dumps({"structured_content": {"ok": True}})
+
+    task_solution_id = "release_task_dynamic_0_003"
+    release_object_pose = {
+        "position": {"x": 0.047, "y": -0.703, "z": 0.189},
+        "orientation": {"x": 0.5, "y": 0.5, "z": 0.5, "w": 0.5},
+    }
+    raw = {
+        "task_solution_id": task_solution_id,
+        "task_kind": "release",
+        "object_name": "dynamic_0",
+        "scene_snapshot_id": "scene_20260519_003",
+        "execution_contract": {
+            "steps": [
+                {
+                    "handler": "open_gripper",
+                    "name": "open_gripper",
+                    "tool": "moveit_open_gripper",
+                    "source_stage": "open_gripper",
+                    "required_proof": "verified_gripper_open",
+                },
+                {
+                    "handler": "release_object",
+                    "name": "release_object",
+                    "tool": "moveit_release_object",
+                    "source_stage": "detach_object",
+                    "required_proof": "planning_scene_update",
+                    "arguments": {
+                        "object_name": "dynamic_0",
+                        "object_pose": release_object_pose,
+                    },
+                },
+                {
+                    "handler": "verify_released_object",
+                    "name": "verify_released_object",
+                    "tool": "moveit_verify_released_object",
+                    "source_stage": "verify_released_object",
+                    "required_proof": "release_check",
+                    "arguments": {"object_name": "dynamic_0"},
+                },
+            ],
+        },
+    }
+    execute_args = {
+        "robot_name": "UR10",
+        "task_solution_id": task_solution_id,
+        "timeout_s": 9.0,
+    }
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_execute_task", execute_args),
+            ai_text("unexpected model fallback"),
+        ],
+        bridge=ReleaseOnlyTaskBridge(),
+        robot_context=approved_contract_task_context(
+            task_solution_id=task_solution_id,
+            task_kind="release",
+            object_name="dynamic_0",
+            raw=raw,
+        ),
+    )
+
+    text = await fixture.graph.run_turn(turn("execute"))
+
+    assert text == "Execution completed in AR/RViz; physical status unavailable."
+    assert ("moveit_open_gripper", {"robot_name": "UR10", "timeout_s": 9.0}) in fixture.bridge.calls
+    assert (
+        "moveit_release_object",
+        {
+            "robot_name": "UR10",
+            "object_name": "dynamic_0",
+            "object_pose": release_object_pose,
+            "verified_gripper_open": True,
+        },
+    ) in fixture.bridge.calls
+    assert (
+        "moveit_verify_released_object",
+        {"robot_name": "UR10", "object_name": "dynamic_0", "timeout_s": 9.0},
+    ) in fixture.bridge.calls
+
+
+@pytest.mark.asyncio
 async def test_graph_execute_task_stops_physical_after_readiness_then_failure() -> None:
     execute_args = {
         "robot_name": "UR10",

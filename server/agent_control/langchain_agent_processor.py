@@ -9,6 +9,7 @@ from loguru import logger
 
 from agent_control.langgraph_robot_agent import LangGraphRobotAgent
 from agent_control.robot_job_submission import RobotJobSubmitter
+from embodiment.animations import EmbodimentAnimationController
 from process_trace import NoopProcessTracer, ProcessTracer
 from robot_control.context import RobotContextStore
 from robot_control.job_board import RobotJob, RobotJobBoard, RobotJobEvent, RobotJobEventType
@@ -44,6 +45,7 @@ class LangChainAgentProcessor:
         user_sensing_max_age_s: float = 2.0,
         verified_execution_url: str | None = None,
         verified_execution_client: VerifiedExecutionClient | None = None,
+        embodiment_controller: EmbodimentAnimationController | None = None,
         tracer: ProcessTracerLike | None = None,
     ):
         self._mcp_server_url = mcp_server_url
@@ -64,6 +66,7 @@ class LangChainAgentProcessor:
             if verified_execution_client is not None
             else _verified_execution_client(verified_execution_url)
         )
+        self._embodiment_controller = embodiment_controller
         self._owns_tool_bridge = tool_bridge is None
         self._owns_user_sensing_bridge = user_sensing_bridge is None
         self._connected = False
@@ -205,6 +208,7 @@ class LangChainAgentProcessor:
                 "thread_id": self._thread_id,
                 "job_submitter": self._robot_job_submitter,
                 "verified_execution_client": self._verified_execution_client,
+                "embodiment_controller": self._embodiment_controller,
                 "tracer": self._tracer,
             }
             if self._user_sensing_bridge is not None:
