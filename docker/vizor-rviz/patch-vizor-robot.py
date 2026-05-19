@@ -491,7 +491,12 @@ ROBOTIQ_COLLISION_BLOCK = """    <disable_collisions link1="robotiq_arg2f_base_l
     <disable_collisions link1="right_inner_finger_pad" link2="wrist_3_link" reason="Never"/>"""
 ROBOTIQ_COLLISION_LINES = frozenset(ROBOTIQ_COLLISION_BLOCK.splitlines())
 MTC_EXECUTE_TASK_SOLUTION_CAPABILITY = "move_group/ExecuteTaskSolutionCapability"
-UR10_KINEMATICS_SOLVER_TIMEOUT = "0.05"
+UR10_KINEMATICS_SETTINGS = {
+    "kinematics_solver_timeout": "0.1",
+    "goal_joint_tolerance": "0.005",
+    "goal_position_tolerance": "0.01",
+    "goal_orientation_tolerance": "0.05",
+}
 
 
 def _write_if_changed(path: Path, text: str) -> bool:
@@ -811,24 +816,26 @@ def patch_mtc_move_group_capability(src_root: Path = CATKIN_SRC) -> bool:
     return _write_if_changed(load_robot, load_text)
 
 
-def patch_ur10_kinematics_timeout(src_root: Path = CATKIN_SRC) -> bool:
+def patch_ur10_kinematics_settings(src_root: Path = CATKIN_SRC) -> bool:
     kinematics = src_root / "moveit_support" / "ur10_moveit_support" / "config" / "kinematics.yaml"
     lines = kinematics.read_text().splitlines(keepends=True)
     patched_lines = []
-    found_timeout = False
+    found_settings = set()
 
     for line in lines:
         stripped = line.lstrip()
-        if stripped.startswith("kinematics_solver_timeout:"):
+        key = stripped.split(":", 1)[0]
+        if key in UR10_KINEMATICS_SETTINGS:
             indent = line[: len(line) - len(stripped)]
             newline = "\n" if line.endswith("\n") else ""
-            patched_lines.append(f"{indent}kinematics_solver_timeout: {UR10_KINEMATICS_SOLVER_TIMEOUT}{newline}")
-            found_timeout = True
+            patched_lines.append(f"{indent}{key}: {UR10_KINEMATICS_SETTINGS[key]}{newline}")
+            found_settings.add(key)
         else:
             patched_lines.append(line)
 
-    if not found_timeout:
-        raise SystemExit(f"Expected kinematics_solver_timeout not found in {kinematics}")
+    missing = sorted(set(UR10_KINEMATICS_SETTINGS) - found_settings)
+    if missing:
+        raise SystemExit(f"Expected kinematics settings not found in {kinematics}: {', '.join(missing)}")
 
     return _write_if_changed(kinematics, "".join(patched_lines))
 
@@ -851,12 +858,12 @@ def main() -> None:
     robot_changed = patch_vizor_robot_py()
     robotiq_changed = patch_robotiq_2f85_integration()
     mtc_changed = patch_mtc_move_group_capability()
-    kinematics_changed = patch_ur10_kinematics_timeout()
+    kinematics_changed = patch_ur10_kinematics_settings()
     regenerate_ur10_with_gripper_urdf()
     print(f"Patched {ROBOT_PY}" if robot_changed else f"{ROBOT_PY} already patched")
     print("Patched Robotiq 2F-85 integration" if robotiq_changed else "Robotiq 2F-85 integration already patched")
     print("Patched MTC move_group capability" if mtc_changed else "MTC move_group capability already patched or no hook found")
-    print("Patched UR10 kinematics solver timeout" if kinematics_changed else "UR10 kinematics solver timeout already patched")
+    print("Patched UR10 kinematics settings" if kinematics_changed else "UR10 kinematics settings already patched")
 
 
 if __name__ == "__main__":

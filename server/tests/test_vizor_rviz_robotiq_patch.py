@@ -905,7 +905,7 @@ def test_patch_robotiq_2f85_integration_replaces_fixed_mesh_and_wires_action_ser
     assert (root / "moveit_support" / "ur10_moveit_support" / "config" / "ur10_with_gripper.srdf").read_text() == srdf
 
 
-def test_patch_ur10_kinematics_timeout_sets_more_reliable_ik_window(tmp_path):
+def test_patch_ur10_kinematics_settings_sets_looser_planning_window(tmp_path):
     module = _load_patch_module()
     root = tmp_path / "catkin_ws" / "src"
     config = root / "moveit_support" / "ur10_moveit_support" / "config"
@@ -916,13 +916,20 @@ def test_patch_ur10_kinematics_timeout_sets_more_reliable_ik_window(tmp_path):
   kinematics_solver: trac_ik_kinematics_plugin/TRAC_IKKinematicsPlugin
   kinematics_solver_timeout: 0.005
   kinematics_solver_search_resolution: 0.005
+  goal_joint_tolerance: 0.0001
+  goal_position_tolerance: 0.0001
+  goal_orientation_tolerance: 0.001
 """
     )
 
-    assert module.patch_ur10_kinematics_timeout(root) is True
+    assert module.patch_ur10_kinematics_settings(root) is True
 
     patched = kinematics.read_text()
-    assert "kinematics_solver_timeout: 0.05" in patched
+    assert "kinematics_solver: trac_ik_kinematics_plugin/TRAC_IKKinematicsPlugin" in patched
+    assert "kinematics_solver_timeout: 0.1" in patched
     assert "kinematics_solver_search_resolution: 0.005" in patched
-    assert module.patch_ur10_kinematics_timeout(root) is False
+    assert "goal_joint_tolerance: 0.005" in patched
+    assert "goal_position_tolerance: 0.01" in patched
+    assert "goal_orientation_tolerance: 0.05" in patched
+    assert module.patch_ur10_kinematics_settings(root) is False
     assert kinematics.read_text() == patched
