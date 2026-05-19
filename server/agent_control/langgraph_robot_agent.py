@@ -1142,7 +1142,7 @@ class LangGraphRobotAgent:
                         attempt_index=attempt_index,
                     )
                     planning_tool, planning_args = _task_plan_motion_call(
-                        step_name,
+                        step,
                         attempt_index=attempt_index,
                         robot_name=robot_name,
                         plan_name=plan_name,
@@ -1822,7 +1822,7 @@ class LangGraphRobotAgent:
                         attempt_index=attempt_index,
                     )
                     planning_tool, planning_args = _task_plan_motion_call(
-                        step_name,
+                        step,
                         attempt_index=attempt_index,
                         robot_name=robot_name,
                         plan_name=plan_name,
@@ -3448,7 +3448,7 @@ def _task_plan_execution_steps(
             ):
                 return None, _task_plan_error(
                     "Task plan execution_contract motion step is missing plan_handle.",
-                    "Plan the manipulation task again with MoveIt preview evidence.",
+                    "Plan the task again so verified motion steps include a plan_handle.",
                     retryable=False,
                     suggested_next_tool=None,
                 )
@@ -3775,7 +3775,7 @@ def _task_plan_attempt_name(
 
 
 def _task_plan_motion_call(
-    step_name: str,
+    step: dict[str, Any],
     *,
     attempt_index: int,
     robot_name: str,
@@ -3783,28 +3783,42 @@ def _task_plan_motion_call(
     waypoint: dict[str, Any],
     timeout_s: float,
 ) -> tuple[str, dict[str, Any]]:
+    step_name = str(step.get("name") or step.get("source_stage") or step.get("tool") or "")
     normalized_step = _task_plan_step_label(step_name).lower()
-    use_free_motion = normalized_step in {"approach", "connect_to_pre_grasp", "connect_to_place"} or (
-        normalized_step in {"pre_grasp", "approach_grasp"} and attempt_index > 1
-    )
-    if use_free_motion:
-        return (
-            "moveit_plan_free_motion",
-            {
-                "robot_name": robot_name,
-                "plan_name": plan_name,
-                "target_pose": waypoint,
-                "timeout_s": timeout_s,
-            },
+    planner = step.get("planner")
+    if planner == "free_motion":
+        use_free_motion = True
+    elif planner == "cartesian":
+        use_free_motion = False
+    else:
+        use_free_motion = normalized_step in {"approach", "connect_to_pre_grasp", "connect_to_place"} or (
+            normalized_step in {"pre_grasp", "approach_grasp"} and attempt_index > 1
         )
-    return (
-        "moveit_plan_cartesian_motion",
-        {
+    contact_allowance = step.get("contact_allowance") if isinstance(step.get("contact_allowance"), dict) else None
+    if use_free_motion:
+        args = {
             "robot_name": robot_name,
             "plan_name": plan_name,
-            "waypoints": [waypoint],
+            "target_pose": waypoint,
             "timeout_s": timeout_s,
-        },
+        }
+        if contact_allowance is not None:
+            args["contact_allowance"] = contact_allowance
+        return (
+            "moveit_plan_free_motion",
+            args,
+        )
+    args = {
+        "robot_name": robot_name,
+        "plan_name": plan_name,
+        "waypoints": [waypoint],
+        "timeout_s": timeout_s,
+    }
+    if contact_allowance is not None:
+        args["contact_allowance"] = contact_allowance
+    return (
+        "moveit_plan_cartesian_motion",
+        args,
     )
 
 

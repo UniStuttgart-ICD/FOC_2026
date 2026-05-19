@@ -191,6 +191,10 @@ UserIntent = Annotated[
     str | None,
     Field(description="User request that motivated the failed motion, when available."),
 ]
+ContactAllowance = Annotated[
+    dict[str, Any] | None,
+    Field(description="Internal execution-contract collision/contact allowance. Model-hidden low-level tools only."),
+]
 
 
 def build_tools(
@@ -375,11 +379,11 @@ def build_mcp(*, tools: MoveItMcpTools, host: str = "127.0.0.1", port: int = 800
         """Plan a staged MoveIt manipulation task solution with raw.execution_contract; does not execute.
 
         Requires backend="staged_moveit"; no MTC fallback exists. For motion-only
-        move tasks, plans Cartesian TCP motion and does not release, detach, place,
-        or open the gripper. For hold tasks,
-        searches grasp candidates, proves required motion stages with non-empty
-        trajectory preview evidence, and returns an approval payload plus AgentPath
-        preview only when every required stage is planned.
+        move tasks, returns a deferred Cartesian TCP motion contract and does not release,
+        detach, place, or open the gripper. For hold/place/pick-place
+        tasks, derives geometry, scene evidence, approval payload, and a deferred
+        AgentPath preview shape. Motion planning and visible RViz preview happen
+        during moveit_execute_task.
         """
         return tools.plan_manipulation_task(
             robot_name,
@@ -435,6 +439,7 @@ def build_mcp(*, tools: MoveItMcpTools, host: str = "127.0.0.1", port: int = 800
         robot_name: RobotName = "UR10",
         plan_name: PlanName = None,
         timeout_s: TimeoutSeconds = 10.0,
+        contact_allowance: ContactAllowance = None,
     ) -> dict[str, Any]:
         """Plan a collision-aware free-space motion to one target pose in base_link.
 
@@ -449,6 +454,7 @@ def build_mcp(*, tools: MoveItMcpTools, host: str = "127.0.0.1", port: int = 800
             target_pose,
             timeout_s=timeout_s,
             allow_existing_name=False,
+            contact_allowance=contact_allowance,
         )
 
     @mcp.tool()
@@ -457,6 +463,7 @@ def build_mcp(*, tools: MoveItMcpTools, host: str = "127.0.0.1", port: int = 800
         robot_name: RobotName = "UR10",
         plan_name: PlanName = None,
         timeout_s: TimeoutSeconds = 10.0,
+        contact_allowance: ContactAllowance = None,
     ) -> dict[str, Any]:
         """Plan a Cartesian path through ordered waypoints in base_link.
 
@@ -475,6 +482,7 @@ def build_mcp(*, tools: MoveItMcpTools, host: str = "127.0.0.1", port: int = 800
             waypoints,
             timeout_s=timeout_s,
             allow_existing_name=False,
+            contact_allowance=contact_allowance,
         )
 
     @mcp.tool()

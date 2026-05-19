@@ -200,7 +200,7 @@ A successful MoveIt planning result with `ok=true`, `feedback.can_execute=true`,
 A successful task-level MoveIt MCP planning result with `ok=true`, `feedback.can_execute=true`, and a valid returned `raw.task_solution_id` for ordered pick/place/compound stages, bound to the **Scene Snapshot Evidence** used at planning time. It is planning evidence, not physical execution evidence.
 
 **Task Solution Cache**:
-The MCP-owned immutable store keyed by `task_solution_id`, containing the solved task payload, execution contract, scene snapshot evidence, preview evidence, creation time, and expiry evidence used later by approved task execution.
+The MCP-owned immutable store keyed by `task_solution_id`, containing the solved task payload, execution contract, scene snapshot evidence, deferred or completed preview evidence, creation time, and expiry evidence used later by approved task execution.
 
 **Verified Real Robot Execution**:
 The host-side actuation boundary that executes cached MoveIt plans on the physical UR10 and Robotiq path after explicit execution intent.
@@ -230,7 +230,7 @@ The single model-visible task execution tool, `moveit_execute_task`, that execut
 A single approved task-level execution call that preserves a clean agent-facing contract while internally executing and reporting ordered digital/AR, physical motion, gripper, attach/release, and verification stages. It must not be an opaque timeout-prone wrapper.
 
 **Stage-Synchronized Dual Execution**:
-The rule that one execution-contract stage identity ties together digital/AR/RViz proof and physical proof. A motion stage's AR preview, MoveIt plan evidence, and verified physical execution all refer to the same approved stage and plan evidence.
+The rule that one execution-contract stage identity ties together task-contract readiness, digital/AR/RViz proof, and physical proof. A motion stage's execution-time AR preview, MoveIt plan evidence, and verified physical execution all refer to the same approved stage.
 
 **Physical Alignment Probe**:
 A read-only UR RTDE Receive observation used to compare the connected UR controller's actual joints or TCP pose against expected execution state. It is used only when the robot responds; it must not become a requirement for the digital/AR/RViz path when the physical robot is unavailable.
@@ -272,7 +272,7 @@ A MoveIt MCP pick workflow that plans observe, approach, gripper, attach, lift, 
 A MoveIt MCP place workflow that plans object placement stages as one **Task Solution** and still requires execution plus release or placed-object evidence before a success claim.
 
 **Task-Level Manipulation Planner**:
-The one model-visible planner, `moveit_plan_manipulation_task`, for manipulation requests such as hold, pick-place, move-and-release, place, and release. It accepts the desired object, goal, and target pose requirements, then returns a **Task Solution** only when the selected backend can produce previewable, executable, proof-backed stages.
+The one model-visible planner, `moveit_plan_manipulation_task`, for manipulation requests such as hold, pick-place, move-and-release, place, and release. It accepts the desired object, goal, and target pose requirements, then returns a **Task Solution** when geometry, scene evidence, approval metadata, and an executable **Execution Contract** are ready. Motion planning and visible AgentPath/RViz preview may be deferred to approved execution.
 
 **Manipulation Goal**:
 The `requirements.goal` value for `moveit_plan_manipulation_task`. Supported goals are `hold`, `place`, `release`, `move_and_release`, and `pick_place`; natural "pick up" maps to `hold`, not to a separate `pick` goal.
@@ -305,7 +305,7 @@ Structured failed-planning or failed-execution feedback containing `failed_stage
 A plain user-facing question asked by Agent Orchestration after the staged backend exhausts clearly allowed automatic candidates and the next recovery option changes the intended grasp, risk, object setup, or requires human judgment.
 
 **Manipulation Plan Success**:
-A manipulation plan succeeds only when required motion stages are planned with non-empty trajectories, `AgentPath` preview evidence exists, the execution contract is complete, scene snapshot evidence exists, and approval evidence is prepared. Advisory integration facts such as AR subscriber absence or optional physical-model pose-update evidence do not block planning success.
+A manipulation plan succeeds when the task contract is ready: required object/target geometry is grounded, the execution contract is complete, scene snapshot evidence exists, candidate evidence is recorded, and approval evidence is prepared. For staged manipulation, motion plans and visible `AgentPath`/RViz preview are execution-time proof, not plan-time blockers. Advisory integration facts such as AR subscriber absence or optional physical-model pose-update evidence do not block planning success.
 
 **Release Intent**:
 Agent Orchestration's semantic interpretation of requests such as "drop it" or "let go" as releasing the currently held or attached object through a verified release workflow. It is not an uncontrolled physical drop or raw gripper command.
@@ -329,7 +329,7 @@ An optional MoveIt Task Constructor implementation backend for task-level tools.
 The operator-visible RViz/Vizor preview of a solved MTC task solution, published by the MTC backend on `/solution` for the RViz Motion Planning Tasks display. It is planning/preview evidence, not physical execution proof.
 
 **AR Planned Trajectory Preview**:
-The Vizor AR planned-motion preview carried on `/UR10/request/planned_path` as `vizor_package/PlannedTrajectory`, with `name`, `platform_name`, and `trajectory_msgs/JointTrajectory joint_trajectory`. The public AR path name for agent-planned manipulation is `AgentPath`. A composed trajectory for the whole motion is preferred; explicit staged preview is acceptable when a composed trajectory cannot be exported, using ordered stage names such as `AgentPath:01_approach`. The system must not synthesize a fake composed trajectory. The publisher authority is `/vizor_robot_control`; the MTC backend, MCP, and Pipecat must not become competing AR preview publishers. Publication failure for a motion-bearing task is a planning blocker, while subscriber absence is advisory integration evidence.
+The Vizor AR planned-motion preview carried on `/UR10/request/planned_path` as `vizor_package/PlannedTrajectory`, with `name`, `platform_name`, and `trajectory_msgs/JointTrajectory joint_trajectory`. The public AR path name for agent-planned manipulation is `AgentPath`. Staged manipulation may return a deferred `AgentPath` preview shape at planning time and publish concrete motion preview during `moveit_execute_task`. The system must not synthesize a fake composed trajectory. The publisher authority is `/vizor_robot_control`; the MTC backend, MCP, and Pipecat must not become competing AR preview publishers. Preview publication failure blocks only the execution-time stage that needs it; subscriber absence is advisory integration evidence.
 
 **AR AgentPath Execution**:
 The AR execution surface where a human presses the AR execute button and Vizor publishes `std_msgs/String` with payload `AgentPath` on `/UR10/command/execute`. For manipulation tasks, `AgentPath` means the whole approved goal, not one internal stage. Stop and gripper buttons remain operator controls and do not replace task-solution proof.
@@ -464,7 +464,7 @@ A compact local artifact recording tool order, typed tool outputs, policy decisi
 - **Task Solution Cache** owns immutable solved task payloads; approved execution reads the cached execution contract and bound scene evidence instead of trusting a model-restated contract.
 - `moveit_execute_task` recomputes **Scene Snapshot Evidence** through Robot Control/MCP at execution time; Agent Orchestration never computes or supplies the scene hash.
 - A live solved **MTC Backend** result must publish an **MTC Task Preview** when preview is part of the workflow; execution success still requires later attachment or release proof.
-- Every motion-bearing manipulation task should produce or verify an **AR Planned Trajectory Preview** before execution through the `/vizor_robot_control` publisher authority. The primary AR path name is `AgentPath` and represents the whole goal; staged details may use ordered names such as `AgentPath:01_approach`, `AgentPath:02_pre_grasp`, and `AgentPath:03_lift`. Publication failure blocks planning, and lack of an AR subscriber is reported clearly but is not a v1 planning blocker.
+- Every motion-bearing manipulation task should produce or verify an **AR Planned Trajectory Preview** during approved execution through the `/vizor_robot_control` publisher authority. The primary AR path name is `AgentPath` and represents the whole goal; staged details may use ordered names such as `AgentPath:01_approach`, `AgentPath:02_pre_grasp`, and `AgentPath:03_lift`. Publication failure blocks the execution stage that needs it, and lack of an AR subscriber is reported clearly but is not a v1 planning blocker.
 - A plain **Release Compound Goal** is not motion-bearing and reports no-motion preview evidence rather than publishing an **AR Planned Trajectory Preview**.
 - **Task Solution** execution requires the current planning scene to still match the bound **Scene Snapshot Evidence**; the normalized hash covers only planning-relevant scene facts, and **Material Scene Change** requires replanning.
 - A **Partial Pick Diagnostic** must not be stored as an **Executable Plan** or **Task Solution**.
@@ -498,9 +498,9 @@ A compact local artifact recording tool order, typed tool outputs, policy decisi
 - Motion planner choice is resolved: use **Hybrid Manipulation Stage Planning** by default; v1 uses `free_motion` for far approach/travel and reserves Cartesian planning for contact-sensitive local motion.
 - Sampled motion scope is resolved: `sampled_motion` is not part of the first hybrid manipulation optimization because it is not yet a complete task-stage planner.
 - Hybrid candidate failure is resolved: failure in either the `free_motion` far approach or a following Cartesian local stage counts as a normal candidate failure before the backend asks a **Manipulation Recovery Question**.
-- Hybrid preview evidence is resolved: both free-motion and Cartesian motion stages must publish or verify `AgentPath` preview evidence for motion-bearing manipulation success.
+- Hybrid preview evidence is resolved: free-motion and Cartesian motion stages carry deferred `AgentPath` preview metadata at plan time and publish or verify concrete preview evidence during execution.
 - Hybrid failure diagnostics are resolved: failed-candidate summaries include the planner used for each stage so the agent can distinguish far-approach failures from contact-sensitive Cartesian failures.
-- Hybrid task-solution strictness is resolved: a hybrid manipulation plan returns a `task_solution_id` only after all required free-motion and Cartesian stages plan successfully.
+- Hybrid task-solution strictness is resolved: a hybrid manipulation plan returns a `task_solution_id` after geometry and the execution contract are ready; required free-motion and Cartesian planning happens during approved execution.
 - Hybrid geometry scope is resolved: the first optimization keeps existing grasp and place candidate geometry and changes only planner choice per stage.
 - Hybrid goal scope is resolved: the stage policy applies to `hold`, `place`, `move_and_release`, and `pick_place` wherever those goals include far approach or held-object travel stages.
 - Hybrid timeout scope is resolved: v1 keeps the same per-stage timeout while changing planner choice; timeout tuning waits for measurement after the planner split.
@@ -516,11 +516,11 @@ A compact local artifact recording tool order, typed tool outputs, policy decisi
 - AR execution naming is resolved: AR execute publishes payload `AgentPath` to `/UR10/command/execute`; for manipulation this means execute the whole approved goal, not a single staged segment.
 - AR stop is resolved: `/UR10/command/stop` with payload `AgentPath` cancels the active AgentPath task, invalidates cached execution, and requires fresh observation plus a new plan before continuation.
 - AR gripper control is resolved: `/Robot/gripper` is a debug-only operator surface for this workflow; it is not normal task execution, HITL recovery, attachment proof, or release proof.
-- Preview/approval boundary is resolved: visible preview is required before `ok=true`, but physical execution still requires explicit spoken approval or an explicit AR execute action bound to the current `AgentPath` and cached **Task Solution**.
-- Partial planning is resolved: if any required task stage cannot be planned or previewed, planning returns `ok=false` with no `task_solution_id`; partial stages are diagnostics only.
+- Preview/approval boundary is resolved: `ok=true` from `moveit_plan_manipulation_task` means task-contract readiness. Visible preview is execution-time proof, and physical execution still requires explicit spoken approval or an explicit AR execute action bound to the current `AgentPath` and cached **Task Solution**.
+- Partial planning is resolved: if required geometry, target, scene context, or contract construction fails, planning returns `ok=false` with no `task_solution_id`; execution-time motion planning failures fail the affected stage and require a fresh plan or changed intent.
 - Hold lift ownership is resolved: Agent Orchestration supplies `lift_distance_m`; prompt default is `0.10` m, explicit zero-lift hold/support may use `0.0`, v1 bounds are `0.00`-`0.20` m, and Robot Control rejects out-of-bounds values.
-- AR preview shape is resolved: composed **AR Planned Trajectory Preview** is preferred, explicit staged preview publishes one ordered `PlannedTrajectory` per motion stage when composition is unavailable.
-- AR preview publication failure is resolved: publication failure for a motion-bearing task fails planning, while zero AR subscribers remain advisory.
+- AR preview shape is resolved: staged manipulation planning may return `ar_preview_mode="deferred_until_execution"`; execution-time composed **AR Planned Trajectory Preview** is preferred, with explicit staged preview available when composition is unavailable.
+- AR preview publication failure is resolved: publication failure for a deferred motion-bearing manipulation task fails execution-time planning/execution for that stage, while zero AR subscribers remain advisory.
 - Grasp control is resolved: Agent Orchestration may pass grasp-face preferences when fresh object context makes the choice clear; the staged backend still filters impossible beam faces, ranks candidates from scene evidence, and reports selected-candidate evidence.
 - Task solution cache ownership is resolved: MCP owns immutable cached **Task Solution** payloads keyed by `task_solution_id`.
 - Task solution freshness is resolved: executing a **Task Solution** requires matching normalized relevant-scene **Scene Snapshot Evidence**, Robot Control/MCP execution-time hash recomputation, and approval within 60 seconds or the current spoken approval turn.

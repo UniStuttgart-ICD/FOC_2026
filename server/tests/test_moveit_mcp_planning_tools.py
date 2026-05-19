@@ -136,6 +136,32 @@ def _acm_allows(acm: dict, first: str, second: str) -> bool:
     return second_index < len(enabled) and bool(enabled[second_index])
 
 
+def _assert_deferred_preview(raw: dict, names: list[str], planners: list[str]) -> None:
+    preview = raw["preview"]
+    assert preview["kind"] == "AgentPath"
+    assert preview["name"] == "AgentPath"
+    assert preview["ar_preview_mode"] == "deferred_until_execution"
+    assert [stage["name"] for stage in preview["motion_stages"]] == names
+    assert [stage["planner"] for stage in preview["motion_stages"]] == planners
+    assert all(stage["planner_pipeline"] == "ompl" for stage in preview["motion_stages"])
+    assert all(stage["planner_id"] == "RRTConnect" for stage in preview["motion_stages"])
+    assert all("plan_name" not in stage for stage in preview["motion_stages"])
+    assert all("trajectory_points" not in stage for stage in preview["motion_stages"])
+
+
+def _assert_deferred_motion_contract(raw: dict, names: list[str], planners: list[str]) -> list[dict]:
+    motion_steps = [
+        step
+        for step in raw["execution_contract"]["steps"]
+        if step["handler"] == "motion"
+    ]
+    assert [step["source_stage"] for step in motion_steps] == names
+    assert [step["planner"] for step in motion_steps] == planners
+    assert all(step["required_proof"] == "emulated_motion_plan" for step in motion_steps)
+    assert all("plan_handle" not in step for step in motion_steps)
+    return motion_steps
+
+
 def test_get_current_pose_returns_read_only_pose_feedback():
     transport = FakeRosbridgeTransport()
     transport.set_current_pose("UR10", CURRENT_POSE, planning_frame="base_link")
@@ -581,10 +607,9 @@ def test_plan_manipulation_task_hold_uses_required_grasp_face() -> None:
     assert raw["selected_candidate"]["grasp_face"] == "top"
 
 
-def test_plan_manipulation_task_hold_returns_staged_preview_before_execution():
+def test_plan_manipulation_task_hold_returns_deferred_task_contract_without_preview_publication():
     transport = FakeRosbridgeTransport()
     transport.set_planning_scene("UR10", PLANNING_SCENE, planning_frame="base_link")
-    _queue_successful_hold_preview(transport, "beam_001")
     tools = MoveItMcpTools.with_fake_transport(transport)
 
     result = tools.plan_manipulation_task(
@@ -604,20 +629,9 @@ def test_plan_manipulation_task_hold_returns_staged_preview_before_execution():
     assert raw["selected_candidate"]["attempt_index"] == 1
     assert raw["selected_candidate"]["grasp_face"] == "top"
     assert raw["candidate_attempts"][0]["selected"] is True
-    assert raw["preview"]["kind"] == "AgentPath"
-    assert [stage["name"] for stage in raw["preview"]["motion_stages"]] == [
-        "connect_to_pre_grasp",
-        "approach_to_pre_grasp",
-        "post_grasp_lift",
-    ]
-    assert [stage["planner"] for stage in raw["preview"]["motion_stages"]] == [
-        "free_motion",
-        "cartesian",
-        "cartesian",
-    ]
-    assert all(stage["planner_pipeline"] == "ompl" for stage in raw["preview"]["motion_stages"])
-    assert all(stage["planner_id"] == "RRTConnect" for stage in raw["preview"]["motion_stages"])
-    assert all(stage["trajectory_points"] > 0 for stage in raw["preview"]["motion_stages"])
+    stage_names = ["connect_to_pre_grasp", "approach_to_pre_grasp", "post_grasp_lift"]
+    planners = ["free_motion", "cartesian", "cartesian"]
+    _assert_deferred_preview(raw, stage_names, planners)
     assert raw["execution_contract"]["can_execute"] is True
     steps = raw["execution_contract"]["steps"]
     assert [step["handler"] for step in steps] == [
@@ -628,21 +642,15 @@ def test_plan_manipulation_task_hold_returns_staged_preview_before_execution():
         "motion",
         "verify_attached_object",
     ]
-    motion_steps = [step for step in steps if step["handler"] == "motion"]
-    assert all("plan_handle" in step for step in motion_steps)
-    assert not any("task_contract_waypoint" in str(stage) for stage in raw["stages"])
-    assert [topic for topic, _ in transport.published] == [
-        "/UR10/request/free",
-        "/UR10/request/cartesian",
-        "/UR10/request/cartesian",
-    ]
+    _assert_deferred_motion_contract(raw, stage_names, planners)
+    assert any("task_contract_waypoint" in str(stage) for stage in raw["stages"])
+    assert transport.published == []
     assert not any(topic == "/UR10/request/sampled" for topic, _ in transport.published)
 
 
 def test_plan_manipulation_task_hold_scopes_contact_allowance_to_pick_contact_stages():
     transport = FakeRosbridgeTransport()
     transport.set_planning_scene("UR10", PLANNING_SCENE, planning_frame="base_link")
-    _queue_successful_hold_preview(transport, "beam_001")
     tools = MoveItMcpTools.with_fake_transport(transport)
 
     result = tools.plan_manipulation_task(
@@ -673,14 +681,12 @@ def test_plan_manipulation_task_hold_scopes_contact_allowance_to_pick_contact_st
         for payload in transport.applied_planning_scenes
         if _acm_allows(payload.get("allowed_collision_matrix", {}), "beam_001", "tool0")
     ]
-    assert len(enabled_acms) == 2
-    assert all(_acm_allows(acm, "beam_001", link) for acm in enabled_acms for link in DEFAULT_TOUCH_LINKS)
+    assert enabled_acms == []
 
 
 def test_plan_manipulation_task_hold_accepts_zero_lift_distance():
     transport = FakeRosbridgeTransport()
     transport.set_planning_scene("UR10", PLANNING_SCENE, planning_frame="base_link")
-    _queue_successful_hold_preview(transport, "beam_001")
     tools = MoveItMcpTools.with_fake_transport(transport)
 
     result = tools.plan_manipulation_task(
@@ -696,10 +702,11 @@ def test_plan_manipulation_task_hold_accepts_zero_lift_distance():
     assert raw["selected_candidate"]["lift_distance_m"] == 0.0
     assert raw["waypoints"][2]["position"]["z"] == raw["waypoints"][1]["position"]["z"]
     assert raw["execution_contract"]["can_execute"] is True
-    assert [stage["name"] for stage in raw["preview"]["motion_stages"]] == [
-        "connect_to_pre_grasp",
-        "approach_to_pre_grasp",
-    ]
+    _assert_deferred_preview(
+        raw,
+        ["connect_to_pre_grasp", "approach_to_pre_grasp"],
+        ["free_motion", "cartesian"],
+    )
     assert [step["handler"] for step in raw["execution_contract"]["steps"]] == [
         "motion",
         "motion",
@@ -711,17 +718,14 @@ def test_plan_manipulation_task_hold_accepts_zero_lift_distance():
         step.get("source_stage") == "post_grasp_lift"
         for step in raw["execution_contract"]["steps"]
     )
-    assert [topic for topic, _ in transport.published] == [
-        "/UR10/request/free",
-        "/UR10/request/cartesian",
-    ]
+    assert transport.published == []
     assert not any(
         str(payload.get("name", "")).endswith("_post_grasp_lift")
         for _topic, payload in transport.published
     )
 
 
-def test_plan_manipulation_task_hold_requires_preview_planning_for_offset_object():
+def test_plan_manipulation_task_hold_builds_deferred_contract_for_offset_object():
     dynamic_2_scene = {
         "scene": {
             "world": {
@@ -746,7 +750,6 @@ def test_plan_manipulation_task_hold_requires_preview_planning_for_offset_object
     }
     transport = FakeRosbridgeTransport()
     transport.set_planning_scene("UR10", dynamic_2_scene, planning_frame="base_link")
-    _queue_successful_hold_preview(transport, "dynamic_2")
     tools = MoveItMcpTools.with_fake_transport(transport)
 
     result = tools.plan_manipulation_task(
@@ -771,17 +774,17 @@ def test_plan_manipulation_task_hold_requires_preview_planning_for_offset_object
         "motion",
         "verify_attached_object",
     ]
-    assert all("plan_handle" in step for step in steps if step["handler"] == "motion")
+    _assert_deferred_motion_contract(
+        raw,
+        ["connect_to_pre_grasp", "approach_to_pre_grasp", "post_grasp_lift"],
+        ["free_motion", "cartesian", "cartesian"],
+    )
     assert raw["selected_grasp_face"]["name"] == "top"
     assert raw["candidate_attempts"][0]["selected"] is True
-    assert [topic for topic, _ in transport.published] == [
-        "/UR10/request/free",
-        "/UR10/request/cartesian",
-        "/UR10/request/cartesian",
-    ]
+    assert transport.published == []
 
 
-def test_plan_manipulation_task_hold_fails_when_first_motion_stage_has_no_preview():
+def test_plan_manipulation_task_hold_does_not_require_preview_publication():
     transport = FakeRosbridgeTransport()
     transport.set_planning_scene("UR10", VERTICAL_BEAM_SCENE, planning_frame="base_link")
     transport.queue_status_after_publish("/UR10/request/status", "planning result invalid")
@@ -800,11 +803,12 @@ def test_plan_manipulation_task_hold_fails_when_first_motion_stage_has_no_previe
         timeout_s=0.1,
     )
 
-    assert result["ok"] is False
-    assert result["feedback"]["can_execute"] is False
-    assert result["failed_stage"] == "connect_to_pre_grasp"
-    assert "task_solution_id" not in result["raw"]
-    assert tools._task_solutions == {}
+    assert result["ok"] is True
+    assert result["feedback"]["can_execute"] is True
+    raw = result["raw"]
+    assert raw["task_solution_id"] in tools._task_solutions
+    assert raw["preview"]["ar_preview_mode"] == "deferred_until_execution"
+    assert [topic for topic, _ in transport.published] == []
 
 
 def test_plan_place_task_returns_execution_contract_for_verified_release():
@@ -848,18 +852,6 @@ def test_plan_manipulation_task_place_scopes_contact_allowance_to_final_approach
     transport = FakeRosbridgeTransport()
     transport.set_planning_scene("UR10", deepcopy(ATTACHED_PLANNING_SCENE), planning_frame="base_link")
     transport.set_current_pose("UR10", CURRENT_POSE, planning_frame="base_link")
-    for plan_name in [
-        "manipulation_place_beam_001_c01_connect_to_place",
-        "manipulation_place_beam_001_c01_approach_place",
-        "manipulation_place_beam_001_c01_retreat",
-    ]:
-        transport.queue_status_after_publish("/UR10/request/status", "success! ")
-        transport.queue_planned_path_after_publish(
-            "/UR10/request/planned_path",
-            name=plan_name,
-            points=5,
-            final_positions=FINAL_POSITIONS,
-        )
     tools = MoveItMcpTools.with_fake_transport(transport)
     tools.gripper.attach("UR10", "beam_001")
 
@@ -896,8 +888,7 @@ def test_plan_manipulation_task_place_scopes_contact_allowance_to_final_approach
         for payload in transport.applied_planning_scenes
         if _acm_allows(payload.get("allowed_collision_matrix", {}), "beam_001", "ground_plane")
     ]
-    assert len(enabled_acms) == 1
-    assert not _acm_allows(enabled_acms[0], "tool0", "ground_plane")
+    assert enabled_acms == []
 
 
 def test_plan_manipulation_task_release_uses_current_held_object_without_motion():
@@ -927,16 +918,9 @@ def test_plan_manipulation_task_release_uses_current_held_object_without_motion(
     assert raw["execution_contract"]["steps"][1]["arguments"]["object_pose"]
 
 
-def test_plan_manipulation_task_move_plans_cartesian_tcp_motion_without_release():
+def test_plan_manipulation_task_move_returns_deferred_tcp_motion_without_release():
     transport = FakeRosbridgeTransport()
     transport.set_current_pose("UR10", CURRENT_POSE, planning_frame="base_link")
-    transport.queue_status_after_publish("/UR10/request/status", "success! ")
-    transport.queue_planned_path_after_publish(
-        "/UR10/request/planned_path",
-        name="manipulation_move_tcp_c01_move_tcp",
-        points=5,
-        final_positions=FINAL_POSITIONS,
-    )
     tools = MoveItMcpTools.with_fake_transport(transport)
 
     result = tools.plan_manipulation_task(
@@ -957,29 +941,17 @@ def test_plan_manipulation_task_move_plans_cartesian_tcp_motion_without_release(
     raw = result["raw"]
     assert raw["task_kind"] == "move"
     assert raw["object_name"] == "tcp"
-    assert [stage["name"] for stage in raw["preview"]["motion_stages"]] == ["move_tcp"]
+    _assert_deferred_preview(raw, ["move_tcp"], ["cartesian"])
     assert [step["handler"] for step in raw["execution_contract"]["steps"]] == ["motion"]
     assert raw["execution_contract"]["steps"][0]["target_pose"] == raw["target_pose"]
-    assert [topic for topic, _ in transport.published] == ["/UR10/request/cartesian"]
-    assert transport.published[0][1]["poses"] == [
-        {
-            "position": {"x": 0.57, "y": 0.39, "z": 0.92},
-            "orientation": CURRENT_POSE["orientation"],
-        }
-    ]
+    _assert_deferred_motion_contract(raw, ["move_tcp"], ["cartesian"])
+    assert transport.published == []
 
 
 def test_plan_manipulation_task_move_keeps_attached_object_held():
     transport = FakeRosbridgeTransport()
     transport.set_planning_scene("UR10", ATTACHED_PLANNING_SCENE, planning_frame="base_link")
     transport.set_current_pose("UR10", CURRENT_POSE, planning_frame="base_link")
-    transport.queue_status_after_publish("/UR10/request/status", "success! ")
-    transport.queue_planned_path_after_publish(
-        "/UR10/request/planned_path",
-        name="manipulation_move_beam_001_c01_move_tcp",
-        points=5,
-        final_positions=FINAL_POSITIONS,
-    )
     tools = MoveItMcpTools.with_fake_transport(transport)
     tools.gripper.set_state("UR10", "closed")
     tools.gripper.attach("UR10", "beam_001")
@@ -1002,35 +974,20 @@ def test_plan_manipulation_task_move_keeps_attached_object_held():
     assert raw["task_kind"] == "move"
     assert raw["object_name"] == "beam_001"
     assert "held object" in raw["approval"]["expected_movement"]
-    assert [step["handler"] for step in raw["execution_contract"]["steps"]] == ["motion"]
+    assert [step["handler"] for step in raw["execution_contract"]["steps"]] == ["motion", "verify_attached_object"]
     assert raw["execution_contract"]["steps"][0]["target_pose"] == raw["target_pose"]
     assert "open_gripper" not in [stage["name"] for stage in raw["stages"]]
     assert "detach_object" not in [stage["name"] for stage in raw["stages"]]
     assert "verify_released_object" not in [stage["name"] for stage in raw["stages"]]
-    assert transport.published[0][1]["poses"] == [
-        {
-            "position": {"x": 0.57, "y": 0.19, "z": 0.62},
-            "orientation": CURRENT_POSE["orientation"],
-        }
-    ]
+    assert "verify_attached_object" in [stage["name"] for stage in raw["stages"]]
+    _assert_deferred_motion_contract(raw, ["move_tcp"], ["cartesian"])
+    assert transport.published == []
 
 
 def test_plan_manipulation_task_place_reuses_staged_place_contract():
     transport = FakeRosbridgeTransport()
     transport.set_planning_scene("UR10", ATTACHED_PLANNING_SCENE, planning_frame="base_link")
     transport.set_current_pose("UR10", CURRENT_POSE, planning_frame="base_link")
-    for plan_name in [
-        "manipulation_place_beam_001_c01_connect_to_place",
-        "manipulation_place_beam_001_c01_approach_place",
-        "manipulation_place_beam_001_c01_retreat",
-    ]:
-        transport.queue_status_after_publish("/UR10/request/status", "success! ")
-        transport.queue_planned_path_after_publish(
-            "/UR10/request/planned_path",
-            name=plan_name,
-            points=5,
-            final_positions=FINAL_POSITIONS,
-        )
     tools = MoveItMcpTools.with_fake_transport(transport)
     tools.gripper.attach("UR10", "beam_001")
 
@@ -1049,17 +1006,9 @@ def test_plan_manipulation_task_place_reuses_staged_place_contract():
     raw = result["raw"]
     assert raw["task_kind"] == "place"
     assert raw["created_from_tool"] == "moveit_plan_manipulation_task"
-    assert raw["preview"]["name"] == "AgentPath"
-    assert [stage["name"] for stage in raw["preview"]["motion_stages"]] == [
-        "connect_to_place",
-        "approach_place",
-        "retreat",
-    ]
-    assert [stage["planner"] for stage in raw["preview"]["motion_stages"]] == [
-        "free_motion",
-        "cartesian",
-        "cartesian",
-    ]
+    stage_names = ["connect_to_place", "approach_place", "retreat"]
+    planners = ["free_motion", "cartesian", "cartesian"]
+    _assert_deferred_preview(raw, stage_names, planners)
     assert [step["handler"] for step in raw["execution_contract"]["steps"]] == [
         "motion",
         "motion",
@@ -1071,32 +1020,14 @@ def test_plan_manipulation_task_place_reuses_staged_place_contract():
     assert raw["execution_contract"]["steps"][0]["source_stage"] == "connect_to_place"
     assert raw["execution_contract"]["steps"][1]["source_stage"] == "approach_place"
     assert raw["execution_contract"]["steps"][4]["source_stage"] == "retreat"
-    assert [topic for topic, _ in transport.published] == [
-        "/UR10/request/free",
-        "/UR10/request/cartesian",
-        "/UR10/request/cartesian",
-    ]
+    _assert_deferred_motion_contract(raw, stage_names, planners)
+    assert transport.published == []
 
 
 def test_plan_manipulation_task_pick_place_combines_hold_and_release_contract():
     transport = FakeRosbridgeTransport()
     transport.set_planning_scene("UR10", PLANNING_SCENE, planning_frame="base_link")
     transport.set_current_pose("UR10", CURRENT_POSE, planning_frame="base_link")
-    for plan_name in [
-        "manipulation_hold_beam_001_c01_connect_to_pre_grasp",
-        "manipulation_hold_beam_001_c01_approach_to_pre_grasp",
-        "manipulation_hold_beam_001_c01_post_grasp_lift",
-        "manipulation_pick_place_beam_001_c01_connect_to_place",
-        "manipulation_pick_place_beam_001_c01_approach_place",
-        "manipulation_pick_place_beam_001_c01_retreat",
-    ]:
-        transport.queue_status_after_publish("/UR10/request/status", "success! ")
-        transport.queue_planned_path_after_publish(
-            "/UR10/request/planned_path",
-            name=plan_name,
-            points=5,
-            final_positions=FINAL_POSITIONS,
-        )
     tools = MoveItMcpTools.with_fake_transport(transport)
 
     result = tools.plan_manipulation_task(
@@ -1115,7 +1046,7 @@ def test_plan_manipulation_task_pick_place_combines_hold_and_release_contract():
     assert raw["task_kind"] == "pick_place"
     assert raw["selected_candidate"]["attempt_index"] == 1
     assert len(raw["waypoints"]) == 6
-    assert [stage["name"] for stage in raw["preview"]["motion_stages"]] == [
+    stage_names = [
         "connect_to_pre_grasp",
         "approach_to_pre_grasp",
         "post_grasp_lift",
@@ -1123,7 +1054,7 @@ def test_plan_manipulation_task_pick_place_combines_hold_and_release_contract():
         "approach_place",
         "retreat",
     ]
-    assert [stage["planner"] for stage in raw["preview"]["motion_stages"]] == [
+    planners = [
         "free_motion",
         "cartesian",
         "cartesian",
@@ -1131,6 +1062,7 @@ def test_plan_manipulation_task_pick_place_combines_hold_and_release_contract():
         "cartesian",
         "cartesian",
     ]
+    _assert_deferred_preview(raw, stage_names, planners)
     assert [step["handler"] for step in raw["execution_contract"]["steps"]] == [
         "motion",
         "motion",
@@ -1147,14 +1079,8 @@ def test_plan_manipulation_task_pick_place_combines_hold_and_release_contract():
     assert raw["execution_contract"]["steps"][5]["source_stage"] == "connect_to_place"
     assert raw["execution_contract"]["steps"][6]["source_stage"] == "approach_place"
     assert raw["execution_contract"]["steps"][9]["source_stage"] == "retreat"
-    assert [topic for topic, _ in transport.published] == [
-        "/UR10/request/free",
-        "/UR10/request/cartesian",
-        "/UR10/request/cartesian",
-        "/UR10/request/free",
-        "/UR10/request/cartesian",
-        "/UR10/request/cartesian",
-    ]
+    _assert_deferred_motion_contract(raw, stage_names, planners)
+    assert transport.published == []
 
 
 def test_plan_pick_task_mtc_enabled_unavailable_fails_without_emulated_fallback():

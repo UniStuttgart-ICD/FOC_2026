@@ -20,7 +20,7 @@ def test_modeltracker_sync_server_accepts_post_and_logs(tmp_path) -> None:
     try:
         body = json.dumps(
             {
-                "names": ["dynamic_snappy-V44B80_box0"],
+                "names": ["dynamic_snappy-V110B110_box0"],
                 "orient": [_rotation_z(math.pi / 2.0)],
                 "transl": [_translation(0.2, 0.3, 0.4)],
                 "mesh_centers": [[0.2, 0.3, 0.4]],
@@ -44,11 +44,11 @@ def test_modeltracker_sync_server_accepts_post_and_logs(tmp_path) -> None:
     assert payload["object_name"] == "dynamic_0"
 
     data = json.loads(model_path.read_text(encoding="utf-8"))
-    assert data["bodies"][0]["pose"]["xyz"] == [-0.2, -0.3, 0.4]
+    assert data["bodies"][0]["pose"]["xyz"] == [-0.3, 0.2, 0.4]
 
     logs = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
     assert logs[0]["result"]["ok"] is True
-    assert logs[0]["event"]["names"] == ["dynamic_snappy-V44B80_box0"]
+    assert logs[0]["event"]["names"] == ["dynamic_snappy-V110B110_box0"]
 
 
 def _model() -> dict:

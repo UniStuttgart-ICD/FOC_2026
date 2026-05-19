@@ -410,7 +410,6 @@ def test_execute_manipulation_task_reapplies_pick_contact_allowance_for_approach
         },
         planning_frame="base_link",
     )
-    _queue_staged_hold_preview(transport)
     transport.queue_action_result("/UR10/command_robotiq_action", {"position": 0.0, "requested_position": 0.0})
     transport.queue_joint_state_after_action("/UR10/gripper_joint_states", [0.8])
     tools = MoveItMcpTools.with_fake_transport(transport)
@@ -426,20 +425,38 @@ def test_execute_manipulation_task_reapplies_pick_contact_allowance_for_approach
         for payload in transport.applied_planning_scenes
         if _acm_allows(payload.get("allowed_collision_matrix", {}), "beam_001", "tool0")
     ]
+    assert initial_enabled_acms == []
 
-    for _ in range(3):
+    task_solution_id = planned["raw"]["task_solution_id"]
+    for stage in ("connect_to_pre_grasp", "approach_to_pre_grasp", "post_grasp_lift"):
+        plan_name = f"{task_solution_id}__{stage}"
+        transport.queue_status_after_publish("/UR10/request/status", "success! ")
+        transport.queue_planned_path_after_publish(
+            "/UR10/request/planned_path",
+            name=plan_name,
+            points=3,
+            final_positions=FINAL_POSITIONS,
+        )
         transport.queue_joint_state_after_publish(JOINT_TOPIC, FINAL_POSITIONS)
     result = tools.execute_task_solution("UR10", planned["raw"]["task_solution_id"], timeout_s=0.1)
 
-    assert result["ok"] is False
-    assert result["feedback"]["status"] == "approach_to_pre_grasp failed"
+    assert result["ok"] is True
+    assert [stage["name"] for stage in result["raw"]["stages"]] == [
+        "connect_to_pre_grasp",
+        "approach_to_pre_grasp",
+        "close_gripper",
+        "attach_object",
+        "post_grasp_lift",
+        "verify_attached_object",
+    ]
+    assert [topic for topic, _ in transport.published].count("/UR10/request/free") == 1
+    assert [topic for topic, _ in transport.published].count("/UR10/request/cartesian") == 2
     enabled_acms = [
         payload["allowed_collision_matrix"]
         for payload in transport.applied_planning_scenes
         if _acm_allows(payload.get("allowed_collision_matrix", {}), "beam_001", "tool0")
     ]
-    assert len(initial_enabled_acms) == 2
-    assert len(enabled_acms) == 3
+    assert len(enabled_acms) == 2
 
 
 def test_attach_object_accepts_verified_external_gripper_close_without_action_goal() -> None:

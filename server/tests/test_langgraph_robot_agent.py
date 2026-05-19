@@ -4341,6 +4341,16 @@ async def test_graph_executes_long_hybrid_contract_from_cached_task_plan() -> No
         "position": {"x": 0.68, "y": 0.18, "z": 0.30},
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
     }
+    pick_contact_allowance = {
+        "category": "gripper_touch_links_to_target",
+        "object_name": "dynamic_5",
+        "pairs": [["tool0", "dynamic_5"]],
+    }
+    place_contact_allowance = {
+        "category": "held_object_to_world",
+        "object_name": "dynamic_5",
+        "pairs": [["dynamic_5", "ground_plane"]],
+    }
     waypoints = [
         {
             "position": {"x": 0.40, "y": 0.10, "z": 0.36},
@@ -4386,6 +4396,7 @@ async def test_graph_executes_long_hybrid_contract_from_cached_task_plan() -> No
                     "object_name": "dynamic_5",
                     "scene_snapshot_id": scene_snapshot_id,
                     "required_proof": "emulated_motion_plan",
+                    "planner": "free_motion",
                 },
                 {
                     "handler": "motion",
@@ -4395,6 +4406,8 @@ async def test_graph_executes_long_hybrid_contract_from_cached_task_plan() -> No
                     "object_name": "dynamic_5",
                     "scene_snapshot_id": scene_snapshot_id,
                     "required_proof": "emulated_motion_plan",
+                    "planner": "cartesian",
+                    "contact_allowance": pick_contact_allowance,
                 },
                 {
                     "handler": "close_gripper",
@@ -4420,6 +4433,7 @@ async def test_graph_executes_long_hybrid_contract_from_cached_task_plan() -> No
                     "object_name": "dynamic_5",
                     "scene_snapshot_id": scene_snapshot_id,
                     "required_proof": "emulated_motion_plan",
+                    "planner": "cartesian",
                 },
                 {
                     "handler": "motion",
@@ -4429,6 +4443,7 @@ async def test_graph_executes_long_hybrid_contract_from_cached_task_plan() -> No
                     "object_name": "dynamic_5",
                     "scene_snapshot_id": scene_snapshot_id,
                     "required_proof": "emulated_motion_plan",
+                    "planner": "free_motion",
                 },
                 {
                     "handler": "motion",
@@ -4438,6 +4453,8 @@ async def test_graph_executes_long_hybrid_contract_from_cached_task_plan() -> No
                     "object_name": "dynamic_5",
                     "scene_snapshot_id": scene_snapshot_id,
                     "required_proof": "emulated_motion_plan",
+                    "planner": "cartesian",
+                    "contact_allowance": place_contact_allowance,
                 },
                 {
                     "handler": "open_gripper",
@@ -4465,6 +4482,7 @@ async def test_graph_executes_long_hybrid_contract_from_cached_task_plan() -> No
                     "object_name": "dynamic_5",
                     "scene_snapshot_id": scene_snapshot_id,
                     "required_proof": "emulated_motion_plan",
+                    "planner": "cartesian",
                 },
                 {
                     "handler": "verify_released_object",
@@ -4545,6 +4563,13 @@ async def test_graph_executes_long_hybrid_contract_from_cached_task_plan() -> No
     )
     assert len(approach_call[1]["waypoints"]) == 1
     assert approach_call[1]["waypoints"][0] == waypoints[1]
+    assert approach_call[1]["contact_allowance"] == pick_contact_allowance
+    place_approach_call = next(
+        call
+        for call in planning_calls
+        if str(call[1]["plan_name"]).startswith(f"{task_solution_id}_approach_place_")
+    )
+    assert place_approach_call[1]["contact_allowance"] == place_contact_allowance
     assert [call[1] for call in verified_client.calls] == [
         arguments["plan_name"] for _tool_name, arguments in planning_calls
     ]
@@ -5556,7 +5581,7 @@ async def test_graph_rejects_verified_motion_contract_without_plan_handle() -> N
     assert output == {
         "ok": False,
         "error": "Task plan execution_contract motion step is missing plan_handle.",
-        "correction": "Plan the manipulation task again with MoveIt preview evidence.",
+        "correction": "Plan the task again so verified motion steps include a plan_handle.",
         "retryable": False,
     }
 

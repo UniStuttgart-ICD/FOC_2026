@@ -221,7 +221,9 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "'keep holding it' must not use move_and_release; use move instead. Use move_and_release only for "
         "explicit release, place, or delivery intent. "
         "Optional preferences are non-executable planner hints. It returns task_solution_id, "
-        "execution_contract, preview evidence, scene snapshot evidence, and approval payload. "
+        "execution_contract, deferred or completed preview evidence, scene snapshot evidence, "
+        "and approval payload. Plan success means task-contract readiness; motion planning "
+        "and visible AgentPath/RViz preview may happen during moveit_execute_task. "
         "It does not execute motion or gripper actions."
     ),
     "moveit_execute_task_solution": (
@@ -389,8 +391,24 @@ _ALLOWED_ARGUMENTS: dict[str, set[str]] = {
     },
     "moveit_verify_released_object": {"robot_name", "object_name", "timeout_s"},
     "moveit_remove_scene_object": {"robot_name", "object_name", "timeout_s"},
-    "moveit_plan_free_motion": {"robot_name", "target_pose", "position", "plan_name", "timeout_s", "allow_existing_name"},
-    "moveit_plan_cartesian_motion": {"robot_name", "waypoints", "positions", "plan_name", "timeout_s", "allow_existing_name"},
+    "moveit_plan_free_motion": {
+        "robot_name",
+        "target_pose",
+        "position",
+        "plan_name",
+        "timeout_s",
+        "allow_existing_name",
+        "contact_allowance",
+    },
+    "moveit_plan_cartesian_motion": {
+        "robot_name",
+        "waypoints",
+        "positions",
+        "plan_name",
+        "timeout_s",
+        "allow_existing_name",
+        "contact_allowance",
+    },
     "moveit_execute_plan": {"robot_name", "plan_name", "timeout_s"},
     "moveit_open_gripper": {"robot_name", "timeout_s"},
     "moveit_close_gripper": {"robot_name", "timeout_s"},
@@ -881,12 +899,14 @@ def validate_robot_tool_call(
     if name == "moveit_plan_free_motion":
         pose = arguments.get("target_pose", arguments.get("position"))
         _validate_pose(pose)
+        _validate_contact_allowance(arguments.get("contact_allowance"))
         _validate_timeout(arguments.get("timeout_s"))
         return
 
     if name == "moveit_plan_cartesian_motion":
         waypoints = arguments.get("waypoints", arguments.get("positions"))
         _validate_waypoints(waypoints)
+        _validate_contact_allowance(arguments.get("contact_allowance"))
         _validate_timeout(arguments.get("timeout_s"))
         return
 
@@ -1050,7 +1070,7 @@ def _validate_recent_task_solution_execution_evidence(
             if not isinstance(plan_handle, str) or not plan_handle.strip():
                 raise RobotCallValidationError(
                     "Task plan execution_contract motion step is missing plan_handle",
-                    correction="Plan the manipulation task again with MoveIt preview evidence.",
+                    correction="Plan the task again so verified motion steps include a plan_handle.",
                     retryable=False,
                     suggested_next_tool=None,
                 )
@@ -1149,6 +1169,41 @@ def _validate_waypoints(value: Any) -> None:
         )
     for waypoint in value:
         _validate_pose(waypoint)
+
+
+def _validate_contact_allowance(value: Any) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise RobotCallValidationError(
+            "Invalid contact_allowance",
+            correction="Use the execution_contract contact_allowance object returned by the task planner.",
+        )
+    for key in ("category", "object_name"):
+        field = value.get(key)
+        if field is not None and (not isinstance(field, str) or not field.strip()):
+            raise RobotCallValidationError(
+                "Invalid contact_allowance",
+                correction="Use non-empty strings for contact_allowance metadata.",
+            )
+    pairs = value.get("pairs")
+    if pairs is None:
+        return
+    if not isinstance(pairs, list):
+        raise RobotCallValidationError(
+            "Invalid contact_allowance",
+            correction="Use contact_allowance.pairs as a list of two-name collision pairs.",
+        )
+    for pair in pairs:
+        if (
+            not isinstance(pair, list)
+            or len(pair) != 2
+            or not all(isinstance(name, str) and name.strip() for name in pair)
+        ):
+            raise RobotCallValidationError(
+                "Invalid contact_allowance",
+                correction="Use contact_allowance.pairs as two-item string lists.",
+            )
 
 
 def _validate_pick_distance(value: Any) -> None:

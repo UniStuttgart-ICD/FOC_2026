@@ -2,7 +2,7 @@
   "schema": "pipecat.shared_geometry.common_model.v0.1",
   "version": "0.1.0",
   "name": "three_dynamic_a_c_gate_with_inventory",
-  "description": "MoveIt planning collision proxy scene for nominal A/B/C beams. Body lengths are scaled to 90% and section thickness is scaled to 81% of the hologram geometry while poses, axes, and feature coordinates remain nominal.",
+  "description": "Physical scene with two 11 cm A beams vertical at the sides, one 33 cm C beam spanning horizontally across them, and six inventory beams laid out toward negative Y. All beams have a 4 cm by 4 cm rectangular section.",
   "units": "meters",
   "owner_module": "robot_control.shared_geometry",
   "coordinate_system": {
@@ -16,24 +16,24 @@
   },
   "catalog": {
     "A": {
-      "length": 0.099,
+      "length": 0.11,
       "section": {
-        "y": 0.0324,
-        "z": 0.0324
+        "y": 0.04,
+        "z": 0.04
       }
     },
     "B": {
-      "length": 0.198,
+      "length": 0.22,
       "section": {
-        "y": 0.0324,
-        "z": 0.0324
+        "y": 0.04,
+        "z": 0.04
       }
     },
     "C": {
-      "length": 0.297,
+      "length": 0.33,
       "section": {
-        "y": 0.0324,
-        "z": 0.0324
+        "y": 0.04,
+        "z": 0.04
       }
     }
   },
@@ -42,8 +42,8 @@
       "type": "box",
       "origin": "center",
       "section": {
-        "y": 0.0324,
-        "z": 0.0324
+        "y": 0.04,
+        "z": 0.04
       }
     },
     "feature_set": [
@@ -68,9 +68,9 @@
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.099,
-          "y": 0.0324,
-          "z": 0.0324
+          "x": 0.11,
+          "y": 0.04,
+          "z": 0.04
         }
       },
       "axis": {
@@ -163,9 +163,9 @@
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.099,
-          "y": 0.0324,
-          "z": 0.0324
+          "x": 0.11,
+          "y": 0.04,
+          "z": 0.04
         }
       },
       "axis": {
@@ -258,9 +258,9 @@
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.297,
-          "y": 0.0324,
-          "z": 0.0324
+          "x": 0.33,
+          "y": 0.04,
+          "z": 0.04
         }
       },
       "axis": {
@@ -354,9 +354,9 @@
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.099,
-          "y": 0.0324,
-          "z": 0.0324
+          "x": 0.11,
+          "y": 0.04,
+          "z": 0.04
         }
       },
       "axis": {
@@ -448,9 +448,9 @@
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.198,
-          "y": 0.0324,
-          "z": 0.0324
+          "x": 0.22,
+          "y": 0.04,
+          "z": 0.04
         }
       },
       "axis": {
@@ -542,9 +542,9 @@
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.198,
-          "y": 0.0324,
-          "z": 0.0324
+          "x": 0.22,
+          "y": 0.04,
+          "z": 0.04
         }
       },
       "axis": {
@@ -636,9 +636,9 @@
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.198,
-          "y": 0.0324,
-          "z": 0.0324
+          "x": 0.22,
+          "y": 0.04,
+          "z": 0.04
         }
       },
       "axis": {
@@ -730,9 +730,9 @@
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.297,
-          "y": 0.0324,
-          "z": 0.0324
+          "x": 0.33,
+          "y": 0.04,
+          "z": 0.04
         }
       },
       "axis": {
@@ -824,9 +824,9 @@
         "type": "box",
         "origin": "center",
         "dimensions": {
-          "x": 0.297,
-          "y": 0.0324,
-          "z": 0.0324
+          "x": 0.33,
+          "y": 0.04,
+          "z": 0.04
         }
       },
       "axis": {
@@ -969,18 +969,6 @@
       "op": "initialize_from_user_requested_physical_layout",
       "status": "applied",
       "notes": "Two A beams are 11 cm vertical supports. One C beam is the 33 cm horizontal span. Inventory contains one A beam, three B beams, and two C beams laid out from y=-0.90 m toward negative Y at 5 cm centerline spacing."
-    },
-    {
-      "id": "op_002",
-      "op": "shrink_moveit_collision_proxies",
-      "status": "applied",
-      "notes": "Scaled catalog/default/body dimensions to 90% for planning proxies. Poses, axes, and feature coordinates remain unchanged."
-    },
-    {
-      "id": "op_003",
-      "op": "shrink_moveit_collision_proxy_thickness",
-      "status": "applied",
-      "notes": "Scaled catalog/default/body y and z thickness dimensions by another 10% to 0.0324 m. Lengths, poses, axes, and feature coordinates remain unchanged."
     }
   ],
   "projections": {

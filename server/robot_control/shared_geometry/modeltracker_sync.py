@@ -13,9 +13,9 @@ from robot_control.shared_geometry.world_context import (
     canonical_dynamic_name,
 )
 
-SNAPPY_NAME_RE = re.compile(r"^dynamic_snappy-V44B80_box(\d+)$")
+SNAPPY_NAME_RE = re.compile(r"^dynamic_snappy-V110B110_box(\d+)$")
 EPSILON = 1e-9
-DEFAULT_CORRECTION_RADIANS = math.pi
+DEFAULT_CORRECTION_RADIANS = math.pi / 2.0
 SNAPSHOT_TOLERANCE = 1e-5
 
 
@@ -463,19 +463,18 @@ def _rotate_point(point: list[float], angle: float) -> list[float]:
     cos_angle = math.cos(angle)
     sin_angle = math.sin(angle)
     x, y, z = point
-    return _clean_vector([
-        cos_angle * x - sin_angle * y,
-        sin_angle * x + cos_angle * y,
-        z,
-    ])
+    return _clean_vector(
+        [
+            cos_angle * x - sin_angle * y,
+            sin_angle * x + cos_angle * y,
+            z,
+        ]
+    )
 
 
 def _matmul3(left: list[list[float]], right: list[list[float]]) -> list[list[float]]:
     return [
-        [
-            sum(left[row][inner] * right[inner][col] for inner in range(3))
-            for col in range(3)
-        ]
+        [sum(left[row][inner] * right[inner][col] for inner in range(3)) for col in range(3)]
         for row in range(3)
     ]
 
@@ -543,11 +542,13 @@ def _normalize(vector: list[float]) -> list[float]:
 
 
 def _offset(center: list[float], axis: list[float], distance: float) -> list[float]:
-    return _clean_vector([
-        center[0] + axis[0] * distance,
-        center[1] + axis[1] * distance,
-        center[2] + axis[2] * distance,
-    ])
+    return _clean_vector(
+        [
+            center[0] + axis[0] * distance,
+            center[1] + axis[1] * distance,
+            center[2] + axis[2] * distance,
+        ]
+    )
 
 
 def _should_flip_axis_order(axis: dict[str, Any], local_x: list[float]) -> bool:

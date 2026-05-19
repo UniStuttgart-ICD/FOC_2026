@@ -2,13 +2,13 @@
   "schema": "pipecat.shared_geometry.common_model.v0.1",
   "version": "0.1.0",
   "name": "three_dynamic_a_c_gate_with_inventory",
-  "description": "Physical scene with two 11 cm A beams vertical at the sides, one 33 cm C beam spanning horizontally across them, and six inventory beams laid out toward negative Y. All beams have a 4 cm by 4 cm rectangular section.",
+  "description": "Physical scene with two 11 cm A beams vertical at the sides, one 33 cm C beam spanning horizontally across them, and six inventory beams laid out toward positive X. All beams have a 4 cm by 4 cm rectangular section.",
   "units": "meters",
   "owner_module": "robot_control.shared_geometry",
   "coordinate_system": {
     "frame": "rhino_world",
     "up_axis": "z",
-    "notes": "The axis start/end points define the beam centerline. The C span bottom face bears on the top faces of the two A verticals. Inventory beams lie horizontally on z=-0.10 with 5 cm centerline spacing along negative Y, starting at y=-0.90 m."
+    "notes": "The axis start/end points define the beam centerline. The C span bottom face bears on the top faces of the two A verticals. Inventory beams lie horizontally on z=-0.10 with 5 cm centerline spacing along positive X, starting at x=0.90 m."
   },
   "source": {
     "visual_template": "pipecat-agent/docs/research/shared-geometry-model-explainer.html",
@@ -76,29 +76,29 @@
       "axis": {
         "start_label": "bottom",
         "end_label": "top",
-        "start_xyz": [0, -0.7, -0.1],
-        "end_xyz": [0, -0.7, 0.01]
+        "start_xyz": [0.7, 0, -0.1],
+        "end_xyz": [0.7, 0, 0.01]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [0, -0.7, -0.045],
-        "quat_xyzw": [0.5, 0.5, -0.5, 0.5]
+        "xyz": [0.7, 0, -0.045],
+        "quat_xyzw": [0, 0.707106781187, 0, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [0, -0.7, -0.1]
+          "world_xyz": [0.7, 0, -0.1]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [0, -0.7, 0.01]
+          "world_xyz": [0.7, 0, 0.01]
         },
         "face_bottom": {
-          "center_xyz": [0, -0.7, -0.1],
+          "center_xyz": [0.7, 0, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [0, -0.7, 0.01],
+          "center_xyz": [0.7, 0, 0.01],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -125,29 +125,29 @@
       "axis": {
         "start_label": "bottom",
         "end_label": "top",
-        "start_xyz": [0.3, -0.7, -0.1],
-        "end_xyz": [0.3, -0.7, 0.01]
+        "start_xyz": [0.7, 0.3, -0.1],
+        "end_xyz": [0.7, 0.3, 0.01]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [0.3, -0.7, -0.045],
-        "quat_xyzw": [0.5, 0.5, -0.5, 0.5]
+        "xyz": [0.7, 0.3, -0.045],
+        "quat_xyzw": [0, 0.707106781187, 0, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [0.3, -0.7, -0.1]
+          "world_xyz": [0.7, 0.3, -0.1]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [0.3, -0.7, 0.01]
+          "world_xyz": [0.7, 0.3, 0.01]
         },
         "face_bottom": {
-          "center_xyz": [0.3, -0.7, -0.1],
+          "center_xyz": [0.7, 0.3, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [0.3, -0.7, 0.01],
+          "center_xyz": [0.7, 0.3, 0.01],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -174,29 +174,29 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [-0.015, -0.7, 0.03],
-        "end_xyz": [0.315, -0.7, 0.03]
+        "start_xyz": [0.7, -0.015, 0.03],
+        "end_xyz": [0.7, 0.315, 0.03]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [0.15, -0.7, 0.03],
-        "quat_xyzw": [0, 0, 0, 1]
+        "xyz": [0.7, 0.15, 0.03],
+        "quat_xyzw": [0, 0, 0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [-0.015, -0.7, 0.03]
+          "world_xyz": [0.7, -0.015, 0.03]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [0.315, -0.7, 0.03]
+          "world_xyz": [0.7, 0.315, 0.03]
         },
         "face_bottom": {
-          "center_xyz": [0.15, -0.7, 0.01],
+          "center_xyz": [0.7, 0.15, 0.01],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [0.15, -0.7, 0.05],
+          "center_xyz": [0.7, 0.15, 0.05],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -223,29 +223,29 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [0.095, -0.9, -0.08],
-        "end_xyz": [0.205, -0.9, -0.08]
+        "start_xyz": [0.9, 0.095, -0.08],
+        "end_xyz": [0.9, 0.205, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [0.15, -0.9, -0.08],
-        "quat_xyzw": [0, 0, 0, 1]
+        "xyz": [0.9, 0.15, -0.08],
+        "quat_xyzw": [0, 0, 0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [0.095, -0.9, -0.08]
+          "world_xyz": [0.9, 0.095, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [0.205, -0.9, -0.08]
+          "world_xyz": [0.9, 0.205, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [0.15, -0.9, -0.1],
+          "center_xyz": [0.9, 0.15, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [0.15, -0.9, -0.06],
+          "center_xyz": [0.9, 0.15, -0.06],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -274,29 +274,29 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [0.04, -0.95, -0.08],
-        "end_xyz": [0.26, -0.95, -0.08]
+        "start_xyz": [0.95, 0.04, -0.08],
+        "end_xyz": [0.95, 0.26, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [0.15, -0.95, -0.08],
-        "quat_xyzw": [0, 0, 0, 1]
+        "xyz": [0.95, 0.15, -0.08],
+        "quat_xyzw": [0, 0, 0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [0.04, -0.95, -0.08]
+          "world_xyz": [0.95, 0.04, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [0.26, -0.95, -0.08]
+          "world_xyz": [0.95, 0.26, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [0.15, -0.95, -0.1],
+          "center_xyz": [0.95, 0.15, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [0.15, -0.95, -0.06],
+          "center_xyz": [0.95, 0.15, -0.06],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -325,29 +325,29 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [0.04, -1, -0.08],
-        "end_xyz": [0.26, -1, -0.08]
+        "start_xyz": [1, 0.04, -0.08],
+        "end_xyz": [1, 0.26, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [0.15, -1, -0.08],
-        "quat_xyzw": [0, 0, 0, 1]
+        "xyz": [1, 0.15, -0.08],
+        "quat_xyzw": [0, 0, 0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [0.04, -1, -0.08]
+          "world_xyz": [1, 0.04, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [0.26, -1, -0.08]
+          "world_xyz": [1, 0.26, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [0.15, -1, -0.1],
+          "center_xyz": [1, 0.15, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [0.15, -1, -0.06],
+          "center_xyz": [1, 0.15, -0.06],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -376,29 +376,29 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [0.04, -1.05, -0.08],
-        "end_xyz": [0.26, -1.05, -0.08]
+        "start_xyz": [1.05, 0.04, -0.08],
+        "end_xyz": [1.05, 0.26, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [0.15, -1.05, -0.08],
-        "quat_xyzw": [0, 0, 0, 1]
+        "xyz": [1.05, 0.15, -0.08],
+        "quat_xyzw": [0, 0, 0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [0.04, -1.05, -0.08]
+          "world_xyz": [1.05, 0.04, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [0.26, -1.05, -0.08]
+          "world_xyz": [1.05, 0.26, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [0.15, -1.05, -0.1],
+          "center_xyz": [1.05, 0.15, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [0.15, -1.05, -0.06],
+          "center_xyz": [1.05, 0.15, -0.06],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -427,29 +427,29 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [-0.015, -1.1, -0.08],
-        "end_xyz": [0.315, -1.1, -0.08]
+        "start_xyz": [1.1, -0.015, -0.08],
+        "end_xyz": [1.1, 0.315, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [0.15, -1.1, -0.08],
-        "quat_xyzw": [0, 0, 0, 1]
+        "xyz": [1.1, 0.15, -0.08],
+        "quat_xyzw": [0, 0, 0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [-0.015, -1.1, -0.08]
+          "world_xyz": [1.1, -0.015, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [0.315, -1.1, -0.08]
+          "world_xyz": [1.1, 0.315, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [0.15, -1.1, -0.1],
+          "center_xyz": [1.1, 0.15, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [0.15, -1.1, -0.06],
+          "center_xyz": [1.1, 0.15, -0.06],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -478,29 +478,29 @@
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
-        "start_xyz": [-0.015, -1.15, -0.08],
-        "end_xyz": [0.315, -1.15, -0.08]
+        "start_xyz": [1.15, -0.015, -0.08],
+        "end_xyz": [1.15, 0.315, -0.08]
       },
       "pose": {
         "frame": "rhino_world",
-        "xyz": [0.15, -1.15, -0.08],
-        "quat_xyzw": [0, 0, 0, 1]
+        "xyz": [1.15, 0.15, -0.08],
+        "quat_xyzw": [0, 0, 0.707106781187, 0.707106781187]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
-          "world_xyz": [-0.015, -1.15, -0.08]
+          "world_xyz": [1.15, -0.015, -0.08]
         },
         "end_end": {
           "alias": "end_pos_x",
-          "world_xyz": [0.315, -1.15, -0.08]
+          "world_xyz": [1.15, 0.315, -0.08]
         },
         "face_bottom": {
-          "center_xyz": [0.15, -1.15, -0.1],
+          "center_xyz": [1.15, 0.15, -0.1],
           "normal_xyz": [0, 0, -1]
         },
         "face_top": {
-          "center_xyz": [0.15, -1.15, -0.06],
+          "center_xyz": [1.15, 0.15, -0.06],
           "normal_xyz": [0, 0, 1]
         }
       },
@@ -557,7 +557,7 @@
         "relation_type": "ordered_inventory_layout",
         "a": "dynamic_3",
         "b": "dynamic_8",
-        "role": "5_cm_centerline_spacing_toward_negative_y",
+        "role": "5_cm_centerline_spacing_toward_positive_x",
         "status": "inventory"
       }
     ]
@@ -567,7 +567,7 @@
       "id": "op_001",
       "op": "initialize_from_user_requested_physical_layout",
       "status": "applied",
-      "notes": "Two A beams are 11 cm vertical supports. One C beam is the 33 cm horizontal span. Inventory contains one A beam, three B beams, and two C beams laid out from y=-0.90 m toward negative Y at 5 cm centerline spacing."
+      "notes": "Two A beams are 11 cm vertical supports. One C beam is the 33 cm horizontal span. Inventory contains one A beam, three B beams, and two C beams laid out from x=0.90 m toward positive X at 5 cm centerline spacing."
     }
   ],
   "projections": {

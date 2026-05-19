@@ -1420,6 +1420,45 @@ def test_accepts_cartesian_motion_arguments() -> None:
     )
 
 
+def test_accepts_internal_contact_allowance_for_low_level_motion_planning() -> None:
+    contact_allowance = {
+        "category": "gripper_touch_links_to_target",
+        "object_name": "beam_001",
+        "pairs": [["tool0", "beam_001"]],
+    }
+
+    validate_robot_tool_call(
+        "moveit_plan_free_motion",
+        {
+            "robot_name": "UR10",
+            "target_pose": VALID_POSE,
+            "contact_allowance": contact_allowance,
+        },
+    )
+    validate_robot_tool_call(
+        "moveit_plan_cartesian_motion",
+        {
+            "robot_name": "UR10",
+            "waypoints": [VALID_POSE],
+            "contact_allowance": contact_allowance,
+        },
+    )
+
+
+def test_rejects_invalid_internal_contact_allowance_for_low_level_motion_planning() -> None:
+    with pytest.raises(RobotCallValidationError) as exc:
+        validate_robot_tool_call(
+            "moveit_plan_cartesian_motion",
+            {
+                "robot_name": "UR10",
+                "waypoints": [VALID_POSE],
+                "contact_allowance": {"pairs": [["tool0"]]},
+            },
+        )
+
+    assert str(exc.value) == "Invalid contact_allowance"
+
+
 def test_rejects_empty_cartesian_waypoints() -> None:
     with pytest.raises(RobotCallValidationError) as exc:
         validate_robot_tool_call("moveit_plan_cartesian_motion", {"robot_name": "UR10", "waypoints": []})
