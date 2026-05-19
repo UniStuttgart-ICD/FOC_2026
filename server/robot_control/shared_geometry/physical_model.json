@@ -2,13 +2,13 @@
   "schema": "pipecat.shared_geometry.common_model.v0.1",
   "version": "0.1.0",
   "name": "three_dynamic_a_c_gate_with_inventory",
-  "description": "Physical scene with two 11 cm A beams vertical at the sides, one 33 cm C beam spanning horizontally across them, and six inventory beams laid out toward negative Y. All beams have a 4 cm by 4 cm rectangular section.",
+  "description": "Physical scene with two 11 cm A beams vertical at the sides, one 33 cm C beam spanning horizontally across them, and six inventory beams laid out toward negative Y. All beams have a 3.6 cm by 3.6 cm rectangular section.",
   "units": "meters",
   "owner_module": "robot_control.shared_geometry",
   "coordinate_system": {
     "frame": "rhino_world",
     "up_axis": "z",
-    "notes": "The axis start/end points define the beam centerline. The C span bottom face bears on the top faces of the two A verticals. Inventory beams lie horizontally on z=-0.10 with 5 cm centerline spacing along negative Y, starting at y=-0.90 m."
+    "notes": "The axis start/end points define the beam centerline. The C span bottom face bears on the top faces of the two A verticals. Inventory beam bottom faces lie horizontally on z=-0.10 with 5 cm centerline spacing along negative Y, starting at y=-0.90 m."
   },
   "source": {
     "visual_template": "pipecat-agent/docs/research/shared-geometry-model-explainer.html",
@@ -18,22 +18,22 @@
     "A": {
       "length": 0.11,
       "section": {
-        "y": 0.04,
-        "z": 0.04
+        "y": 0.036,
+        "z": 0.036
       }
     },
     "B": {
       "length": 0.22,
       "section": {
-        "y": 0.04,
-        "z": 0.04
+        "y": 0.036,
+        "z": 0.036
       }
     },
     "C": {
       "length": 0.33,
       "section": {
-        "y": 0.04,
-        "z": 0.04
+        "y": 0.036,
+        "z": 0.036
       }
     }
   },
@@ -42,8 +42,8 @@
       "type": "box",
       "origin": "center",
       "section": {
-        "y": 0.04,
-        "z": 0.04
+        "y": 0.036,
+        "z": 0.036
       }
     },
     "feature_set": [
@@ -69,8 +69,8 @@
         "origin": "center",
         "dimensions": {
           "x": 0.11,
-          "y": 0.04,
-          "z": 0.04
+          "y": 0.036,
+          "z": 0.036
         }
       },
       "axis": {
@@ -164,8 +164,8 @@
         "origin": "center",
         "dimensions": {
           "x": 0.11,
-          "y": 0.04,
-          "z": 0.04
+          "y": 0.036,
+          "z": 0.036
         }
       },
       "axis": {
@@ -259,8 +259,8 @@
         "origin": "center",
         "dimensions": {
           "x": 0.33,
-          "y": 0.04,
-          "z": 0.04
+          "y": 0.036,
+          "z": 0.036
         }
       },
       "axis": {
@@ -269,12 +269,12 @@
         "start_xyz": [
           -0.015,
           -0.7,
-          0.03
+          0.028
         ],
         "end_xyz": [
           0.315,
           -0.7,
-          0.03
+          0.028
         ]
       },
       "pose": {
@@ -282,7 +282,7 @@
         "xyz": [
           0.15,
           -0.7,
-          0.03
+          0.028
         ],
         "quat_xyzw": [
           0,
@@ -297,7 +297,7 @@
           "world_xyz": [
             -0.015,
             -0.7,
-            0.03
+            0.028
           ]
         },
         "end_end": {
@@ -305,7 +305,7 @@
           "world_xyz": [
             0.315,
             -0.7,
-            0.03
+            0.028
           ]
         },
         "face_bottom": {
@@ -324,7 +324,7 @@
           "center_xyz": [
             0.15,
             -0.7,
-            0.05
+            0.046
           ],
           "normal_xyz": [
             0,
@@ -355,8 +355,8 @@
         "origin": "center",
         "dimensions": {
           "x": 0.11,
-          "y": 0.04,
-          "z": 0.04
+          "y": 0.036,
+          "z": 0.036
         }
       },
       "axis": {
@@ -365,12 +365,12 @@
         "start_xyz": [
           0.095,
           -0.9,
-          -0.08
+          -0.082
         ],
         "end_xyz": [
           0.205,
           -0.9,
-          -0.08
+          -0.082
         ]
       },
       "pose": {
@@ -378,7 +378,7 @@
         "xyz": [
           0.15,
           -0.9,
-          -0.08
+          -0.082
         ],
         "quat_xyzw": [
           0,
@@ -393,7 +393,7 @@
           "world_xyz": [
             0.095,
             -0.9,
-            -0.08
+            -0.082
           ]
         },
         "end_end": {
@@ -401,7 +401,7 @@
           "world_xyz": [
             0.205,
             -0.9,
-            -0.08
+            -0.082
           ]
         },
         "face_bottom": {
@@ -420,7 +420,7 @@
           "center_xyz": [
             0.15,
             -0.9,
-            -0.06
+            -0.064
           ],
           "normal_xyz": [
             0,
@@ -449,8 +449,8 @@
         "origin": "center",
         "dimensions": {
           "x": 0.22,
-          "y": 0.04,
-          "z": 0.04
+          "y": 0.036,
+          "z": 0.036
         }
       },
       "axis": {
@@ -459,12 +459,12 @@
         "start_xyz": [
           0.04,
           -0.95,
-          -0.08
+          -0.082
         ],
         "end_xyz": [
           0.26,
           -0.95,
-          -0.08
+          -0.082
         ]
       },
       "pose": {
@@ -472,7 +472,7 @@
         "xyz": [
           0.15,
           -0.95,
-          -0.08
+          -0.082
         ],
         "quat_xyzw": [
           0,
@@ -487,7 +487,7 @@
           "world_xyz": [
             0.04,
             -0.95,
-            -0.08
+            -0.082
           ]
         },
         "end_end": {
@@ -495,7 +495,7 @@
           "world_xyz": [
             0.26,
             -0.95,
-            -0.08
+            -0.082
           ]
         },
         "face_bottom": {
@@ -514,7 +514,7 @@
           "center_xyz": [
             0.15,
             -0.95,
-            -0.06
+            -0.064
           ],
           "normal_xyz": [
             0,
@@ -543,8 +543,8 @@
         "origin": "center",
         "dimensions": {
           "x": 0.22,
-          "y": 0.04,
-          "z": 0.04
+          "y": 0.036,
+          "z": 0.036
         }
       },
       "axis": {
@@ -553,12 +553,12 @@
         "start_xyz": [
           0.04,
           -1,
-          -0.08
+          -0.082
         ],
         "end_xyz": [
           0.26,
           -1,
-          -0.08
+          -0.082
         ]
       },
       "pose": {
@@ -566,7 +566,7 @@
         "xyz": [
           0.15,
           -1,
-          -0.08
+          -0.082
         ],
         "quat_xyzw": [
           0,
@@ -581,7 +581,7 @@
           "world_xyz": [
             0.04,
             -1,
-            -0.08
+            -0.082
           ]
         },
         "end_end": {
@@ -589,7 +589,7 @@
           "world_xyz": [
             0.26,
             -1,
-            -0.08
+            -0.082
           ]
         },
         "face_bottom": {
@@ -608,7 +608,7 @@
           "center_xyz": [
             0.15,
             -1,
-            -0.06
+            -0.064
           ],
           "normal_xyz": [
             0,
@@ -637,8 +637,8 @@
         "origin": "center",
         "dimensions": {
           "x": 0.22,
-          "y": 0.04,
-          "z": 0.04
+          "y": 0.036,
+          "z": 0.036
         }
       },
       "axis": {
@@ -647,12 +647,12 @@
         "start_xyz": [
           0.04,
           -1.05,
-          -0.08
+          -0.082
         ],
         "end_xyz": [
           0.26,
           -1.05,
-          -0.08
+          -0.082
         ]
       },
       "pose": {
@@ -660,7 +660,7 @@
         "xyz": [
           0.15,
           -1.05,
-          -0.08
+          -0.082
         ],
         "quat_xyzw": [
           0,
@@ -675,7 +675,7 @@
           "world_xyz": [
             0.04,
             -1.05,
-            -0.08
+            -0.082
           ]
         },
         "end_end": {
@@ -683,7 +683,7 @@
           "world_xyz": [
             0.26,
             -1.05,
-            -0.08
+            -0.082
           ]
         },
         "face_bottom": {
@@ -702,7 +702,7 @@
           "center_xyz": [
             0.15,
             -1.05,
-            -0.06
+            -0.064
           ],
           "normal_xyz": [
             0,
@@ -731,8 +731,8 @@
         "origin": "center",
         "dimensions": {
           "x": 0.33,
-          "y": 0.04,
-          "z": 0.04
+          "y": 0.036,
+          "z": 0.036
         }
       },
       "axis": {
@@ -741,12 +741,12 @@
         "start_xyz": [
           -0.015,
           -1.1,
-          -0.08
+          -0.082
         ],
         "end_xyz": [
           0.315,
           -1.1,
-          -0.08
+          -0.082
         ]
       },
       "pose": {
@@ -754,7 +754,7 @@
         "xyz": [
           0.15,
           -1.1,
-          -0.08
+          -0.082
         ],
         "quat_xyzw": [
           0,
@@ -769,7 +769,7 @@
           "world_xyz": [
             -0.015,
             -1.1,
-            -0.08
+            -0.082
           ]
         },
         "end_end": {
@@ -777,7 +777,7 @@
           "world_xyz": [
             0.315,
             -1.1,
-            -0.08
+            -0.082
           ]
         },
         "face_bottom": {
@@ -796,7 +796,7 @@
           "center_xyz": [
             0.15,
             -1.1,
-            -0.06
+            -0.064
           ],
           "normal_xyz": [
             0,
@@ -825,8 +825,8 @@
         "origin": "center",
         "dimensions": {
           "x": 0.33,
-          "y": 0.04,
-          "z": 0.04
+          "y": 0.036,
+          "z": 0.036
         }
       },
       "axis": {
@@ -835,12 +835,12 @@
         "start_xyz": [
           -0.015,
           -1.15,
-          -0.08
+          -0.082
         ],
         "end_xyz": [
           0.315,
           -1.15,
-          -0.08
+          -0.082
         ]
       },
       "pose": {
@@ -848,7 +848,7 @@
         "xyz": [
           0.15,
           -1.15,
-          -0.08
+          -0.082
         ],
         "quat_xyzw": [
           0,
@@ -863,7 +863,7 @@
           "world_xyz": [
             -0.015,
             -1.15,
-            -0.08
+            -0.082
           ]
         },
         "end_end": {
@@ -871,7 +871,7 @@
           "world_xyz": [
             0.315,
             -1.15,
-            -0.08
+            -0.082
           ]
         },
         "face_bottom": {
@@ -890,7 +890,7 @@
           "center_xyz": [
             0.15,
             -1.15,
-            -0.06
+            -0.064
           ],
           "normal_xyz": [
             0,
@@ -969,6 +969,12 @@
       "op": "initialize_from_user_requested_physical_layout",
       "status": "applied",
       "notes": "Two A beams are 11 cm vertical supports. One C beam is currently supported by the two A beams. Inventory contains one A beam, three B beams, and two C beams laid out from y=-0.90 m toward negative Y at 5 cm centerline spacing."
+    },
+    {
+      "id": "op_002",
+      "op": "reduce_beam_section_by_10_percent",
+      "status": "applied",
+      "notes": "Reduced rectangular beam sections from 4 cm by 4 cm to 3.6 cm by 3.6 cm. Beam lengths are unchanged; C beam bearing contact and inventory bottom-face height were kept consistent."
     }
   ],
   "projections": {
