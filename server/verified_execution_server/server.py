@@ -605,6 +605,7 @@ async def _sync_robot_state(
         request.robot_name,
         joint_name=DEFAULT_GRIPPER_JOINT_NAME,
         joint_position=actual_gripper_joint_position,
+        timeout_s=request.timeout_s,
     )
     metadata["gripper_joint_state_published"] = gripper_sync_published
     if not gripper_sync_published:

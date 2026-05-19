@@ -66,6 +66,7 @@ class FakePlanCache:
         *,
         joint_name: str,
         joint_position: float,
+        timeout_s: float = 5.0,
     ) -> bool:
         self.gripper_sync_calls.append((robot_name, joint_name, joint_position))
         return self.gripper_sync_result
@@ -988,16 +989,36 @@ def test_ros_plan_cache_records_joint_names_from_moveit_trajectory() -> None:
     assert plan.joint_names == ["joint_1", "joint_2"]
 
 
-def test_ros_plan_cache_syncs_gripper_joint_state_to_gripper_topic() -> None:
+def test_ros_plan_cache_syncs_gripper_joint_state_through_robotiq_action() -> None:
     published: list[tuple[str, str, dict]] = []
+    subscribers: dict[str, list] = {}
 
     class FakeTopic:
         def __init__(self, _client: object, topic: str, message_type: str) -> None:
             self.topic = topic
             self.message_type = message_type
 
+        def subscribe(self, callback) -> None:
+            subscribers.setdefault(self.topic, []).append(callback)
+
+        def advertise(self) -> None:
+            return
+
         def publish(self, message: dict) -> None:
             published.append((self.topic, self.message_type, message))
+            if self.topic != "/UR10/command_robotiq_action/goal":
+                return
+            goal_id = message["goal_id"]["id"]
+            for callback in subscribers.get("/UR10/command_robotiq_action/result", []):
+                callback({"status": {"goal_id": {"id": goal_id}}, "result": {}})
+            for callback in subscribers.get("/UR10/gripper_joint_states", []):
+                callback({"name": ["finger_joint"], "position": [0.4]})
+
+        def unsubscribe(self) -> None:
+            return
+
+        def unadvertise(self) -> None:
+            return
 
     fake_roslibpy = SimpleNamespace(Topic=FakeTopic, Message=lambda payload: payload)
     cache = RosPlanCache(robot_name="UR10", time_fn=lambda: 42.5)
@@ -1009,25 +1030,17 @@ def test_ros_plan_cache_syncs_gripper_joint_state_to_gripper_topic() -> None:
         "UR10",
         joint_name="finger_joint",
         joint_position=0.4,
+        timeout_s=1.0,
     )
 
     assert result is True
-    assert published == [
-        (
-            "/UR10/gripper_joint_states",
-            "sensor_msgs/JointState",
-            {
-                "header": {
-                    "stamp": {"secs": 42, "nsecs": 500_000_000},
-                    "frame_id": "",
-                },
-                "name": ["finger_joint"],
-                "position": [0.4],
-                "velocity": [],
-                "effort": [],
-            },
-        )
-    ]
+    assert len(published) == 1
+    topic, message_type, message = published[0]
+    assert topic == "/UR10/command_robotiq_action/goal"
+    assert message_type == "robotiq_2f_gripper_msgs/CommandRobotiqGripperActionGoal"
+    assert message["goal"]["position"] == pytest.approx(0.0425)
+    assert message["goal"]["speed"] == 0.05
+    assert message["goal"]["force"] == 50.0
 
 
 def test_ros_plan_cache_releases_attached_objects_to_world_scene() -> None:

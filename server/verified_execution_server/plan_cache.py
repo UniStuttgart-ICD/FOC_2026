@@ -4,6 +4,7 @@ import asyncio
 import time
 from copy import deepcopy
 from dataclasses import dataclass, field
+from queue import Empty, Queue
 from threading import RLock
 from typing import Any, Protocol
 
@@ -12,6 +13,11 @@ from verified_execution_server.models import CachedPlan
 PLANNING_SCENE_COMPONENTS = 4 | 8 | 16 | 512
 COLLISION_OBJECT_ADD = 0
 COLLISION_OBJECT_REMOVE = 1
+GRIPPER_MAX_JOINT_POSITION = 0.8
+GRIPPER_MAX_ACTION_POSITION_M = 0.085
+GRIPPER_ACTION_SPEED_MPS = 0.05
+GRIPPER_ACTION_FORCE = 50.0
+GRIPPER_JOINT_TOLERANCE = 1e-2
 
 
 @dataclass(frozen=True)
@@ -49,6 +55,7 @@ class PlanCache(Protocol):
         *,
         joint_name: str,
         joint_position: float,
+        timeout_s: float = 5.0,
     ) -> bool: ...
 
     def release_attached_objects(
@@ -155,13 +162,63 @@ class RosPlanCache:
         *,
         joint_name: str,
         joint_position: float,
+        timeout_s: float = 5.0,
     ) -> bool:
-        topic = f"/{robot_name}/gripper_joint_states"
-        return self._publish_joint_state(
-            topic,
-            joint_names=[joint_name],
-            joint_positions=[joint_position],
+        client = self._client
+        roslibpy = self._roslibpy
+        if roslibpy is None or client is None or not client.is_connected:
+            return False
+
+        action_name = f"/{robot_name}/command_robotiq_action"
+        action_type = "robotiq_2f_gripper_msgs/CommandRobotiqGripperAction"
+        joint_state_topic = f"/{robot_name}/gripper_joint_states"
+        result_topic = f"{action_name}/result"
+        goal_topic = f"{action_name}/goal"
+        result_queue: Queue[Any] = Queue()
+        joint_queue: Queue[Any] = Queue()
+        result_subscriber = roslibpy.Topic(
+            client,
+            result_topic,
+            f"{action_type}Result",
         )
+        joint_subscriber = roslibpy.Topic(client, joint_state_topic, "sensor_msgs/JointState")
+        goal_publisher = roslibpy.Topic(client, goal_topic, f"{action_type}Goal")
+        goal_id = f"verified_sync_{time.time_ns()}"
+        expected_joint_position = _bounded_gripper_joint_position(joint_position)
+        goal = _gripper_action_goal(expected_joint_position)
+
+        try:
+            result_subscriber.subscribe(lambda msg: result_queue.put(msg))
+            joint_subscriber.subscribe(lambda msg: joint_queue.put(msg))
+            _drain_queue(result_queue)
+            _drain_queue(joint_queue)
+            goal_publisher.advertise()
+            time.sleep(0.1)
+            goal_publisher.publish(
+                roslibpy.Message(
+                    _action_goal_message(goal_id=goal_id, goal=goal)
+                )
+            )
+            return _wait_for_gripper_action_sync(
+                result_queue=result_queue,
+                joint_queue=joint_queue,
+                goal_id=goal_id,
+                joint_name=joint_name,
+                expected_joint_position=expected_joint_position,
+                timeout_s=timeout_s,
+            )
+        except Exception:
+            return False
+        finally:
+            for topic_obj in (result_subscriber, joint_subscriber):
+                try:
+                    topic_obj.unsubscribe()
+                except Exception:
+                    pass
+            try:
+                goal_publisher.unadvertise()
+            except Exception:
+                pass
 
     def release_attached_objects(
         self,
@@ -471,6 +528,118 @@ def _world_collision_object_ids(scene: dict[str, Any]) -> list[str]:
         if isinstance(object_id, str) and object_id:
             object_ids.append(object_id)
     return object_ids
+
+
+def _bounded_gripper_joint_position(joint_position: float) -> float:
+    return max(0.0, min(float(joint_position), GRIPPER_MAX_JOINT_POSITION))
+
+
+def _gripper_action_goal(joint_position: float) -> dict[str, Any]:
+    normalized_closed = joint_position / GRIPPER_MAX_JOINT_POSITION
+    goal_position_m = (1.0 - normalized_closed) * GRIPPER_MAX_ACTION_POSITION_M
+    return {
+        "emergency_release": False,
+        "emergency_release_dir": 0,
+        "stop": False,
+        "position": goal_position_m,
+        "speed": GRIPPER_ACTION_SPEED_MPS,
+        "force": GRIPPER_ACTION_FORCE,
+    }
+
+
+def _action_goal_message(*, goal_id: str, goal: dict[str, Any]) -> dict[str, Any]:
+    now = time.time()
+    seconds = int(now)
+    stamp = {"secs": seconds, "nsecs": int((now - seconds) * 1_000_000_000)}
+    return {
+        "header": {"seq": 0, "stamp": stamp, "frame_id": ""},
+        "goal_id": {"stamp": stamp, "id": goal_id},
+        "goal": goal,
+    }
+
+
+def _wait_for_gripper_action_sync(
+    *,
+    result_queue: Queue[Any],
+    joint_queue: Queue[Any],
+    goal_id: str,
+    joint_name: str,
+    expected_joint_position: float,
+    timeout_s: float,
+) -> bool:
+    deadline = time.monotonic() + timeout_s
+    result_seen = False
+    joint_seen = False
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+
+        if not result_seen:
+            result_seen = _matching_action_result_seen(result_queue, goal_id, remaining)
+
+        joint_seen = joint_seen or _matching_joint_state_seen(
+            joint_queue,
+            joint_name,
+            expected_joint_position,
+        )
+        if result_seen and joint_seen:
+            return True
+        time.sleep(min(0.05, max(remaining, 0.0)))
+
+
+def _matching_action_result_seen(
+    result_queue: Queue[Any],
+    goal_id: str,
+    remaining_s: float,
+) -> bool:
+    try:
+        result_msg = result_queue.get(timeout=min(0.05, max(remaining_s, 0.0)))
+    except Empty:
+        return False
+    status = result_msg.get("status", {}) if isinstance(result_msg, dict) else {}
+    result_goal_id = status.get("goal_id", {}).get("id")
+    return result_goal_id == goal_id
+
+
+def _matching_joint_state_seen(
+    joint_queue: Queue[Any],
+    joint_name: str,
+    expected_joint_position: float,
+) -> bool:
+    while True:
+        try:
+            joint_msg = joint_queue.get_nowait()
+        except Empty:
+            return False
+        observed = _joint_state_position(joint_msg, joint_name)
+        if observed is not None and abs(observed - expected_joint_position) <= GRIPPER_JOINT_TOLERANCE:
+            return True
+
+
+def _joint_state_position(message: Any, joint_name: str) -> float | None:
+    if not isinstance(message, dict):
+        return None
+    positions = _float_list(message.get("position"))
+    if not positions:
+        return None
+    names = message.get("name")
+    if isinstance(names, list) and joint_name in names:
+        index = names.index(joint_name)
+        if index < len(positions):
+            return positions[index]
+        return None
+    if len(positions) == 1:
+        return positions[0]
+    return None
+
+
+def _drain_queue(queue: Queue[Any]) -> None:
+    while True:
+        try:
+            queue.get_nowait()
+        except Empty:
+            return
 
 
 def _float_list(value: Any) -> list[float]:
