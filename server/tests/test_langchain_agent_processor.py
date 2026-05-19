@@ -7,6 +7,11 @@ import pytest
 from langchain_core.messages import AIMessage, BaseMessage
 
 from agent_control.langchain_agent_processor import LangChainAgentProcessor
+from agent_control.status_replies import (
+    ACTION_COMPLETE_REPLIES,
+    EXECUTION_COMPLETE_REPLIES,
+    PLAN_READY_REPLIES,
+)
 from process_trace import MemoryTraceWriter, ProcessTracer
 from voice_runtime.agent_turn import AgentTurnInput
 
@@ -430,7 +435,7 @@ async def test_langchain_processor_notifications_report_terminal_job_events() ->
 
     text = await asyncio.wait_for(stream.__anext__(), timeout=1)
 
-    assert text == "Action complete."
+    assert text in ACTION_COMPLETE_REPLIES
     assert job.job_id not in text
 
 
@@ -459,7 +464,7 @@ async def test_langchain_processor_notifications_report_execute_completion_witho
 
     text = await asyncio.wait_for(stream.__anext__(), timeout=1)
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     assert "plan-1" not in text
 
 
@@ -500,7 +505,7 @@ async def test_langchain_processor_notifications_record_pending_plan_from_job_re
 
     text = await asyncio.wait_for(stream.__anext__(), timeout=1)
 
-    assert text == "Plan ready."
+    assert text in PLAN_READY_REPLIES
     pending = processor._robot_context.pending_executable_plan("plan-1", max_age_s=60.0)
     assert pending is not None
     assert pending.robot_name == "UR10"

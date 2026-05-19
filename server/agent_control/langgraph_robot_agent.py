@@ -21,6 +21,13 @@ from agent_control.robot_job_submission import (
     QUEUEABLE_ROBOT_ACTION_TOOLS,
     RobotJobSubmitter,
 )
+from agent_control.status_replies import (
+    action_complete_reply,
+    execution_complete_reply,
+    physical_execution_failed_reply,
+    physical_status_unavailable_reply,
+    plan_ready_reply,
+)
 from embodiment.animations import (
     EMBODIMENT_TOOL_NAMES,
     EmbodimentAnimationController,
@@ -664,6 +671,7 @@ class LangGraphRobotAgent:
             and state["missing_action_repairs"] >= MAX_MISSING_ACTION_REPAIRS
         ):
             return {"final_text": "Where would you like me to move?"}
+        text = _creative_status_reply(text, state)
         return {"final_text": text or NO_TEXT_RESPONSE}
 
     def _instructions(self) -> str:
@@ -2756,6 +2764,27 @@ def _message_text(message: BaseMessage) -> str:
     return ""
 
 
+def _creative_status_reply(text: str, state: RobotAgentState) -> str:
+    normalized = " ".join(text.strip().split()).casefold()
+    seed = _state_status_reply_seed(state)
+    if normalized in {"plan ready", "plan ready."}:
+        return plan_ready_reply(seed)
+    if normalized in {"execution complete", "execution complete."}:
+        return execution_complete_reply(seed)
+    if normalized in {"action complete", "action complete."}:
+        return action_complete_reply(seed)
+    return text
+
+
+def _state_status_reply_seed(state: RobotAgentState) -> str:
+    for message in reversed(state["messages"]):
+        if isinstance(message, ToolMessage):
+            tool_text = _message_text(message)
+            if tool_text:
+                return tool_text
+    return state["user_text"]
+
+
 def _first_available_tool(tools: list[dict[str, Any]], names: tuple[str, ...]) -> str | None:
     tool_names = {tool.get("name") for tool in tools}
     for name in names:
@@ -3042,14 +3071,14 @@ def _execution_result_text(output: str, plan_name: str) -> str:
         return "Execution queued."
     verification = result.get("verification")
     if isinstance(verification, dict) and verification.get("result") == "pass":
-        return "Execution complete."
+        return execution_complete_reply(f"{plan_name}:{output}")
     return NO_TEXT_RESPONSE
 
 
 def _task_planning_result_text(output: str, *, repair_attempts: int) -> tuple[str, int]:
     result = parse_task_solution_result(MODEL_VISIBLE_TASK_PLANNER_TOOL_NAME, output)
     if result is not None:
-        return "Plan ready.", repair_attempts
+        return plan_ready_reply(output), repair_attempts
 
     structured = _structured_result_payload(output)
     if structured is None:
@@ -3218,15 +3247,23 @@ def _string_value(value: Any) -> str:
     return value.strip() if isinstance(value, str) and value.strip() else ""
 
 
+def _status_reply_seed(result: dict[str, Any]) -> str:
+    task_solution_id = _string_value(result.get("task_solution_id"))
+    if task_solution_id:
+        return task_solution_id
+    return json.dumps(result, sort_keys=True, default=str)
+
+
 def _task_execution_content_text(result: dict[str, Any]) -> str:
+    seed = _status_reply_seed(result)
     real_robot = result.get("real_robot")
     if isinstance(real_robot, dict):
         status = real_robot.get("status")
         if status == "failed":
-            return "Execution completed in AR/RViz, but physical execution failed."
+            return physical_execution_failed_reply(seed)
         if status == "unavailable":
-            return "Execution completed in AR/RViz; physical status unavailable."
-    return "Execution complete."
+            return physical_status_unavailable_reply(seed)
+    return execution_complete_reply(seed)
 
 
 def _physical_task_unavailable_result(
@@ -3255,15 +3292,16 @@ def _physical_task_failed_result(
     failed_tool_result: Any,
     verified_plan_names: Iterable[str],
 ) -> dict[str, Any]:
+    verified_plan_names_list = list(verified_plan_names)
     result: dict[str, Any] = {
         "ok": False,
         "status": "failed",
-        "message": "Execution completed in AR/RViz, but physical execution failed.",
+        "message": physical_execution_failed_reply(",".join(verified_plan_names_list)),
         "failed_stage": failed_stage,
         "failed_tool_name": failed_tool_name,
         "failed_tool_arguments": dict(failed_tool_arguments),
         "failed_tool_result": failed_tool_result,
-        "verified_plan_names": list(verified_plan_names),
+        "verified_plan_names": verified_plan_names_list,
     }
     payloads: list[dict[str, Any]] = []
     if isinstance(failed_tool_result, dict):

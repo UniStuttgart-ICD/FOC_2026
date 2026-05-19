@@ -6,6 +6,12 @@ from typing import Any, cast
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
+from agent_control.status_replies import (
+    EXECUTION_COMPLETE_REPLIES,
+    PHYSICAL_EXECUTION_FAILED_REPLIES,
+    PHYSICAL_STATUS_UNAVAILABLE_REPLIES,
+    PLAN_READY_REPLIES,
+)
 from process_trace import MemoryTraceWriter, ProcessTracer
 from robot_control.context import RobotContextStore
 from voice_runtime.agent_turn import AgentTurnInput
@@ -1691,7 +1697,7 @@ async def test_graph_routes_model_visible_manipulation_planner_to_native_backend
 
     text = await fixture.graph.run_turn(turn("pick up dynamic_5"))
 
-    assert text == "Plan ready."
+    assert text in PLAN_READY_REPLIES
     assert ("moveit_plan_manipulation_task", args) in fixture.bridge.calls
     assert len(fixture.model.requests) == 1
     assert all(name != "moveit_plan_compound_task" for name, _ in fixture.bridge.calls)
@@ -1722,7 +1728,7 @@ async def test_graph_resolves_human_relative_move_before_calling_manipulation_pl
 
     text = await fixture.graph.run_turn(turn("come closer to me"))
 
-    assert text == "Plan ready."
+    assert text in PLAN_READY_REPLIES
     manipulation_calls = [
         call_args for name, call_args in fixture.bridge.calls if name == "moveit_plan_manipulation_task"
     ]
@@ -1871,7 +1877,7 @@ async def test_graph_routes_go_home_to_verified_execution_client() -> None:
 
     text = await fixture.graph.run_turn(turn("go home"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     assert verified_client.home_calls == [("UR10", 12.0)]
     assert fixture.bridge.calls == []
 
@@ -1908,7 +1914,7 @@ async def test_graph_routes_sync_real_robot_state_to_verified_execution_client()
 
     text = await fixture.graph.run_turn(turn("sync the real robot state"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     assert verified_client.sync_calls == [("UR10", 6.0)]
     assert fixture.bridge.calls == []
 
@@ -2413,7 +2419,7 @@ async def test_verified_execute_runs_gripper_release_after_success() -> None:
 
     text = await fixture.graph.run_turn(turn("execute plan"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     assert fixture.model.requests
     assert verified_client.calls == [("UR10", "place-plan-1", 30.0)]
     assert fixture.bridge.calls == [
@@ -2875,7 +2881,7 @@ async def test_graph_sends_motion_plan_to_bridge_without_fresh_pose_policy_failu
 
     text = await fixture.graph.run_turn(turn("move up"))
 
-    assert text == "Plan ready."
+    assert text in PLAN_READY_REPLIES
     assert fixture.bridge.calls == [("moveit_plan_free_motion", plan_args)]
 
 
@@ -3060,7 +3066,7 @@ async def test_graph_execute_task_runs_staged_ar_rviz_when_verified_client_missi
 
     text = await fixture.graph.run_turn(turn("yes, execute the pick task"))
 
-    assert text == "Execution completed in AR/RViz; physical status unavailable."
+    assert text in PHYSICAL_STATUS_UNAVAILABLE_REPLIES
     assert_stage_synchronized_ar_rviz_calls(bridge)
     output = json.loads(latest_state_tool_content(fixture))
     structured = output["structured_content"]
@@ -3166,7 +3172,7 @@ async def test_graph_execute_task_runs_release_only_contract() -> None:
 
     text = await fixture.graph.run_turn(turn("execute"))
 
-    assert text == "Execution completed in AR/RViz; physical status unavailable."
+    assert text in PHYSICAL_STATUS_UNAVAILABLE_REPLIES
     assert ("moveit_open_gripper", {"robot_name": "UR10", "timeout_s": 9.0}) in fixture.bridge.calls
     assert (
         "moveit_release_object",
@@ -3204,7 +3210,7 @@ async def test_graph_execute_task_stops_physical_after_readiness_then_failure() 
 
     text = await fixture.graph.run_turn(turn("yes, execute the pick task"))
 
-    assert text == "Execution completed in AR/RViz, but physical execution failed."
+    assert text in PHYSICAL_EXECUTION_FAILED_REPLIES
     assert_stage_synchronized_ar_rviz_calls(bridge)
     assert verified_client.readiness_calls == [9.0]
     assert len(verified_client.calls) == 1
@@ -3619,7 +3625,7 @@ async def test_graph_executes_approved_pick_task_plan_through_verified_execution
 
     text = await fixture.graph.run_turn(turn("yes, execute the pick task"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     verified_plan_names = [call[1] for call in verified_client.calls]
     assert [call[0] for call in verified_client.calls] == ["UR10", "UR10", "UR10"]
     assert [call[2] for call in verified_client.calls] == [9.0, 9.0, 9.0]
@@ -4496,7 +4502,7 @@ async def test_graph_executes_typed_place_release_contract() -> None:
 
     text = await fixture.graph.run_turn(turn("yes, execute the place task"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     verified_plan_names = [call[1] for call in verified_client.calls]
     assert len(verified_plan_names) == 1
     assert verified_plan_names[0].startswith("place_task_dynamic_5_001_place_")
@@ -4653,7 +4659,7 @@ async def test_graph_execute_task_plan_executes_logged_place_contract_shape() ->
 
     text = await fixture.graph.run_turn(turn("yes, execute"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     assert [call[0] for call in verified_client.calls] == ["UR10", "UR10"]
     verified_plan_names = [call[1] for call in verified_client.calls]
     assert verified_plan_names[0].startswith("place_task_dynamic_5_002_release_pose_")
@@ -4878,7 +4884,7 @@ async def test_graph_executes_long_hybrid_contract_from_cached_task_plan() -> No
 
     text = await fixture.graph.run_turn(turn("yes, execute the cached hybrid task"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     tool_names = {tool["function"]["name"] for tool in fixture.model.bound_tools}
     assert "moveit_plan_manipulation_task" in tool_names
     assert "moveit_plan_free_motion" not in tool_names
@@ -5001,7 +5007,7 @@ async def test_graph_executes_cached_release_contract_with_hidden_internal_tools
 
     text = await fixture.graph.run_turn(turn("yes, execute the place task"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     assert ("moveit_release_object", {
         "robot_name": "UR10",
         "object_name": "dynamic_5",
@@ -5141,7 +5147,7 @@ async def test_graph_execute_task_plan_updates_physical_pose_after_release_proof
 
     text = await fixture.graph.run_turn(turn("yes, execute"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     assert calls == [
         {
             "object_name": "dynamic_5",
@@ -5229,7 +5235,7 @@ async def test_graph_execute_task_plan_keeps_execution_success_when_pose_update_
 
     text = await fixture.graph.run_turn(turn("yes, execute"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     output = json.loads(latest_state_tool_content(fixture))
     assert output["structured_content"]["ok"] is True
     assert output["structured_content"]["verification"] == {"result": "pass"}
@@ -5297,7 +5303,7 @@ async def test_graph_execute_task_plan_does_not_sync_pose_without_release_pose_e
 
     text = await fixture.graph.run_turn(turn("yes, execute"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     assert calls == []
     assert all(name != "moveit_get_object_context" for name, _ in fixture.bridge.calls)
     output = json.loads(latest_state_tool_content(fixture))
@@ -5570,7 +5576,7 @@ async def test_graph_executes_hold_contract_and_keeps_held_object_context() -> N
 
     text = await fixture.graph.run_turn(turn("yes, pick it up and hold it"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     verified_plan_names = [call[1] for call in verified_client.calls]
     assert len(verified_plan_names) == 3
     assert verified_client.gripper_calls == [("UR10", "close", 9.0)]
@@ -5610,7 +5616,7 @@ async def test_graph_executes_zero_lift_hold_without_post_grasp_lift() -> None:
 
     text = await fixture.graph.run_turn(turn("yes, hold it"))
 
-    assert text == "Execution completed in AR/RViz; physical status unavailable."
+    assert text in PHYSICAL_STATUS_UNAVAILABLE_REPLIES
     names = bridge_tool_names(bridge)
     assert_subsequence(
         names,
@@ -5686,7 +5692,7 @@ async def test_graph_executes_move_contract_from_raw_target_pose() -> None:
 
     text = await fixture.graph.run_turn(turn("yes, lift up by 10cm"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     assert len(verified_client.calls) == 1
     assert verified_client.calls[0][0] == "UR10"
     assert verified_client.calls[0][1].startswith("move_task_tcp_001_move_tcp_")
@@ -5773,7 +5779,7 @@ async def test_graph_executes_move_and_release_contract_and_clears_held_object()
 
     text = await fixture.graph.run_turn(turn("yes, move it left and release it"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     assert len(verified_client.calls) == 1
     assert verified_client.calls[0][1].startswith("move_release_task_dynamic_5_001_move_")
     assert verified_client.gripper_calls == [("UR10", "open", 9.0)]
@@ -6021,7 +6027,7 @@ async def test_graph_uses_verified_execution_client_for_explicit_execute_plan() 
 
     text = await fixture.graph.run_turn(turn("please execute plan-1 now"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     assert verified_client.calls == [("UR10", "plan-1", 5.0)]
     assert fixture.bridge.calls == [
         ("moveit_get_current_pose", {"robot_name": "UR10"}),
@@ -6118,7 +6124,7 @@ async def test_verified_preposition_execute_continues_with_after_success_pick_pl
 
     text = await fixture.graph.run_turn(turn("please execute the preposition plan now"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     assert verified_client.calls == [("UR10", "pick-preposition-plan", 5.0)]
     assert len(fixture.model.requests) == 1
     assert ("moveit_plan_pick", {
@@ -6148,7 +6154,7 @@ async def test_graph_treats_proceed_as_explicit_execute_confirmation() -> None:
 
     text = await fixture.graph.run_turn(turn("yes proceed"))
 
-    assert text == "Execution complete."
+    assert text in EXECUTION_COMPLETE_REPLIES
     assert verified_client.calls == [("UR10", "plan-1", 5.0)]
     assert len(fixture.model.requests) == 1
 

@@ -6,6 +6,7 @@ from typing import Any, cast
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
+from agent_control.status_replies import EXECUTION_COMPLETE_REPLIES, PLAN_READY_REPLIES
 from robot_control.call_validation import agent_tool_description
 from robot_control.context import RobotContextStore
 from voice_runtime.agent_turn import AgentTurnInput
@@ -553,7 +554,7 @@ async def test_dynamic_5_manipulation_hold_plans_then_executes_unified_task() ->
 
     planned_text = await fixture.graph.run_turn(_turn("pick up dynamic_5"))
 
-    assert planned_text == "Plan ready."
+    assert planned_text in PLAN_READY_REPLIES
     assert fixture.verified_execution_client.calls == []
     assert fixture.robot_context.pending_plan is None
 
@@ -561,7 +562,7 @@ async def test_dynamic_5_manipulation_hold_plans_then_executes_unified_task() ->
         _turn("yes, execute the dynamic_5 manipulation task")
     )
 
-    assert executed_text == "Execution complete."
+    assert executed_text in EXECUTION_COMPLETE_REPLIES
     tool_names = [name for name, _ in fixture.bridge.calls]
     assert "moveit_plan_manipulation_task" in tool_names
     assert "moveit_plan_compound_task" not in tool_names

@@ -90,6 +90,19 @@ def test_prompt_includes_default_gateway_construction_goal() -> None:
     assert "claim placement success only after verified execution succeeds" in prompt
 
 
+def test_prompt_encourages_creative_robot_status_reports() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "# status report style" in prompt
+    assert "do not repeat bare status labels" in prompt
+    assert "plan is ready" in prompt
+    assert "has not moved" in prompt
+    assert "explicit approval" in prompt
+    assert "execution is complete" in prompt
+    assert "verified success" in prompt
+    assert "one short persona flourish" in prompt
+
+
 def test_prompt_treats_queued_jobs_as_unverified_execution() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
