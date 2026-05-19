@@ -76,6 +76,9 @@ EmbodimentControllerFactory = Callable[
 CARTESIA_VOICE_LIBRARY_URL = "https://play.cartesia.ai/voices"
 CARTESIA_VOICES_API_URL = "https://api.cartesia.ai/voices"
 DEFAULT_CARTESIA_VERSION = "2026-03-01"
+PIPECAT_CLIENT_URL = "http://localhost:7860/client/"
+OPERATOR_DASHBOARD_URL = "http://127.0.0.1:8787"
+RUN_AGENT_STATUS_TIMEOUT_S = 1.0
 
 
 def create_app(
@@ -108,6 +111,17 @@ def create_app(
     @app.get("/api/profiles")
     def profiles() -> dict[str, object]:
         return {"profiles": [_profile_summary(root, name) for name in _profile_names(root)]}
+
+    @app.get("/api/run-agent/status")
+    def run_agent_status() -> dict[str, object]:
+        return {
+            "pipecat_client_url": PIPECAT_CLIENT_URL,
+            "dashboard_url": OPERATOR_DASHBOARD_URL,
+            "pipecat_client_ready": _url_is_reachable(
+                PIPECAT_CLIENT_URL,
+                timeout_s=RUN_AGENT_STATUS_TIMEOUT_S,
+            ),
+        }
 
     @app.get("/api/cartesia/voices")
     def cartesia_voices() -> dict[str, object]:
@@ -443,6 +457,15 @@ def _profile_summary(server_dir: Path, name: str) -> dict[str, object]:
         ],
         "embodiment": _embodiment_payload(profile.embodiment),
     }
+
+
+def _url_is_reachable(url: str, *, timeout_s: float) -> bool:
+    request = Request(url, headers={"Accept": "text/html"})
+    try:
+        with urlopen(request, timeout=timeout_s):
+            return True
+    except (HTTPError, OSError, URLError):
+        return False
 
 
 def _embodiment_payload(settings: EmbodimentProfile) -> dict[str, object]:

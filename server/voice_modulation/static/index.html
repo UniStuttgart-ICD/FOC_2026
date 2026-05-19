@@ -444,6 +444,12 @@
       background: rgba(255, 255, 255, 0.42);
     }
 
+    .agent-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 180px));
+      gap: 8px;
+    }
+
     .speech-panel {
       display: grid;
       gap: 8px;
@@ -719,7 +725,8 @@
       .field-grid,
       .test-row,
       .motion-control-grid,
-      .motion-register {
+      .motion-register,
+      .agent-actions {
         grid-template-columns: 1fr;
       }
 
@@ -977,13 +984,17 @@
       <section id="runAgentTab" class="tab-panel">
         <div class="panel-title">
           <h1>RUN AGENT</h1>
-          <a class="button voice-link" href="http://localhost:7860/client" target="_blank" rel="noreferrer">Open Pipecat</a>
+          <div class="agent-actions">
+            <button id="openDashboardBtn" type="button">Open Dashboard</button>
+            <button id="openPipecatClientBtn" type="button">Open Pipecat Client</button>
+          </div>
         </div>
+        <div id="runAgentStatus" class="status" role="status" aria-live="polite">Check Pipecat before opening the client.</div>
         <iframe
           id="runAgentFrame"
           class="agent-frame"
           title="Pipecat voice agent"
-          data-src="http://localhost:7860/client"
+          data-src="http://localhost:7860/client/"
         ></iframe>
       </section>
     </main>
@@ -1480,6 +1491,42 @@
         throw new Error(body.detail || `${response.status} ${response.statusText}`);
       }
       return response.json();
+    }
+
+    async function getRunAgentStatus() {
+      return api("/api/run-agent/status");
+    }
+
+    function setRunAgentStatus(text, tone = "") {
+      $("runAgentStatus").textContent = text;
+      $("runAgentStatus").className = `status ${tone}`;
+    }
+
+    async function openDashboard() {
+      try {
+        const status = await getRunAgentStatus();
+        window.open(status.dashboard_url, "_blank", "noopener,noreferrer");
+        setRunAgentStatus("Dashboard opened. Start the system there if Pipecat is stopped.", "ok");
+      } catch (error) {
+        setRunAgentStatus(error.message, "hot");
+      }
+    }
+
+    async function openPipecatClient() {
+      const frame = $("runAgentFrame");
+      try {
+        const status = await getRunAgentStatus();
+        frame.dataset.src = status.pipecat_client_url;
+        if (!status.pipecat_client_ready) {
+          setRunAgentStatus("Pipecat is not running yet. Open the dashboard and start the system first.", "hot");
+          return;
+        }
+        frame.setAttribute("src", status.pipecat_client_url);
+        window.open(status.pipecat_client_url, "_blank", "noopener,noreferrer");
+        setRunAgentStatus("Pipecat is running. Opening client.", "ok");
+      } catch (error) {
+        setRunAgentStatus(error.message, "hot");
+      }
     }
 
     async function loadCartesiaVoices() {
@@ -2021,6 +2068,8 @@
     $("saveModulationDefaultBtn").addEventListener("click", saveModulationDefault);
     $("saveEmbodimentBtn").addEventListener("click", saveEmbodiment);
     $("addMotionBtn").addEventListener("click", addMotion);
+    $("openDashboardBtn").addEventListener("click", openDashboard);
+    $("openPipecatClientBtn").addEventListener("click", openPipecatClient);
     $("motionControlGrid").addEventListener("click", (event) => {
       const button = event.target.closest("[data-motion-action]");
       if (!button || button.disabled) return;
@@ -2046,8 +2095,7 @@
         document.querySelectorAll(".tab-btn").forEach((item) => item.classList.toggle("active", item === button));
         document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === button.dataset.tab));
         if (button.dataset.tab === "runAgentTab") {
-          const frame = $("runAgentFrame");
-          if (!frame.getAttribute("src")) frame.setAttribute("src", frame.dataset.src);
+          setRunAgentStatus("Check Pipecat before opening the client.");
         }
       });
     });

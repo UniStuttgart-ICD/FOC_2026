@@ -217,6 +217,59 @@ def test_profiles_route_lists_runtime_profiles_with_missing_env(tmp_path, monkey
     ]
 
 
+def test_run_agent_status_reports_pipecat_client_ready(tmp_path, monkeypatch) -> None:
+    from voice_modulation import app as app_module
+    from voice_modulation.app import create_app
+
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, traceback: object) -> bool:
+            return False
+
+    def fake_urlopen(request: object, timeout: float) -> FakeResponse:
+        assert getattr(request, "full_url") == "http://localhost:7860/client/"
+        assert timeout == 1.0
+        return FakeResponse()
+
+    monkeypatch.setattr(app_module, "urlopen", fake_urlopen)
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.get("/api/run-agent/status")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "pipecat_client_url": "http://localhost:7860/client/",
+        "dashboard_url": "http://127.0.0.1:8787",
+        "pipecat_client_ready": True,
+    }
+
+
+def test_run_agent_status_reports_pipecat_client_unavailable(
+    tmp_path, monkeypatch
+) -> None:
+    from urllib.error import URLError
+
+    from voice_modulation import app as app_module
+    from voice_modulation.app import create_app
+
+    def fake_urlopen(request: object, timeout: float) -> object:
+        raise URLError("connection refused")
+
+    monkeypatch.setattr(app_module, "urlopen", fake_urlopen)
+    client = TestClient(create_app(server_dir=tmp_path))
+
+    response = client.get("/api/run-agent/status")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "pipecat_client_url": "http://localhost:7860/client/",
+        "dashboard_url": "http://127.0.0.1:8787",
+        "pipecat_client_ready": False,
+    }
+
+
 def test_profiles_route_loads_server_env_file(tmp_path, monkeypatch) -> None:
     from voice_modulation.app import create_app
 
@@ -1111,6 +1164,14 @@ def test_index_page_serves_voice_mod_lab_workbench(tmp_path) -> None:
     assert "motionControlGrid" in response.text
     assert "addMotionBtn" in response.text
     assert "http://localhost:7860/client" in response.text
+    assert "openDashboardBtn" in response.text
+    assert "openPipecatClientBtn" in response.text
+    assert "runAgentStatus" in response.text
+    assert "/api/run-agent/status" in response.text
+    assert (
+        "Pipecat is not running yet. Open the dashboard and start the system first."
+        in response.text
+    )
     assert "protocol_droid" in response.text
     assert "masked_breather" in response.text
     assert "Character bay" in response.text
