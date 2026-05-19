@@ -1,3 +1,0 @@
-# Workshop Monorepo Runtime
-
-The workshop runtime will live in `pipecat-agent` as the **Workshop Monorepo** so students can clone one repository and use the repo-local Docker stack and launchers. We will migrate the operator dashboard, MoveIt MCP, Vizor MCP, Vizor/RViz Docker wiring, and the narrow verified execution server into this repo while leaving older Multi-Actor assignment material, broad multi-robot framework code, Gradio agent surfaces, Mongo sensor workflow, and study artifacts out. This trades the old multi-repo separation for a simpler, versioned workshop runtime with one source of truth for architecture, service wiring, and student startup.

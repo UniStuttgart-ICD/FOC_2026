@@ -8,15 +8,11 @@ from pathlib import Path
 
 import uvicorn
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SERVER_DIR = REPO_ROOT / "server"
-if str(SERVER_DIR) not in sys.path:
-    sys.path.insert(0, str(SERVER_DIR))
-
 from operator_dashboard.app import create_app
 from operator_dashboard.config import default_config_path, load_dashboard_config
 from operator_dashboard.security import DashboardSecurity
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
 GRACEFUL_SHUTDOWN_TIMEOUT_S = 45
 PORT_CHECK_TIMEOUT_S = 0.25
 

@@ -197,7 +197,7 @@ cython_debug/
 # Local runtime state
 server/state/
 server/wake_tuning_settings.json
-configs/operator_dashboard.local.toml
+operator_dashboard.local.toml
 
 # Visual Studio Code
 #   Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
@@ -228,7 +228,9 @@ __marimo__/
 # Local agent scratch
 .pi/
 .superpowers/
-.cursor/
+.cursor/*
+!.cursor/
+!.cursor/mcp-vizor-moveit.example.json
 
 # Rhino lock files
 *.rhl
@@ -254,8 +256,9 @@ docs/llm-mtc-compound-task-contract.html
 docs/plan.html
 
 # Agent-only repo instructions
+ARCHITECTURE.md
+CONTEXT.md
+docs/
 AGENTS.md
-docs/AGENTS.md
-docs/agents/
 tasks.md
 CLAUDE.md

@@ -1,26 +1,15 @@
-x-mcp-service: &mcp-service
-  build:
-    context: ../..
-    dockerfile: docker/mcp/Dockerfile
-  image: local/multi-actor-mcp:latest
-  depends_on:
-    - vizor-demo
-  restart: unless-stopped
+name: mave-workshop
 
 services:
   vizor-demo:
-    build:
-      context: ../vizor-rviz
-      dockerfile: Dockerfile
-    image: local/noetic-vizor-rviz:latest
-    container_name: vizor-demo
+    image: samulienko/noetic-vizor-rviz:latest
     tty: true
     environment:
       - ROS_HOSTNAME=vizor-demo
       - ROS_MASTER_URI=http://ros-core:11311
       - DISPLAY=:1
     volumes:
-      - ../../server/logs/moveit_planning:/root/catkin_ws/logs/moveit_planning
+      - ./server/logs/moveit_planning:/root/catkin_ws/logs/moveit_planning
     ports:
       - "6080:6080"
       - "5901:5901"
@@ -33,19 +22,17 @@ services:
       - ros-core
 
   ros-core:
-    build:
-      context: .
-      dockerfile: Dockerfile.noetic-vizor-local
-    image: local/noetic-vizor-local:latest
-    container_name: ros-core
+    image: ghcr.io/samulko/noetic-vizor-local:latest
     ports:
       - "11311:11311"
     command:
       - roscore
 
   vizor-mcp:
-    <<: *mcp-service
-    container_name: vizor-mcp
+    image: ghcr.io/samulko/01-docker-multi-actor-mcp:latest
+    depends_on:
+      - vizor-demo
+    restart: unless-stopped
     command:
       - python
       - -m
@@ -67,8 +54,10 @@ services:
       - "8001:8001"
 
   moveit-mcp:
-    <<: *mcp-service
-    container_name: moveit-mcp
+    image: ghcr.io/samulko/01-docker-multi-actor-mcp:latest
+    depends_on:
+      - vizor-demo
+    restart: unless-stopped
     command:
       - python
       - -m

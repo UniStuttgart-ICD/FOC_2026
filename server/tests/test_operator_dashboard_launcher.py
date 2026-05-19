@@ -7,7 +7,7 @@ from operator_dashboard.security import DashboardSecurity
 
 
 def test_launcher_configures_graceful_shutdown_timeout(monkeypatch) -> None:
-    import scripts.run_operator_dashboard as launcher
+    import operator_dashboard.__main__ as launcher
 
     captured: dict[str, object] = {}
     config = DashboardConfig(
@@ -28,7 +28,7 @@ def test_launcher_configures_graceful_shutdown_timeout(monkeypatch) -> None:
         staticmethod(lambda: DashboardSecurity(token="secret")),
     )
     monkeypatch.setattr(launcher, "create_app", lambda cfg, security: "app")
-    monkeypatch.setattr(sys, "argv", ["run_operator_dashboard.py", "--no-open-browser"])
+    monkeypatch.setattr(sys, "argv", ["operator_dashboard", "--no-open-browser"])
     monkeypatch.setattr(
         launcher.uvicorn,
         "run",
@@ -44,7 +44,7 @@ def test_launcher_configures_graceful_shutdown_timeout(monkeypatch) -> None:
 
 
 def test_launcher_rejects_used_port_before_generating_token(monkeypatch, capsys) -> None:
-    import scripts.run_operator_dashboard as launcher
+    import operator_dashboard.__main__ as launcher
 
     config = DashboardConfig(
         services={
@@ -78,7 +78,7 @@ def test_launcher_rejects_used_port_before_generating_token(monkeypatch, capsys)
         "run",
         lambda app, **kwargs: (_ for _ in ()).throw(AssertionError("uvicorn started")),
     )
-    monkeypatch.setattr(sys, "argv", ["run_operator_dashboard.py", "--no-open-browser"])
+    monkeypatch.setattr(sys, "argv", ["operator_dashboard", "--no-open-browser"])
 
     try:
         launcher.main()

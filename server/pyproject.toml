@@ -53,7 +53,6 @@ exclude = [
     "tests/test_vizor_client.py",
     "tests/test_vizor_mcp_context.py",
     "tests/test_vizor_mcp_launcher.py",
-    "tests/test_vizor_rviz_robotiq_patch.py",
 ]
 
 [tool.pytest.ini_options]

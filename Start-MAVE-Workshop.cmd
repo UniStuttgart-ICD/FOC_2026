@@ -25,7 +25,7 @@ if not exist "server\.venv\Scripts\python.exe" (
 )
 
 pushd server
-uv run python ..\scripts\run_operator_dashboard.py
+uv run python -m operator_dashboard
 set EXIT_CODE=%ERRORLEVEL%
 popd
 

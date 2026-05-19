@@ -5,7 +5,7 @@ import pytest
 import tomllib
 from pydantic import ValidationError
 
-from operator_dashboard.config import load_dashboard_config
+from operator_dashboard.config import default_config_path, load_dashboard_config
 from operator_dashboard.models import CheckType, ServiceState
 from robot_control.shared_geometry.modeltracker_sync_server import (
     DEFAULT_PORT as MODELTRACKER_SYNC_PORT,
@@ -89,8 +89,13 @@ def test_operator_dashboard_and_moveit_mcp_are_packaged() -> None:
 
 def test_example_config_starts_vizor_first_and_uses_default_pipecat_command() -> None:
     repo_root = Path(__file__).resolve().parents[2]
-    config = load_dashboard_config(repo_root / "configs" / "operator_dashboard.example.toml")
+    config_path = default_config_path(repo_root)
+    config = load_dashboard_config(config_path)
 
+    assert (
+        config_path
+        == repo_root / "server" / "operator_dashboard" / "default_config.toml"
+    )
     assert list(config.services) == [
         "vizor",
         "modeltracker_sync",
@@ -100,6 +105,15 @@ def test_example_config_starts_vizor_first_and_uses_default_pipecat_command() ->
         "voice_modulation",
     ]
     vizor = config.services["vizor"]
+    assert vizor.cwd == str(repo_root)
+    assert vizor.command == ["docker", "compose", "-f", "workshop.compose.yml", "up"]
+    assert vizor.stop_command == [
+        "docker",
+        "compose",
+        "-f",
+        "workshop.compose.yml",
+        "down",
+    ]
     assert (
         vizor.links[0].url
         == "http://127.0.0.1:6080/vnc_auto.html?host=127.0.0.1&port=6080&path=websockify&autoconnect=true&resize=remote"
@@ -124,14 +138,18 @@ def test_example_config_starts_vizor_first_and_uses_default_pipecat_command() ->
         "robot_control.shared_geometry.modeltracker_sync_server",
     ]
     assert MODELTRACKER_SYNC_PORT == 8788
-    assert modeltracker_sync.ready_checks[0].url == f"http://127.0.0.1:{MODELTRACKER_SYNC_PORT}/health"
+    assert (
+        modeltracker_sync.ready_checks[0].url
+        == f"http://127.0.0.1:{MODELTRACKER_SYNC_PORT}/health"
+    )
     execution = config.services["verified_execution"]
     assert execution.cwd == str(repo_root / "server")
     assert execution.command == [
         "uv",
         "run",
         "python",
-        "../scripts/run_verified_execution_server.py",
+        "-m",
+        "verified_execution_server",
     ]
     assert execution.env["UR_ROBOT_IP"] == "127.0.0.1"
     assert execution.env["UR_SKIP_GRIPPER"] == "true"

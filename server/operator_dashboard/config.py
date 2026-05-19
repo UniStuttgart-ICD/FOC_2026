@@ -50,14 +50,17 @@ def _resolve_service_cwds(data: dict[str, Any], base_dir: Path) -> None:
 
 
 def _config_base_dir(config_path: Path) -> Path:
-    if config_path.parent.name == "configs":
-        return config_path.parent.parent
+    if (
+        config_path.name == "default_config.toml"
+        and config_path.parent.name == "operator_dashboard"
+    ):
+        return config_path.parents[2]
     return config_path.parent
 
 
 def default_config_path(repo_root: Path | None = None) -> Path:
     root = repo_root or Path(__file__).resolve().parents[2]
-    local_path = root / "configs" / "operator_dashboard.local.toml"
+    local_path = root / "operator_dashboard.local.toml"
     if local_path.exists():
         return local_path
-    return root / "configs" / "operator_dashboard.example.toml"
+    return Path(__file__).resolve().with_name("default_config.toml")

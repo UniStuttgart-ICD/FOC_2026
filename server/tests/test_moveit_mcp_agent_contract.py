@@ -478,26 +478,7 @@ async def test_agent_contract_attached_object_verifier_proves_object_moves_with_
     assert payload["raw"]["moves_with_gripper"] is True
 
 
-def test_docs_describe_safe_moveit_agent_workflow_with_canonical_tool_names():
+def test_cursor_mcp_example_is_available_for_workshop_agents():
     repo_root = Path(__file__).resolve().parents[2]
-    documentation = (repo_root / "docs" / "VIZOR_MOVEIT_MCP.md").read_text(
-        encoding="utf-8"
-    )
 
-    for tool_name in CANONICAL_AGENT_TOOLS:
-        assert tool_name in documentation
-
-    assert "moveit_get_current_pose" in documentation
-    assert "moveit_plan_free_motion" in documentation
-    assert "moveit_plan_cartesian_motion" in documentation
-    assert "moveit_plan_pick" in documentation
-    assert "moveit_list_scene_objects" in documentation
-    assert "moveit_get_object_context" in documentation
-    assert "moveit_execute_plan" in documentation
-    assert "moveit_explain_motion_failure" in documentation
-    assert "moveit_verify_attached_object" in documentation
-    assert "Do not expose or use combined `moveit_plan_and_execute_*` tools" in documentation
-    assert "raw.plan_name" in documentation
-    assert "feedback.can_execute" in documentation
-    assert "same MCP process" in documentation
     assert (repo_root / ".cursor" / "mcp-vizor-moveit.example.json").exists()

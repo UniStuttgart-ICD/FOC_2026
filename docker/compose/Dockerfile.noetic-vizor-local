@@ -1,3 +1,0 @@
-FROM cxy201/noetic-vizor:latest
-
-ENV DEBIAN_FRONTEND=noninteractive
