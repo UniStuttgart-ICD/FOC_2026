@@ -232,9 +232,10 @@ _AGENT_TOOL_DESCRIPTIONS = {
         "to that exact task solution."
     ),
     "moveit_execute_task": (
-        "Execute an approved task_solution_id in RViz/simulation first, then also attempt "
-        "real robot execution when connected. Use only after explicit user intent is bound "
-        "to that exact task_solution_id. Returns separate simulation and real robot status."
+        "Execute an approved task_solution_id by running AR/RViz and real robot motion stages "
+        "in parallel when Verified Real Robot Execution is ready. Use only after explicit user "
+        "intent is bound to that exact task_solution_id. Returns separate simulation and real "
+        "robot status."
     ),
     "moveit_execute_task_plan": (
         "Execute a returned supported task_solution_id with a supported execution_contract "

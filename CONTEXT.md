@@ -461,6 +461,7 @@ A compact local artifact recording tool order, typed tool outputs, policy decisi
 - The **Task-Level Manipulation Planner** may use the **Staged MoveIt Manipulation Backend** now and an **MTC Backend** later, but Agent Orchestration should still see `moveit_plan_manipulation_task` rather than competing pick, place, compound, and low-level motion tools.
 - The **Verified Task Plan Execution Bridge** supports typed, proof-backed contracts for pick, place, hold, move-and-release, approach-hold-adjust-release, and pick-place task kinds.
 - Verified task execution keeps the agent path semantic: task planner, explicit approval, then `moveit_execute_task`.
+- `moveit_execute_task` dispatches each motion stage to AR/RViz and Verified Real Robot Execution in parallel when the physical robot is ready. This starts both branches from the same approved stage plan; it is not hard real-time hardware synchronization.
 - **Task Solution Cache** owns immutable solved task payloads; approved execution reads the cached execution contract and bound scene evidence instead of trusting a model-restated contract.
 - `moveit_execute_task` recomputes **Scene Snapshot Evidence** through Robot Control/MCP at execution time; Agent Orchestration never computes or supplies the scene hash.
 - A live solved **MTC Backend** result must publish an **MTC Task Preview** when preview is part of the workflow; execution success still requires later attachment or release proof.

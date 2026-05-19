@@ -643,6 +643,56 @@ class FakeVerifiedExecutionClientWithoutPlanFeedback(FakeVerifiedExecutionClient
         )
 
 
+class EventRecordingVerifiedExecutionClient(FakeVerifiedExecutionClient):
+    def __init__(
+        self,
+        events: list[tuple[str, str]],
+        physical_started: asyncio.Event,
+        *,
+        motion_delay_s: float = 0.01,
+    ) -> None:
+        super().__init__()
+        self.events = events
+        self.physical_started = physical_started
+        self.motion_delay_s = motion_delay_s
+
+    async def execute_plan(
+        self,
+        *,
+        robot_name: str,
+        plan_name: str,
+        timeout_s: float,
+    ) -> str:
+        self.calls.append((robot_name, plan_name, timeout_s))
+        self.events.append(("physical_start", plan_name))
+        self.physical_started.set()
+        await asyncio.sleep(self.motion_delay_s)
+        self.events.append(("physical_finish", plan_name))
+        return json.dumps(
+            {
+                "structured_content": {
+                    "ok": True,
+                    "robot": robot_name,
+                    "tool": "execute_plan",
+                    "phase": "executed",
+                    "status": "executed",
+                    "feedback": {"plan_name": plan_name, "trajectory_points": 2},
+                    "verification": {"result": "pass"},
+                },
+                "is_error": False,
+            }
+        )
+
+    async def close_gripper(
+        self,
+        *,
+        robot_name: str,
+        timeout_s: float,
+    ) -> str:
+        self.events.append(("physical_close_gripper", robot_name))
+        return await super().close_gripper(robot_name=robot_name, timeout_s=timeout_s)
+
+
 @dataclass(frozen=True)
 class GraphFixture:
     graph: Any
@@ -1179,6 +1229,78 @@ class StageSynchronizedTaskBridge(CompoundTaskPlanBridge):
         return await super().call_tool(name, arguments)
 
 
+class BlockingParallelExecutionBridge(StageSynchronizedTaskBridge):
+    def __init__(
+        self,
+        events: list[tuple[str, str]],
+        physical_started: asyncio.Event,
+    ) -> None:
+        super().__init__()
+        self.events = events
+        self.physical_started = physical_started
+        self._waited_for_first_motion = False
+
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        if name == "moveit_execute_plan":
+            self.calls.append((name, arguments))
+            plan_name = str(arguments["plan_name"])
+            self.events.append(("ar_start", plan_name))
+            if not self._waited_for_first_motion:
+                self._waited_for_first_motion = True
+                try:
+                    await asyncio.wait_for(self.physical_started.wait(), timeout=0.05)
+                    self.events.append(("ar_saw_physical_start", plan_name))
+                except TimeoutError:
+                    self.events.append(("ar_no_physical_before_finish", plan_name))
+            self.events.append(("ar_finish", plan_name))
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": True,
+                        "robot": arguments["robot_name"],
+                        "tool": "moveit_execute_plan",
+                        "status": "executed",
+                        "feedback": {"plan_name": arguments["plan_name"]},
+                        "verification": {"result": "pass"},
+                    }
+                }
+            )
+        if name == "moveit_close_gripper":
+            self.events.append(("ar_close_gripper", str(arguments["robot_name"])))
+        if name == "moveit_attach_object":
+            self.events.append(("ar_attach_object", str(arguments["object_name"])))
+        return await super().call_tool(name, arguments)
+
+
+class FailingParallelExecutionBridge(BlockingParallelExecutionBridge):
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        if name == "moveit_execute_plan":
+            self.calls.append((name, arguments))
+            plan_name = str(arguments["plan_name"])
+            self.events.append(("ar_start", plan_name))
+            try:
+                await asyncio.wait_for(self.physical_started.wait(), timeout=0.05)
+                self.events.append(("ar_saw_physical_start", plan_name))
+            except TimeoutError:
+                self.events.append(("ar_no_physical_before_finish", plan_name))
+            self.events.append(("ar_fail", plan_name))
+            return json.dumps(
+                {
+                    "structured_content": {
+                        "ok": False,
+                        "robot": arguments["robot_name"],
+                        "tool": "moveit_execute_plan",
+                        "status": "execution_failed",
+                        "feedback": {"plan_name": arguments["plan_name"]},
+                        "verification": {"result": "fail"},
+                        "error": "AR/RViz execution failed.",
+                    },
+                    "is_error": True,
+                }
+            )
+        return await super().call_tool(name, arguments)
+
+
 class FailingTaskStageBridge(StageSynchronizedTaskBridge):
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
         if name == "moveit_plan_free_motion":
@@ -1284,6 +1406,13 @@ def assert_stage_synchronized_ar_rviz_calls(bridge: FakeBridge) -> None:
             "moveit_verify_attached_object",
         ],
     )
+
+
+def event_index(events: list[tuple[str, str]], event: tuple[str, str]) -> int:
+    try:
+        return events.index(event)
+    except ValueError:
+        pytest.fail(f"Missing event {event}; observed {events}")
 
 
 def write_dynamic_role_model(tmp_path: Any) -> Any:
@@ -1507,8 +1636,8 @@ async def test_graph_uses_unified_task_execution_tool_in_verified_execution_mode
     first_request = fixture.model.requests[0]
     assert isinstance(first_request[0], SystemMessage)
     assert (
-        "Use moveit_execute_task for returned task_solution_id values. It executes in RViz/simulation "
-        "first and also attempts real robot execution when connected"
+        "Use moveit_execute_task for returned task_solution_id values. It executes AR/RViz and "
+        "real-robot motion stages in parallel when Verified Real Robot Execution is ready"
     ) in str(first_request[0].content)
 
 
@@ -1772,8 +1901,8 @@ async def test_graph_uses_unified_task_execution_tool_in_simulation_mode() -> No
     first_request = fixture.model.requests[0]
     assert isinstance(first_request[0], SystemMessage)
     assert (
-        "Use moveit_execute_task for returned task_solution_id values. It executes in RViz/simulation "
-        "first and also attempts real robot execution when connected"
+        "Use moveit_execute_task for returned task_solution_id values. It executes AR/RViz and "
+        "real-robot motion stages in parallel when Verified Real Robot Execution is ready"
     ) in str(first_request[0].content)
 
 
@@ -3045,6 +3174,89 @@ async def test_graph_execute_task_runs_ar_rviz_and_physical_when_verified_ready(
     assert structured["ok"] is True
     assert structured["simulation"]["ok"] is True
     assert structured["real_robot"]["status"] == "executed"
+
+
+@pytest.mark.asyncio
+async def test_graph_execute_task_dispatches_physical_before_ar_rviz_motion_finishes() -> None:
+    execute_args = {
+        "robot_name": "UR10",
+        "task_solution_id": "hold_task_dynamic_5_001",
+        "timeout_s": 9.0,
+    }
+    events: list[tuple[str, str]] = []
+    physical_started = asyncio.Event()
+    bridge = BlockingParallelExecutionBridge(events, physical_started)
+    verified_client = EventRecordingVerifiedExecutionClient(events, physical_started)
+    writer = MemoryTraceWriter()
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_execute_task", execute_args),
+            ai_text("unexpected model fallback"),
+        ],
+        bridge=bridge,
+        robot_context=approved_hold_contract_context(),
+        verified_execution_client=verified_client,
+        tracer=ProcessTracer(writer),
+    )
+
+    await fixture.graph.run_turn(turn("yes, execute the pick task"))
+
+    ar_rviz_plan_names = executed_ar_rviz_plan_names(bridge)
+    first_plan = ar_rviz_plan_names[0]
+    assert ("ar_saw_physical_start", first_plan) in events
+    assert event_index(events, ("physical_start", first_plan)) < event_index(
+        events,
+        ("ar_finish", first_plan),
+    )
+    first_gripper_index = event_index(events, ("ar_close_gripper", "UR10"))
+    for event in events[:first_gripper_index]:
+        if event[0] == "physical_start":
+            assert event_index(events, ("physical_finish", event[1])) < first_gripper_index
+    output = json.loads(latest_state_tool_content(fixture))
+    structured = output["structured_content"]
+    assert structured["ok"] is True
+    assert structured["real_robot"]["synchronization"]["mode"] == "parallel_dispatch"
+    dispatch_events = records_named(writer, "robot.task_motion.parallel_dispatch")
+    assert dispatch_events
+    first_dispatch = dispatch_events[0]["attributes"]
+    assert first_dispatch["plan_name"] == first_plan
+    assert isinstance(first_dispatch["dispatch_skew_ms"], float)
+
+
+@pytest.mark.asyncio
+async def test_graph_execute_task_ar_rviz_failure_keeps_physical_dispatch_evidence() -> None:
+    execute_args = {
+        "robot_name": "UR10",
+        "task_solution_id": "hold_task_dynamic_5_001",
+        "timeout_s": 9.0,
+    }
+    events: list[tuple[str, str]] = []
+    physical_started = asyncio.Event()
+    bridge = FailingParallelExecutionBridge(events, physical_started)
+    verified_client = EventRecordingVerifiedExecutionClient(events, physical_started)
+    fixture = make_graph(
+        [
+            ai_tool_call("moveit_execute_task", execute_args),
+            ai_text("unexpected model fallback"),
+        ],
+        bridge=bridge,
+        robot_context=approved_hold_contract_context(),
+        verified_execution_client=verified_client,
+    )
+
+    text = await fixture.graph.run_turn(turn("yes, execute the pick task"))
+
+    assert "failed at approach during verified_execution" in text
+    assert bridge_tool_names(bridge).count("moveit_execute_plan") == 1
+    assert "moveit_close_gripper" not in bridge_tool_names(bridge)
+    assert len(verified_client.calls) == 1
+    output = json.loads(latest_state_tool_content(fixture))
+    assert output["ok"] is False
+    assert output["failed_stage"] == "verified_execution"
+    real_robot = output["recovery"]["real_robot"]
+    assert real_robot["status"] == "executed"
+    assert real_robot["verified_plan_names"] == [verified_client.calls[0][1]]
+    assert real_robot["synchronization"]["mode"] == "parallel_dispatch"
 
 
 @pytest.mark.asyncio

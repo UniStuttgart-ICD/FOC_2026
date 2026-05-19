@@ -581,6 +581,98 @@ class Robot:
     assert module.patch_vizor_robot_py() is False
 
 
+def test_patch_vizor_robot_py_scales_only_ar_planned_path_preview(monkeypatch, tmp_path):
+    module = _load_patch_module()
+    robot_py = tmp_path / "robot.py"
+    robot_py.write_text(
+        '''def create_world_pose(z = 0):
+    worldXY = PoseStamped()
+    header = Header()
+    header.frame_id = "base_link"
+    worldXY.header = header
+    pose = Pose()
+    pose.position.z = z
+    pose.orientation.w = 1.0
+    worldXY.pose = pose
+
+class Robot:
+    def add_ground_plane(self):
+        name = "ground_plane"
+        ground_pose = create_world_pose(z = -0.105)
+        self.scene.add_box(name, ground_pose, size=(5, 5, 0.01))
+
+    def init_topics(self):
+        rospy.Subscriber(f"{self.name}/request/cartesian", PlanningCartesian, self.planCartesianMotion, callback_args=self.name)
+
+    def planFreeMotion(self, msg, *args):
+        # rospy.wait_for_service('plan_free_motion')
+        name = args[0]
+        self.move_group.set_planner_id("PTP")
+        print (f"planning free {msg.name}")
+        if DEBUG:
+            print (f"   from {self._get_current_pose()}")
+            print (f"   to {msg.target_pose}")
+        rospy.sleep(DELAY)
+        try:
+            target_pose = msg.target_pose
+            result = self.move_group.plan(joints = target_pose)
+            if result[0]:
+                output = result[1]
+                if DEBUG: print (f"   >> planning time {result[2]}")
+                print (f"   >> ptp movement with {len(output.joint_trajectory.points)}")
+            else:
+                print(f"planning failed {result[3]}")
+            code = int(str(result[3]).split(':')[-1])
+            self.planning_status_publisher.publish(String(f"{self.planningResponseForHumans(code)}"))
+        except Exception as e:
+            print(e)
+
+    def _combine_sampled_segments(self, segments):
+        pass
+
+    def planCartesianMotion(self, msg, *args):
+        result = self.move_group.compute_cartesian_path(
+            target_poses,
+            eef_step,
+            avoid_collisions=True,
+        ) #default avoid collision
+
+    def plan_transition(self, joint_trajectory_point, name = "transition"):
+        pass
+
+    def _publish_trajectory(self, joint_trajectory, traj_name):
+        traj = PlannedTrajectory()
+        traj.name = traj_name
+        traj.platform_name = self.name
+        traj.joint_trajectory = joint_trajectory
+        self.trajectory_publisher.publish(traj)
+''',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "ROBOT_PY", robot_py)
+
+    assert module.patch_vizor_robot_py() is True
+
+    patched = robot_py.read_text(encoding="utf-8")
+    assert "AR_PREVIEW_TIME_SCALE = 4.0" in patched
+    assert "def _ar_preview_trajectory(self, joint_trajectory):" in patched
+    assert "preview = copy.deepcopy(joint_trajectory)" in patched
+    assert "rospy.Duration.from_sec(point.time_from_start.to_sec() * AR_PREVIEW_TIME_SCALE)" in patched
+    assert "point.velocities = [value / AR_PREVIEW_TIME_SCALE for value in point.velocities]" in patched
+    assert (
+        "value / (AR_PREVIEW_TIME_SCALE * AR_PREVIEW_TIME_SCALE)"
+        " for value in point.accelerations"
+    ) in patched
+    publish_method = patched[patched.index("    def _publish_trajectory") :]
+    assert "traj.joint_trajectory = self._ar_preview_trajectory(joint_trajectory)" in publish_method
+    assert "traj.joint_trajectory = joint_trajectory" not in publish_method
+    assert "self.trajectory_data[msg.name] = output" in patched
+    assert patched.index("self._publish_trajectory(convertedTraj.joint_trajectory, msg.name)") < patched.index(
+        "self.trajectory_data[msg.name] = output"
+    )
+    assert module.patch_vizor_robot_py() is False
+
+
 def test_patch_vizor_robot_py_logs_cartesian_planning_details(monkeypatch, tmp_path):
     module = _load_patch_module()
     robot_py = tmp_path / "robot.py"

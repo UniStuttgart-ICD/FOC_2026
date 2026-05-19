@@ -121,9 +121,9 @@ TASK_PLAN_STAGE_REQUIRED_PROOF_BY_HANDLER = {
     "verify_released_object": "release_check",
 }
 TASK_EXECUTION_INSTRUCTION = (
-    "Use moveit_execute_task for returned task_solution_id values. It executes in RViz/simulation "
-    "first and also attempts real robot execution when connected; simulation success counts as "
-    "execution success with real robot status reported separately."
+    "Use moveit_execute_task for returned task_solution_id values. It executes AR/RViz and "
+    "real-robot motion stages in parallel when Verified Real Robot Execution is ready; "
+    "simulation success counts as execution success with real robot status reported separately."
 )
 PLAN_TOOL_NAMES = {
     "moveit_plan_free_motion",
@@ -1077,6 +1077,7 @@ class LangGraphRobotAgent:
         execution_id = uuid.uuid4().hex[:8]
         ar_rviz_plan_names: list[str] = []
         physical_plan_names: list[str] = []
+        physical_synchronization: dict[str, Any] | None = None
         completed_steps: list[dict[str, Any]] = []
         verified_gripper_closed = False
         verified_gripper_open = False
@@ -1189,7 +1190,52 @@ class LangGraphRobotAgent:
                         "plan_name": executable_name,
                         "timeout_s": timeout_s,
                     }
-                    if run_ar_rviz:
+                    physical_output: str | None = None
+                    stage_synchronization: dict[str, Any] | None = None
+                    stage_real_robot_result: dict[str, Any] | None = None
+                    if run_ar_rviz and physical_available:
+                        (
+                            execute_output,
+                            physical_output,
+                            stage_synchronization,
+                        ) = await self._execute_parallel_task_motion_stage(
+                            robot_name=robot_name,
+                            plan_name=executable_name,
+                            timeout_s=timeout_s,
+                            execute_arguments=execute_arguments,
+                            step_name=step_name,
+                            user_text=user_text,
+                            allow_execution=allow_execution,
+                        )
+                        physical_synchronization = _task_parallel_dispatch_synchronization(
+                            physical_synchronization,
+                            stage_synchronization,
+                        )
+                        if _execution_succeeded(physical_output):
+                            physical_plan_names.append(executable_name)
+                            stage_real_robot_result = {
+                                **dict(real_robot_result),
+                                "verified_plan_names": list(physical_plan_names),
+                            }
+                        else:
+                            physical_available = False
+                            real_robot_result = _physical_task_failed_result(
+                                failed_stage="verified_execution",
+                                failed_tool_name="moveit_execute_plan",
+                                failed_tool_arguments=execute_arguments,
+                                failed_tool_result=_json_payload(physical_output),
+                                verified_plan_names=physical_plan_names,
+                            )
+                            stage_real_robot_result = dict(real_robot_result)
+                        if stage_synchronization is not None and stage_real_robot_result is not None:
+                            stage_real_robot_result["synchronization"] = dict(
+                                stage_synchronization
+                            )
+                            if physical_synchronization is not None:
+                                real_robot_result["synchronization"] = dict(
+                                    physical_synchronization
+                                )
+                    elif run_ar_rviz:
                         execute_output = await self._execute_tool(
                             "moveit_execute_plan",
                             execute_arguments,
@@ -1210,9 +1256,26 @@ class LangGraphRobotAgent:
                         last_failed_output = execute_output
                         last_failed_tool_name = "moveit_execute_plan"
                         last_failed_tool_arguments = execute_arguments
+                        if physical_output is not None:
+                            return await self._task_plan_stage_failure(
+                                stage=last_failed_stage,
+                                step_name=step_name,
+                                output=last_failed_output,
+                                failed_tool_name=last_failed_tool_name,
+                                failed_tool_arguments=last_failed_tool_arguments,
+                                task_solution_id=task_solution_id,
+                                recent=recent,
+                                completed_steps=completed_steps,
+                                verified_plan_names=ar_rviz_plan_names,
+                                attached_object_verified=attached_object_verified,
+                                released_object_verified=released_object_verified,
+                                available_tool_names=available_tool_names,
+                                user_text=user_text,
+                                real_robot_result=stage_real_robot_result,
+                            )
                         continue
                     ar_rviz_plan_names.append(executable_name)
-                    if run_ar_rviz and physical_available:
+                    if run_ar_rviz and physical_available and physical_output is None:
                         physical_output = await self._execute_verified_plan_direct(
                             robot_name=robot_name,
                             plan_name=executable_name,
@@ -1578,6 +1641,8 @@ class LangGraphRobotAgent:
             simulation_result["release_verification"] = release_verification
         if real_robot_result.get("status") == "executed":
             real_robot_result["verified_plan_names"] = list(physical_plan_names)
+        if physical_synchronization is not None:
+            real_robot_result["synchronization"] = dict(physical_synchronization)
         structured_content: dict[str, Any] = {
             "ok": True,
             "tool": public_tool_name,
@@ -2320,6 +2385,7 @@ class LangGraphRobotAgent:
         released_object_verified: bool,
         available_tool_names: set[str],
         user_text: str | None,
+        real_robot_result: dict[str, Any] | None = None,
     ) -> str:
         failed_tool_result = _json_payload(output)
         recovery = {
@@ -2338,6 +2404,8 @@ class LangGraphRobotAgent:
             "attached_object_verified": attached_object_verified,
             "released_object_verified": released_object_verified,
         }
+        if real_robot_result is not None:
+            recovery["real_robot"] = dict(real_robot_result)
         self._robot_context.remember_task_failure(
             task_solution_id=task_solution_id,
             task_kind=recent.task_kind,
@@ -2386,6 +2454,57 @@ class LangGraphRobotAgent:
             recovery=recovery,
             diagnostic=diagnostic,
         )
+
+    async def _execute_parallel_task_motion_stage(
+        self,
+        *,
+        robot_name: str,
+        plan_name: str,
+        timeout_s: float,
+        execute_arguments: dict[str, Any],
+        step_name: str,
+        user_text: str | None,
+        allow_execution: bool,
+    ) -> tuple[str, str, dict[str, Any]]:
+        ar_dispatched_at_s = monotonic_s()
+        ar_task = asyncio.create_task(
+            self._execute_tool(
+                "moveit_execute_plan",
+                execute_arguments,
+                user_text=user_text,
+                allow_execution=allow_execution,
+            ),
+            name=f"ar_rviz_execute_{plan_name}",
+        )
+        physical_dispatched_at_s = monotonic_s()
+        physical_task = asyncio.create_task(
+            self._execute_verified_plan_direct(
+                robot_name=robot_name,
+                plan_name=plan_name,
+                timeout_s=timeout_s,
+            ),
+            name=f"physical_execute_{plan_name}",
+        )
+        dispatch_skew_ms = abs(physical_dispatched_at_s - ar_dispatched_at_s) * 1000.0
+        synchronization = {
+            "mode": "parallel_dispatch",
+            "stage": step_name,
+            "plan_name": plan_name,
+            "dispatch_skew_ms": round(dispatch_skew_ms, 3),
+        }
+        self._tracer.event(
+            "robot.task_motion.parallel_dispatch",
+            "robot_control",
+            attributes={
+                "step.name": step_name,
+                "plan_name": plan_name,
+                "ar_rviz_dispatched_at_s": ar_dispatched_at_s,
+                "physical_dispatched_at_s": physical_dispatched_at_s,
+                "dispatch_skew_ms": dispatch_skew_ms,
+            },
+        )
+        ar_output, physical_output = await asyncio.gather(ar_task, physical_task)
+        return ar_output, physical_output, synchronization
 
     async def _execute_verified_plan_direct(
         self,
@@ -3114,6 +3233,26 @@ def _physical_task_failed_result(
                 result[key] = value
                 break
     return result
+
+
+def _task_parallel_dispatch_synchronization(
+    current: dict[str, Any] | None,
+    stage_synchronization: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if stage_synchronization is None:
+        return current
+    if current is None:
+        return {
+            "mode": "parallel_dispatch",
+            "stage_count": 1,
+            "last_stage": stage_synchronization.get("stage"),
+            "last_dispatch_skew_ms": stage_synchronization.get("dispatch_skew_ms"),
+        }
+    updated = dict(current)
+    updated["stage_count"] = int(updated.get("stage_count") or 0) + 1
+    updated["last_stage"] = stage_synchronization.get("stage")
+    updated["last_dispatch_skew_ms"] = stage_synchronization.get("dispatch_skew_ms")
+    return updated
 
 
 def _manipulation_planner_timed_out(result: dict[str, Any]) -> bool:

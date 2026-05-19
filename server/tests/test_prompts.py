@@ -170,7 +170,7 @@ def test_prompt_describes_manipulation_planning_gate() -> None:
     assert "task_solution_id" in prompt
     assert "explicit user intent bound to that task solution" in prompt
     assert "simulation/rviz" in prompt
-    assert "real robot when connected" in prompt
+    assert "real robot in parallel from the same stage plan" in prompt
 
 
 def test_prompt_routes_pick_place_to_manipulation_task() -> None:

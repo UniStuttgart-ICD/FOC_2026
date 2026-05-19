@@ -60,6 +60,23 @@ FREE_METHOD = "    def planFreeMotion(self, msg, *args):\n"
 COMBINE_SAMPLED_METHOD = "    def _combine_sampled_segments(self, segments):\n"
 PLAN_TRANSITION_METHOD = "    def plan_transition(self, joint_trajectory_point, name = \"transition\"):\n"
 EXECUTE_STORED_METHOD = "    def executeStoredMotion(self, msg, *args):\n"
+PUBLISH_TRAJECTORY_METHOD = "    def _publish_trajectory(self, joint_trajectory, traj_name):\n"
+AR_PREVIEW_TIME_SCALE_LINE = "AR_PREVIEW_TIME_SCALE = 4.0\n"
+AR_PREVIEW_METHODS = '''    def _ar_preview_trajectory(self, joint_trajectory):
+        preview = copy.deepcopy(joint_trajectory)
+        for point in preview.points:
+            point.time_from_start = rospy.Duration.from_sec(point.time_from_start.to_sec() * AR_PREVIEW_TIME_SCALE)
+            if point.velocities:
+                point.velocities = [value / AR_PREVIEW_TIME_SCALE for value in point.velocities]
+            if point.accelerations:
+                point.accelerations = [value / (AR_PREVIEW_TIME_SCALE * AR_PREVIEW_TIME_SCALE) for value in point.accelerations]
+        return preview
+
+'''
+RAW_PUBLISH_TRAJECTORY_ASSIGNMENT = "        traj.joint_trajectory = joint_trajectory\n"
+AR_PREVIEW_PUBLISH_TRAJECTORY_ASSIGNMENT = (
+    "        traj.joint_trajectory = self._ar_preview_trajectory(joint_trajectory)\n"
+)
 PLANNING_LOG_METHODS = '''    def _moveit_plan_tuple_value(self, result, index):
         try:
             return result[index]
@@ -621,6 +638,45 @@ def _insert_planning_log_helpers(text: str) -> tuple[str, bool]:
     return text, True
 
 
+def _insert_ar_preview_scaling(text: str) -> tuple[str, bool]:
+    if PUBLISH_TRAJECTORY_METHOD not in text:
+        return text, False
+
+    changed = False
+    if "import copy\n" not in text:
+        if "import traceback\n" in text:
+            text = text.replace("import traceback\n", "import copy\nimport traceback\n", 1)
+        else:
+            text = f"import copy\n{text}"
+        changed = True
+
+    if AR_PREVIEW_TIME_SCALE_LINE not in text:
+        if "import traceback\n" in text:
+            text = text.replace("import traceback\n", f"import traceback\n\n{AR_PREVIEW_TIME_SCALE_LINE}", 1)
+        elif "import copy\n" in text:
+            text = text.replace("import copy\n", f"import copy\n\n{AR_PREVIEW_TIME_SCALE_LINE}", 1)
+        else:
+            text = f"{AR_PREVIEW_TIME_SCALE_LINE}{text}"
+        changed = True
+
+    if "def _ar_preview_trajectory(self, joint_trajectory):" not in text:
+        publish_start = text.find(PUBLISH_TRAJECTORY_METHOD)
+        text = f"{text[:publish_start]}{AR_PREVIEW_METHODS}{text[publish_start:]}"
+        changed = True
+
+    if RAW_PUBLISH_TRAJECTORY_ASSIGNMENT in text:
+        text = text.replace(
+            RAW_PUBLISH_TRAJECTORY_ASSIGNMENT,
+            AR_PREVIEW_PUBLISH_TRAJECTORY_ASSIGNMENT,
+            1,
+        )
+        changed = True
+    elif AR_PREVIEW_PUBLISH_TRAJECTORY_ASSIGNMENT not in text:
+        raise SystemExit(f"Expected planned trajectory assignment not found in {ROBOT_PY}")
+
+    return text, changed
+
+
 def patch_vizor_robot_py() -> bool:
     text = ROBOT_PY.read_text()
     changed = False
@@ -722,6 +778,9 @@ def patch_vizor_robot_py() -> bool:
         '"cartesian_branch": "compute_cartesian_path"',
     )
     changed = changed or cartesian_changed
+
+    text, ar_preview_changed = _insert_ar_preview_scaling(text)
+    changed = changed or ar_preview_changed
 
     if "def executeAgentPath" not in text:
         if EXECUTE_STORED_METHOD in text:
