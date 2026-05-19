@@ -3101,18 +3101,15 @@ def _task_execution_result_text(output: str) -> str:
 
 
 def _task_plan_failure_result_text(result: dict[str, Any]) -> str:
-    task_solution_id = _string_value(result.get("task_solution_id")) or "the approved task"
     failed_step = _string_value(result.get("failed_step")) or "workflow step"
     failed_stage = _string_value(result.get("failed_stage")) or "execution"
-    text = f"Execution of {task_solution_id} failed at {failed_step} during {failed_stage}."
-    evidence = _task_plan_failure_evidence_text(result)
-    if evidence:
-        text = f"{text} MoveIt/tool failure: {evidence.rstrip('.')}."
+    reason = _plain_task_plan_failure_reason(result, failed_step, failed_stage)
+    text = f"I could not finish the task because {reason}."
     completed_text = _task_plan_completed_steps_text(result)
     if completed_text:
-        text = f"{text} Completed before failure: {completed_text}."
+        text = f"{text} Completed before the failure: {completed_text}."
     else:
-        text = f"{text} No task steps completed."
+        text = f"{text} No task steps completed before the failure."
     return f"{text} Please approve the next action before I retry or replan."
 
 
@@ -3152,8 +3149,43 @@ def _task_plan_completed_steps_text(result: dict[str, Any]) -> str:
             continue
         name = _string_value(step.get("name")) or _string_value(step.get("handler"))
         if name:
-            names.append(name)
+            names.append(_plain_task_token(name))
     return ", ".join(names)
+
+
+def _plain_task_plan_failure_reason(
+    result: dict[str, Any],
+    failed_step: str,
+    failed_stage: str,
+) -> str:
+    evidence = _task_plan_failure_evidence_text(result)
+    evidence_lower = evidence.lower()
+    stage_text = _plain_task_stage(failed_stage)
+    step_text = _plain_task_token(failed_step)
+
+    if "closedresourceerror" in evidence_lower or "closed resource" in evidence_lower:
+        if failed_stage == "observe_current_pose" or "moveit_get_current_pose" in evidence_lower:
+            return "the robot connection closed while I was checking the current pose"
+        return "the robot connection closed while I was working on the task"
+    if "timed out" in evidence_lower:
+        return f"a robot tool timed out while I was {stage_text}"
+    if "incomplete path" in evidence_lower:
+        return f"MoveIt could not find a complete path for {step_text}"
+    if evidence:
+        return f"the planner reported: {evidence.rstrip('.')}"
+    return f"the {step_text} step failed while I was {stage_text}"
+
+
+def _plain_task_stage(value: str) -> str:
+    if value == "observe_current_pose":
+        return "checking the current pose"
+    if value == "verified_execution":
+        return "running verified execution"
+    return _plain_task_token(value)
+
+
+def _plain_task_token(value: str) -> str:
+    return value.replace("pre_grasp", "pre-grasp").replace("_to_", " to ").replace("_", " ")
 
 
 def _task_plan_failure_evidence_text(result: dict[str, Any]) -> str:

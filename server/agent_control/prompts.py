@@ -9,6 +9,7 @@ _PROMPT_PARTS_DIR = Path(__file__).with_name("prompt_parts")
 _PROMPT_PARTS = (
     "mave_embodiment.md",
     "reasoning_agent_persona.md",
+    "goal.md",
     "robot_contract.md",
     "examples.md",
     "behavior_examples.md",

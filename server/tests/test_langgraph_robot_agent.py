@@ -26,6 +26,35 @@ def test_supported_task_solution_kinds_do_not_include_unadvertised_approach_work
     assert "approach_hold_adjust_release" not in SUPPORTED_TASK_SOLUTION_KINDS
 
 
+def test_task_plan_failure_result_text_uses_plain_language_for_closed_resource() -> None:
+    from agent_control.langgraph_robot_agent import _task_plan_failure_result_text
+
+    result = {
+        "task_solution_id": "pick_place_task_dynamic_0_001",
+        "failed_step": "approach_to_pre_grasp",
+        "failed_stage": "observe_current_pose",
+        "failed_tool_result": {
+            "ok": False,
+            "error": "Robot MCP tool moveit_get_current_pose failed: ClosedResourceError",
+        },
+        "completed_steps": [{"name": "connect_to_pre_grasp"}],
+    }
+
+    text = _task_plan_failure_result_text(result)
+
+    assert text == (
+        "I could not finish the task because the robot connection closed while I was "
+        "checking the current pose. Completed before the failure: connect to pre-grasp. "
+        "Please approve the next action before I retry or replan."
+    )
+    assert "pick_place_task_dynamic_0_001" not in text
+    assert "approach_to_pre_grasp" not in text
+    assert "observe_current_pose" not in text
+    assert "moveit_get_current_pose" not in text
+    assert "ClosedResourceError" not in text
+    assert "MoveIt/tool failure" not in text
+
+
 class FakeChatModel:
     def __init__(self, responses: list[AIMessage]):
         self.responses = list(responses)
@@ -3207,9 +3236,10 @@ async def test_graph_execute_task_stage_failure_reports_failure_without_model_re
 
     text = await fixture.graph.run_turn(turn("execute"))
 
-    assert "Execution of hold_task_dynamic_5_001 failed at approach during planning." in text
+    assert text.startswith("I could not finish the task because the planner reported:")
     assert "Plan did not satisfy execution requirements" in text
-    assert "No task steps completed." in text
+    assert "hold_task_dynamic_5_001" not in text
+    assert "No task steps completed before the failure." in text
     assert "No new plan was executed." not in text
     assert "Please approve the next action" in text
     assert "unexpected model replan" not in text
@@ -3358,7 +3388,9 @@ async def test_graph_execute_task_ar_rviz_failure_keeps_physical_dispatch_eviden
 
     text = await fixture.graph.run_turn(turn("yes, execute the pick task"))
 
-    assert "failed at approach during verified_execution" in text
+    assert text.startswith("I could not finish the task because the planner reported:")
+    assert "AR/RViz execution failed" in text
+    assert "verified_execution" not in text
     assert bridge_tool_names(bridge).count("moveit_execute_plan") == 1
     assert "moveit_close_gripper" not in bridge_tool_names(bridge)
     assert len(verified_client.calls) == 1
@@ -3945,9 +3977,10 @@ async def test_graph_returns_bounded_failure_for_dynamic_1_first_stage_timeout()
 
     text = await fixture.graph.run_turn(turn("yes, execute the dynamic_1 pick task"))
 
-    assert "Execution of pick_task_dynamic_1_001 failed at approach during planning." in text
-    assert "read timed out" in text
-    assert "No task steps completed." in text
+    assert "a robot tool timed out while I was planning" in text
+    assert "pick_task_dynamic_1_001" not in text
+    assert "read timed out" not in text
+    assert "No task steps completed before the failure." in text
     assert "No new plan was executed." not in text
     assert "Please approve the next action" in text
     assert "unexpected model replan" not in text
@@ -5483,9 +5516,8 @@ async def test_graph_feeds_place_retreat_failure_back_for_explanation() -> None:
 
     assert (
         text
-        == "Execution of place_task_dynamic_5_002 failed at retreat during planning. "
-        "MoveIt/tool failure: incomplete path. Completed before failure: place, "
-        "open_gripper, release_object. "
+        == "I could not finish the task because MoveIt could not find a complete path "
+        "for retreat. Completed before the failure: place, open gripper, release object. "
         "Please approve the next action before I retry or replan."
     )
     assert len(fixture.model.requests) == 1

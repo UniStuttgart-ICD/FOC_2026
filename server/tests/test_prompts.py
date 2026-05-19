@@ -73,6 +73,23 @@ def test_prompt_requires_observe_plan_execute_verify_for_robot_actions() -> None
     assert "plan before execution" in SYSTEM_PROMPT.lower()
 
 
+def test_prompt_includes_default_gateway_construction_goal() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "# construction goal" in prompt
+    assert "gateway" in prompt
+    assert "three timber elements" in prompt
+    assert "element 00" in prompt
+    assert "element 01" in prompt
+    assert "element 02" in prompt
+    assert "prefer to handle the building work yourself" in prompt
+    assert "element 00 and element 01 are the vertical columns" in prompt
+    assert "element 02 is the horizontal beam" in prompt
+    assert "if it is available" in prompt
+    assert "spans the two vertical elements" in prompt
+    assert "claim placement success only after verified execution succeeds" in prompt
+
+
 def test_prompt_treats_queued_jobs_as_unverified_execution() -> None:
     prompt = SYSTEM_PROMPT.lower()
 
@@ -400,6 +417,17 @@ def test_prompt_describes_failure_explanation_tool() -> None:
     assert "suggested next tool" in prompt
     assert "internal guidance" in prompt
     assert "do not quote the correction" in prompt
+
+
+def test_prompt_requires_plain_language_for_robot_failures() -> None:
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "plain language for robot failures" in prompt
+    assert "explain the user-visible problem first" in prompt
+    assert "do not lead with raw task ids" in prompt
+    assert "do not lead with internal tool names" in prompt
+    assert "avoid raw planner stage names" in prompt
+    assert "ask for approval before retrying or replanning" in prompt
 
 
 def test_prompt_keeps_attachment_verification_internal() -> None:
