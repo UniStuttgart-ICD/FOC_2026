@@ -15,7 +15,8 @@ from robot_control.shared_geometry.world_context import (
 
 SNAPPY_NAME_RE = re.compile(r"^dynamic_snappy-V[^_]+_box(\d+)$")
 EPSILON = 1e-9
-DEFAULT_CORRECTION_RADIANS = math.pi
+DEFAULT_POSITION_CORRECTION_RADIANS = 2.0 * math.pi
+DEFAULT_ROTATION_CORRECTION_RADIANS = 3.0 * math.pi / 2.0
 SNAPSHOT_TOLERANCE = 1e-5
 
 
@@ -24,17 +25,20 @@ class ModelTrackerSyncSession:
         self,
         *,
         model_path: str | Path = DEFAULT_HOLOGRAM_MODEL_PATH,
-        correction_radians: float = DEFAULT_CORRECTION_RADIANS,
+        position_correction_radians: float = DEFAULT_POSITION_CORRECTION_RADIANS,
+        rotation_correction_radians: float = DEFAULT_ROTATION_CORRECTION_RADIANS,
     ) -> None:
         self._model_path = Path(model_path)
-        self._correction_radians = correction_radians
+        self._position_correction_radians = position_correction_radians
+        self._rotation_correction_radians = rotation_correction_radians
         self._previous_snapshot: _ModelTrackerSnapshot | None = None
 
     def handle_event(self, event: dict[str, Any]) -> dict[str, Any]:
         result = sync_modeltracker_event(
             event,
             model_path=self._model_path,
-            correction_radians=self._correction_radians,
+            position_correction_radians=self._position_correction_radians,
+            rotation_correction_radians=self._rotation_correction_radians,
         )
         snapshot = _snapshot_from_event(event)
         if result.get("ok") is True:
@@ -76,7 +80,8 @@ class ModelTrackerSyncSession:
         selected_result = sync_modeltracker_event(
             selected_event,
             model_path=self._model_path,
-            correction_radians=self._correction_radians,
+            position_correction_radians=self._position_correction_radians,
+            rotation_correction_radians=self._rotation_correction_radians,
         )
         self._previous_snapshot = snapshot
         return selected_result
@@ -86,7 +91,8 @@ def sync_modeltracker_event(
     event: dict[str, Any],
     *,
     model_path: str | Path = DEFAULT_HOLOGRAM_MODEL_PATH,
-    correction_radians: float = DEFAULT_CORRECTION_RADIANS,
+    position_correction_radians: float = DEFAULT_POSITION_CORRECTION_RADIANS,
+    rotation_correction_radians: float = DEFAULT_ROTATION_CORRECTION_RADIANS,
 ) -> dict[str, Any]:
     names = _string_list(event.get("names"))
     orient = _matrix_list(event.get("orient"))
@@ -132,8 +138,8 @@ def sync_modeltracker_event(
     if not isinstance(body, dict):
         return _failure(f"{object_name}: invalid body")
 
-    center = _rotate_point(mesh_centers[event_index], correction_radians)
-    rotation = _corrected_rotation(orient[event_index], correction_radians)
+    center = _rotate_point(mesh_centers[event_index], position_correction_radians)
+    rotation = _corrected_rotation(orient[event_index], rotation_correction_radians)
     quat = _quaternion_from_matrix(rotation)
 
     update_result = _update_pose_fields(body, object_name, center, quat)
@@ -446,7 +452,7 @@ def _corrected_rotation(
 ) -> list[list[float]]:
     correction = _rotation_z(correction_radians)
     rotation = [[matrix[row][col] for col in range(3)] for row in range(3)]
-    return _matmul3(correction, rotation)
+    return _matmul3(rotation, correction)
 
 
 def _rotation_z(angle: float) -> list[list[float]]:

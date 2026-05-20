@@ -2,13 +2,13 @@
   "schema": "pipecat.shared_geometry.common_model.v0.1",
   "version": "0.1.0",
   "name": "three_dynamic_a_c_gate_with_inventory",
-  "description": "Physical scene with two 11 cm A beams vertical at the sides, one 33 cm C beam spanning horizontally across them, and six inventory beams laid out toward negative X. All beams have a 4 cm width and 4.5 cm height.",
+  "description": "Physical scene with two 11 cm A beams vertical at the sides, one 33 cm C beam spanning horizontally across them, and six inventory beams laid out toward negative Y. All beams have a 3.6 cm width and 4.1 cm height.",
   "units": "meters",
   "owner_module": "robot_control.shared_geometry",
   "coordinate_system": {
     "frame": "rhino_world",
     "up_axis": "z",
-    "notes": "The axis start/end points define the beam centerline. The C span bottom face bears on the top faces of the two A verticals. Inventory beams lie horizontally on z=-0.10 with 5 cm centerline spacing along negative X, starting at x=-0.90 m."
+    "notes": "The axis start/end points define the beam centerline. The C span bottom face bears on the top faces of the two A verticals. Inventory beam bottom faces lie horizontally on z=-0.10 with 5 cm centerline spacing along negative Y, starting at y=-0.90 m."
   },
   "source": {
     "visual_template": "pipecat-agent/docs/research/shared-geometry-model-explainer.html",
@@ -18,22 +18,22 @@
     "A": {
       "length": 0.11,
       "section": {
-        "y": 0.04,
-        "z": 0.045
+        "y": 0.036,
+        "z": 0.041
       }
     },
     "B": {
       "length": 0.22,
       "section": {
-        "y": 0.04,
-        "z": 0.045
+        "y": 0.036,
+        "z": 0.041
       }
     },
     "C": {
       "length": 0.33,
       "section": {
-        "y": 0.04,
-        "z": 0.045
+        "y": 0.036,
+        "z": 0.041
       }
     }
   },
@@ -42,8 +42,8 @@
       "type": "box",
       "origin": "center",
       "section": {
-        "y": 0.04,
-        "z": 0.045
+        "y": 0.036,
+        "z": 0.041
       }
     },
     "feature_set": [
@@ -69,84 +69,89 @@
         "origin": "center",
         "dimensions": {
           "x": 0.11,
-          "y": 0.04,
-          "z": 0.045
+          "y": 0.036,
+          "z": 0.041
         }
       },
       "axis": {
         "start_label": "bottom",
         "end_label": "top",
         "start_xyz": [
-          0.302684286913,
-          1.024906389713,
-          0.142499994487
+          -0.35,
+          -0.955,
+          -0.0795
         ],
         "end_xyz": [
-          0.302684267679,
-          0.914906389713,
-          0.142499994487
+          -0.35,
+          -0.845,
+          -0.0795
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          0.302684277296,
-          0.969906389713,
-          0.142499994487
+          -0.35,
+          -0.9,
+          -0.0795
         ],
         "quat_xyzw": [
-          0.0,
-          0.0,
-          -0.707106843004,
-          0.707106719369
+          0,
+          0,
+          0.707106781187,
+          0.707106781187
         ]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            0.302684286913,
-            1.024906389713,
-            0.142499994487
+            -0.35,
+            -0.955,
+            -0.0795
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            0.302684267679,
-            0.914906389713,
-            0.142499994487
+            -0.35,
+            -0.845,
+            -0.0795
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            0.302684277296,
-            0.969906389713,
-            0.119999994487
+            -0.35,
+            -0.9,
+            -0.1
           ],
           "normal_xyz": [
-            0.0,
-            0.0,
-            -1.0
+            0,
+            0,
+            -1
           ]
         },
         "face_top": {
           "center_xyz": [
-            0.302684277296,
-            0.969906389713,
-            0.164999994487
+            -0.35,
+            -0.9,
+            -0.059
           ],
           "normal_xyz": [
-            0.0,
-            0.0,
-            1.0
+            0,
+            0,
+            1
           ]
         }
       },
       "state": {
         "status": "built",
         "alignment": "vertical",
-        "role": "left_support"
+        "role": {
+          "type": "supporting_column",
+          "supports": [
+            "dynamic_2"
+          ]
+        }
       }
     },
     {
@@ -159,35 +164,35 @@
         "origin": "center",
         "dimensions": {
           "x": 0.11,
-          "y": 0.04,
-          "z": 0.045
+          "y": 0.036,
+          "z": 0.041
         }
       },
       "axis": {
         "start_label": "bottom",
         "end_label": "top",
         "start_xyz": [
-          0.264,
-          0.955,
-          -0.0775
+          -0.264,
+          -0.955,
+          -0.0795
         ],
         "end_xyz": [
-          0.264,
-          0.845,
-          -0.0775
+          -0.264,
+          -0.845,
+          -0.0795
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          0.264,
-          0.9,
-          -0.0775
+          -0.264,
+          -0.9,
+          -0.0795
         ],
         "quat_xyzw": [
-          0.0,
-          0.0,
-          -0.707106781187,
+          0,
+          0,
+          0.707106781187,
           0.707106781187
         ]
       },
@@ -195,23 +200,23 @@
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            0.264,
-            0.955,
-            -0.0775
+            -0.264,
+            -0.955,
+            -0.0795
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            0.264,
-            0.845,
-            -0.0775
+            -0.264,
+            -0.845,
+            -0.0795
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            0.264,
-            0.9,
+            -0.264,
+            -0.9,
             -0.1
           ],
           "normal_xyz": [
@@ -222,9 +227,9 @@
         },
         "face_top": {
           "center_xyz": [
-            0.264,
-            0.9,
-            -0.055
+            -0.264,
+            -0.9,
+            -0.059
           ],
           "normal_xyz": [
             0,
@@ -236,12 +241,17 @@
       "state": {
         "status": "built",
         "alignment": "vertical",
-        "role": "right_support"
+        "role": {
+          "type": "supporting_column",
+          "supports": [
+            "dynamic_2"
+          ]
+        }
       }
     },
     {
       "id": "dynamic_2",
-      "label": "C 33 cm horizontal span across supports",
+      "label": "C 33 cm beam",
       "family": "C",
       "group": "built_frame",
       "solid": {
@@ -249,84 +259,90 @@
         "origin": "center",
         "dimensions": {
           "x": 0.33,
-          "y": 0.04,
-          "z": 0.045
+          "y": 0.036,
+          "z": 0.041
         }
       },
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
         "start_xyz": [
-          0.05721013248,
-          0.931864768267,
-          0.515000083447
+          -0.178,
+          -1.065,
+          -0.0795
         ],
         "end_xyz": [
-          0.05721013248,
-          0.931864768267,
-          0.185000083447
+          -0.178,
+          -0.735,
+          -0.0795
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          0.05721013248,
-          0.931864768267,
-          0.350000083447
+          -0.178,
+          -0.9,
+          -0.0795
         ],
         "quat_xyzw": [
-          -0.500000006172,
-          -0.499999993828,
-          0.500000006172,
-          -0.499999993828
+          0,
+          0,
+          0.707106781187,
+          0.707106781187
         ]
       },
       "features": {
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            0.05721013248,
-            0.931864768267,
-            0.515000083447
+            -0.178,
+            -1.065,
+            -0.0795
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            0.05721013248,
-            0.931864768267,
-            0.185000083447
+            -0.178,
+            -0.735,
+            -0.0795
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            0.057210133035,
-            0.954364768267,
-            0.350000083447
+            -0.178,
+            -0.9,
+            -0.1
           ],
           "normal_xyz": [
-            2.4688e-08,
-            1.0,
-            0.0
+            0,
+            0,
+            -1
           ]
         },
         "face_top": {
           "center_xyz": [
-            0.057210131925,
-            0.909364768267,
-            0.350000083447
+            -0.178,
+            -0.9,
+            -0.059
           ],
           "normal_xyz": [
-            -2.4688e-08,
-            -1.0,
-            0.0
+            0,
+            0,
+            1
           ]
         }
       },
       "state": {
         "status": "built",
         "alignment": "horizontal",
-        "role": "top_span"
+        "role": {
+          "type": "beam_supported_by",
+          "supported_by": [
+            "dynamic_0",
+            "dynamic_1"
+          ]
+        }
       }
     },
     {
@@ -339,35 +355,35 @@
         "origin": "center",
         "dimensions": {
           "x": 0.11,
-          "y": 0.04,
-          "z": 0.045
+          "y": 0.036,
+          "z": 0.041
         }
       },
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
         "start_xyz": [
-          0.092,
-          0.955,
-          -0.0775
+          -0.092,
+          -0.955,
+          -0.0795
         ],
         "end_xyz": [
-          0.092,
-          0.845,
-          -0.0775
+          -0.092,
+          -0.845,
+          -0.0795
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          0.092,
-          0.9,
-          -0.0775
+          -0.092,
+          -0.9,
+          -0.0795
         ],
         "quat_xyzw": [
-          0.0,
-          0.0,
-          -0.707106781187,
+          0,
+          0,
+          0.707106781187,
           0.707106781187
         ]
       },
@@ -375,23 +391,23 @@
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            0.092,
-            0.955,
-            -0.0775
+            -0.092,
+            -0.955,
+            -0.0795
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            0.092,
-            0.845,
-            -0.0775
+            -0.092,
+            -0.845,
+            -0.0795
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            0.092,
-            0.9,
+            -0.092,
+            -0.9,
             -0.1
           ],
           "normal_xyz": [
@@ -402,9 +418,9 @@
         },
         "face_top": {
           "center_xyz": [
-            0.092,
-            0.9,
-            -0.055
+            -0.092,
+            -0.9,
+            -0.059
           ],
           "normal_xyz": [
             0,
@@ -416,7 +432,9 @@
       "state": {
         "status": "inventory",
         "alignment": "horizontal",
-        "role": "inventory_slot_01",
+        "role": {
+          "type": "unassigned"
+        },
         "inventory_index": 1,
         "inventory_spacing_m": 0.05
       }
@@ -431,35 +449,35 @@
         "origin": "center",
         "dimensions": {
           "x": 0.22,
-          "y": 0.04,
-          "z": 0.045
+          "y": 0.036,
+          "z": 0.041
         }
       },
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
         "start_xyz": [
-          0.006,
-          1.01,
-          -0.0775
+          -0.006,
+          -1.01,
+          -0.0795
         ],
         "end_xyz": [
-          0.006,
-          0.79,
-          -0.0775
+          -0.006,
+          -0.79,
+          -0.0795
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          0.006,
-          0.9,
-          -0.0775
+          -0.006,
+          -0.9,
+          -0.0795
         ],
         "quat_xyzw": [
-          0.0,
-          0.0,
-          -0.707106781187,
+          0,
+          0,
+          0.707106781187,
           0.707106781187
         ]
       },
@@ -467,23 +485,23 @@
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            0.006,
-            1.01,
-            -0.0775
+            -0.006,
+            -1.01,
+            -0.0795
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            0.006,
-            0.79,
-            -0.0775
+            -0.006,
+            -0.79,
+            -0.0795
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            0.006,
-            0.9,
+            -0.006,
+            -0.9,
             -0.1
           ],
           "normal_xyz": [
@@ -494,9 +512,9 @@
         },
         "face_top": {
           "center_xyz": [
-            0.006,
-            0.9,
-            -0.055
+            -0.006,
+            -0.9,
+            -0.059
           ],
           "normal_xyz": [
             0,
@@ -508,7 +526,9 @@
       "state": {
         "status": "inventory",
         "alignment": "horizontal",
-        "role": "inventory_slot_02",
+        "role": {
+          "type": "unassigned"
+        },
         "inventory_index": 2,
         "inventory_spacing_m": 0.05
       }
@@ -523,35 +543,35 @@
         "origin": "center",
         "dimensions": {
           "x": 0.22,
-          "y": 0.04,
-          "z": 0.045
+          "y": 0.036,
+          "z": 0.041
         }
       },
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
         "start_xyz": [
-          -0.08,
-          1.01,
-          -0.0775
+          0.08,
+          -1.01,
+          -0.0795
         ],
         "end_xyz": [
-          -0.08,
-          0.79,
-          -0.0775
+          0.08,
+          -0.79,
+          -0.0795
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          -0.08,
-          0.9,
-          -0.0775
+          0.08,
+          -0.9,
+          -0.0795
         ],
         "quat_xyzw": [
-          0.0,
-          0.0,
-          -0.707106781187,
+          0,
+          0,
+          0.707106781187,
           0.707106781187
         ]
       },
@@ -559,23 +579,23 @@
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            -0.08,
-            1.01,
-            -0.0775
+            0.08,
+            -1.01,
+            -0.0795
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            -0.08,
-            0.79,
-            -0.0775
+            0.08,
+            -0.79,
+            -0.0795
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            -0.08,
-            0.9,
+            0.08,
+            -0.9,
             -0.1
           ],
           "normal_xyz": [
@@ -586,9 +606,9 @@
         },
         "face_top": {
           "center_xyz": [
-            -0.08,
-            0.9,
-            -0.055
+            0.08,
+            -0.9,
+            -0.059
           ],
           "normal_xyz": [
             0,
@@ -600,7 +620,9 @@
       "state": {
         "status": "inventory",
         "alignment": "horizontal",
-        "role": "inventory_slot_03",
+        "role": {
+          "type": "unassigned"
+        },
         "inventory_index": 3,
         "inventory_spacing_m": 0.05
       }
@@ -615,35 +637,35 @@
         "origin": "center",
         "dimensions": {
           "x": 0.22,
-          "y": 0.04,
-          "z": 0.045
+          "y": 0.036,
+          "z": 0.041
         }
       },
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
         "start_xyz": [
-          -0.166,
-          1.01,
-          -0.0775
+          0.166,
+          -1.01,
+          -0.0795
         ],
         "end_xyz": [
-          -0.166,
-          0.79,
-          -0.0775
+          0.166,
+          -0.79,
+          -0.0795
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          -0.166,
-          0.9,
-          -0.0775
+          0.166,
+          -0.9,
+          -0.0795
         ],
         "quat_xyzw": [
-          0.0,
-          0.0,
-          -0.707106781187,
+          0,
+          0,
+          0.707106781187,
           0.707106781187
         ]
       },
@@ -651,23 +673,23 @@
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            -0.166,
-            1.01,
-            -0.0775
+            0.166,
+            -1.01,
+            -0.0795
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            -0.166,
-            0.79,
-            -0.0775
+            0.166,
+            -0.79,
+            -0.0795
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            -0.166,
-            0.9,
+            0.166,
+            -0.9,
             -0.1
           ],
           "normal_xyz": [
@@ -678,9 +700,9 @@
         },
         "face_top": {
           "center_xyz": [
-            -0.166,
-            0.9,
-            -0.055
+            0.166,
+            -0.9,
+            -0.059
           ],
           "normal_xyz": [
             0,
@@ -692,7 +714,9 @@
       "state": {
         "status": "inventory",
         "alignment": "horizontal",
-        "role": "inventory_slot_04",
+        "role": {
+          "type": "unassigned"
+        },
         "inventory_index": 4,
         "inventory_spacing_m": 0.05
       }
@@ -707,35 +731,35 @@
         "origin": "center",
         "dimensions": {
           "x": 0.33,
-          "y": 0.04,
-          "z": 0.045
+          "y": 0.036,
+          "z": 0.041
         }
       },
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
         "start_xyz": [
-          -0.252,
-          1.065,
-          -0.0775
+          0.252,
+          -1.065,
+          -0.0795
         ],
         "end_xyz": [
-          -0.252,
-          0.735,
-          -0.0775
+          0.252,
+          -0.735,
+          -0.0795
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          -0.252,
-          0.9,
-          -0.0775
+          0.252,
+          -0.9,
+          -0.0795
         ],
         "quat_xyzw": [
-          0.0,
-          0.0,
-          -0.707106781187,
+          0,
+          0,
+          0.707106781187,
           0.707106781187
         ]
       },
@@ -743,23 +767,23 @@
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            -0.252,
-            1.065,
-            -0.0775
+            0.252,
+            -1.065,
+            -0.0795
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            -0.252,
-            0.735,
-            -0.0775
+            0.252,
+            -0.735,
+            -0.0795
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            -0.252,
-            0.9,
+            0.252,
+            -0.9,
             -0.1
           ],
           "normal_xyz": [
@@ -770,9 +794,9 @@
         },
         "face_top": {
           "center_xyz": [
-            -0.252,
-            0.9,
-            -0.055
+            0.252,
+            -0.9,
+            -0.059
           ],
           "normal_xyz": [
             0,
@@ -784,7 +808,9 @@
       "state": {
         "status": "inventory",
         "alignment": "horizontal",
-        "role": "inventory_slot_05",
+        "role": {
+          "type": "unassigned"
+        },
         "inventory_index": 5,
         "inventory_spacing_m": 0.05
       }
@@ -799,35 +825,35 @@
         "origin": "center",
         "dimensions": {
           "x": 0.33,
-          "y": 0.04,
-          "z": 0.045
+          "y": 0.036,
+          "z": 0.041
         }
       },
       "axis": {
         "start_label": "left_end",
         "end_label": "right_end",
         "start_xyz": [
-          -0.541619875431,
-          0.824301034212,
-          0.431999981403
+          0.338,
+          -1.065,
+          -0.0795
         ],
         "end_xyz": [
-          -0.211619875431,
-          0.824301034212,
-          0.431999981403
+          0.338,
+          -0.735,
+          -0.0795
         ]
       },
       "pose": {
         "frame": "rhino_world",
         "xyz": [
-          -0.376619875431,
-          0.824301034212,
-          0.431999981403
+          0.338,
+          -0.9,
+          -0.0795
         ],
         "quat_xyzw": [
+          0,
+          0,
           0.707106781187,
-          0.0,
-          0.0,
           0.707106781187
         ]
       },
@@ -835,48 +861,50 @@
         "end_start": {
           "alias": "end_neg_x",
           "world_xyz": [
-            -0.541619875431,
-            0.824301034212,
-            0.431999981403
+            0.338,
+            -1.065,
+            -0.0795
           ]
         },
         "end_end": {
           "alias": "end_pos_x",
           "world_xyz": [
-            -0.211619875431,
-            0.824301034212,
-            0.431999981403
+            0.338,
+            -0.735,
+            -0.0795
           ]
         },
         "face_bottom": {
           "center_xyz": [
-            -0.376619875431,
-            0.846801034212,
-            0.431999981403
+            0.338,
+            -0.9,
+            -0.1
           ],
           "normal_xyz": [
-            0.0,
-            1.0,
-            0.0
+            0,
+            0,
+            -1
           ]
         },
         "face_top": {
           "center_xyz": [
-            -0.376619875431,
-            0.801801034212,
-            0.431999981403
+            0.338,
+            -0.9,
+            -0.059
           ],
           "normal_xyz": [
-            0.0,
-            -1.0,
-            0.0
+            0,
+            0,
+            1
           ]
         }
       },
       "state": {
         "status": "inventory",
         "alignment": "horizontal",
-        "role": "inventory_slot_06",
+        "role": {
+          "type": "unassigned"
+        },
         "inventory_index": 6,
         "inventory_spacing_m": 0.05
       }
@@ -914,7 +942,7 @@
         "relation_type": "bearing_contact",
         "a": "dynamic_0.face_top",
         "b": "dynamic_2.face_bottom",
-        "role": "left_span_support",
+        "role": "left_reference_support",
         "status": "built"
       },
       {
@@ -922,7 +950,7 @@
         "relation_type": "bearing_contact",
         "a": "dynamic_1.face_top",
         "b": "dynamic_2.face_bottom",
-        "role": "right_span_support",
+        "role": "right_reference_support",
         "status": "built"
       },
       {
@@ -930,7 +958,7 @@
         "relation_type": "ordered_inventory_layout",
         "a": "dynamic_3",
         "b": "dynamic_8",
-        "role": "5_cm_centerline_spacing_toward_negative_x",
+        "role": "5_cm_centerline_spacing_toward_negative_y",
         "status": "inventory"
       }
     ]
@@ -940,7 +968,13 @@
       "id": "op_001",
       "op": "initialize_from_user_requested_physical_layout",
       "status": "applied",
-      "notes": "Two A beams are 11 cm vertical supports. One C beam is the 33 cm horizontal span. Inventory contains one A beam, three B beams, and two C beams laid out from x=-0.90 m toward negative X at 5 cm centerline spacing."
+      "notes": "Two A beams are 11 cm vertical supports. One C beam is currently supported by the two A beams. Inventory contains one A beam, three B beams, and two C beams laid out from y=-0.90 m toward negative Y at 5 cm centerline spacing."
+    },
+    {
+      "id": "op_002",
+      "op": "reduce_beam_section_by_10_percent",
+      "status": "applied",
+      "notes": "Reduced rectangular beam sections from 4 cm by 4 cm to 3.6 cm by 3.6 cm. Beam lengths are unchanged; C beam bearing contact and inventory bottom-face height were kept consistent."
     }
   ],
   "projections": {

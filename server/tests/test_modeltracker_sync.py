@@ -14,7 +14,7 @@ def test_updates_hologram_pose_from_modeltracker_event(tmp_path) -> None:
     result = sync_modeltracker_event(
         {
             "names": ["dynamic_snappy-V110B110_box0", "dynamic_snappy-V110B110_box1"],
-            "orient": [_identity(), _rotation_z(math.pi / 2.0)],
+            "orient": [_identity(), _identity()],
             "transl": [_identity(), _translation(0.2, 0.3, 0.4)],
             "mesh_centers": [[0.7, 0.0, -0.045], [0.2, 0.3, 0.4]],
         },
@@ -28,10 +28,10 @@ def test_updates_hologram_pose_from_modeltracker_event(tmp_path) -> None:
     data = json.loads(model_path.read_text(encoding="utf-8"))
     first_body, changed_body = data["bodies"]
     assert first_body["pose"]["xyz"] == [0.0, -0.7, -0.045]
-    assert changed_body["pose"]["xyz"] == [-0.2, -0.3, 0.4]
+    assert changed_body["pose"]["xyz"] == [0.2, 0.3, 0.4]
     assert changed_body["pose"]["quat_xyzw"] == [0.0, 0.0, -0.707106781187, 0.707106781187]
-    assert changed_body["axis"]["start_xyz"] == [-0.2, -0.25, 0.4]
-    assert changed_body["axis"]["end_xyz"] == [-0.2, -0.35, 0.4]
+    assert changed_body["axis"]["start_xyz"] == [0.2, 0.35, 0.4]
+    assert changed_body["axis"]["end_xyz"] == [0.2, 0.25, 0.4]
 
 
 def test_idle_modeltracker_event_does_not_write(tmp_path) -> None:
@@ -104,7 +104,7 @@ def test_accepts_snappy_v44b80_modeltracker_names(tmp_path) -> None:
     result = sync_modeltracker_event(
         {
             "names": ["dynamic_snappy-V44B80_box0"],
-            "orient": [_rotation_z(math.pi / 2.0)],
+            "orient": [_identity()],
             "transl": [_translation(0.2, 0.3, 0.4)],
             "mesh_centers": [[0.2, 0.3, 0.4]],
         },
@@ -115,7 +115,65 @@ def test_accepts_snappy_v44b80_modeltracker_names(tmp_path) -> None:
     assert result["object_name"] == "dynamic_0"
 
     data = json.loads(model_path.read_text(encoding="utf-8"))
-    assert data["bodies"][0]["pose"]["xyz"] == [-0.2, -0.3, 0.4]
+    assert data["bodies"][0]["pose"]["xyz"] == [0.2, 0.3, 0.4]
+    assert data["bodies"][0]["pose"]["quat_xyzw"] == [
+        0.0,
+        0.0,
+        -0.707106781187,
+        0.707106781187,
+    ]
+
+
+def test_horizontal_quarter_turn_stays_in_world_xy_plane(tmp_path) -> None:
+    model_path = tmp_path / "hologram_model.json"
+    model_path.write_text(json.dumps(_model()), encoding="utf-8")
+
+    result = sync_modeltracker_event(
+        {
+            "names": ["dynamic_snappy-V110B110_box0"],
+            "orient": [_modeltracker_horizontal_quarter_turn()],
+            "transl": [_translation(0.2, 0.3, 0.4)],
+            "mesh_centers": [[0.2, 0.3, 0.4]],
+        },
+        model_path=model_path,
+    )
+
+    assert result["ok"] is True
+
+    data = json.loads(model_path.read_text(encoding="utf-8"))
+    body = data["bodies"][0]
+    assert body["pose"]["xyz"] == [0.2, 0.3, 0.4]
+    assert body["pose"]["quat_xyzw"] == [
+        0.707106781187,
+        0.0,
+        0.0,
+        0.707106781187,
+    ]
+    assert body["axis"]["start_xyz"] == [0.15, 0.3, 0.4]
+    assert body["axis"]["end_xyz"] == [0.25, 0.3, 0.4]
+
+
+def test_horizontal_to_vertical_turn_updates_axis_to_world_z(tmp_path) -> None:
+    model_path = tmp_path / "hologram_model.json"
+    model_path.write_text(json.dumps(_model()), encoding="utf-8")
+
+    result = sync_modeltracker_event(
+        {
+            "names": ["dynamic_snappy-V110B110_box0"],
+            "orient": [_modeltracker_horizontal_to_vertical_turn()],
+            "transl": [_translation(0.2, 0.3, 0.4)],
+            "mesh_centers": [[0.2, 0.3, 0.4]],
+        },
+        model_path=model_path,
+    )
+
+    assert result["ok"] is True
+
+    data = json.loads(model_path.read_text(encoding="utf-8"))
+    body = data["bodies"][0]
+    assert body["pose"]["xyz"] == [0.2, 0.3, 0.4]
+    assert body["axis"]["start_xyz"] == [0.2, 0.3, 0.35]
+    assert body["axis"]["end_xyz"] == [0.2, 0.3, 0.45]
 
 
 def test_session_uses_previous_snapshot_to_select_one_changed_index(tmp_path) -> None:
@@ -124,7 +182,7 @@ def test_session_uses_previous_snapshot_to_select_one_changed_index(tmp_path) ->
     session = ModelTrackerSyncSession(model_path=model_path)
     baseline = {
         "names": ["dynamic_snappy-V110B110_box0", "dynamic_snappy-V110B110_box1"],
-        "orient": [_identity(), _rotation_z(math.pi / 2.0)],
+        "orient": [_identity(), _identity()],
         "transl": [_translation(0.1, 0.0, 0.0), _translation(0.2, 0.3, 0.4)],
         "mesh_centers": [[0.7, 0.0, -0.045], [0.2, 0.3, 0.4]],
     }
@@ -147,7 +205,7 @@ def test_session_uses_previous_snapshot_to_select_one_changed_index(tmp_path) ->
     assert second["object_name"] == "dynamic_1"
     assert second["event_index"] == 1
     data = json.loads(model_path.read_text(encoding="utf-8"))
-    assert data["bodies"][1]["pose"]["xyz"] == [-0.25, -0.3, 0.4]
+    assert data["bodies"][1]["pose"]["xyz"] == [0.25, 0.3, 0.4]
 
 
 def _model() -> dict:
@@ -216,5 +274,23 @@ def _rotation_z(angle: float) -> list[list[float]]:
         [cos_angle, -sin_angle, 0.0, 0.0],
         [sin_angle, cos_angle, 0.0, 0.0],
         [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+
+
+def _modeltracker_horizontal_quarter_turn() -> list[list[float]]:
+    return [
+        [0.0, -1.0, 0.0, 0.0],
+        [0.0, 0.0, -1.0, 0.0],
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+
+
+def _modeltracker_horizontal_to_vertical_turn() -> list[list[float]]:
+    return [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, -1.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 1.0],
     ]

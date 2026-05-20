@@ -1,6 +1,5 @@
 import http.client
 import json
-import math
 import threading
 from http.server import ThreadingHTTPServer
 
@@ -21,7 +20,7 @@ def test_modeltracker_sync_server_accepts_post_and_logs(tmp_path) -> None:
         body = json.dumps(
             {
                 "names": ["dynamic_snappy-V110B110_box0"],
-                "orient": [_rotation_z(math.pi / 2.0)],
+                "orient": [_identity()],
                 "transl": [_translation(0.2, 0.3, 0.4)],
                 "mesh_centers": [[0.2, 0.3, 0.4]],
             }
@@ -44,7 +43,13 @@ def test_modeltracker_sync_server_accepts_post_and_logs(tmp_path) -> None:
     assert payload["object_name"] == "dynamic_0"
 
     data = json.loads(model_path.read_text(encoding="utf-8"))
-    assert data["bodies"][0]["pose"]["xyz"] == [-0.2, -0.3, 0.4]
+    assert data["bodies"][0]["pose"]["xyz"] == [0.2, 0.3, 0.4]
+    assert data["bodies"][0]["pose"]["quat_xyzw"] == [
+        0.0,
+        0.0,
+        -0.707106781187,
+        0.707106781187,
+    ]
 
     logs = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
     assert logs[0]["result"]["ok"] is True
@@ -96,13 +101,3 @@ def _translation(x: float, y: float, z: float) -> list[list[float]]:
     matrix[2][3] = z
     return matrix
 
-
-def _rotation_z(angle: float) -> list[list[float]]:
-    cos_angle = math.cos(angle)
-    sin_angle = math.sin(angle)
-    return [
-        [cos_angle, -sin_angle, 0.0, 0.0],
-        [sin_angle, cos_angle, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0],
-        [0.0, 0.0, 0.0, 1.0],
-    ]
