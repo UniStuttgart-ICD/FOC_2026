@@ -436,14 +436,6 @@
       align-items: end;
     }
 
-    .agent-actions {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 8px;
-      margin-bottom: 10px;
-    }
-
     .speech-panel {
       display: grid;
       gap: 8px;
@@ -770,7 +762,6 @@
       <button class="tab-btn active" data-tab="personaTab">Persona</button>
       <button class="tab-btn" data-tab="modulationTab">Modulation</button>
       <button class="tab-btn" data-tab="embodimentTab">Embodiment</button>
-      <button class="tab-btn" data-tab="runAgentTab">RUN AGENT</button>
     </nav>
 
     <main>
@@ -974,16 +965,6 @@
         </section>
       </section>
 
-      <section id="runAgentTab" class="tab-panel">
-        <div class="panel-title">
-          <h1>RUN AGENT</h1>
-        </div>
-        <div class="agent-actions">
-          <button id="openDashboardBtn" type="button">Open Dashboard</button>
-          <button id="openPipecatClientBtn" type="button">Open Pipecat Client</button>
-        </div>
-        <div id="runAgentStatus" class="status" role="status" aria-live="polite">Check Pipecat before opening the client.</div>
-      </section>
     </main>
   </div>
 
@@ -1479,45 +1460,6 @@
         throw new Error(body.detail || `${response.status} ${response.statusText}`);
       }
       return response.json();
-    }
-
-    async function getRunAgentStatus() {
-      return api("/api/run-agent/status");
-    }
-
-    function setRunAgentStatus(text, tone = "") {
-      $("runAgentStatus").textContent = text;
-      $("runAgentStatus").className = `status ${tone}`;
-    }
-
-    async function openDashboard() {
-      try {
-        const status = await getRunAgentStatus();
-        window.location.assign(status.dashboard_url);
-      } catch (error) {
-        setRunAgentStatus(error.message, "hot");
-      }
-    }
-
-    async function openPipecatClient() {
-      try {
-        const status = await getRunAgentStatus();
-        if (!status.pipecat_client_ready) {
-          setRunAgentStatus("Pipecat is not running yet. Open the dashboard and start the system first.", "hot");
-          return;
-        }
-        if (state.personaRestartRequired) {
-          setRunAgentStatus(
-            "Persona changes are saved, but Pipecat is already running. Restart Pipecat from the dashboard before opening the client.",
-            "hot"
-          );
-          return;
-        }
-        setRunAgentStatus("Pipecat is running. Redirecting to client.", "ok");
-        window.location.assign(status.pipecat_client_url);
-      } catch (error) {
-        setRunAgentStatus(error.message, "hot");
-      }
     }
 
     async function loadCartesiaVoices() {
@@ -2017,7 +1959,7 @@
         state.personaRestartRequired = Boolean(data.restart_required);
         renderSpeechDeliveryPart();
         renderPersonaParts();
-        setPersonaStatus("Template loaded. Restart Pipecat before opening the client. Git has source changes.", "ok");
+        setPersonaStatus("Template loaded. Restart Pipecat before runtime use. Git has source changes.", "ok");
       } catch (error) {
         setPersonaStatus(error.message, "hot");
       }
@@ -2062,8 +2004,6 @@
     $("saveModulationDefaultBtn").addEventListener("click", saveModulationDefault);
     $("saveEmbodimentBtn").addEventListener("click", saveEmbodiment);
     $("addMotionBtn").addEventListener("click", addMotion);
-    $("openDashboardBtn").addEventListener("click", openDashboard);
-    $("openPipecatClientBtn").addEventListener("click", openPipecatClient);
     $("motionControlGrid").addEventListener("click", (event) => {
       const button = event.target.closest("[data-motion-action]");
       if (!button || button.disabled) return;
@@ -2088,9 +2028,6 @@
       button.addEventListener("click", () => {
         document.querySelectorAll(".tab-btn").forEach((item) => item.classList.toggle("active", item === button));
         document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === button.dataset.tab));
-        if (button.dataset.tab === "runAgentTab") {
-          setRunAgentStatus("Check Pipecat before opening the client.");
-        }
       });
     });
 
