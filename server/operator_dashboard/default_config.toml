@@ -32,7 +32,7 @@ ready_checks = [
 label = "Verified Execution Server"
 cwd = "server"
 command = ["uv", "run", "python", "-m", "verified_execution_server"]
-env = { ROSBRIDGE_HOST = "127.0.0.1", ROSBRIDGE_PORT = "9090", ROBOT_NAME = "UR10", UR_ROBOT_IP = "127.0.0.1", UR_COMPLETION_TIMEOUT_S = "30.0", UR_COMPLETION_POLL_INTERVAL_S = "0.1", UR_JOINT_TOLERANCE_RAD = "0.03", UR_COMPLETION_STABLE_SAMPLES = "2", UR_SKIP_GRIPPER = "true" }
+env = { ROSBRIDGE_HOST = "127.0.0.1", ROSBRIDGE_PORT = "9090", ROBOT_NAME = "UR10", UR_ROBOT_IP = "169.254.130.206", UR_COMPLETION_TIMEOUT_S = "30.0", UR_COMPLETION_POLL_INTERVAL_S = "0.1", UR_JOINT_TOLERANCE_RAD = "0.03", UR_COMPLETION_STABLE_SAMPLES = "2", UR_SKIP_GRIPPER = "false" }
 startup_timeout_s = 60
 ready_checks = [
   { type = "http", url = "http://127.0.0.1:8770/health", label = "Verified execution" },

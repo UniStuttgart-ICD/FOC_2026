@@ -151,8 +151,8 @@ def test_example_config_starts_vizor_first_and_uses_default_pipecat_command() ->
         "-m",
         "verified_execution_server",
     ]
-    assert execution.env["UR_ROBOT_IP"] == "127.0.0.1"
-    assert execution.env["UR_SKIP_GRIPPER"] == "true"
+    assert execution.env["UR_ROBOT_IP"] == "169.254.130.206"
+    assert execution.env["UR_SKIP_GRIPPER"] == "false"
     assert execution.ready_checks[0].url == "http://127.0.0.1:8770/health"
     pipecat = config.services["pipecat"]
     assert pipecat.command == ["uv", "run", "bot.py"]
