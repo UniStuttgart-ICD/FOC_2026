@@ -43,12 +43,12 @@ def test_modeltracker_sync_server_accepts_post_and_logs(tmp_path) -> None:
     assert payload["object_name"] == "dynamic_0"
 
     data = json.loads(model_path.read_text(encoding="utf-8"))
-    assert data["bodies"][0]["pose"]["xyz"] == [0.2, 0.3, 0.4]
+    assert data["bodies"][0]["pose"]["xyz"] == [0.3, -0.2, 0.4]
     assert data["bodies"][0]["pose"]["quat_xyzw"] == [
         0.0,
         0.0,
-        -0.707106781187,
-        0.707106781187,
+        1.0,
+        0.0,
     ]
 
     logs = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
@@ -100,4 +100,3 @@ def _translation(x: float, y: float, z: float) -> list[list[float]]:
     matrix[1][3] = y
     matrix[2][3] = z
     return matrix
-

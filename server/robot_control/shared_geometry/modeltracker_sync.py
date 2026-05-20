@@ -15,7 +15,7 @@ from robot_control.shared_geometry.world_context import (
 
 SNAPPY_NAME_RE = re.compile(r"^dynamic_snappy-V[^_]+_box(\d+)$")
 EPSILON = 1e-9
-DEFAULT_POSITION_CORRECTION_RADIANS = 2.0 * math.pi
+DEFAULT_POSITION_CORRECTION_RADIANS = 3.0 * math.pi / 2.0
 DEFAULT_ROTATION_CORRECTION_RADIANS = 3.0 * math.pi / 2.0
 SNAPSHOT_TOLERANCE = 1e-5
 
@@ -139,7 +139,11 @@ def sync_modeltracker_event(
         return _failure(f"{object_name}: invalid body")
 
     center = _rotate_point(mesh_centers[event_index], position_correction_radians)
-    rotation = _corrected_rotation(orient[event_index], rotation_correction_radians)
+    rotation = _corrected_rotation(
+        orient[event_index],
+        position_correction_radians,
+        rotation_correction_radians,
+    )
     quat = _quaternion_from_matrix(rotation)
 
     update_result = _update_pose_fields(body, object_name, center, quat)
@@ -448,11 +452,13 @@ def _is_identity_transform(matrix: list[list[float]], tolerance: float = 1e-6) -
 
 def _corrected_rotation(
     matrix: list[list[float]],
-    correction_radians: float,
+    frame_correction_radians: float,
+    local_correction_radians: float,
 ) -> list[list[float]]:
-    correction = _rotation_z(correction_radians)
+    frame_correction = _rotation_z(frame_correction_radians)
+    local_correction = _rotation_z(local_correction_radians)
     rotation = [[matrix[row][col] for col in range(3)] for row in range(3)]
-    return _matmul3(rotation, correction)
+    return _matmul3(frame_correction, _matmul3(rotation, local_correction))
 
 
 def _rotation_z(angle: float) -> list[list[float]]:
