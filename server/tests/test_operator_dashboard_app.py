@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import socketserver
 import sys
+import threading
 from pathlib import Path
 
 import psutil
@@ -38,6 +40,34 @@ def _write_dashboard_config(tmp_path: Path) -> DashboardConfig:
     return load_dashboard_config(_config(tmp_path))
 
 
+class _NoopTcpHandler(socketserver.BaseRequestHandler):
+    def handle(self) -> None:
+        return
+
+
+class _TestTcpServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+
+
+class _RunningTcpServer:
+    def __init__(self) -> None:
+        self.server = _TestTcpServer(("127.0.0.1", 0), _NoopTcpHandler)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    def __enter__(self) -> "_RunningTcpServer":
+        self.thread.start()
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=1.0)
+
+    @property
+    def port(self) -> int:
+        return int(self.server.server_address[1])
+
+
 def test_status_requires_token(tmp_path: Path) -> None:
     config = _write_dashboard_config(tmp_path)
     app = create_app(config, DashboardSecurity(token="secret"))
@@ -64,6 +94,39 @@ def test_status_returns_services_with_token(tmp_path: Path) -> None:
     assert ready_checks
     assert ready_checks[0]["type"] == "process"
     assert ready_checks[0]["ok"] is False
+
+
+def test_status_adopts_ready_external_service(tmp_path: Path) -> None:
+    config_path = tmp_path / "dashboard.toml"
+    with _RunningTcpServer() as tcp_server:
+        config_path.write_text(
+            f"""
+[dashboard]
+host = "127.0.0.1"
+port = 8787
+
+[services.vizor]
+label = "Vizor"
+cwd = {str(tmp_path)!r}
+command = [{sys.executable!r}, "-c", "print('detached')"]
+require_running_process = false
+ready_checks = [
+  {{ type = "tcp", host = "127.0.0.1", port = {tcp_server.port}, label = "RViz port", timeout_s = 0.01 }},
+]
+""",
+            encoding="utf-8",
+        )
+        app = create_app(
+            load_dashboard_config(config_path), DashboardSecurity(token="secret")
+        )
+        client = TestClient(app)
+        response = client.get("/api/status?token=secret")
+
+    assert response.status_code == 200
+    service = response.json()["services"]["vizor"]
+    assert service["state"] == "ready"
+    assert service["pid"] is None
+    assert service["ready_checks"][0]["ok"] is True
 
 
 def test_start_timeout_returns_degraded_status_with_ready_checks(
@@ -115,6 +178,84 @@ ready_checks = [
             assert "127.0.0.1:9" in body["ready_checks"][0]["detail"]
         finally:
             client.portal.call(app.state.manager.stop_all)
+
+
+def test_detached_start_command_can_exit_after_ready_checks_pass(tmp_path: Path) -> None:
+    config_path = tmp_path / "dashboard.toml"
+    with _RunningTcpServer() as tcp_server:
+        config_path.write_text(
+            f"""
+[dashboard]
+host = "127.0.0.1"
+port = 8787
+
+[services.vizor]
+label = "Vizor"
+cwd = {str(tmp_path)!r}
+command = [{sys.executable!r}, "-u", "-c", "print('detached compose started')"]
+require_running_process = false
+startup_timeout_s = 0.5
+ready_checks = [
+  {{ type = "tcp", host = "127.0.0.1", port = {tcp_server.port}, label = "RViz port", timeout_s = 0.01 }},
+]
+""",
+            encoding="utf-8",
+        )
+        app = create_app(
+            load_dashboard_config(config_path), DashboardSecurity(token="secret")
+        )
+        client = TestClient(app)
+        response = client.post("/api/services/vizor/start?token=secret")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["state"] == "ready"
+    assert body["pid"] is None
+    assert body["last_error"] is None
+    assert body["ready_checks"][0]["ok"] is True
+
+
+def test_external_start_adopts_ready_stack_after_stale_compose_error(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "dashboard.toml"
+    with _RunningTcpServer() as tcp_server:
+        config_path.write_text(
+            f"""
+[dashboard]
+host = "127.0.0.1"
+port = 8787
+
+[services.vizor]
+label = "Vizor"
+cwd = {str(tmp_path)!r}
+command = [
+  {sys.executable!r},
+  "-u",
+  "-c",
+  "print('compose label mismatch'); raise SystemExit(1)",
+]
+require_running_process = false
+startup_timeout_s = 0.5
+ready_checks = [
+  {{ type = "tcp", host = "127.0.0.1", port = {tcp_server.port}, label = "RViz port", timeout_s = 0.01 }},
+]
+""",
+            encoding="utf-8",
+        )
+        app = create_app(
+            load_dashboard_config(config_path), DashboardSecurity(token="secret")
+        )
+        client = TestClient(app)
+        response = client.post("/api/services/vizor/start?token=secret")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["state"] == "ready"
+    assert body["last_exit_code"] == 1
+    assert body["last_error"] is None
+    assert body["ready_checks"][0]["ok"] is True
+    assert "compose label mismatch" in "\n".join(body["recent_logs"])
 
 
 def test_start_errors_are_clear_non_500(tmp_path: Path) -> None:

@@ -5,8 +5,9 @@ port = 8787
 [services.vizor]
 label = "Vizor + RViz"
 cwd = "."
-command = ["docker", "compose", "-f", "workshop.compose.yml", "up"]
-stop_command = ["docker", "compose", "-f", "workshop.compose.yml", "down"]
+command = ["uv", "run", "--directory", "server", "python", "-m", "operator_dashboard.workshop_compose", "up"]
+require_running_process = false
+stop_command = ["uv", "run", "--directory", "server", "python", "-m", "operator_dashboard.workshop_compose", "down"]
 startup_timeout_s = 240
 ready_checks = [
   { type = "tcp", host = "127.0.0.1", port = 9090, label = "rosbridge" },

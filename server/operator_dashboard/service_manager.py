@@ -271,19 +271,27 @@ class ServiceManager:
             return
 
         service.last_exit_code = returncode
-        if returncode != 0 and service.state not in {
-            ServiceState.STOPPING,
-            ServiceState.STOPPED,
-        }:
+        if (
+            returncode != 0
+            and service.config.require_running_process
+            and service.state not in {
+                ServiceState.STOPPING,
+                ServiceState.STOPPED,
+            }
+        ):
             service.state = ServiceState.FAILED
             service.last_error = (
                 service.last_error
                 or f"service exited with code {returncode}: {service_id}"
             )
-        elif returncode == 0 and service.state not in {
-            ServiceState.STOPPING,
-            ServiceState.STOPPED,
-        }:
+        elif (
+            returncode == 0
+            and service.config.require_running_process
+            and service.state not in {
+                ServiceState.STOPPING,
+                ServiceState.STOPPED,
+            }
+        ):
             service.state = ServiceState.STOPPED
 
     async def _cancel_reader_tasks(self, service: ManagedService) -> None:

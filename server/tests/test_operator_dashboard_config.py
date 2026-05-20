@@ -110,12 +110,25 @@ def test_example_config_starts_vizor_first_and_uses_default_pipecat_command() ->
     ]
     vizor = config.services["vizor"]
     assert vizor.cwd == str(repo_root)
-    assert vizor.command == ["docker", "compose", "-f", "workshop.compose.yml", "up"]
+    assert vizor.require_running_process is False
+    assert vizor.command == [
+        "uv",
+        "run",
+        "--directory",
+        "server",
+        "python",
+        "-m",
+        "operator_dashboard.workshop_compose",
+        "up",
+    ]
     assert vizor.stop_command == [
-        "docker",
-        "compose",
-        "-f",
-        "workshop.compose.yml",
+        "uv",
+        "run",
+        "--directory",
+        "server",
+        "python",
+        "-m",
+        "operator_dashboard.workshop_compose",
         "down",
     ]
     assert (

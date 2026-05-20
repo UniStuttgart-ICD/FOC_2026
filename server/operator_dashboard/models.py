@@ -68,6 +68,7 @@ class ServiceConfig(BaseModel):
     command: list[str]
     env: dict[str, str] = Field(default_factory=dict)
     include_in_global_actions: bool = True
+    require_running_process: bool = True
     stop_command: list[str] | None = None
     ready_checks: list[ReadyCheckConfig] = Field(default_factory=list)
     ready_patterns: list[str] = Field(default_factory=list)

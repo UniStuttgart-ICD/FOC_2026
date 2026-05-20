@@ -58,8 +58,18 @@ def create_app(config: DashboardConfig, security: DashboardSecurity) -> FastAPI:
         return JSONResponse(status_code=403, content={"detail": str(exc)})
 
     async def status_with_ready_checks(service_id: str) -> ServiceStatus:
-        status = manager.status(service_id)
         ready_checks = await health_checker.check_service(service_id)
+        service = manager._service(service_id)
+        status = manager.status(service_id)
+        if not service.config.require_running_process:
+            required_checks = [check for check in ready_checks if check.required]
+            if required_checks and all(check.ok for check in required_checks):
+                service.last_error = None
+                manager.set_state(service_id, ServiceState.READY)
+                status = manager.status(service_id)
+            elif status.state is ServiceState.READY:
+                manager.set_state(service_id, ServiceState.DEGRADED)
+                status = manager.status(service_id)
         return status.model_copy(update={"ready_checks": ready_checks})
 
     async def dashboard_status_with_ready_checks() -> DashboardStatus:

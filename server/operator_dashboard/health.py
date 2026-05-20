@@ -18,6 +18,7 @@ from operator_dashboard.service_manager import ManagedService, ServiceManager
 _POLL_INTERVAL_S = 0.25
 _PROCESS_EXIT_POLL_S = 0.02
 _READY_EXIT_SETTLE_S = 0.15
+_EXTERNAL_PROCESS_EXIT_SETTLE_S = 5.0
 
 
 class HealthChecker:
@@ -45,15 +46,23 @@ class HealthChecker:
 
         while True:
             service = self.manager._service(service_id)
-            await self._raise_if_process_exited_before_ready(service_id, service)
+            if service.config.require_running_process:
+                await self._raise_if_process_exited_before_ready(service_id, service)
 
             statuses = await self.check_service(service_id)
             if all(status.ok for status in statuses if status.required):
-                await self._raise_if_process_exited_before_ready(
-                    service_id, service, timeout_s=_READY_EXIT_SETTLE_S
-                )
+                if service.config.require_running_process:
+                    await self._raise_if_process_exited_before_ready(
+                        service_id, service, timeout_s=_READY_EXIT_SETTLE_S
+                    )
+                else:
+                    await self._settle_external_process_exit(
+                        service, timeout_s=_EXTERNAL_PROCESS_EXIT_SETTLE_S
+                    )
                 self.manager.set_state(service_id, ServiceState.READY)
                 return statuses
+
+            await self._raise_if_process_exited_before_ready(service_id, service)
 
             if asyncio.get_running_loop().time() >= deadline:
                 self.manager.set_state(service_id, ServiceState.DEGRADED)
@@ -82,13 +91,35 @@ class HealthChecker:
                 return
 
         service.last_exit_code = process.returncode
+        if process.returncode == 0 and not service.config.require_running_process:
+            return
         if process.returncode == 0:
             service.state = ServiceState.DEGRADED
             service.last_error = f"service exited before becoming ready: {service_id}"
         else:
             service.state = ServiceState.FAILED
-            service.last_error = f"service exited with code {process.returncode} before becoming ready: {service_id}"
+            service.last_error = (
+                f"service exited with code {process.returncode} "
+                f"before becoming ready: {service_id}"
+            )
         raise TimeoutError(service.last_error)
+
+    async def _settle_external_process_exit(
+        self, service: ManagedService, timeout_s: float
+    ) -> None:
+        process = service.process
+        if process is None or process.returncode is not None:
+            if process is not None:
+                service.last_exit_code = process.returncode
+            return
+        try:
+            await asyncio.wait_for(asyncio.shield(process.wait()), timeout=timeout_s)
+        except asyncio.TimeoutError:
+            return
+        service.last_exit_code = process.returncode
+        await self.manager._drain_or_cancel_reader_tasks(service)
+        self.manager._close_process_transport(process)
+        service.process = None
 
     async def start_all(
         self, service_ids: Iterable[str] | None = None
