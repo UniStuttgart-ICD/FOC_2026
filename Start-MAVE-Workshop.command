@@ -29,8 +29,10 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 sync_args=(sync)
+run_args=()
 if [ "$install_ur_rtde" -eq 1 ]; then
   sync_args+=(--extra robot)
+  run_args+=(--extra robot)
 fi
 
 if [ ! -x "server/.venv/bin/python" ] || [ "$install_ur_rtde" -eq 1 ]; then
@@ -51,9 +53,22 @@ if [ ! -x "server/.venv/bin/python" ] || [ "$install_ur_rtde" -eq 1 ]; then
   fi
 fi
 
+if [ "$install_ur_rtde" -eq 1 ]; then
+  echo "Verifying ur-rtde Python bindings..."
+  (
+    cd server || exit 1
+    uv run --extra robot python -c "import rtde_receive, rtde_control, rtde_io; print('ur-rtde Python bindings OK: import rtde_receive, rtde_control, rtde_io')"
+  )
+  verify_status=$?
+  if [ "$verify_status" -ne 0 ]; then
+    echo "ur-rtde verification failed. The package is named ur-rtde, but its Python modules are rtde_receive, rtde_control, and rtde_io."
+    exit "$verify_status"
+  fi
+fi
+
 (
   cd server || exit 1
-  uv run python -m operator_dashboard
+  uv run "${run_args[@]}" python -m operator_dashboard
 )
 exit_code=$?
 

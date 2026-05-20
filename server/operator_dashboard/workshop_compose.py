@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shlex
 import subprocess
 import sys
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -24,12 +28,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.action == "down":
         return _run_and_report(_compose_command("down", "--remove-orphans")).returncode
 
-    pull = _run_and_report(_compose_command("pull", "--quiet"))
-    if pull.returncode != 0:
-        _report_auth_failure_if_needed(pull)
-        return pull.returncode
+    with _anonymous_docker_config_env() as docker_env:
+        print("Using temporary anonymous Docker config for workshop image pulls.", flush=True)
+        pull = _run_and_report(_compose_command("pull", "--quiet"), env=docker_env)
+        if pull.returncode != 0:
+            _report_auth_failure_if_needed(pull)
+            return pull.returncode
 
-    up = _run_and_report(_compose_command("up", "--detach", "--remove-orphans"))
+        up = _run_and_report(
+            _compose_command("up", "--detach", "--remove-orphans"),
+            env=docker_env,
+        )
     if up.returncode != 0:
         _report_auth_failure_if_needed(up)
     return up.returncode
@@ -39,13 +48,29 @@ def _compose_command(*args: str) -> list[str]:
     return ["docker", "compose", "-f", str(COMPOSE_FILE), *args]
 
 
-def _run_and_report(command: list[str]) -> subprocess.CompletedProcess[str]:
-    result = _run(command)
+@contextmanager
+def _anonymous_docker_config_env() -> Iterator[dict[str, str]]:
+    with tempfile.TemporaryDirectory(prefix="mave-docker-config-") as config_dir:
+        env = os.environ.copy()
+        env["DOCKER_CONFIG"] = config_dir
+        yield env
+
+
+def _run_and_report(
+    command: list[str],
+    *,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    result = _run(command, env=env)
     _write_completed_process_output(result)
     return result
 
 
-def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
+def _run(
+    command: list[str],
+    *,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     print(f"$ {shlex.join(command)}", flush=True)
     try:
         return subprocess.run(
@@ -54,6 +79,7 @@ def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env=env,
             check=False,
         )
     except FileNotFoundError as exc:
@@ -80,8 +106,8 @@ def _report_auth_failure_if_needed(result: subprocess.CompletedProcess[str]) -> 
     print(
         "\nDocker registry authorization failed while pulling workshop images.\n"
         f"Compose file: {COMPOSE_FILE}\n"
-        "The current workshop images are public. On a student PC this is usually "
-        "stale Docker credentials or Docker Desktop registry state.\n"
+        "The dashboard already used a temporary anonymous Docker config, so saved "
+        "student Docker/GitHub credentials were ignored.\n"
         "Try these commands, then click Start again:\n"
         "  docker logout ghcr.io\n"
         "  docker logout\n"

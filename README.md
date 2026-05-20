@@ -30,6 +30,7 @@ To preinstall `ur-rtde` for physical UR robot verified execution:
 ```
 
 The launchers use the base `uv sync` install by default and do not install `ur-rtde` unless `--with-ur-rtde` is passed.
+The PyPI package is named `ur-rtde`; its Python modules are `rtde_receive`, `rtde_control`, and `rtde_io`, not `ur_rtde`.
 
 The launcher creates `server/.venv` when needed, starts the operator dashboard, and opens a local URL like:
 

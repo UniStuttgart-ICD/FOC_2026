@@ -31,7 +31,9 @@ if errorlevel 1 (
 )
 
 set "SYNC_EXTRA="
+set "RUN_EXTRA="
 if "%INSTALL_UR_RTDE%"=="1" set "SYNC_EXTRA= --extra robot"
+if "%INSTALL_UR_RTDE%"=="1" set "RUN_EXTRA=--extra robot"
 set "DID_SYNC=0"
 
 if not exist "server\.venv\Scripts\python.exe" (
@@ -62,8 +64,21 @@ if "%DID_SYNC%"=="0" if exist "server\.venv\Scripts\python.exe" if "%INSTALL_UR_
   popd
 )
 
+if "%INSTALL_UR_RTDE%"=="1" (
+  echo Verifying ur-rtde Python bindings...
+  pushd server
+  uv run --extra robot python -c "import rtde_receive, rtde_control, rtde_io; print('ur-rtde Python bindings OK: import rtde_receive, rtde_control, rtde_io')"
+  if errorlevel 1 (
+    popd
+    echo ur-rtde verification failed. The package is named ur-rtde, but its Python modules are rtde_receive, rtde_control, and rtde_io.
+    pause
+    exit /b 1
+  )
+  popd
+)
+
 pushd server
-uv run python -m operator_dashboard
+uv run %RUN_EXTRA% python -m operator_dashboard
 set EXIT_CODE=%ERRORLEVEL%
 popd
 

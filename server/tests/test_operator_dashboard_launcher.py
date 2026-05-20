@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from operator_dashboard.models import DashboardConfig, ServiceConfig
 from operator_dashboard.security import DashboardSecurity
@@ -18,7 +18,8 @@ def test_macos_launcher_installs_robot_extra_only_with_flag() -> None:
     assert "--with-ur-rtde" in script
     assert "uv sync" in script
     assert "--extra robot" in script
-    assert "uv run python -m operator_dashboard" in script
+    assert "import rtde_receive, rtde_control, rtde_io" in script
+    assert "uv run \"${run_args[@]}\" python -m operator_dashboard" in script
 
 
 def test_windows_launcher_installs_robot_extra_only_with_flag() -> None:
@@ -29,7 +30,8 @@ def test_windows_launcher_installs_robot_extra_only_with_flag() -> None:
     assert "--with-ur-rtde" in script
     assert "uv sync" in script
     assert "--extra robot" in script
-    assert "uv run python -m operator_dashboard" in script
+    assert "import rtde_receive, rtde_control, rtde_io" in script
+    assert "uv run %RUN_EXTRA% python -m operator_dashboard" in script
 
 
 def test_launcher_configures_graceful_shutdown_timeout(monkeypatch) -> None:
