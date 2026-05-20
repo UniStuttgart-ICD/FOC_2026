@@ -40,3 +40,27 @@ def test_workshop_compose_preserves_runtime_ports_and_services() -> None:
         "./server/logs/moveit_planning:/root/catkin_ws/logs/moveit_planning"
         in contents
     )
+
+
+def test_workshop_compose_gates_ros_dependents_on_healthchecks() -> None:
+    compose = Path(__file__).resolve().parents[2] / "workshop.compose.yml"
+
+    contents = compose.read_text(encoding="utf-8")
+
+    assert "socket.create_connection(('127.0.0.1', 11311), 2)" in contents
+    assert "socket.create_connection(('127.0.0.1', 9090), 2)" in contents
+    assert "socket.create_connection(('127.0.0.1', 6080), 2)" in contents
+    assert (
+        "vizor-demo:\n"
+        "    image: samulienko/noetic-vizor-rviz:latest\n"
+        "    tty: true\n"
+        "    environment:\n"
+        "      - ROS_HOSTNAME=vizor-demo\n"
+        "      - ROS_MASTER_URI=http://ros-core:11311"
+    ) in contents
+    assert (
+        "    depends_on:\n"
+        "      ros-core:\n"
+        "        condition: service_healthy"
+    ) in contents
+    assert contents.count("condition: service_healthy") == 3

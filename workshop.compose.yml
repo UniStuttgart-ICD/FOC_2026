@@ -18,8 +18,18 @@ services:
       - "10001:10001"
       - "10002:10002"
       - "10003:10003"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python3 -c "import socket; socket.create_connection(('127.0.0.1', 9090), 2).close(); socket.create_connection(('127.0.0.1', 6080), 2).close()"
+      interval: 2s
+      timeout: 3s
+      retries: 60
+      start_period: 5s
     depends_on:
-      - ros-core
+      ros-core:
+        condition: service_healthy
 
   ros-core:
     image: ghcr.io/samulko/noetic-vizor-local:latest
@@ -27,11 +37,21 @@ services:
       - "11311:11311"
     command:
       - roscore
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python3 -c "import socket; socket.create_connection(('127.0.0.1', 11311), 2).close()"
+      interval: 2s
+      timeout: 3s
+      retries: 60
+      start_period: 5s
 
   vizor-mcp:
     image: ghcr.io/samulko/01-docker-multi-actor-mcp:latest
     depends_on:
-      - vizor-demo
+      vizor-demo:
+        condition: service_healthy
     restart: unless-stopped
     command:
       - python
@@ -56,7 +76,8 @@ services:
   moveit-mcp:
     image: ghcr.io/samulko/01-docker-multi-actor-mcp:latest
     depends_on:
-      - vizor-demo
+      vizor-demo:
+        condition: service_healthy
     restart: unless-stopped
     command:
       - python
