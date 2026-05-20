@@ -112,6 +112,49 @@ RViz/noVNC is also available at:
 http://127.0.0.1:6080/vnc_auto.html?host=127.0.0.1&port=6080&path=websockify&autoconnect=true&resize=remote
 ```
 
+## iOS Browser Client
+
+This repo does not install or run natively on iOS. The workshop runtime runs on Windows; an iPhone or iPad can join only as a browser client for Pipecat and RViz/noVNC.
+
+Requirements:
+
+- iPhone or iPad on the same trusted LAN as the Windows host
+- iOS browser with microphone permission enabled
+- Windows Firewall allowing inbound LAN access to ports `7860` and `6080`
+
+Expose Pipecat on the LAN with an ignored local dashboard config:
+
+```powershell
+Copy-Item server\operator_dashboard\default_config.toml operator_dashboard.local.toml
+notepad operator_dashboard.local.toml
+```
+
+In `[services.pipecat]`, change:
+
+```toml
+command = ["uv", "run", "bot.py", "--host", "0.0.0.0"]
+```
+
+Keep `[dashboard] host = "127.0.0.1"`. The dashboard is intentionally local-only, and non-localhost dashboard hosts are rejected by config validation.
+
+Find the Windows host IPv4 address:
+
+```powershell
+ipconfig
+```
+
+After starting the runtime from Windows, open these URLs on iOS with that IPv4 address:
+
+```text
+http://<windows-lan-ip>:7860/client/
+```
+
+```text
+http://<windows-lan-ip>:6080/vnc_auto.html?host=<windows-lan-ip>&port=6080&path=websockify&autoconnect=true&resize=remote
+```
+
+Do not use `localhost` or `127.0.0.1` on iOS; those point to the iOS device. If iOS blocks microphone or WebRTC use over plain LAN HTTP, the current repo does not provide an HTTPS mobile mode.
+
 ## Manual Commands
 
 Use these only when debugging outside the dashboard.
