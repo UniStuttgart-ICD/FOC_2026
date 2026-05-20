@@ -21,6 +21,10 @@ dependencies = [
     "uvicorn>=0.32.0,<1",
     "psutil>=6.0.0,<8",
     "roslibpy>=0.3.0,<2",
+]
+
+[project.optional-dependencies]
+robot = [
     "ur-rtde>=1.6.2,<2",
 ]
 

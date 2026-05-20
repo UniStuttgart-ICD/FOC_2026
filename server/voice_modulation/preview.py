@@ -14,7 +14,7 @@ from google import genai
 from agent_control.prompts import SPEECH_DELIVERY_STYLE
 from voice_modulation.gemini_voices import is_gemini_live_voice
 from voice_modulation.settings import VoiceModulationSettings
-from voice_runtime.gemini_live_speech import (
+from voice_runtime.gemini_live_audio import (
     DEFAULT_GEMINI_LIVE_MODEL,
     DEFAULT_GEMINI_LIVE_VOICE,
     build_strict_speech_prompt,

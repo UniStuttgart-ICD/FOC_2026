@@ -4,11 +4,32 @@ Voice-controlled UR10 workshop runtime with a Python operator dashboard, Pipecat
 
 ## What Students Run
 
-Start from the repo root:
+Start from the repo root on Windows:
 
 ```cmd
 Start-MAVE-Workshop.cmd
 ```
+
+To preinstall `ur-rtde` for physical UR robot verified execution:
+
+```cmd
+Start-MAVE-Workshop.cmd --with-ur-rtde
+```
+
+Start from the repo root on macOS:
+
+```bash
+chmod +x ./Start-MAVE-Workshop.command
+./Start-MAVE-Workshop.command
+```
+
+To preinstall `ur-rtde` for physical UR robot verified execution:
+
+```bash
+./Start-MAVE-Workshop.command --with-ur-rtde
+```
+
+The launchers use the base `uv sync` install by default and do not install `ur-rtde` unless `--with-ur-rtde` is passed.
 
 The launcher creates `server/.venv` when needed, starts the operator dashboard, and opens a local URL like:
 
@@ -25,13 +46,14 @@ In the dashboard, click **Start system**. It starts:
 
 ## Requirements
 
-- Windows with PowerShell or Command Prompt
+- Windows with PowerShell or Command Prompt, or macOS with Terminal
 - Git
 - Docker Desktop in Linux containers mode
 - Docker Compose v2 as `docker compose`
 - `uv` on `PATH`
 - Python `>=3.10,<3.13`; `uv` manages the environment
 - Browser with microphone support
+- `ur-rtde` is only needed for verified execution against a physical UR robot
 - Pullable Docker images used by `workshop.compose.yml`:
   - `samulienko/noetic-vizor-rviz:latest`
   - `ghcr.io/samulko/noetic-vizor-local:latest`
@@ -82,6 +104,14 @@ Install Python dependencies:
 ```powershell
 cd server
 uv sync
+cd ..
+```
+
+That base install supports the operator dashboard, persona/modulation lab, Pipecat, MCP servers, and simulation services. For physical UR robot verified execution, install the optional robot extra:
+
+```powershell
+cd server
+uv sync --extra robot
 cd ..
 ```
 
@@ -159,12 +189,23 @@ Do not use `localhost` or `127.0.0.1` on iOS; those point to the iOS device. If 
 
 Use these only when debugging outside the dashboard.
 
-Run the dashboard:
+Run the dashboard without installing `ur-rtde`:
 
 ```powershell
 cd server
 uv run python -m operator_dashboard
 ```
+
+The dashboard itself does not need `ur-rtde`. Starting **Verified Execution Server** uses the `robot` extra.
+
+Run the Agent Persona app only:
+
+```powershell
+cd server
+uv run uvicorn voice_modulation.app:app --host 127.0.0.1 --port 8897
+```
+
+Open `http://127.0.0.1:8897`. This does not start the dashboard, Pipecat, Docker, or `ur-rtde`.
 
 Run the image-based Vizor/RViz/MCP stack:
 
@@ -190,7 +231,7 @@ Run verified execution:
 
 ```powershell
 cd server
-uv run python -m verified_execution_server
+uv run --extra robot python -m verified_execution_server
 ```
 
 Run MoveIt MCP directly:

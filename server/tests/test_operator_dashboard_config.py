@@ -81,6 +81,10 @@ def test_operator_dashboard_and_moveit_mcp_are_packaged() -> None:
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
 
     assert pyproject["project"]["name"] == "pipecat-agent"
+    assert "ur-rtde>=1.6.2,<2" not in pyproject["project"]["dependencies"]
+    assert pyproject["project"]["optional-dependencies"]["robot"] == [
+        "ur-rtde>=1.6.2,<2"
+    ]
     assert importlib.util.find_spec("operator_dashboard") is not None
     assert importlib.util.find_spec("moveit_mcp") is not None
     assert importlib.util.find_spec("vizor_mcp") is not None
@@ -147,6 +151,8 @@ def test_example_config_starts_vizor_first_and_uses_default_pipecat_command() ->
     assert execution.command == [
         "uv",
         "run",
+        "--extra",
+        "robot",
         "python",
         "-m",
         "verified_execution_server",

@@ -1,9 +1,35 @@
 from __future__ import annotations
 
+from pathlib import Path
 import sys
 
 from operator_dashboard.models import DashboardConfig, ServiceConfig
 from operator_dashboard.security import DashboardSecurity
+
+
+def test_macos_launcher_installs_robot_extra_only_with_flag() -> None:
+    launcher = Path(__file__).resolve().parents[2] / "Start-MAVE-Workshop.command"
+
+    script = launcher.read_text(encoding="utf-8")
+    script_bytes = launcher.read_bytes()
+
+    assert script.startswith("#!/usr/bin/env bash\n")
+    assert b"\r" not in script_bytes
+    assert "--with-ur-rtde" in script
+    assert "uv sync" in script
+    assert "--extra robot" in script
+    assert "uv run python -m operator_dashboard" in script
+
+
+def test_windows_launcher_installs_robot_extra_only_with_flag() -> None:
+    launcher = Path(__file__).resolve().parents[2] / "Start-MAVE-Workshop.cmd"
+
+    script = launcher.read_text(encoding="utf-8")
+
+    assert "--with-ur-rtde" in script
+    assert "uv sync" in script
+    assert "--extra robot" in script
+    assert "uv run python -m operator_dashboard" in script
 
 
 def test_launcher_configures_graceful_shutdown_timeout(monkeypatch) -> None:

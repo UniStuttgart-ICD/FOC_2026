@@ -2486,8 +2486,12 @@ dependencies = [
     { name = "silero-vad" },
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "tomlkit" },
-    { name = "ur-rtde" },
     { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+robot = [
+    { name = "ur-rtde" },
 ]
 
 [package.dev-dependencies]
@@ -2516,9 +2520,10 @@ requires-dist = [
     { name = "silero-vad", specifier = ">=6.0.0,<7" },
     { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.0" },
     { name = "tomlkit", specifier = ">=0.13,<1" },
-    { name = "ur-rtde", specifier = ">=1.6.2,<2" },
+    { name = "ur-rtde", marker = "extra == 'robot'", specifier = ">=1.6.2,<2" },
     { name = "uvicorn", specifier = ">=0.32.0,<1" },
 ]
+provides-extras = ["robot"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import subprocess
 import sys
 import types
 from dataclasses import asdict
@@ -12,6 +13,24 @@ from fastapi.testclient import TestClient
 
 from voice_modulation.settings import BUILT_IN_PRESETS
 from voice_runtime.profiles import TTSProfile
+
+
+def test_importing_persona_app_does_not_load_pipecat() -> None:
+    server_dir = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; import voice_modulation.app; print('pipecat' in sys.modules)",
+        ],
+        cwd=server_dir,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert result.stdout.strip() == "False"
+    assert "Pipecat" not in result.stderr
 
 
 def _pcm16() -> bytes:
