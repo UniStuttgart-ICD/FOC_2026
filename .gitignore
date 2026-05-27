@@ -256,7 +256,8 @@ docs/plan.html
 # Agent-only repo instructions
 ARCHITECTURE.md
 CONTEXT.md
-docs/
+docs/*
+!docs/ur-ros2-state-test.md
 AGENTS.md
 tasks.md
 CLAUDE.md

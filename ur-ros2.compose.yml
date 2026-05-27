@@ -1,0 +1,23 @@
+name: ur-ros2-state-test
+
+services:
+  ur-ros2-driver:
+    build:
+      context: .
+      dockerfile: docker/ur-ros2-humble/Dockerfile
+    network_mode: host
+    environment:
+      ROS_DOMAIN_ID: "42"
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+    command:
+      - bash
+      - -lc
+      - >
+        source /ur_ws/install/setup.bash &&
+        ros2 launch ur_robot_driver ur_control.launch.py
+        ur_type:=ur10e
+        robot_ip:=169.254.130.206
+        reverse_ip:=169.254.130.5
+        headless_mode:=true
+        activate_joint_controller:=false
+        launch_rviz:=false

@@ -214,6 +214,26 @@ Run the image-based Vizor/RViz/MCP stack:
 docker compose -f workshop.compose.yml up
 ```
 
+Run the ROS 2 UR10e state-only driver test:
+
+```powershell
+docker stop ur-netcheck ur-netcheck-reverse
+docker compose -f ur-ros2.compose.yml up --build
+```
+
+Put the robot in Remote Control mode before starting the sidecar. The launch runs in `headless_mode`, advertises `169.254.130.5` as the driver return IP, sends the External Control script from ROS, and leaves the joint controller inactive. This first pass verifies state only; do not send motion commands.
+
+Current progress, live verification notes, and the motion gate are documented in `docs/ur-ros2-state-test.md`.
+
+Verify from another terminal:
+
+```powershell
+docker compose -f ur-ros2.compose.yml exec ur-ros2-driver bash -lc "source /ur_ws/install/setup.bash && ros2 node list"
+docker compose -f ur-ros2.compose.yml exec ur-ros2-driver bash -lc "source /ur_ws/install/setup.bash && ros2 topic list"
+docker compose -f ur-ros2.compose.yml exec ur-ros2-driver bash -lc "source /ur_ws/install/setup.bash && ros2 topic echo /joint_states --once"
+docker compose -f ur-ros2.compose.yml exec ur-ros2-driver bash -lc "source /ur_ws/install/setup.bash && ros2 control list_controllers"
+```
+
 Run Pipecat:
 
 ```powershell
